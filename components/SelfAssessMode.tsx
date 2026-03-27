@@ -2,15 +2,17 @@
 
 import { useState } from 'react'
 import { Flashcard } from '@/data/flashcards'
+import { recordWordStruggle } from '@/lib/wordStruggle'
 import CardFace from './CardFace'
 import { CompletionScreen } from './FlipMode'
 
 interface Props {
   cards: Flashcard[]
   onComplete: (knewCount: number, total: number) => void
+  userEmail?: string
 }
 
-export default function SelfAssessMode({ cards, onComplete }: Props) {
+export default function SelfAssessMode({ cards, onComplete, userEmail }: Props) {
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [knew, setKnew] = useState(0)
@@ -20,6 +22,7 @@ export default function SelfAssessMode({ cards, onComplete }: Props) {
   const progress = (index / cards.length) * 100
 
   const answer = (didKnow: boolean) => {
+    if (userEmail) recordWordStruggle(userEmail, current.word, 'self-assess', didKnow)
     const newKnew = didKnow ? knew + 1 : knew
     if (index + 1 >= cards.length) {
       setKnew(newKnew)

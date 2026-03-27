@@ -10,7 +10,8 @@ export default function AudioButton({ text }: Props) {
   const [loading, setLoading] = useState(false)
   const [playing, setPlaying] = useState(false)
 
-  const playAudio = async () => {
+  const playAudio = async (e: React.MouseEvent) => {
+    e.stopPropagation()
     if (loading || playing) return
     setLoading(true)
     try {

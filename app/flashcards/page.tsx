@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { flashcards } from '@/data/flashcards'
 import FlipMode from '@/components/FlipMode'
@@ -10,21 +11,28 @@ import QuizMode from '@/components/QuizMode'
 type Mode = 'flip' | 'self-assess' | 'quiz'
 
 export default function FlashcardsPage() {
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [mode, setMode] = useState<Mode>('flip')
-  const [studentName, setStudentName] = useState('')
-  const [studentEmail, setStudentEmail] = useState('')
 
   useEffect(() => {
-    const name = sessionStorage.getItem('student_name')
-    const email = sessionStorage.getItem('student_email')
-    if (!name || !email) {
+    if (status === 'unauthenticated') {
       router.replace('/')
-      return
     }
-    setStudentName(name)
-    setStudentEmail(email)
-  }, [router])
+  }, [status, router])
+
+  if (status === 'loading') {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="text-[#416ebe] text-sm">Loading...</div>
+      </main>
+    )
+  }
+
+  if (status === 'unauthenticated') return null
+
+  const studentName = session?.user?.name?.split(' ')[0] || 'Student'
+  const studentEmail = session?.user?.email || ''
 
   const handleSessionComplete = async (results: {
     mode: string
@@ -32,6 +40,24 @@ export default function FlashcardsPage() {
     total: number
     knewCount?: number
   }) => {
+    // Save to Supabase
+    try {
+      await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: studentEmail,
+          activity_type: 'flashcard',
+          activity_id: results.mode,
+          score: results.score ?? results.knewCount ?? null,
+          total: results.total,
+        }),
+      })
+    } catch {
+      // Non-blocking
+    }
+
+    // Notify teacher
     try {
       await fetch('/api/notify', {
         method: 'POST',
@@ -59,7 +85,13 @@ export default function FlashcardsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-[#416ebe]">English with Laura</h1>
+          <button
+            onClick={() => router.push('/home')}
+            className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-1"
+          >
+            &larr; Home
+          </button>
+          <h1 className="text-xl font-bold text-[#416ebe]">New Words</h1>
           <p className="text-xs text-gray-400">Hi, {studentName}!</p>
         </div>
         <span className="text-xs text-gray-400 bg-[#e6f0fa] px-3 py-1 rounded-full">
@@ -97,6 +129,7 @@ export default function FlashcardsPage() {
       {mode === 'self-assess' && (
         <SelfAssessMode
           cards={flashcards}
+          userEmail={studentEmail}
           onComplete={(knewCount, total) =>
             handleSessionComplete({ mode: 'self-assess', knewCount, total })
           }
@@ -105,6 +138,7 @@ export default function FlashcardsPage() {
       {mode === 'quiz' && (
         <QuizMode
           cards={flashcards}
+          userEmail={studentEmail}
           onComplete={(score, total) =>
             handleSessionComplete({ mode: 'quiz', score, total })
           }

@@ -2,12 +2,14 @@
 
 import { useState, useMemo } from 'react'
 import { Flashcard } from '@/data/flashcards'
+import { recordWordStruggle } from '@/lib/wordStruggle'
 import AudioButton from './AudioButton'
 import { CompletionScreen } from './FlipMode'
 
 interface Props {
   cards: Flashcard[]
   onComplete: (score: number, total: number) => void
+  userEmail?: string
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -21,7 +23,7 @@ function getOptions(cards: Flashcard[], correct: Flashcard): string[] {
   return shuffle([correct.word, ...wrong])
 }
 
-export default function QuizMode({ cards, onComplete }: Props) {
+export default function QuizMode({ cards, onComplete, userEmail }: Props) {
   const [index, setIndex] = useState(0)
   const [score, setScore] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -35,6 +37,7 @@ export default function QuizMode({ cards, onComplete }: Props) {
   const handleSelect = (option: string) => {
     if (selected !== null) return
     setSelected(option)
+    if (userEmail) recordWordStruggle(userEmail, current.word, 'quiz', option === current.word)
   }
 
   const next = () => {
