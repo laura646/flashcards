@@ -70,6 +70,13 @@ export default function SuperadminPage() {
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
+  // Confirmation modal for removals
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string
+    message: string
+    onConfirm: () => void
+  } | null>(null)
+
   // Student management: move/enroll in additional course
   const [studentAction, setStudentAction] = useState<{ email: string; type: 'move' | 'add-to-course' } | null>(null)
   const [targetCourseId, setTargetCourseId] = useState('')
@@ -229,9 +236,18 @@ export default function SuperadminPage() {
     }
   }
 
-  // ── Remove teacher from course ──
-  const removeTeacher = async (teacherEmail: string) => {
+  // ── Remove teacher from course (with confirmation) ──
+  const confirmRemoveTeacher = (teacherEmail: string, teacherName: string) => {
+    setConfirmModal({
+      title: 'Remove Teacher',
+      message: `Are you sure you want to remove ${teacherName} from ${selectedCourse?.name}?`,
+      onConfirm: () => doRemoveTeacher(teacherEmail),
+    })
+  }
+
+  const doRemoveTeacher = async (teacherEmail: string) => {
     if (!selectedCourse) return
+    setConfirmModal(null)
     try {
       await fetch('/api/superadmin', {
         method: 'POST',
@@ -249,10 +265,18 @@ export default function SuperadminPage() {
     }
   }
 
-  // ── Remove student from course ──
-  const removeStudent = async (studentEmail: string) => {
+  // ── Remove student from course (with confirmation) ──
+  const confirmRemoveStudent = (studentEmail: string, studentName: string) => {
+    setConfirmModal({
+      title: 'Remove Student',
+      message: `Are you sure you want to remove ${studentName} from ${selectedCourse?.name}? Their progress will be preserved.`,
+      onConfirm: () => doRemoveStudent(studentEmail),
+    })
+  }
+
+  const doRemoveStudent = async (studentEmail: string) => {
     if (!selectedCourse) return
-    if (!confirm(`Remove this student from ${selectedCourse.name}?`)) return
+    setConfirmModal(null)
     try {
       const res = await fetch('/api/superadmin', {
         method: 'POST',
@@ -268,7 +292,7 @@ export default function SuperadminPage() {
         showToast(data.error || 'Failed to remove student')
         return
       }
-      showToast('Student removed')
+      showToast('Student removed (progress preserved)')
       await Promise.all([loadCourseDetail(selectedCourse), loadCourses()])
     } catch {
       showToast('Failed to remove student')
@@ -610,7 +634,7 @@ export default function SuperadminPage() {
                         <p className="text-xs text-gray-400">{ct.teacher_email}</p>
                       </div>
                       <button
-                        onClick={() => removeTeacher(ct.teacher_email)}
+                        onClick={() => confirmRemoveTeacher(ct.teacher_email, ct.users?.name || ct.teacher_email)}
                         className="text-xs text-red-400 hover:text-red-600 transition-colors"
                       >
                         Remove
@@ -673,7 +697,7 @@ export default function SuperadminPage() {
                             + Course
                           </button>
                           <button
-                            onClick={() => removeStudent(cs.student_email)}
+                            onClick={() => confirmRemoveStudent(cs.student_email, cs.users?.name || cs.student_email)}
                             className="text-xs text-red-400 hover:text-red-600 font-bold transition-colors"
                           >
                             Remove
@@ -737,6 +761,30 @@ export default function SuperadminPage() {
 
             {/* Course deletion removed — too destructive for casual access */}
           </>
+        )}
+
+        {/* Confirmation modal */}
+        {confirmModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+              <h2 className="text-lg font-bold text-[#46464b] mb-2">{confirmModal.title}</h2>
+              <p className="text-sm text-gray-500 mb-6">{confirmModal.message}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={confirmModal.onConfirm}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                >
+                  Yes, remove
+                </button>
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-[#46464b] font-bold py-3 rounded-xl text-sm transition-colors"
+                >
+                  No, cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Edit course modal overlay */}

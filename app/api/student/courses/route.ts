@@ -15,6 +15,7 @@ export async function GET() {
       .from('course_students')
       .select('course_id')
       .eq('student_email', session.user.email)
+      .is('removed_at', null)
 
     if (enrollError) throw enrollError
 

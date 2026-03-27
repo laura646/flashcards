@@ -69,6 +69,7 @@ export async function getStudentCourseIds(email: string): Promise<string[]> {
     .from('course_students')
     .select('course_id')
     .eq('student_email', email)
+    .is('removed_at', null)
 
   return (data || []).map((c: { course_id: string }) => c.course_id)
 }
@@ -99,6 +100,7 @@ export async function hasAccessToCourse(
     .select('id')
     .eq('course_id', courseId)
     .eq('student_email', email)
+    .is('removed_at', null)
     .single()
   return !!data
 }

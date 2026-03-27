@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
       const [teacherRes, studentRes, lessonRes] = await Promise.all([
         supabase.from('course_teachers').select('course_id').in('course_id', courseIds),
-        supabase.from('course_students').select('course_id').in('course_id', courseIds),
+        supabase.from('course_students').select('course_id').in('course_id', courseIds).is('removed_at', null),
         supabase.from('lessons').select('course_id').in('course_id', courseIds),
       ])
 
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       const [courseRes, teachersRes, studentsRes] = await Promise.all([
         supabase.from('courses').select('*').eq('id', courseId).single(),
         supabase.from('course_teachers').select('*').eq('course_id', courseId),
-        supabase.from('course_students').select('*').eq('course_id', courseId),
+        supabase.from('course_students').select('*').eq('course_id', courseId).is('removed_at', null),
       ])
 
       if (courseRes.error) throw courseRes.error
@@ -334,18 +334,39 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'course_id and student_email required' }, { status: 400 })
       }
 
+      const cleanEmail = student_email.toLowerCase()
+
+      // Check if student was previously soft-deleted — re-activate them
+      const { data: existing } = await supabase
+        .from('course_students')
+        .select('id, removed_at')
+        .eq('course_id', course_id)
+        .eq('student_email', cleanEmail)
+        .maybeSingle()
+
+      if (existing) {
+        if (existing.removed_at) {
+          // Re-activate: clear removed_at
+          const { error } = await supabase
+            .from('course_students')
+            .update({ removed_at: null })
+            .eq('id', existing.id)
+          if (error) throw error
+          return NextResponse.json({ ok: true, message: 'Student re-enrolled' })
+        }
+        return NextResponse.json({ ok: true, message: 'Already enrolled' })
+      }
+
+      // New enrollment
       const { error } = await supabase
         .from('course_students')
-        .upsert(
-          { course_id, student_email: student_email.toLowerCase() },
-          { onConflict: 'course_id,student_email' }
-        )
+        .insert({ course_id, student_email: cleanEmail })
 
       if (error) throw error
       return NextResponse.json({ ok: true })
     }
 
-    // ── Remove student from a course ──
+    // ── Remove student from a course (soft delete — preserves progress) ──
     if (action === 'remove-student') {
       const { course_id, student_email } = body
       if (!course_id || !student_email) {
@@ -354,9 +375,10 @@ export async function POST(req: NextRequest) {
 
       const { error } = await supabase
         .from('course_students')
-        .delete()
+        .update({ removed_at: new Date().toISOString() })
         .eq('course_id', course_id)
         .eq('student_email', student_email)
+        .is('removed_at', null)
 
       if (error) throw error
       return NextResponse.json({ ok: true })
