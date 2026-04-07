@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { rateLimit } from '@/lib/rate-limit';
+
+const MAX_TEXT_LENGTH = 500; // characters — prevent abuse of TTS API
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -8,11 +11,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Rate limit: 20 TTS requests per minute per user
+  const { allowed } = rateLimit(`audio:${session.user.email}`, 20);
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 });
+  }
+
   try {
     const { text } = await req.json();
 
     if (!text) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 });
+    }
+
+    if (text.length > MAX_TEXT_LENGTH) {
+      return NextResponse.json({ error: `Text too long (max ${MAX_TEXT_LENGTH} characters)` }, { status: 400 });
     }
 
     const apiKey = process.env.ELEVENLABS_API_KEY;

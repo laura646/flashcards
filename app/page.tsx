@@ -1,18 +1,41 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSession, signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
 export default function LandingPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (status === 'authenticated') {
       router.replace('/home')
     }
   }, [status, router])
+
+  const handleCredentialsLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    const result = await signIn('credentials', {
+      email: email.trim().toLowerCase(),
+      password,
+      redirect: false,
+    })
+
+    if (result?.error) {
+      setError('Invalid email or password')
+      setLoading(false)
+    } else if (result?.ok) {
+      router.replace('/home')
+    }
+  }
 
   if (status === 'loading') {
     return (
@@ -38,14 +61,67 @@ export default function LandingPage() {
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-[#cddcf0] w-full max-w-md p-8 text-center">
-        <h2 className="text-xl font-bold text-[#46464b] mb-1">
-          Ready to practise?
+      <div className="bg-white rounded-2xl shadow-sm border border-[#cddcf0] w-full max-w-md p-8">
+        <h2 className="text-xl font-bold text-[#46464b] mb-1 text-center">
+          Welcome back
         </h2>
-        <p className="text-sm text-gray-500 mb-6">
-          Sign in with your Google account to get started. Your progress will be saved.
+        <p className="text-sm text-gray-500 mb-6 text-center">
+          Sign in to continue learning
         </p>
 
+        {/* Email/Password Form */}
+        <form onSubmit={handleCredentialsLogin} className="space-y-3">
+          <div>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
+            />
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-500 font-medium">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+
+        <div className="text-right mt-2">
+          <button
+            onClick={() => router.push('/forgot-password')}
+            className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors"
+          >
+            Forgot password?
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-[#cddcf0]" />
+          <span className="text-xs text-gray-400">or</span>
+          <div className="flex-1 h-px bg-[#cddcf0]" />
+        </div>
+
+        {/* Google Sign In */}
         <button
           onClick={() => signIn('google', { callbackUrl: '/home' })}
           className="w-full bg-white hover:bg-gray-50 text-[#46464b] font-bold py-3 rounded-lg text-sm transition-colors border-2 border-[#cddcf0] hover:border-[#416ebe] flex items-center justify-center gap-3"
@@ -70,6 +146,17 @@ export default function LandingPage() {
           </svg>
           Sign in with Google
         </button>
+
+        {/* Sign Up Link */}
+        <p className="text-center text-sm text-gray-500 mt-6">
+          Don&apos;t have an account?{' '}
+          <button
+            onClick={() => router.push('/signup')}
+            className="text-[#416ebe] font-bold hover:underline"
+          >
+            Sign up
+          </button>
+        </p>
       </div>
 
       <p className="mt-6 text-xs text-gray-400">

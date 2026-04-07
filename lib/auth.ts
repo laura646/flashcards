@@ -1,6 +1,8 @@
 import { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
+import CredentialsProvider from 'next-auth/providers/credentials'
 import { supabase } from './supabase'
+import bcrypt from 'bcryptjs'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -8,12 +10,37 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    CredentialsProvider({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null
+
+        const { data: user } = await supabase
+          .from('users')
+          .select('email, name, password_hash, blocked')
+          .eq('email', credentials.email.toLowerCase().trim())
+          .single()
+
+        if (!user) return null
+        if (user.blocked) return null
+        if (!user.password_hash) return null // Google-only user, no password set
+
+        const valid = await bcrypt.compare(credentials.password, user.password_hash)
+        if (!valid) return null
+
+        return { id: user.email, email: user.email, name: user.name }
+      },
+    }),
   ],
   session: {
     strategy: 'jwt',
   },
   callbacks: {
-    async signIn({ user }) {
+    async signIn({ user, account }) {
       if (user.email) {
         try {
           // Check if user is blocked
@@ -28,12 +55,13 @@ export const authOptions: NextAuthOptions = {
           }
 
           // Upsert user — only update name, never overwrite role
+          // Only auto-create users for Google sign-in (credentials users are created via /api/auth/signup)
           if (existingUser) {
             await supabase
               .from('users')
               .update({ name: user.name || '' })
               .eq('email', user.email)
-          } else {
+          } else if (account?.provider === 'google') {
             await supabase
               .from('users')
               .insert({ email: user.email, name: user.name || '', role: 'student' })

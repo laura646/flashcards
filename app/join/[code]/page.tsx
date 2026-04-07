@@ -13,6 +13,12 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
   const [enrolling, setEnrolling] = useState(false)
   const [enrolled, setEnrolled] = useState(false)
 
+  // Email/password sign-in state
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
+
   // Fetch course info by invite code
   useEffect(() => {
     fetch(`/api/join?code=${encodeURIComponent(code)}`)
@@ -53,6 +59,24 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
         })
     }
   }, [status, courseName, enrolled, enrolling, code, router])
+
+  const handleCredentialsLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginError('')
+    setLoginLoading(true)
+
+    const result = await signIn('credentials', {
+      email: email.trim().toLowerCase(),
+      password,
+      redirect: false,
+    })
+
+    if (result?.error) {
+      setLoginError('Invalid email or password')
+      setLoginLoading(false)
+    }
+    // If success, the useEffect above will handle enrollment
+  }
 
   // Error state
   if (error) {
@@ -118,15 +142,53 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
         />
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-[#cddcf0] w-full max-w-md p-8 text-center">
-        <div className="text-4xl mb-3">📚</div>
-        <h2 className="text-lg font-bold text-[#46464b] mb-1">
+      <div className="bg-white rounded-2xl shadow-sm border border-[#cddcf0] w-full max-w-md p-8">
+        <div className="text-4xl mb-3 text-center">📚</div>
+        <h2 className="text-lg font-bold text-[#46464b] mb-1 text-center">
           Join {courseName}
         </h2>
-        <p className="text-sm text-gray-500 mb-6">
-          Sign in with your Google account to join this course.
+        <p className="text-sm text-gray-500 mb-6 text-center">
+          Sign in to join this course.
         </p>
 
+        {/* Email/Password Form */}
+        <form onSubmit={handleCredentialsLogin} className="space-y-3">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
+          />
+          {loginError && (
+            <p className="text-xs text-red-500 font-medium">{loginError}</p>
+          )}
+          <button
+            type="submit"
+            disabled={loginLoading}
+            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
+          >
+            {loginLoading ? 'Signing in...' : 'Sign in & Join'}
+          </button>
+        </form>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-[#cddcf0]" />
+          <span className="text-xs text-gray-400">or</span>
+          <div className="flex-1 h-px bg-[#cddcf0]" />
+        </div>
+
+        {/* Google Sign In */}
         <button
           onClick={() => signIn('google', { callbackUrl: `/join/${code}` })}
           className="w-full bg-white hover:bg-gray-50 text-[#46464b] font-bold py-3 rounded-lg text-sm transition-colors border-2 border-[#cddcf0] hover:border-[#416ebe] flex items-center justify-center gap-3"
@@ -139,6 +201,16 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
           </svg>
           Sign in with Google
         </button>
+
+        <p className="text-center text-sm text-gray-500 mt-6">
+          Don&apos;t have an account?{' '}
+          <button
+            onClick={() => router.push(`/signup?redirect=/join/${code}`)}
+            className="text-[#416ebe] font-bold hover:underline"
+          >
+            Sign up
+          </button>
+        </p>
       </div>
 
       <p className="mt-6 text-xs text-gray-400">englishwithlaura.com</p>

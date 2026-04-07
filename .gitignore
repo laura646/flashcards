@@ -5,3 +5,4 @@ node_modules/
 .next/
 .vercel
 tsconfig.tsbuildinfo
+supabase-*.sql

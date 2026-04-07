@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-
+import { useRouter, useSearchParams } from 'next/navigation'
+import GapFillBuilder from '@/components/GapFillBuilder'
 // Role-based admin check
 
 // ── Types ──
@@ -20,6 +19,11 @@ interface Lesson {
   flashcard_count?: number
   exercise_count?: number
   block_counts?: Record<string, number>
+  lesson_type?: string
+  is_template?: boolean
+  template_category?: string | null
+  template_level?: string | null
+  course_id?: string | null
 }
 
 interface Flashcard {
@@ -54,6 +58,9 @@ interface Exercise {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   groupData?: any  // For group_sort type
   order_index: number
+  points_per_answer?: number
+  completion_bonus?: number
+  is_mandatory?: boolean
 }
 
 const EXERCISE_TYPES = [
@@ -67,7 +74,60 @@ const EXERCISE_TYPES = [
   { value: 'type_answer', label: 'Type the Answer', icon: '\u2328\uFE0F' },
   { value: 'complete_sentence', label: 'Complete the Sentence', icon: '\uD83D\uDCDD' },
   { value: 'group_sort', label: 'Group Sort', icon: '\uD83D\uDDC2\uFE0F' },
+  { value: 'dictation', label: 'Dictation', icon: '\uD83C\uDFA7' },
+  { value: 'error_correction', label: 'Error Correction', icon: '\uD83D\uDD0D' },
+  { value: 'rank_order', label: 'Rank Order', icon: '\uD83D\uDD22' },
+  { value: 'text_sequencing', label: 'Text Sequencing', icon: '\uD83D\uDCC4' },
+  { value: 'anagram', label: 'Anagram', icon: '\uD83D\uDD24' },
+  { value: 'cloze_listening', label: 'Cloze Listening', icon: '\uD83C\uDFA7' },
 ]
+
+const LESSON_TYPES = [
+  { value: 'lesson', label: 'Lesson', icon: '\uD83D\uDCDA' },
+  { value: 'mid_course_test', label: 'Mid-Course Test', icon: '\uD83D\uDCDD' },
+  { value: 'final_test', label: 'Final Test', icon: '\uD83C\uDF93' },
+  { value: 'review_test', label: 'Review Test', icon: '\uD83D\uDD04' },
+]
+
+const TEMPLATE_LEVELS = [
+  'Beginner',
+  'Elementary Low', 'Elementary High',
+  'Pre-Intermediate Low', 'Pre-Intermediate High',
+  'Intermediate Low', 'Intermediate High',
+  'Upper-Intermediate Low', 'Upper-Intermediate High',
+  'Advanced',
+]
+
+const TEMPLATE_CATEGORIES = ['General English', 'Business English']
+
+const EXERCISE_TYPE_LABELS: Record<string, string> = {
+  multiple_choice: 'Multiple Choice',
+  fill_blank: 'Fill in the Blank',
+  match_halves: 'Match Halves',
+  unjumble: 'Unjumble',
+  transform: 'Transform',
+  true_or_false: 'True or False',
+  hangman: 'Hangman',
+  type_answer: 'Type the Answer',
+  complete_sentence: 'Complete the Sentence',
+  group_sort: 'Group Sort',
+  dictation: 'Dictation',
+  error_correction: 'Error Correction',
+  rank_order: 'Rank Order',
+  text_sequencing: 'Text Sequencing',
+  anagram: 'Anagram',
+  cloze_listening: 'Cloze Listening',
+}
+
+const BLOCK_TYPE_LABELS: Record<string, string> = {
+  mistakes: 'Mistakes',
+  video: 'Video',
+  article: 'Article',
+  dialogue: 'Dialogue',
+  grammar: 'Grammar',
+  writing: 'Writing',
+  pronunciation: 'Pronunciation',
+}
 
 // ── Content Block Types ──
 
@@ -237,9 +297,20 @@ const formatDate = (dateStr: string) => {
 // MAIN COMPONENT
 // ══════════════════════════════════════════
 
-export default function LessonsAdminPage() {
+export default function LessonsAdminPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <LessonsAdminPage />
+    </Suspense>
+  )
+}
+
+function LessonsAdminPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const contentBankMode = searchParams.get('mode') === 'content-bank'
+  const urlCourseId = searchParams.get('course_id')
 
   // ── State ──
   const [view, setView] = useState<View>('list')
@@ -249,8 +320,10 @@ export default function LessonsAdminPage() {
 
   // Editor state
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
+  const [courseId, setCourseId] = useState<string | null>(urlCourseId)
   const [title, setTitle] = useState('')
   const [lessonDate, setLessonDate] = useState('')
+  const [lessonType, setLessonType] = useState<string>('lesson')
   const [summary, setSummary] = useState('')
 
   // Content items (unified list of all content blocks)
@@ -268,6 +341,17 @@ export default function LessonsAdminPage() {
   const [importingDoc, setImportingDoc] = useState(false)
   const [importResult, setImportResult] = useState<{ flashcards: Flashcard[]; summary: string; mistakes: Mistake[]; docPreview: string; suggestedTitle?: string } | null>(null)
 
+  // Create Exercises from Doc/Upload state
+  const [exerciseDocUrl, setExerciseDocUrl] = useState('')
+  const [uploadedExerciseFile, setUploadedExerciseFile] = useState<File | null>(null)
+  const [generatingExercises, setGeneratingExercises] = useState(false)
+  const [generatedExercises, setGeneratedExercises] = useState<Exercise[]>([])
+
+  // Exercise type conversion state
+  const [convertingExType, setConvertingExType] = useState(false)
+  const [pendingConversion, setPendingConversion] = useState<{ itemIndex: number; newType: string } | null>(null)
+  const [gapFillRawJson, setGapFillRawJson] = useState(false)
+
   // Saving state
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState(false)
@@ -277,6 +361,26 @@ export default function LessonsAdminPage() {
 
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [showBlockDeleteConfirm, setShowBlockDeleteConfirm] = useState<number | null>(null)
+
+  // Content Bank modal
+  const [showContentBank, setShowContentBank] = useState(false)
+  const [cbTemplates, setCbTemplates] = useState<{ id: string; title: string; template_level: string | null; template_category: string | null; lesson_type: string; flashcard_count: number; exercise_count: number; block_counts: Record<string, number> }[]>([])
+  const [cbLoading, setCbLoading] = useState(false)
+  const [cbSelectedTemplate, setCbSelectedTemplate] = useState<string | null>(null)
+  const [cbFlashcards, setCbFlashcards] = useState<Flashcard[]>([])
+  const [cbExercises, setCbExercises] = useState<{ id: string; title: string; icon: string; exercise_type: string; subtitle: string; instructions: string; questions: unknown; order_index: number }[]>([])
+  const [cbBlocks, setCbBlocks] = useState<{ id: string; block_type: string; title: string; content: unknown; order_index: number }[]>([])
+  const [cbDetailLoading, setCbDetailLoading] = useState(false)
+  const [cbPickFlashcards, setCbPickFlashcards] = useState(false)
+  const [cbPickExerciseIds, setCbPickExerciseIds] = useState<Set<string>>(new Set())
+  const [cbPickBlockIds, setCbPickBlockIds] = useState<Set<string>>(new Set())
+  const [cbCopying, setCbCopying] = useState(false)
+
+  // Template sharing
+  const [isTemplate, setIsTemplate] = useState(false)
+  const [templateCategory, setTemplateCategory] = useState('')
+  const [templateLevel, setTemplateLevel] = useState('')
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
 
@@ -287,6 +391,39 @@ export default function LessonsAdminPage() {
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const executeConversion = async (convItemIndex: number, newType: string) => {
+    const exercise = contentItems[convItemIndex].data as Exercise
+    setConvertingExType(true)
+    setPendingConversion(null)
+    try {
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'convert-exercise-type', exercise, newType }),
+      })
+      const data = await res.json()
+      if (res.ok && data.exercise) {
+        const c = data.exercise
+        updateContentItem(convItemIndex, {
+          ...exercise,
+          title: c.title || exercise.title,
+          subtitle: c.subtitle || exercise.subtitle,
+          icon: c.icon || exercise.icon,
+          instructions: c.instructions || exercise.instructions,
+          exercise_type: newType,
+          questions: c.questions || [],
+          groupData: c.groupData || undefined,
+        })
+        showToast(`Converted to ${EXERCISE_TYPE_LABELS[newType] || newType}!`)
+      } else {
+        showToast(data.error || 'Failed to convert')
+      }
+    } catch {
+      showToast('Failed to convert exercise type')
+    }
+    setConvertingExType(false)
   }
 
   // ── Load Lessons ──
@@ -308,16 +445,40 @@ export default function LessonsAdminPage() {
     if (status === 'authenticated' && isAdmin) loadLessons()
   }, [status, isAdmin, loadLessons])
 
+  // Auto-start new template editor when coming from Content Bank
+  useEffect(() => {
+    if (contentBankMode && status === 'authenticated' && isAdmin && view === 'list') {
+      startNewLesson()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentBankMode, status, isAdmin])
+
+  // Auto-start new lesson editor when coming from a course's "+ Create Lesson" button
+  useEffect(() => {
+    if (urlCourseId && !contentBankMode && status === 'authenticated' && isAdmin && view === 'list') {
+      startNewLesson()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlCourseId, status, isAdmin])
+
   // ── Load Lesson for Editing ──
 
   const loadLessonForEditing = async (lesson: Lesson) => {
     setEditingLessonId(lesson.id)
+    setCourseId(lesson.course_id || urlCourseId)
     setTitle(lesson.title)
     setLessonDate(lesson.lesson_date)
+    setLessonType(lesson.lesson_type || 'lesson')
     setSummary(lesson.summary || '')
+    setIsTemplate(lesson.is_template || false)
+    setTemplateCategory(lesson.template_category || '')
+    setTemplateLevel(lesson.template_level || '')
     setUploadedImages([])
     setGoogleDocUrl('')
     setImportResult(null)
+    setExerciseDocUrl('')
+    setUploadedExerciseFile(null)
+    setGeneratedExercises([])
     setView('editor')
 
     try {
@@ -355,6 +516,7 @@ export default function LessonsAdminPage() {
         questions: ex.exercise_type === 'group_sort' ? [] : (ex.questions || []),
         groupData: ex.exercise_type === 'group_sort' ? (ex.questions || ex.groupData) : ex.groupData,
         order_index: ex.order_index,
+        is_mandatory: ex.is_mandatory !== false,
       }))
       exercises.forEach((ex) => {
         items.push({ type: 'exercise', data: ex, collapsed: true, order_index: orderIdx++ })
@@ -383,14 +545,194 @@ export default function LessonsAdminPage() {
 
   const startNewLesson = () => {
     setEditingLessonId(null)
+    setCourseId(urlCourseId)
     setTitle('')
     setLessonDate(new Date().toISOString().slice(0, 10))
+    setLessonType('lesson')
     setSummary('')
     setContentItems([])
+    setIsTemplate(contentBankMode ? true : false)
+    setTemplateCategory('')
+    setTemplateLevel('')
     setUploadedImages([])
     setGoogleDocUrl('')
     setImportResult(null)
+    setExerciseDocUrl('')
+    setUploadedExerciseFile(null)
+    setGeneratedExercises([])
     setView('editor')
+  }
+
+  // ── Content Bank Functions ──
+
+  const openContentBank = async () => {
+    setShowContentBank(true)
+    setCbSelectedTemplate(null)
+    setCbLoading(true)
+    try {
+      const res = await fetch('/api/content-bank?action=list')
+      if (!res.ok) throw new Error('Failed')
+      const data = await res.json()
+      setCbTemplates(data.templates || [])
+    } catch {
+      showToast('Failed to load content bank')
+    }
+    setCbLoading(false)
+  }
+
+  const openCbTemplate = async (templateId: string) => {
+    setCbSelectedTemplate(templateId)
+    setCbPickFlashcards(false)
+    setCbPickExerciseIds(new Set())
+    setCbPickBlockIds(new Set())
+    setCbDetailLoading(true)
+    try {
+      const res = await fetch(`/api/content-bank?action=detail&id=${templateId}`)
+      if (!res.ok) throw new Error('Failed')
+      const data = await res.json()
+      setCbFlashcards(data.flashcards || [])
+      setCbExercises(data.exercises || [])
+      setCbBlocks(data.blocks || [])
+    } catch {
+      showToast('Failed to load template')
+    }
+    setCbDetailLoading(false)
+  }
+
+  const cbToggleExercise = (id: string) => {
+    setCbPickExerciseIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const cbToggleBlock = (id: string) => {
+    setCbPickBlockIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const cbCopySelected = async () => {
+    if (!cbPickFlashcards && cbPickExerciseIds.size === 0 && cbPickBlockIds.size === 0) {
+      showToast('Select at least one item to copy')
+      return
+    }
+
+    setCbCopying(true)
+
+    // Insert directly into current contentItems (client-side copy, no API call needed for unsaved lessons)
+    const newItems = [...contentItems]
+
+    if (cbPickFlashcards && cbFlashcards.length > 0) {
+      // Check if flashcards block already exists
+      const existingFcIndex = newItems.findIndex(i => i.type === 'flashcards')
+      if (existingFcIndex >= 0) {
+        // Merge into existing flashcards
+        const existing = newItems[existingFcIndex].data as Flashcard[]
+        const merged = [...existing, ...cbFlashcards.map(fc => ({
+          word: fc.word,
+          phonetic: fc.phonetic,
+          meaning: fc.meaning,
+          example: fc.example,
+          notes: fc.notes,
+          order_index: existing.length + cbFlashcards.indexOf(fc),
+        }))]
+        newItems[existingFcIndex] = { ...newItems[existingFcIndex], data: merged }
+      } else {
+        newItems.push({
+          type: 'flashcards',
+          data: cbFlashcards.map((fc, i) => ({
+            word: fc.word,
+            phonetic: fc.phonetic,
+            meaning: fc.meaning,
+            example: fc.example,
+            notes: fc.notes,
+            order_index: i,
+          })),
+          collapsed: false,
+          order_index: newItems.length,
+        })
+      }
+    }
+
+    // Copy selected exercises
+    for (const exId of Array.from(cbPickExerciseIds)) {
+      const ex = cbExercises.find(e => e.id === exId)
+      if (ex) {
+        newItems.push({
+          type: 'exercise',
+          data: {
+            title: ex.title,
+            subtitle: ex.subtitle,
+            icon: ex.icon,
+            instructions: ex.instructions,
+            exercise_type: ex.exercise_type,
+            questions: ex.questions,
+            order_index: newItems.length,
+          } as Exercise,
+          collapsed: false,
+          order_index: newItems.length,
+        })
+      }
+    }
+
+    // Copy selected blocks
+    for (const blockId of Array.from(cbPickBlockIds)) {
+      const b = cbBlocks.find(bl => bl.id === blockId)
+      if (b) {
+        newItems.push({
+          type: b.block_type as ContentItemType,
+          data: {
+            block_type: b.block_type,
+            title: b.title,
+            content: b.content,
+            order_index: newItems.length,
+          } as ContentBlock,
+          collapsed: false,
+          order_index: newItems.length,
+        })
+      }
+    }
+
+    setContentItems(newItems)
+    setCbCopying(false)
+    setShowContentBank(false)
+    showToast('Content copied into your lesson!')
+  }
+
+  const cbSelectedCount = () => {
+    let count = 0
+    if (cbPickFlashcards) count++
+    count += cbPickExerciseIds.size
+    count += cbPickBlockIds.size
+    return count
+  }
+
+  // ── Template Toggle ──
+
+  const saveTemplateStatus = async (lessonId: string, enabled: boolean, category: string, level: string) => {
+    try {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle-template',
+          lesson_id: lessonId,
+          is_template: enabled,
+          template_category: category || null,
+          template_level: level || null,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast(enabled ? 'Shared as template!' : 'Removed from Content Bank')
+    } catch {
+      showToast('Failed to update template status')
+    }
   }
 
   // ── Content Item Management ──
@@ -697,6 +1039,126 @@ export default function LessonsAdminPage() {
     showToast('Content added to lesson!')
   }
 
+  // ── Create Exercises from Google Doc ──
+
+  const importExercisesFromDoc = async () => {
+    if (!exerciseDocUrl.trim()) {
+      showToast('Please paste a Google Docs link')
+      return
+    }
+    setGeneratingExercises(true)
+    setGeneratedExercises([])
+    try {
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate-exercises-from-doc', url: exerciseDocUrl.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to generate exercises')
+        setGeneratingExercises(false)
+        return
+      }
+      const exercises: Exercise[] = (data.exercises || []).map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (ex: any, i: number) => ({
+          title: ex.title || 'Exercise',
+          subtitle: ex.subtitle || '',
+          icon: ex.icon || '📝',
+          instructions: ex.instructions || '',
+          exercise_type: ex.exercise_type || 'multiple_choice',
+          questions: ex.questions || [],
+          groupData: ex.groupData || undefined,
+          order_index: i,
+        })
+      )
+      setGeneratedExercises(exercises)
+      showToast(`Generated ${exercises.length} exercise${exercises.length !== 1 ? 's' : ''}! Review and add to lesson.`)
+    } catch {
+      showToast('Failed to generate exercises from document')
+    }
+    setGeneratingExercises(false)
+  }
+
+  const importExercisesFromUpload = async () => {
+    if (!uploadedExerciseFile) {
+      showToast('Please select a PDF or DOCX file')
+      return
+    }
+    setGeneratingExercises(true)
+    setGeneratedExercises([])
+    try {
+      const arrayBuffer = await uploadedExerciseFile.arrayBuffer()
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      )
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate-exercises-from-upload',
+          fileData: base64,
+          fileType: uploadedExerciseFile.type || (uploadedExerciseFile.name.endsWith('.pdf') ? 'pdf' : 'docx'),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to generate exercises')
+        setGeneratingExercises(false)
+        return
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const exercises: Exercise[] = (data.exercises || []).map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (ex: any, i: number) => ({
+          title: ex.title || 'Exercise',
+          subtitle: ex.subtitle || '',
+          icon: ex.icon || '📝',
+          instructions: ex.instructions || '',
+          exercise_type: ex.exercise_type || 'multiple_choice',
+          questions: ex.questions || [],
+          groupData: ex.groupData || undefined,
+          order_index: i,
+        })
+      )
+      setGeneratedExercises(exercises)
+      showToast(`Generated ${exercises.length} exercise${exercises.length !== 1 ? 's' : ''} from file! Review and add to lesson.`)
+    } catch {
+      showToast('Failed to generate exercises from file')
+    }
+    setGeneratingExercises(false)
+  }
+
+  const addGeneratedExercise = (exercise: Exercise) => {
+    const newIndex = contentItems.length
+    const ex: Exercise = {
+      ...exercise,
+      order_index: newIndex,
+    }
+    setContentItems((prev) => [
+      ...prev,
+      { type: 'exercise' as ContentItemType, data: ex, collapsed: false, order_index: newIndex },
+    ])
+    setGeneratedExercises((prev) => prev.filter((e) => e !== exercise))
+    showToast(`Added "${exercise.title}" to lesson!`)
+  }
+
+  const addAllGeneratedExercises = () => {
+    let idx = contentItems.length
+    const newItems = generatedExercises.map((exercise) => ({
+      type: 'exercise' as ContentItemType,
+      data: { ...exercise, order_index: idx } as Exercise,
+      collapsed: false,
+      order_index: idx++,
+    }))
+    setContentItems((prev) => [...prev, ...newItems].map((item, i) => ({ ...item, order_index: i })))
+    setGeneratedExercises([])
+    setExerciseDocUrl('')
+    setUploadedExerciseFile(null)
+    showToast(`Added ${newItems.length} exercises to lesson!`)
+  }
+
   // ── Save / Publish ──
 
   const saveLesson = async (newStatus: 'draft' | 'published') => {
@@ -708,108 +1170,91 @@ export default function LessonsAdminPage() {
       showToast('Please set a lesson date')
       return
     }
+    // In content bank mode, require category and level
+    if (contentBankMode && isTemplate) {
+      if (!templateCategory) {
+        showToast('Please select a category for this template')
+        return
+      }
+      if (!templateLevel) {
+        showToast('Please select a level for this template')
+        return
+      }
+    }
 
     const isSavingDraft = newStatus === 'draft'
     if (isSavingDraft) setSaving(true)
     else setPublishing(true)
 
     try {
-      let lessonId = editingLessonId
-
-      if (lessonId) {
-        const { error } = await supabase
-          .from('lessons')
-          .update({
-            title: title.trim(),
-            lesson_date: lessonDate,
-            summary: summary.trim() || null,
-            status: newStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', lessonId)
-        if (error) throw error
-      } else {
-        const { data, error } = await supabase
-          .from('lessons')
-          .insert({
-            title: title.trim(),
-            lesson_date: lessonDate,
-            summary: summary.trim() || null,
-            status: newStatus,
-          })
-          .select('id')
-          .single()
-        if (error) throw error
-        lessonId = data.id
-        setEditingLessonId(lessonId)
-      }
-
       // Extract flashcards, exercises, and blocks from content items
-      // Use the unified order_index from contentItems position so the student
-      // sees blocks in the same order the admin arranged them.
-      let flashcards: Flashcard[] = []
+      let flashcardItems: Flashcard[] = []
       let flashcardsGlobalOrder = 0
-      const exercises: { exercise: Exercise; globalOrder: number }[] = []
-      const blocks: { block: ContentBlock; globalOrder: number }[] = []
+      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean }[] = []
+      const blockItems: { block_type: string; title: string; content: unknown; order_index: number }[] = []
 
       contentItems.forEach((item, idx) => {
         if (item.type === 'flashcards') {
-          flashcards = item.data as Flashcard[]
+          flashcardItems = item.data as Flashcard[]
           flashcardsGlobalOrder = idx
         } else if (item.type === 'exercise') {
-          exercises.push({ exercise: item.data as Exercise, globalOrder: idx })
+          const ex = item.data as Exercise
+          exerciseItems.push({
+            title: ex.title,
+            subtitle: ex.subtitle,
+            icon: ex.icon,
+            instructions: ex.instructions,
+            exercise_type: ex.exercise_type,
+            questions: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.questions,
+            groupData: ex.groupData,
+            order_index: idx,
+            points_per_answer: ex.points_per_answer ?? 10,
+            completion_bonus: ex.completion_bonus ?? 0,
+            is_mandatory: ex.is_mandatory !== false,
+          })
         } else {
-          blocks.push({ block: item.data as ContentBlock, globalOrder: idx })
+          const b = item.data as ContentBlock
+          blockItems.push({
+            block_type: b.block_type,
+            title: b.title,
+            content: b.content,
+            order_index: idx,
+          })
         }
       })
 
-      // Save flashcards: delete existing, then insert all
-      // Use globalOrder * 1000 + individual index to encode both global position and card order
-      await supabase.from('lesson_flashcards').delete().eq('lesson_id', lessonId)
-      if (flashcards.length > 0) {
-        const fcRows = flashcards.map((fc, i) => ({
-          lesson_id: lessonId,
-          word: fc.word,
-          phonetic: fc.phonetic,
-          meaning: fc.meaning,
-          example: fc.example,
-          notes: fc.notes,
-          order_index: flashcardsGlobalOrder * 1000 + i,
-        }))
-        const { error: fcError } = await supabase.from('lesson_flashcards').insert(fcRows)
-        if (fcError) throw fcError
-      }
+      const res = await fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lessonId: editingLessonId,
+          title: title.trim(),
+          lesson_date: lessonDate,
+          lesson_type: lessonType,
+          summary: summary.trim() || null,
+          status: newStatus,
+          is_template: isTemplate,
+          template_category: templateCategory || null,
+          template_level: templateLevel || null,
+          course_id: courseId || null,
+          flashcards: flashcardItems.map((fc, i) => ({
+            word: fc.word,
+            phonetic: fc.phonetic,
+            meaning: fc.meaning,
+            example: fc.example,
+            notes: fc.notes,
+            globalOrder: flashcardsGlobalOrder,
+          })),
+          exercises: exerciseItems,
+          blocks: blockItems,
+        }),
+      })
 
-      // Save exercises: delete existing, then insert all
-      await supabase.from('lesson_exercises').delete().eq('lesson_id', lessonId)
-      if (exercises.length > 0) {
-        const exRows = exercises.map(({ exercise: ex, globalOrder }) => ({
-          lesson_id: lessonId,
-          title: ex.title,
-          subtitle: ex.subtitle,
-          icon: ex.icon,
-          instructions: ex.instructions,
-          exercise_type: ex.exercise_type,
-          // For group_sort, store groupData in the questions JSONB column
-          questions: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.questions,
-          order_index: globalOrder,
-        }))
-        const { error: exError } = await supabase.from('lesson_exercises').insert(exRows)
-        if (exError) throw exError
-      }
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to save')
 
-      // Save content blocks: delete existing, then insert all
-      await supabase.from('lesson_blocks').delete().eq('lesson_id', lessonId)
-      if (blocks.length > 0) {
-        const blockRows = blocks.map(({ block: b, globalOrder }) => ({
-          lesson_id: lessonId,
-          block_type: b.block_type,
-          title: b.title,
-          content: b.content,
-          order_index: globalOrder,
-        }))
-        const { error: blockError } = await supabase.from('lesson_blocks').insert(blockRows)
-        if (blockError) throw blockError
+      if (!editingLessonId && result.lessonId) {
+        setEditingLessonId(result.lessonId)
       }
 
       showToast(newStatus === 'published' ? 'Lesson published!' : 'Draft saved!')
@@ -827,16 +1272,13 @@ export default function LessonsAdminPage() {
 
   const deleteLesson = async (lessonId: string) => {
     try {
-      // Get block IDs to clean up dialogue messages
-      const { data: blockData } = await supabase.from('lesson_blocks').select('id').eq('lesson_id', lessonId)
-      if (blockData && blockData.length > 0) {
-        const blockIds = blockData.map((b: { id: string }) => b.id)
-        await supabase.from('dialogue_messages').delete().in('block_id', blockIds)
-      }
-      await supabase.from('lesson_flashcards').delete().eq('lesson_id', lessonId)
-      await supabase.from('lesson_exercises').delete().eq('lesson_id', lessonId)
-      await supabase.from('lesson_blocks').delete().eq('lesson_id', lessonId)
-      await supabase.from('lessons').delete().eq('id', lessonId)
+      const res = await fetch('/api/lessons', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to delete')
       showToast('Lesson deleted')
       setShowDeleteConfirm(null)
       await loadLessons()
@@ -1071,14 +1513,31 @@ export default function LessonsAdminPage() {
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Exercise Type</label>
             <select
               value={exercise.exercise_type}
-              onChange={(e) => updateField('exercise_type', e.target.value)}
-              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white"
+              disabled={convertingExType}
+              onChange={(e) => {
+                const newType = e.target.value
+                if (!newType || newType === exercise.exercise_type) return
+                // If exercise has questions, show warning before converting
+                const hasContent = (exercise.questions && (Array.isArray(exercise.questions) ? exercise.questions.length > 0 : true)) || exercise.groupData
+                if (hasContent) {
+                  setPendingConversion({ itemIndex, newType })
+                } else {
+                  updateField('exercise_type', newType)
+                }
+              }}
+              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white disabled:opacity-50"
             >
               <option value="">Select type...</option>
               {EXERCISE_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
               ))}
             </select>
+            {convertingExType && (
+              <p className="text-[10px] text-[#416ebe] mt-1 flex items-center gap-1">
+                <span className="animate-spin inline-block w-2.5 h-2.5 border-2 border-[#416ebe] border-t-transparent rounded-full" />
+                AI is converting questions...
+              </p>
+            )}
           </div>
         </div>
         <div>
@@ -1087,17 +1546,77 @@ export default function LessonsAdminPage() {
             className="w-full h-16 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] transition-colors" />
         </div>
 
+        {/* Points configuration */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Points per answer</label>
+            <input type="number" min={0} value={exercise.points_per_answer ?? 10}
+              onChange={(e) => updateContentItem(itemIndex, { ...exercise, points_per_answer: parseInt(e.target.value) || 0 })}
+              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
+          </div>
+          <div className="flex-1">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Completion bonus</label>
+            <input type="number" min={0} value={exercise.completion_bonus ?? 0}
+              onChange={(e) => updateContentItem(itemIndex, { ...exercise, completion_bonus: parseInt(e.target.value) || 0 })}
+              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
+          </div>
+        </div>
+
+        {/* Mandatory / Extracurricular toggle */}
+        <div className="flex items-center justify-between bg-[#f7fafd] rounded-lg px-3 py-2 border border-[#e6f0fa]">
+          <div>
+            <p className="text-xs font-bold text-[#46464b]">{exercise.is_mandatory === false ? 'Bonus exercise' : 'Mandatory exercise'}</p>
+            <p className="text-[10px] text-gray-400">{exercise.is_mandatory === false ? 'Optional — shown in Bonus section' : 'Required — shown in main Exercises section'}</p>
+          </div>
+          <button
+            onClick={() => updateContentItem(itemIndex, { ...exercise, is_mandatory: exercise.is_mandatory === false ? true : false })}
+            className={`relative w-10 h-5 rounded-full transition-colors ${exercise.is_mandatory === false ? 'bg-gray-300' : 'bg-[#416ebe]'}`}
+          >
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${exercise.is_mandatory === false ? 'left-0.5' : 'left-5'}`} />
+          </button>
+        </div>
+
         {/* Questions / Data Editor — varies by exercise type */}
-        {['true_or_false', 'hangman', 'type_answer', 'complete_sentence', 'group_sort'].includes(exercise.exercise_type) ? (
+        {['complete_sentence', 'cloze_listening'].includes(exercise.exercise_type) && !gapFillRawJson ? (
+          // Visual gap-fill builder for complete_sentence and cloze_listening
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-gray-500">
+                Gap-Fill Builder ({Array.isArray(exercise.questions) ? exercise.questions.length : 0} items)
+              </p>
+              <button
+                onClick={() => setGapFillRawJson(true)}
+                className="text-[10px] text-gray-400 hover:text-[#416ebe]"
+              >
+                Switch to JSON
+              </button>
+            </div>
+            <GapFillBuilder
+              questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+              onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+              mode={exercise.exercise_type as 'complete_sentence' | 'cloze_listening'}
+            />
+          </div>
+        ) : ['true_or_false', 'hangman', 'type_answer', 'complete_sentence', 'group_sort', 'dictation', 'error_correction', 'rank_order', 'text_sequencing', 'anagram', 'cloze_listening'].includes(exercise.exercise_type) ? (
           // For new exercise types, show a JSON data editor
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-gray-500">
                 Exercise Data {exercise.exercise_type === 'group_sort' ? '(Groups)' : `(${Array.isArray(exercise.questions) ? exercise.questions.length : 0} items)`}
               </p>
-              <p className="text-[10px] text-gray-400">
-                {exercise.exercise_type === 'group_sort' ? 'Edit groupData JSON' : 'Edit questions JSON'}
-              </p>
+              <div className="flex items-center gap-2">
+                {['complete_sentence', 'cloze_listening'].includes(exercise.exercise_type) && (
+                  <button
+                    onClick={() => setGapFillRawJson(false)}
+                    className="text-[10px] text-[#416ebe] hover:underline font-bold"
+                  >
+                    Visual Builder
+                  </button>
+                )}
+                <p className="text-[10px] text-gray-400">
+                  {exercise.exercise_type === 'group_sort' ? 'Edit groupData JSON' : 'Edit questions JSON'}
+                </p>
+              </div>
             </div>
             <textarea
               value={JSON.stringify(
@@ -1125,6 +1644,12 @@ export default function LessonsAdminPage() {
               {exercise.exercise_type === 'type_answer' && 'Format: [{"id": 1, "prompt": "Question?", "answer": "correct answer", "hint": "optional"}]'}
               {exercise.exercise_type === 'complete_sentence' && 'Format: [{"id": 1, "text": "I {{1}} to...", "blanks": {"1": "went"}, "wordBank": ["went", "gone"]}]'}
               {exercise.exercise_type === 'group_sort' && 'Format: {"groups": [{"name": "Group A", "items": ["item1", "item2"]}, ...]}'}
+              {exercise.exercise_type === 'dictation' && 'Format: [{"id": 1, "text": "The sentence to dictate.", "audio_url": "optional URL", "speed": "normal"}]'}
+              {exercise.exercise_type === 'error_correction' && 'Format: [{"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday.", "hints": "optional"}]'}
+              {exercise.exercise_type === 'rank_order' && 'Format: [{"id": 1, "criterion": "From least to most frequent", "items": ["never", "rarely", "sometimes", "often", "always"]}]'}
+              {exercise.exercise_type === 'text_sequencing' && 'Format: [{"id": 1, "segments": ["First sentence.", "Second sentence.", "Third sentence."], "level": "sentence"}]'}
+              {exercise.exercise_type === 'anagram' && 'Format: [{"id": 1, "word": "SCHOOL", "clue": "A place where children learn"}]'}
+              {exercise.exercise_type === 'cloze_listening' && 'Format: [{"id": 1, "text": "The {{1}} sat on the {{2}}.", "blanks": {"1": "cat", "2": "mat"}, "audio_url": "optional URL"}]'}
             </p>
           </div>
         ) : (
@@ -1788,6 +2313,176 @@ export default function LessonsAdminPage() {
           </div>
         )}
 
+        {/* ══════════ TEMPLATE SWITCH WARNING ══════════ */}
+        {pendingConversion && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+              <div className="text-center mb-4">
+                <div className="text-3xl mb-2">⚠️</div>
+                <h3 className="text-base font-bold text-[#46464b]">Convert exercise type?</h3>
+              </div>
+              <p className="text-sm text-gray-500 mb-2">
+                You&apos;re switching from <span className="font-bold text-[#416ebe]">{EXERCISE_TYPE_LABELS[(contentItems[pendingConversion.itemIndex].data as Exercise).exercise_type] || 'Unknown'}</span> to <span className="font-bold text-[#416ebe]">{EXERCISE_TYPE_LABELS[pendingConversion.newType] || pendingConversion.newType}</span>.
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                <p className="text-xs text-amber-700">
+                  <strong>Note:</strong> AI will do its best to convert your questions, but some content may not transfer perfectly between formats. Please review the result after conversion.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingConversion(null)}
+                  className="flex-1 py-2.5 text-sm font-bold text-gray-400 border-2 border-gray-200 rounded-xl hover:border-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => executeConversion(pendingConversion.itemIndex, pendingConversion.newType)}
+                  className="flex-1 py-2.5 text-sm font-bold text-white bg-[#416ebe] rounded-xl hover:bg-[#3560b0] transition-colors"
+                >
+                  Convert
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══════════ CONTENT BANK MODAL ══════════ */}
+        {showContentBank && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-[#e6f0fa] flex items-center justify-between shrink-0">
+                <div>
+                  {cbSelectedTemplate ? (
+                    <button onClick={() => setCbSelectedTemplate(null)} className="text-xs text-gray-400 hover:text-[#416ebe] mb-1">
+                      &larr; Back to templates
+                    </button>
+                  ) : null}
+                  <h3 className="font-bold text-[#46464b]">Content Bank</h3>
+                </div>
+                <button onClick={() => setShowContentBank(false)} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="overflow-y-auto flex-1 px-6 py-4">
+                {cbSelectedTemplate ? (
+                  /* ── Template Detail / Cherry Pick ── */
+                  cbDetailLoading ? (
+                    <p className="text-center text-gray-400 py-8">Loading...</p>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-xs text-gray-400 mb-2">Select the items you want to copy into your lesson.</p>
+
+                      {/* Flashcards */}
+                      {cbFlashcards.length > 0 && (
+                        <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cbPickFlashcards ? 'border-[#416ebe] bg-[#e6f0fa]' : 'border-[#cddcf0] hover:border-[#416ebe]'}`}>
+                          <input type="checkbox" checked={cbPickFlashcards} onChange={() => setCbPickFlashcards(!cbPickFlashcards)} className="accent-[#416ebe]" />
+                          <div>
+                            <p className="font-bold text-sm text-[#46464b]">Flashcards ({cbFlashcards.length})</p>
+                            <p className="text-xs text-gray-400">{cbFlashcards.slice(0, 5).map(f => f.word).join(', ')}{cbFlashcards.length > 5 ? '...' : ''}</p>
+                          </div>
+                        </label>
+                      )}
+
+                      {/* Exercises */}
+                      {cbExercises.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Exercises</p>
+                          <div className="space-y-2">
+                            {cbExercises.map(ex => (
+                              <label key={ex.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cbPickExerciseIds.has(ex.id) ? 'border-[#416ebe] bg-[#e6f0fa]' : 'border-[#cddcf0] hover:border-[#416ebe]'}`}>
+                                <input type="checkbox" checked={cbPickExerciseIds.has(ex.id)} onChange={() => cbToggleExercise(ex.id)} className="accent-[#416ebe]" />
+                                <span className="text-lg">{ex.icon}</span>
+                                <div>
+                                  <p className="font-bold text-sm text-[#46464b]">{ex.title}</p>
+                                  <p className="text-xs text-gray-400">{EXERCISE_TYPE_LABELS[ex.exercise_type] || ex.exercise_type}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Blocks */}
+                      {cbBlocks.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Content Blocks</p>
+                          <div className="space-y-2">
+                            {cbBlocks.map(b => (
+                              <label key={b.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cbPickBlockIds.has(b.id) ? 'border-[#416ebe] bg-[#e6f0fa]' : 'border-[#cddcf0] hover:border-[#416ebe]'}`}>
+                                <input type="checkbox" checked={cbPickBlockIds.has(b.id)} onChange={() => cbToggleBlock(b.id)} className="accent-[#416ebe]" />
+                                <div>
+                                  <p className="font-bold text-sm text-[#46464b]">{BLOCK_TYPE_LABELS[b.block_type] || b.block_type}{b.title ? `: ${b.title}` : ''}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {cbFlashcards.length === 0 && cbExercises.length === 0 && cbBlocks.length === 0 && (
+                        <p className="text-center text-gray-400 py-4">This template has no content.</p>
+                      )}
+                    </div>
+                  )
+                ) : (
+                  /* ── Template List ── */
+                  cbLoading ? (
+                    <p className="text-center text-gray-400 py-8">Loading templates...</p>
+                  ) : cbTemplates.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400 mb-1">No templates in the Content Bank yet.</p>
+                      <p className="text-xs text-gray-300">Share a lesson as template to add it here.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {cbTemplates.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => openCbTemplate(t.id)}
+                          className="w-full text-left p-4 rounded-xl border border-[#cddcf0] hover:border-[#416ebe] hover:shadow-sm transition-all"
+                        >
+                          <p className="font-bold text-sm text-[#46464b]">{t.title}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {t.template_level && (
+                              <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full">{t.template_level}</span>
+                            )}
+                            {t.template_category && (
+                              <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full">{t.template_category}</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {[
+                              t.flashcard_count > 0 ? `${t.flashcard_count} flashcards` : '',
+                              t.exercise_count > 0 ? `${t.exercise_count} exercises` : '',
+                              Object.values(t.block_counts).reduce((a, b) => a + b, 0) > 0 ? `${Object.values(t.block_counts).reduce((a, b) => a + b, 0)} blocks` : '',
+                            ].filter(Boolean).join(' · ') || 'Empty'}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+
+              {/* Modal Footer (only in detail view) */}
+              {cbSelectedTemplate && (
+                <div className="px-6 py-4 border-t border-[#e6f0fa] flex items-center justify-between shrink-0">
+                  <p className="text-xs text-gray-400">{cbSelectedCount()} item{cbSelectedCount() !== 1 ? 's' : ''} selected</p>
+                  <button
+                    onClick={cbCopySelected}
+                    disabled={cbSelectedCount() === 0 || cbCopying}
+                    className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] disabled:opacity-50 transition-colors"
+                  >
+                    {cbCopying ? 'Copying...' : 'Copy to Lesson'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ══════════ LIST VIEW ══════════ */}
         {view === 'list' && (
           <>
@@ -1846,6 +2541,11 @@ export default function LessonsAdminPage() {
                           >
                             {lesson.status === 'published' ? 'PUBLISHED' : 'DRAFT'}
                           </span>
+                          {lesson.lesson_type && lesson.lesson_type !== 'lesson' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-600">
+                              {LESSON_TYPES.find(lt => lt.value === lesson.lesson_type)?.label || lesson.lesson_type}
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-400">{formatDate(lesson.lesson_date)}</p>
                       </div>
@@ -1908,6 +2608,32 @@ export default function LessonsAdminPage() {
                 </div>
               </div>
             )}
+
+            {/* Block Delete Confirmation Modal */}
+            {showBlockDeleteConfirm !== null && (
+              <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                  <h3 className="font-bold text-[#46464b] mb-2">Delete Content Block?</h3>
+                  <p className="text-xs text-gray-400 mb-4">
+                    This will remove the {contentItems[showBlockDeleteConfirm] ? (BLOCK_CONFIG[contentItems[showBlockDeleteConfirm].type]?.label || 'content') : 'content'} block from the lesson. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => setShowBlockDeleteConfirm(null)}
+                      className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => { removeContentItem(showBlockDeleteConfirm); setShowBlockDeleteConfirm(null) }}
+                      className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1918,13 +2644,21 @@ export default function LessonsAdminPage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <button
-                  onClick={() => { setView('list'); setUploadedImages([]) }}
+                  onClick={() => {
+                    if (contentBankMode) {
+                      router.push('/admin/content-bank')
+                    } else {
+                      setView('list'); setUploadedImages([])
+                    }
+                  }}
                   className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-1"
                 >
-                  &larr; Back to lessons
+                  &larr; {contentBankMode ? 'Back to Content Bank' : 'Back to lessons'}
                 </button>
                 <h1 className="text-2xl font-bold text-[#416ebe]">
-                  {editingLessonId ? 'Edit Lesson' : 'New Lesson'}
+                  {contentBankMode
+                    ? (editingLessonId ? 'Edit Template' : 'New Template')
+                    : (editingLessonId ? 'Edit Lesson' : 'New Lesson')}
                 </h1>
               </div>
             </div>
@@ -1932,7 +2666,7 @@ export default function LessonsAdminPage() {
             {/* ── Lesson Details Header Card ── */}
             <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm p-6 mb-6">
               <h2 className="font-bold text-[#46464b] mb-4">Lesson Details</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Title</label>
                   <input
@@ -1952,6 +2686,20 @@ export default function LessonsAdminPage() {
                     className="w-full px-4 py-2.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
                   />
                 </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Lesson Type</label>
+                  <select
+                    value={lessonType}
+                    onChange={(e) => setLessonType(e.target.value)}
+                    className="w-full px-4 py-2.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white"
+                  >
+                    {LESSON_TYPES.map((lt) => (
+                      <option key={lt.value} value={lt.value}>
+                        {lt.icon} {lt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Summary / Class Notes</label>
@@ -1962,13 +2710,99 @@ export default function LessonsAdminPage() {
                   className="w-full h-24 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] transition-colors"
                 />
               </div>
+
+              {/* ── Share as Template / Content Bank fields ── */}
+              <div className="mt-4 pt-4 border-t border-[#e6f0fa]">
+                {contentBankMode ? (
+                  <>
+                    <h3 className="text-sm font-bold text-[#46464b] mb-3">Template Settings</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Category <span className="text-red-400">*</span></label>
+                        <select
+                          value={templateCategory}
+                          onChange={(e) => setTemplateCategory(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg bg-white"
+                        >
+                          <option value="">Select category...</option>
+                          {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Level <span className="text-red-400">*</span></label>
+                        <select
+                          value={templateLevel}
+                          onChange={(e) => setTemplateLevel(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg bg-white"
+                        >
+                          <option value="">Select level...</option>
+                          {TEMPLATE_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isTemplate}
+                        onChange={(e) => {
+                          setIsTemplate(e.target.checked)
+                          if (editingLessonId) {
+                            saveTemplateStatus(editingLessonId, e.target.checked, templateCategory, templateLevel)
+                          }
+                        }}
+                        className="accent-[#416ebe] w-4 h-4"
+                      />
+                      <div>
+                        <span className="text-sm font-bold text-[#46464b]">Share as Template</span>
+                        <p className="text-xs text-gray-400">Make this lesson available in the Content Bank for all teachers.</p>
+                      </div>
+                    </label>
+
+                    {isTemplate && (
+                      <div className="grid grid-cols-2 gap-3 mt-3 ml-7">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Category</label>
+                          <select
+                            value={templateCategory}
+                            onChange={(e) => {
+                              setTemplateCategory(e.target.value)
+                              if (editingLessonId) saveTemplateStatus(editingLessonId, true, e.target.value, templateLevel)
+                            }}
+                            className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg bg-white"
+                          >
+                            <option value="">Select category...</option>
+                            {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Level</label>
+                          <select
+                            value={templateLevel}
+                            onChange={(e) => {
+                              setTemplateLevel(e.target.value)
+                              if (editingLessonId) saveTemplateStatus(editingLessonId, true, templateCategory, e.target.value)
+                            }}
+                            className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg bg-white"
+                          >
+                            <option value="">Select level...</option>
+                            {TEMPLATE_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
             {/* ── Google Drive Import ── */}
             <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm p-6 mb-6">
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-lg">&#x1F4C4;</span>
-                <h2 className="font-bold text-[#46464b]">Import from Google Drive</h2>
+                <h2 className="font-bold text-[#46464b]">Mistakes and Flashcards</h2>
               </div>
               <p className="text-xs text-gray-400 mb-3">Paste a Google Docs link to auto-generate flashcards, class summary, and student mistakes.</p>
               <div className="flex gap-2">
@@ -2097,10 +2931,150 @@ export default function LessonsAdminPage() {
               )}
             </div>
 
+            {/* ── Create Exercises from Google Doc ── */}
+            <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm p-6 mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-lg">&#x1F3AF;</span>
+                <h2 className="font-bold text-[#46464b]">Create Exercises</h2>
+              </div>
+              <p className="text-xs text-gray-400 mb-3">Paste a Google Docs link or upload a PDF/DOCX file containing exercises. AI will convert them into interactive digital exercises.</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={exerciseDocUrl}
+                  onChange={(e) => setExerciseDocUrl(e.target.value)}
+                  placeholder="https://docs.google.com/document/d/..."
+                  className="flex-1 px-4 py-2.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
+                  disabled={generatingExercises}
+                />
+                <button
+                  onClick={importExercisesFromDoc}
+                  disabled={generatingExercises || !exerciseDocUrl.trim()}
+                  className="px-5 py-2.5 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {generatingExercises ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                      Generating...
+                    </span>
+                  ) : 'Generate Exercises'}
+                </button>
+              </div>
+
+              {/* Or upload a file */}
+              <div className="flex items-center gap-3 mt-3">
+                <div className="flex-1 h-px bg-[#e8f0fc]" />
+                <span className="text-[10px] text-gray-400 font-medium uppercase">or upload a file</span>
+                <div className="flex-1 h-px bg-[#e8f0fc]" />
+              </div>
+              <div className="mt-3 flex items-center gap-3">
+                <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#cddcf0] rounded-xl cursor-pointer hover:border-[#416ebe] hover:bg-[#f7fafd] transition-colors ${generatingExercises ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <span className="text-base">&#x1F4C4;</span>
+                  <span className="text-xs text-[#46464b] font-medium">
+                    {uploadedExerciseFile ? uploadedExerciseFile.name : 'Choose PDF or DOCX file'}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) setUploadedExerciseFile(file)
+                    }}
+                    disabled={generatingExercises}
+                  />
+                </label>
+                <button
+                  onClick={importExercisesFromUpload}
+                  disabled={generatingExercises || !uploadedExerciseFile}
+                  className="px-5 py-2.5 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {generatingExercises ? (
+                    <span className="flex items-center gap-2">
+                      <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                      Generating...
+                    </span>
+                  ) : 'Generate from File'}
+                </button>
+              </div>
+
+              {/* Generated Exercises Preview */}
+              {generatedExercises.length > 0 && (
+                <div className="mt-5 border-t border-[#e8f0fc] pt-5">
+                  <h3 className="text-sm font-bold text-[#46464b] mb-3">Generated Exercises — Review & Add to Lesson</h3>
+                  <div className="space-y-3">
+                    {generatedExercises.map((ex, i) => (
+                      <div key={i} className="p-4 bg-[#f7fafd] rounded-xl border border-[#e8f0fc]">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">{ex.icon}</span>
+                            <div>
+                              <p className="text-sm font-bold text-[#46464b]">{ex.title}</p>
+                              <p className="text-[10px] text-gray-400">
+                                {EXERCISE_TYPE_LABELS[ex.exercise_type] || ex.exercise_type}
+                                {' · '}
+                                {ex.exercise_type === 'group_sort' && ex.groupData
+                                  ? `${ex.groupData.groups?.length || 0} groups`
+                                  : `${ex.questions?.length || 0} questions`}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => addGeneratedExercise(ex)}
+                            className="px-3 py-1.5 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
+                          >
+                            Add to Lesson
+                          </button>
+                        </div>
+                        {ex.subtitle && <p className="text-xs text-gray-500 mb-2">{ex.subtitle}</p>}
+                        <p className="text-xs text-gray-400 italic">{ex.instructions}</p>
+                        {/* Question preview */}
+                        <div className="mt-2 space-y-1">
+                          {ex.exercise_type === 'group_sort' && ex.groupData ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {ex.groupData.groups?.map((g: { name: string; items: string[] }, gi: number) => (
+                                <span key={gi} className="px-2 py-0.5 bg-white border border-[#cddcf0] rounded text-[10px] text-[#46464b]">
+                                  {g.name} ({g.items.length})
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            (ex.questions || []).slice(0, 3).map((q: {prompt?: string; statement?: string; word?: string; text?: string}, qi: number) => (
+                              <p key={qi} className="text-[11px] text-gray-500 truncate">
+                                {qi + 1}. {q.prompt || q.statement || q.word || q.text || ''}
+                              </p>
+                            ))
+                          )}
+                          {ex.questions && ex.questions.length > 3 && (
+                            <p className="text-[10px] text-gray-400">+{ex.questions.length - 3} more...</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add All Button */}
+                  <button
+                    onClick={addAllGeneratedExercises}
+                    className="w-full mt-3 py-2.5 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
+                  >
+                    Add All {generatedExercises.length} Exercises to Lesson
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* ── Content Blocks ── */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-[#46464b]">Content Blocks ({contentItems.length})</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={openContentBank}
+                    className="px-4 py-2 bg-white border border-[#cddcf0] text-[#416ebe] text-xs font-bold rounded-lg hover:border-[#416ebe] transition-colors"
+                  >
+                    From Content Bank
+                  </button>
                 <div className="relative">
                   <button
                     onClick={() => setShowAddMenu(!showAddMenu)}
@@ -2114,7 +3088,10 @@ export default function LessonsAdminPage() {
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowAddMenu(false)} />
                       <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl border border-[#cddcf0] shadow-xl z-50 overflow-hidden">
-                        {(Object.keys(BLOCK_CONFIG) as ContentItemType[]).map((type) => {
+                        {(Object.keys(BLOCK_CONFIG) as ContentItemType[]).filter((type) => {
+                          if (type === 'flashcards' && lessonType !== 'lesson') return false
+                          return true
+                        }).map((type) => {
                           const config = BLOCK_CONFIG[type]
                           return (
                             <button
@@ -2132,6 +3109,7 @@ export default function LessonsAdminPage() {
                       </div>
                     </>
                   )}
+                </div>
                 </div>
               </div>
 
@@ -2182,7 +3160,7 @@ export default function LessonsAdminPage() {
                               &#x25BC;
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); removeContentItem(index) }}
+                              onClick={(e) => { e.stopPropagation(); setShowBlockDeleteConfirm(index) }}
                               className="p-1.5 text-xs text-gray-300 hover:text-red-400 transition-colors"
                               title="Delete block"
                             >

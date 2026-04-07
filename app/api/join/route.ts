@@ -51,15 +51,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid invite code' }, { status: 404 })
     }
 
-    // Enroll the student (upsert to avoid duplicates)
-    const { error: enrollError } = await supabase
+    // Check if student was previously enrolled (possibly soft-deleted)
+    const { data: existing } = await supabase
       .from('course_students')
-      .upsert(
-        { course_id: course.id, student_email: session.user.email },
-        { onConflict: 'course_id,student_email' }
-      )
+      .select('id, removed_at')
+      .eq('course_id', course.id)
+      .eq('student_email', session.user.email)
+      .maybeSingle()
 
-    if (enrollError) throw enrollError
+    if (existing) {
+      if (existing.removed_at) {
+        // Re-activate soft-deleted enrollment
+        const { error: reactivateError } = await supabase
+          .from('course_students')
+          .update({ removed_at: null })
+          .eq('id', existing.id)
+        if (reactivateError) throw reactivateError
+      }
+      // Already enrolled and active — no-op
+    } else {
+      // New enrollment
+      const { error: enrollError } = await supabase
+        .from('course_students')
+        .insert({ course_id: course.id, student_email: session.user.email })
+      if (enrollError) throw enrollError
+    }
 
     return NextResponse.json({ ok: true, course_name: course.name })
   } catch (err) {

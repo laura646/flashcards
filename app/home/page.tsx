@@ -10,6 +10,10 @@ interface Course {
   name: string
   description: string | null
   lesson_count: number
+  level?: string | null
+  telegram_link?: string | null
+  lesson_link?: string | null
+  schedule?: string | null
 }
 
 interface Lesson {
@@ -19,6 +23,10 @@ interface Lesson {
   course_id: string
   flashcard_count: number
   exercise_count: number
+  lesson_type?: string
+  exercises_completed?: number
+  flashcards_studied?: boolean
+  points_earned?: number
 }
 
 export default function HomePage() {
@@ -28,6 +36,7 @@ export default function HomePage() {
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [loading, setLoading] = useState(true)
+  const [totalPoints, setTotalPoints] = useState(0)
 
   const role = session?.user?.role || 'student'
 
@@ -74,6 +83,7 @@ export default function HomePage() {
       .then((res) => res.json())
       .then((data) => {
         setLessons(data.lessons || [])
+        setTotalPoints(data.total_points || 0)
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -103,23 +113,19 @@ export default function HomePage() {
 
   // ── No courses enrolled ──
   if (courses.length === 0) {
-    return (
-      <main className="min-h-screen flex flex-col items-center justify-center px-4">
-        <img src="/logo.svg" alt="English with Laura" className="h-16 mb-6" />
-        <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center max-w-md">
-          <div className="text-4xl mb-3">📚</div>
-          <h2 className="text-lg font-bold text-[#46464b] mb-2">Welcome, {studentName}!</h2>
-          <p className="text-sm text-gray-500">
-            You&apos;re not enrolled in any courses yet. Ask your teacher for an invite link to get started.
-          </p>
-        </div>
-        <div className="mt-6 flex items-center gap-3 text-xs text-gray-400">
-          <span>englishwithlaura.com</span>
-          <span>·</span>
-          <SignOutButton />
-        </div>
-      </main>
-    )
+    return <NoCourses studentName={studentName} onEnrolled={() => {
+      // Reload courses after enrollment
+      fetch('/api/student/courses')
+        .then(res => res.json())
+        .then(data => {
+          const studentCourses = data.courses || []
+          setCourses(studentCourses)
+          if (studentCourses.length === 1) {
+            setSelectedCourse(studentCourses[0])
+            loadLessons(studentCourses[0].id)
+          }
+        })
+    }} />
   }
 
   // ── Course picker (multiple courses) ──
@@ -177,6 +183,11 @@ export default function HomePage() {
       <div className="mb-8 text-center">
         <img src="/logo.svg" alt="English with Laura" className="h-16 mx-auto mb-3" />
         <p className="text-[#46464b] mt-1 text-sm">Welcome back, {studentName}!</p>
+        {totalPoints > 0 && (
+          <div className="mt-2 inline-flex items-center gap-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-sm">
+            <span>⭐</span> {totalPoints.toLocaleString()} points
+          </div>
+        )}
       </div>
 
       <div className="w-full max-w-lg">
@@ -193,6 +204,30 @@ export default function HomePage() {
         <h2 className="text-lg font-bold text-[#416ebe] mb-4 flex items-center gap-2">
           <span>📚</span> {selectedCourse?.name || 'My Lessons'}
         </h2>
+
+        {/* Course Info */}
+        {selectedCourse && (selectedCourse.level || selectedCourse.telegram_link || selectedCourse.lesson_link || selectedCourse.schedule) && (
+          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 mb-4">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-500">
+              {selectedCourse.level && (
+                <span>📊 <strong>Level:</strong> {selectedCourse.level}</span>
+              )}
+              {selectedCourse.schedule && (
+                <span>📅 <strong>Schedule:</strong> {selectedCourse.schedule}</span>
+              )}
+              {selectedCourse.lesson_link && (
+                <a href={selectedCourse.lesson_link} target="_blank" rel="noopener noreferrer" className="text-[#416ebe] hover:underline">
+                  🔗 Join Lesson
+                </a>
+              )}
+              {selectedCourse.telegram_link && (
+                <a href={selectedCourse.telegram_link} target="_blank" rel="noopener noreferrer" className="text-[#416ebe] hover:underline">
+                  💬 Telegram Group
+                </a>
+              )}
+            </div>
+          </div>
+        )}
 
         {lessons.length === 0 ? (
           <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">
@@ -212,8 +247,13 @@ export default function HomePage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-white bg-[#416ebe] px-2 py-0.5 rounded-full">
-                          Lesson {lessonNumber}
+                        <span className={`text-xs font-bold text-white px-2 py-0.5 rounded-full ${
+                          lesson.lesson_type && lesson.lesson_type !== 'lesson' ? 'bg-purple-500' : 'bg-[#416ebe]'
+                        }`}>
+                          {lesson.lesson_type === 'mid_course_test' ? '📝 Test' :
+                           lesson.lesson_type === 'final_test' ? '🎓 Final Test' :
+                           lesson.lesson_type === 'review_test' ? '🔄 Review' :
+                           `Lesson ${lessonNumber}`}
                         </span>
                         <span className="text-xs text-gray-400">
                           {formatDate(lesson.lesson_date)}
@@ -223,13 +263,31 @@ export default function HomePage() {
                         {lesson.title}
                       </h3>
                       <div className="flex items-center gap-3 mt-2">
+                        {(!lesson.lesson_type || lesson.lesson_type === 'lesson') && (
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                            {lesson.flashcards_studied ? '✅' : '🃏'} {lesson.flashcard_count} words
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400 flex items-center gap-1">
-                          🃏 {lesson.flashcard_count} words
+                          {lesson.exercises_completed === lesson.exercise_count && lesson.exercise_count > 0 ? '✅' : '✏️'} {lesson.exercises_completed || 0}/{lesson.exercise_count} exercises
                         </span>
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          ✏️ {lesson.exercise_count} exercises
-                        </span>
+                        {(lesson.points_earned || 0) > 0 && (
+                          <span className="text-xs text-amber-500 font-bold flex items-center gap-0.5">
+                            ⭐ {lesson.points_earned} pts
+                          </span>
+                        )}
                       </div>
+                      {/* Progress bar */}
+                      {lesson.exercise_count > 0 && (
+                        <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              (lesson.exercises_completed || 0) === lesson.exercise_count ? 'bg-green-400' : 'bg-[#416ebe]'
+                            }`}
+                            style={{ width: `${Math.round(((lesson.exercises_completed || 0) / lesson.exercise_count) * 100)}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                     <span className="text-gray-300 group-hover:text-[#416ebe] transition-colors text-lg">
                       &rarr;
@@ -258,6 +316,77 @@ export default function HomePage() {
       </div>
 
       <p className="mt-8 text-xs text-gray-400">englishwithlaura.com</p>
+    </main>
+  )
+}
+
+function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolled: () => void }) {
+  const [inviteCode, setInviteCode] = useState('')
+  const [joining, setJoining] = useState(false)
+  const [joinError, setJoinError] = useState('')
+  const [joinSuccess, setJoinSuccess] = useState('')
+
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inviteCode.trim()) return
+    setJoining(true)
+    setJoinError('')
+    setJoinSuccess('')
+
+    try {
+      const res = await fetch('/api/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: inviteCode.trim() }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setJoinError(data.error)
+      } else {
+        setJoinSuccess('You\'re in! Loading your course...')
+        setTimeout(() => onEnrolled(), 1500)
+      }
+    } catch {
+      setJoinError('Failed to join. Please try again.')
+    }
+    setJoining(false)
+  }
+
+  return (
+    <main className="min-h-screen flex flex-col items-center justify-center px-4">
+      <img src="/logo.svg" alt="English with Laura" className="h-16 mb-6" />
+      <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center max-w-md">
+        <div className="text-4xl mb-3">📚</div>
+        <h2 className="text-lg font-bold text-[#46464b] mb-2">Welcome, {studentName}!</h2>
+        <p className="text-sm text-gray-500 mb-6">
+          You&apos;re not enrolled in any courses yet. Enter an invite code from your teacher to get started.
+        </p>
+
+        <form onSubmit={handleJoin} className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Enter invite code"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            className="flex-1 text-sm border border-[#cddcf0] rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b] text-center uppercase tracking-wider"
+          />
+          <button
+            type="submit"
+            disabled={joining || !inviteCode.trim()}
+            className="px-5 py-2.5 bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
+          >
+            {joining ? '...' : 'Join'}
+          </button>
+        </form>
+
+        {joinError && <p className="text-xs text-red-500 mt-3">{joinError}</p>}
+        {joinSuccess && <p className="text-xs text-green-600 font-bold mt-3">{joinSuccess}</p>}
+      </div>
+      <div className="mt-6 flex items-center gap-3 text-xs text-gray-400">
+        <span>englishwithlaura.com</span>
+        <span>·</span>
+        <SignOutButton />
+      </div>
     </main>
   )
 }

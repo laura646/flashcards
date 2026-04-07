@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await resend.emails.send({
-      from: 'Flashcards <onboarding@resend.dev>',
+      from: 'English with Laura <noreply@learn.englishwithlaura.com>',
       to: TEACHER_EMAIL,
       subject,
       html,

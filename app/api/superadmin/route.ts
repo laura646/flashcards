@@ -25,10 +25,18 @@ export async function GET(req: NextRequest) {
   try {
     // ── List all courses with teacher & student counts ──
     if (action === 'courses') {
-      const { data: courses, error } = await supabase
+      const includeArchived = req.nextUrl.searchParams.get('include_archived') === 'true'
+
+      let query = supabase
         .from('courses')
-        .select('*')
+        .select('id, name, description, invite_code, created_at, course_type, archived_at, level')
         .order('created_at', { ascending: false })
+
+      if (!includeArchived) {
+        query = query.is('archived_at', null)
+      }
+
+      const { data: courses, error } = await query
 
       if (error) throw error
 
@@ -117,16 +125,83 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // ── List all teachers ──
+    // ── List all teachers (with profile fields) ──
     if (action === 'teachers') {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select('email, name, country, specialization, created_at')
         .eq('role', 'teacher')
-        .order('created_at', { ascending: false })
+        .order('name')
 
       if (error) throw error
-      return NextResponse.json({ teachers: data || [] })
+
+      // Get course counts per teacher
+      const teacherEmails = (data || []).map((t: { email: string }) => t.email)
+      let courseCounts: Record<string, number> = {}
+      if (teacherEmails.length > 0) {
+        const { data: ctData } = await supabase
+          .from('course_teachers')
+          .select('teacher_email')
+          .in('teacher_email', teacherEmails)
+        for (const ct of (ctData || []) as { teacher_email: string }[]) {
+          courseCounts[ct.teacher_email] = (courseCounts[ct.teacher_email] || 0) + 1
+        }
+      }
+
+      const teachersWithCounts = (data || []).map((t: { email: string }) => ({
+        ...t,
+        course_count: courseCounts[t.email] || 0,
+      }))
+
+      return NextResponse.json({ teachers: teachersWithCounts })
+    }
+
+    // ── List all students (with profile fields and courses) ──
+    if (action === 'all-students') {
+      const { data, error } = await supabase
+        .from('users')
+        .select('email, name, country, level, learning_goals, company, common_issues_tags, common_issues_comments, created_at')
+        .eq('role', 'student')
+        .order('name')
+
+      if (error) throw error
+
+      // Get courses per student
+      const studentEmails = (data || []).map((s: { email: string }) => s.email)
+      let studentCourses: Record<string, string[]> = {}
+      if (studentEmails.length > 0) {
+        const { data: csData } = await supabase
+          .from('course_students')
+          .select('student_email, course_id')
+          .in('student_email', studentEmails)
+          .is('removed_at', null)
+
+        // Get course names
+        const courseIds = Array.from(new Set((csData || []).map((cs: { course_id: string }) => cs.course_id)))
+        let courseNames: Record<string, string> = {}
+        if (courseIds.length > 0) {
+          const { data: courses } = await supabase
+            .from('courses')
+            .select('id, name')
+            .in('id', courseIds)
+          for (const c of (courses || []) as { id: string; name: string }[]) {
+            courseNames[c.id] = c.name
+          }
+        }
+
+        for (const cs of (csData || []) as { student_email: string; course_id: string }[]) {
+          if (!studentCourses[cs.student_email]) studentCourses[cs.student_email] = []
+          const name = courseNames[cs.course_id]
+          if (name) studentCourses[cs.student_email].push(name)
+        }
+      }
+
+      const studentsWithCourses = (data || []).map((s: { email: string }) => ({
+        ...s,
+        courses: studentCourses[s.email] || [],
+      }))
+
+      return NextResponse.json({ students: studentsWithCourses })
     }
 
     // ── List all users (for assigning) ──
@@ -138,6 +213,22 @@ export async function GET(req: NextRequest) {
 
       if (error) throw error
       return NextResponse.json({ users: data || [] })
+    }
+
+    // ── Get attendance for a lesson ──
+    if (action === 'attendance') {
+      const lessonId = req.nextUrl.searchParams.get('lesson_id')
+      if (!lessonId) {
+        return NextResponse.json({ error: 'lesson_id required' }, { status: 400 })
+      }
+
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('lesson_id', lessonId)
+
+      if (error) throw error
+      return NextResponse.json({ attendance: data || [] })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -185,19 +276,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ course: data })
     }
 
-    // ── Update a course ──
+    // ── Update a course (supports all fields) ──
     if (action === 'update-course') {
-      const { course_id, name, description } = body
-      if (!course_id || !name?.trim()) {
-        return NextResponse.json({ error: 'course_id and name required' }, { status: 400 })
+      const { course_id, name, description, level, telegram_link, lesson_link, schedule, total_planned_sessions, teacher_notes, course_type } = body
+      if (!course_id) {
+        return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+      }
+
+      const updateData: Record<string, unknown> = {}
+      if (name !== undefined) updateData.name = name.trim()
+      if (description !== undefined) updateData.description = description?.trim() || null
+      if (level !== undefined) updateData.level = level || null
+      if (telegram_link !== undefined) updateData.telegram_link = telegram_link?.trim() || null
+      if (lesson_link !== undefined) updateData.lesson_link = lesson_link?.trim() || null
+      if (schedule !== undefined) updateData.schedule = schedule?.trim() || null
+      if (total_planned_sessions !== undefined) updateData.total_planned_sessions = total_planned_sessions || null
+      if (teacher_notes !== undefined) updateData.teacher_notes = teacher_notes?.trim() || null
+      if (course_type !== undefined) updateData.course_type = course_type || null
+
+      if (Object.keys(updateData).length === 0) {
+        return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
       }
 
       const { error } = await supabase
         .from('courses')
-        .update({
-          name: name.trim(),
-          description: description?.trim() || null,
-        })
+        .update(updateData)
         .eq('id', course_id)
 
       if (error) throw error
@@ -237,12 +340,6 @@ export async function POST(req: NextRequest) {
 
       if (userError) throw userError
 
-      // Also update role if user already existed as student
-      await supabase
-        .from('users')
-        .update({ role: 'teacher' })
-        .eq('email', cleanEmail)
-
       // Send invite email
       const apiKey = process.env.RESEND_API_KEY
       if (apiKey) {
@@ -250,7 +347,7 @@ export async function POST(req: NextRequest) {
         const resend = new Resend(apiKey)
         try {
           await resend.emails.send({
-            from: 'English with Laura <onboarding@resend.dev>',
+            from: 'English with Laura <noreply@learn.englishwithlaura.com>',
             to: cleanEmail,
             subject: 'You\'ve been invited as a teacher — English with Laura',
             html: `
@@ -400,6 +497,140 @@ export async function POST(req: NextRequest) {
 
       if (error) throw error
       return NextResponse.json({ invite_code: newCode })
+    }
+
+    // ── Save attendance for a lesson ──
+    if (action === 'save-attendance') {
+      const { lesson_id, records } = body
+      if (!lesson_id || !Array.isArray(records)) {
+        return NextResponse.json({ error: 'lesson_id and records[] required' }, { status: 400 })
+      }
+
+      // Delete existing attendance for this lesson, then insert new
+      await supabase.from('attendance').delete().eq('lesson_id', lesson_id)
+
+      if (records.length > 0) {
+        const rows = records.map((r: { student_email: string; status: string }) => ({
+          lesson_id,
+          student_email: r.student_email,
+          status: r.status,
+        }))
+        const { error } = await supabase.from('attendance').insert(rows)
+        if (error) throw error
+      }
+
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Create student (without course enrollment) ──
+    if (action === 'create-student') {
+      const { email, name: studentName } = body
+      if (!email?.trim()) return NextResponse.json({ error: 'Email required' }, { status: 400 })
+
+      const cleanEmail = email.trim().toLowerCase()
+
+      // Check if user already exists
+      const { data: existing } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', cleanEmail)
+        .maybeSingle()
+
+      if (existing) {
+        return NextResponse.json({ error: 'A user with this email already exists' }, { status: 400 })
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .insert({ email: cleanEmail, name: studentName?.trim() || '', role: 'student' })
+
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Update teacher profile ──
+    if (action === 'update-teacher-profile') {
+      const { email, country, specialization } = body
+      if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
+
+      const updateData: Record<string, unknown> = {}
+      if (country !== undefined) updateData.country = country || null
+      if (specialization !== undefined) updateData.specialization = specialization || null
+
+      const { error } = await supabase.from('users').update(updateData).eq('email', email)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Update student profile ──
+    if (action === 'update-student-profile') {
+      const { email, level, learning_goals, company, common_issues_tags, common_issues_comments } = body
+      if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
+
+      const updateData: Record<string, unknown> = {}
+      if (level !== undefined) updateData.level = level || null
+      if (learning_goals !== undefined) updateData.learning_goals = learning_goals || null
+      if (company !== undefined) updateData.company = company || null
+      if (common_issues_tags !== undefined) updateData.common_issues_tags = common_issues_tags || []
+      if (common_issues_comments !== undefined) updateData.common_issues_comments = common_issues_comments || null
+
+      const { error } = await supabase.from('users').update(updateData).eq('email', email)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Archive a course ──
+    if (action === 'archive-course') {
+      const { course_id } = body
+      if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+
+      const { error } = await supabase
+        .from('courses')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', course_id)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Restore (un-archive) a course ──
+    if (action === 'restore-course') {
+      const { course_id } = body
+      if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+
+      const { error } = await supabase
+        .from('courses')
+        .update({ archived_at: null })
+        .eq('id', course_id)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'delete-student') {
+      const { email } = body
+      if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 })
+
+      // Remove from all courses first
+      await supabase.from('course_students').delete().eq('student_email', email)
+      // Remove progress
+      await supabase.from('progress').delete().eq('user_email', email)
+      // Remove assignments
+      await supabase.from('student_assignments').delete().eq('user_email', email)
+      // Delete user
+      const { error } = await supabase.from('users').delete().eq('email', email)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'delete-teacher') {
+      const { email } = body
+      if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 })
+
+      // Remove from all course assignments
+      await supabase.from('course_teachers').delete().eq('teacher_email', email)
+      // Delete user
+      const { error } = await supabase.from('users').delete().eq('email', email)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

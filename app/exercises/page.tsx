@@ -100,7 +100,7 @@ export default function ExercisesPage() {
     const completedCount = completedIds.size
 
     return (
-      <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+      <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <button
@@ -166,7 +166,7 @@ export default function ExercisesPage() {
 
   // Exercise runner view
   return (
-    <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+    <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
       <ExerciseRunner
         exercise={selectedExercise}
         onComplete={handleComplete}

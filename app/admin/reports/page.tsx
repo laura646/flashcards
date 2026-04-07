@@ -18,6 +18,10 @@ interface Student {
   total_sessions: number
   avg_quiz_score: number | null
   exercises_done: number
+  mandatory_done: number
+  bonus_done: number
+  mandatory_total: number
+  bonus_total: number
   flashcard_modes: number
   blocked: boolean
   notes: string
@@ -455,8 +459,12 @@ export default function ReportsPage() {
                     <p className="text-[10px] text-gray-400">avg quiz</p>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-[#416ebe]">{selectedStudent.exercises_done}/5</p>
-                    <p className="text-[10px] text-gray-400">exercises</p>
+                    <p className="text-2xl font-bold text-[#416ebe]">{selectedStudent.mandatory_done}/{selectedStudent.mandatory_total}</p>
+                    <p className="text-[10px] text-gray-400">required</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-amber-500">{selectedStudent.bonus_done}/{selectedStudent.bonus_total}</p>
+                    <p className="text-[10px] text-gray-400">bonus</p>
                   </div>
                 </div>
               </div>

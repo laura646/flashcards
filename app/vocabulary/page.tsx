@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import FlipMode from '@/components/FlipMode'
 import SelfAssessMode from '@/components/SelfAssessMode'
 import QuizMode from '@/components/QuizMode'
+import VocabTrainer from '@/components/VocabTrainer'
 
 interface VocabWord {
   id: string
@@ -20,7 +21,7 @@ interface VocabWord {
   }
 }
 
-type Mode = 'browse' | 'flip' | 'self-assess' | 'quiz'
+type Mode = 'browse' | 'flip' | 'self-assess' | 'quiz' | 'trainer'
 
 export default function VocabularyPage() {
   const { data: session, status } = useSession()
@@ -102,6 +103,15 @@ export default function VocabularyPage() {
     notes: w.notes,
   }))
 
+  // Vocab Trainer (SRS)
+  if (mode === 'trainer') {
+    return (
+      <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
+        <VocabTrainer onBack={() => setMode('browse')} />
+      </main>
+    )
+  }
+
   // Study modes
   if (mode === 'flip' || mode === 'self-assess' || mode === 'quiz') {
     const modeButtons: { key: 'flip' | 'self-assess' | 'quiz'; label: string; description: string }[] = [
@@ -111,7 +121,7 @@ export default function VocabularyPage() {
     ]
 
     return (
-      <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+      <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <button
@@ -128,12 +138,12 @@ export default function VocabularyPage() {
           </span>
         </div>
 
-        <div className="flex gap-2 mb-6 bg-[#e6f0fa] p-1 rounded-xl">
+        <div className="flex gap-2 mb-6 bg-[#e6f0fa] p-1.5 rounded-xl">
           {modeButtons.map(({ key, label, description }) => (
             <button
               key={key}
               onClick={() => setMode(key)}
-              className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
+              className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all ${
                 mode === key
                   ? 'bg-white text-[#416ebe] shadow-sm'
                   : 'text-[#46464b] hover:text-[#416ebe]'
@@ -182,7 +192,7 @@ export default function VocabularyPage() {
   })
 
   return (
-    <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+    <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <button
@@ -195,6 +205,20 @@ export default function VocabularyPage() {
           <p className="text-xs text-gray-400">{words.length} words from all lessons</p>
         </div>
       </div>
+
+      {/* Vocab Trainer CTA */}
+      <button
+        onClick={() => setMode('trainer')}
+        className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white py-4 rounded-2xl text-sm font-bold hover:from-amber-500 hover:to-orange-600 transition-all shadow-sm mb-3"
+      >
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-lg">🧠</span>
+          <div>
+            <div>Vocabulary Trainer</div>
+            <div className="text-[10px] font-normal text-amber-100">Spaced repetition — review words at the right time</div>
+          </div>
+        </div>
+      </button>
 
       {/* Study mode buttons */}
       <div className="flex gap-2 mb-6">

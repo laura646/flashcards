@@ -197,19 +197,21 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
       </div>
 
       {/* Question navigation dots */}
-      <div className="flex justify-center gap-1.5 py-2">
+      <div className="flex justify-center gap-1 py-2">
         {exercise.questions.map((_, i) => (
           <button
             key={i}
             onClick={() => setCurrentIndex(i)}
-            className={`w-2.5 h-2.5 rounded-full transition-all ${
+            className="p-1.5"
+          >
+            <div className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-[#416ebe] scale-125'
                 : answers[i] !== null
                 ? 'bg-[#00aff0]'
                 : 'bg-[#cddcf0]'
-            }`}
-          />
+            }`} />
+          </button>
         ))}
       </div>
 

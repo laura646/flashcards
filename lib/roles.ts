@@ -112,11 +112,7 @@ export async function getAccessibleCourseIds(
   email: string,
   role: UserRole
 ): Promise<string[]> {
-  if (role === 'superadmin') {
-    const { data } = await supabase.from('courses').select('id')
-    return (data || []).map((c: { id: string }) => c.id)
-  }
-  if (role === 'teacher') {
+  if (role === 'superadmin' || role === 'teacher') {
     return getTeacherCourseIds(email, role)
   }
   return getStudentCourseIds(email)

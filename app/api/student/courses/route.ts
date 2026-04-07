@@ -1,45 +1,35 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthUser, getStudentCourseIds } from '@/lib/roles'
 import { supabase } from '@/lib/supabase'
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) {
+  const user = await getAuthUser()
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    // Get course IDs the student is enrolled in
-    const { data: enrollments, error: enrollError } = await supabase
-      .from('course_students')
-      .select('course_id')
-      .eq('student_email', session.user.email)
-      .is('removed_at', null)
-
-    if (enrollError) throw enrollError
-
-    const courseIds = (enrollments || []).map((e: { course_id: string }) => e.course_id)
+    const courseIds = await getStudentCourseIds(user.email)
 
     if (courseIds.length === 0) {
       return NextResponse.json({ courses: [] })
     }
 
-    // Get course details
-    const { data: courses, error: coursesError } = await supabase
-      .from('courses')
-      .select('id, name, description')
-      .in('id', courseIds)
-      .order('name')
+    // Fetch course details and lesson counts in parallel
+    const [{ data: courses, error: coursesError }, { data: lessonData }] = await Promise.all([
+      supabase
+        .from('courses')
+        .select('id, name, description, level, telegram_link, lesson_link, schedule')
+        .in('id', courseIds)
+        .order('name'),
+      supabase
+        .from('lessons')
+        .select('course_id')
+        .in('course_id', courseIds)
+        .eq('status', 'published'),
+    ])
 
     if (coursesError) throw coursesError
-
-    // Get lesson counts per course
-    const { data: lessonData } = await supabase
-      .from('lessons')
-      .select('course_id')
-      .in('course_id', courseIds)
-      .eq('status', 'published')
 
     const lessonCounts: Record<string, number> = {}
     ;(lessonData || []).forEach((l: { course_id: string }) => {

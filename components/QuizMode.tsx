@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react'
 import { Flashcard } from '@/data/flashcards'
 import { recordWordStruggle } from '@/lib/wordStruggle'
-import AudioButton from './AudioButton'
 import { CompletionScreen } from './FlipMode'
 
 interface Props {
@@ -97,14 +96,7 @@ export default function QuizMode({ cards, onComplete, userEmail }: Props) {
       {/* Question card */}
       <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">
         <p className="text-xs text-[#00aff0] font-bold uppercase tracking-widest mb-3">Which word matches this meaning?</p>
-        <p className="text-base text-[#46464b] font-medium leading-relaxed mb-3">{current.meaning}</p>
-        <div className="border-t border-[#e6f0fa] pt-3">
-          <p className="text-xs text-gray-400 italic mb-1">Example:</p>
-          <p className="text-sm text-gray-500 italic">"{current.example}"</p>
-          <div className="mt-2">
-            <AudioButton text={current.example} />
-          </div>
-        </div>
+        <p className="text-base text-[#46464b] font-medium leading-relaxed">{current.meaning}</p>
       </div>
 
       {/* Options */}

@@ -12,6 +12,12 @@ import HangmanRunner from '@/components/HangmanRunner'
 import TypeAnswerRunner from '@/components/TypeAnswerRunner'
 import CompleteSentenceRunner from '@/components/CompleteSentenceRunner'
 import GroupSortRunner from '@/components/GroupSortRunner'
+import DictationRunner from '@/components/DictationRunner'
+import ErrorCorrectionRunner from '@/components/ErrorCorrectionRunner'
+import RankOrderRunner from '@/components/RankOrderRunner'
+import TextSequencingRunner from '@/components/TextSequencingRunner'
+import AnagramRunner from '@/components/AnagramRunner'
+import ClozeListeningRunner from '@/components/ClozeListeningRunner'
 import AudioButton from '@/components/AudioButton'
 
 // ── Interfaces ──
@@ -38,6 +44,9 @@ interface LessonExercise {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   groupData?: any  // For group_sort type
   order_index: number
+  points_per_answer?: number
+  completion_bonus?: number
+  is_mandatory?: boolean
 }
 
 interface ExerciseQuestion {
@@ -53,6 +62,7 @@ interface Lesson {
   title: string
   lesson_date: string
   summary: string
+  lesson_type?: string
 }
 
 interface MistakeItem {
@@ -143,17 +153,29 @@ const BLOCK_META: Record<string, { icon: string; label: string }> = {
 
 function InlineQuiz({
   questions,
+  onComplete,
 }: {
   questions: { id?: number; prompt: string; options: string[]; correctIndex: number }[]
+  onComplete?: (score: number, total: number) => void
 }) {
   const [selected, setSelected] = useState<Record<number, number>>({})
   const [showResults, setShowResults] = useState(false)
+  const [completeFired, setCompleteFired] = useState(false)
 
   const score = questions.reduce(
     (acc, q, i) => acc + (selected[i] === q.correctIndex ? 1 : 0),
     0
   )
   const allAnswered = Object.keys(selected).length === questions.length
+
+  const handleCheck = () => {
+    setShowResults(true)
+    if (!completeFired && onComplete) {
+      const s = questions.reduce((acc, q, i) => acc + (selected[i] === q.correctIndex ? 1 : 0), 0)
+      onComplete(s, questions.length)
+      setCompleteFired(true)
+    }
+  }
 
   return (
     <div className="space-y-4 mt-4">
@@ -206,7 +228,7 @@ function InlineQuiz({
 
       {!showResults && (
         <button
-          onClick={() => setShowResults(true)}
+          onClick={handleCheck}
           disabled={!allAnswered}
           className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -243,16 +265,19 @@ function DialogueChat({
   block,
   studentEmail,
   studentName,
+  onAllWordsUsed,
 }: {
   block: ContentBlock
   studentEmail: string
   studentName: string
+  onAllWordsUsed?: () => void
 }) {
   const content = block.content as DialogueContent
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [wordsUsed, setWordsUsed] = useState<Set<string>>(new Set())
+  const allWordsUsedFired = useRef(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -344,6 +369,14 @@ function DialogueChat({
   const usedCount = targetWords.filter((w) => wordsUsed.has(w.toLowerCase())).length
   const progressPct = targetWords.length > 0 ? (usedCount / targetWords.length) * 100 : 0
 
+  // Fire completion callback when all target words are used
+  useEffect(() => {
+    if (targetWords.length > 0 && usedCount === targetWords.length && !allWordsUsedFired.current) {
+      allWordsUsedFired.current = true
+      onAllWordsUsed?.()
+    }
+  }, [usedCount, targetWords.length, onAllWordsUsed])
+
   if (loadingHistory) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -353,7 +386,7 @@ function DialogueChat({
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)]">
+    <div className="flex flex-col h-[calc(100vh-14rem)]">
       {/* Scenario */}
       <div className="bg-[#e6f0fa] rounded-xl p-3 mb-3">
         <p className="text-xs text-[#416ebe] font-bold mb-1">Scenario</p>
@@ -463,6 +496,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const router = useRouter()
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
+  const [lessonType, setLessonType] = useState<string>('lesson')
   const [exercises, setExercises] = useState<LessonExercise[]>([])
   const [blocks, setBlocks] = useState<ContentBlock[]>([])
   const [loading, setLoading] = useState(true)
@@ -471,8 +505,11 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const [selectedExercise, setSelectedExercise] = useState<LessonExercise | null>(null)
   const [selectedBlock, setSelectedBlock] = useState<ContentBlock | null>(null)
   const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set())
+  const [completedBlockIds, setCompletedBlockIds] = useState<Set<string>>(new Set())
+  const [flashcardsCompleted, setFlashcardsCompleted] = useState(false)
   const [writingText, setWritingText] = useState('')
   const [writingSaved, setWritingSaved] = useState(false)
+  const [pointsToast, setPointsToast] = useState<number | null>(null)
 
   const studentName = session?.user?.name?.split(' ')[0] || 'Student'
   const studentEmail = session?.user?.email || ''
@@ -488,6 +525,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         .then((res) => res.json())
         .then((data) => {
           setLesson(data.lesson)
+          setLessonType(data.lesson?.lesson_type || 'lesson')
           setFlashcards(
             (data.flashcards || []).map((f: Flashcard & { order_index: number }, i: number) => ({
               ...f,
@@ -510,7 +548,63 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     }
   }, [status, id, router])
 
+  // ── Load existing progress for this lesson ──
+  useEffect(() => {
+    if (!studentEmail || exercises.length === 0 && blocks.length === 0) return
+
+    fetch(`/api/progress?email=${encodeURIComponent(studentEmail)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const progress = data.progress || []
+        // Mark completed exercises
+        const exerciseIds = new Set(exercises.map((e: LessonExercise) => e.id))
+        const completedEx = new Set<string>()
+        const completedBl = new Set<string>()
+        const blockIds = new Set(blocks.map((b: ContentBlock) => b.id))
+
+        progress.forEach((p: { activity_type: string; activity_id: string }) => {
+          if (p.activity_type === 'exercise' && exerciseIds.has(p.activity_id)) {
+            completedEx.add(p.activity_id)
+          }
+          if (p.activity_type === 'block' && blockIds.has(p.activity_id)) {
+            completedBl.add(p.activity_id)
+          }
+          if (p.activity_type === 'flashcard') {
+            setFlashcardsCompleted(true)
+          }
+          // Writing submissions also count as block completion
+          if (p.activity_type === 'writing' && blockIds.has(p.activity_id)) {
+            completedBl.add(p.activity_id)
+          }
+        })
+        setCompletedExerciseIds(completedEx)
+        setCompletedBlockIds(completedBl)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentEmail, exercises.length, blocks.length])
+
   // ── Progress & notification helpers ──
+
+  const handleBlockComplete = async (blockId: string, score?: number, total?: number) => {
+    const newCompleted = new Set(completedBlockIds)
+    newCompleted.add(blockId)
+    setCompletedBlockIds(newCompleted)
+
+    try {
+      await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: studentEmail,
+          activity_type: 'block',
+          activity_id: blockId,
+          score: score ?? null,
+          total: total ?? null,
+        }),
+      })
+    } catch {}
+  }
 
   const handleFlashcardComplete = async (results: {
     mode: string
@@ -518,6 +612,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     total: number
     knewCount?: number
   }) => {
+    setFlashcardsCompleted(true)
     try {
       await fetch('/api/progress', {
         method: 'POST',
@@ -553,6 +648,17 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     newCompleted.add(selectedExercise.id)
     setCompletedExerciseIds(newCompleted)
 
+    // Calculate points earned
+    const ppa = selectedExercise.points_per_answer ?? 10
+    const cb = selectedExercise.completion_bonus ?? 0
+    const pointsEarned = (score * ppa) + cb
+
+    // Show points toast
+    if (pointsEarned > 0) {
+      setPointsToast(pointsEarned)
+      setTimeout(() => setPointsToast(null), 4000)
+    }
+
     try {
       await fetch('/api/progress', {
         method: 'POST',
@@ -563,6 +669,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           activity_id: selectedExercise.id,
           score,
           total,
+          points_earned: pointsEarned,
         }),
       })
     } catch {}
@@ -578,6 +685,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           exerciseTitle: selectedExercise.title,
           score,
           total,
+          points_earned: pointsEarned,
         }),
       })
     } catch {}
@@ -599,6 +707,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         }),
       })
       setWritingSaved(true)
+      // Mark block as completed
+      const newCompleted = new Set(completedBlockIds)
+      newCompleted.add(selectedBlock.id)
+      setCompletedBlockIds(newCompleted)
     } catch {}
 
     try {
@@ -676,113 +788,66 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   //  EXERCISE RUNNER VIEW
   // ══════════════════════════════════════
 
+  // Points toast overlay
+  const PointsToast = () =>
+    pointsToast !== null ? (
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-bounce">
+        <div className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-bold px-6 py-3 rounded-2xl shadow-lg flex items-center gap-2 text-sm">
+          <span className="text-lg">+{pointsToast}</span> points earned!
+        </div>
+      </div>
+    ) : null
+
   if (view === 'exercise-runner' && selectedExercise) {
     const onBackToExercises = () => {
       setSelectedExercise(null)
-      setView('exercises')
+      setView('overview')
     }
 
     const exType = selectedExercise.exercise_type
-
-    // Route to the correct runner based on exercise type
-    if (exType === 'true_or_false') {
-      return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
-          <TrueOrFalseRunner
-            exercise={{
-              title: selectedExercise.title,
-              instructions: selectedExercise.instructions,
-              questions: selectedExercise.questions,
-            }}
-            onComplete={handleExerciseComplete}
-            onBack={onBackToExercises}
-          />
-        </main>
-      )
-    }
-
-    if (exType === 'hangman') {
-      return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
-          <HangmanRunner
-            exercise={{
-              title: selectedExercise.title,
-              instructions: selectedExercise.instructions,
-              questions: selectedExercise.questions,
-            }}
-            onComplete={handleExerciseComplete}
-            onBack={onBackToExercises}
-          />
-        </main>
-      )
-    }
-
-    if (exType === 'type_answer') {
-      return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
-          <TypeAnswerRunner
-            exercise={{
-              title: selectedExercise.title,
-              instructions: selectedExercise.instructions,
-              questions: selectedExercise.questions,
-            }}
-            onComplete={handleExerciseComplete}
-            onBack={onBackToExercises}
-          />
-        </main>
-      )
-    }
-
-    if (exType === 'complete_sentence') {
-      return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
-          <CompleteSentenceRunner
-            exercise={{
-              title: selectedExercise.title,
-              instructions: selectedExercise.instructions,
-              questions: selectedExercise.questions,
-            }}
-            onComplete={handleExerciseComplete}
-            onBack={onBackToExercises}
-          />
-        </main>
-      )
-    }
-
-    if (exType === 'group_sort') {
-      return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
-          <GroupSortRunner
-            exercise={{
-              title: selectedExercise.title,
-              instructions: selectedExercise.instructions,
-              groupData: selectedExercise.groupData || selectedExercise.questions,
-            }}
-            onComplete={handleExerciseComplete}
-            onBack={onBackToExercises}
-          />
-        </main>
-      )
-    }
-
-    // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
-    const exerciseForRunner = {
-      id: 0,
+    const exProps = {
       title: selectedExercise.title,
-      subtitle: selectedExercise.subtitle,
-      icon: selectedExercise.icon,
       instructions: selectedExercise.instructions,
       questions: selectedExercise.questions,
     }
 
+    let runnerContent: React.ReactNode = null
+    const mainCls = "min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto"
+
+    if (exType === 'true_or_false') {
+      runnerContent = <TrueOrFalseRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'hangman') {
+      runnerContent = <HangmanRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'type_answer') {
+      runnerContent = <TypeAnswerRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'complete_sentence') {
+      runnerContent = <CompleteSentenceRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'group_sort') {
+      runnerContent = <GroupSortRunner exercise={{ title: exProps.title, instructions: exProps.instructions, groupData: selectedExercise.groupData || selectedExercise.questions }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'dictation') {
+      runnerContent = <DictationRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and type what you hear.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'error_correction') {
+      runnerContent = <ErrorCorrectionRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find and correct the errors in each sentence.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'rank_order') {
+      runnerContent = <RankOrderRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Drag or use arrows to rank the items in the correct order.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'text_sequencing') {
+      runnerContent = <TextSequencingRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Arrange the segments in the correct order.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'anagram') {
+      runnerContent = <AnagramRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Unscramble the letters to form the correct word.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'cloze_listening') {
+      runnerContent = <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else {
+      // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
+      runnerContent = <ExerciseRunner exercise={{ id: 0, title: selectedExercise.title, subtitle: selectedExercise.subtitle, icon: selectedExercise.icon, instructions: selectedExercise.instructions, questions: selectedExercise.questions }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    }
+
     return (
-      <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
-        <ExerciseRunner
-          exercise={exerciseForRunner}
-          onComplete={handleExerciseComplete}
-          onBack={onBackToExercises}
-        />
-      </main>
+      <>
+        <PointsToast />
+        <main className={mainCls}>
+          {runnerContent}
+        </main>
+      </>
     )
   }
 
@@ -807,7 +872,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     ]
 
     return (
-      <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+      <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <BackToLesson />
@@ -819,12 +884,12 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           </span>
         </div>
 
-        <div className="flex gap-2 mb-6 bg-[#e6f0fa] p-1 rounded-xl">
+        <div className="flex gap-2 mb-6 bg-[#e6f0fa] p-1.5 rounded-xl">
           {modeButtons.map(({ key, label, description }) => (
             <button
               key={key}
               onClick={() => setFlashcardMode(key)}
-              className={`flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all ${
+              className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all ${
                 flashcardMode === key
                   ? 'bg-white text-[#416ebe] shadow-sm'
                   : 'text-[#46464b] hover:text-[#416ebe]'
@@ -869,8 +934,55 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   // ══════════════════════════════════════
 
   if (view === 'exercises') {
+    const mandatoryExercises = exercises.filter(ex => ex.is_mandatory !== false)
+    const bonusExercises = exercises.filter(ex => ex.is_mandatory === false)
+
+    const renderExerciseCard = (ex: LessonExercise, isBonus?: boolean) => {
+      const isDone = completedExerciseIds.has(ex.id)
+      return (
+        <button
+          key={ex.id}
+          onClick={() => {
+            setSelectedExercise(ex)
+            setView('exercise-runner')
+          }}
+          className={`bg-white rounded-2xl border-2 p-5 text-left transition-all group flex items-center gap-4 ${
+            isDone
+              ? 'border-green-300 hover:border-green-400'
+              : 'border-[#cddcf0] hover:border-[#416ebe]'
+          }`}
+        >
+          <div className="text-3xl">{isDone ? '✅' : ex.icon}</div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <h3
+                className={`text-sm font-bold group-hover:text-[#3560b0] ${
+                  isDone ? 'text-green-600' : 'text-[#416ebe]'
+                }`}
+              >
+                {ex.title}
+              </h3>
+              {isBonus && (
+                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-600">Bonus</span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {isDone ? 'Completed — tap to redo' : ex.subtitle}
+            </p>
+          </div>
+          <div
+            className={`text-xs px-2.5 py-1 rounded-full ${
+              isDone ? 'text-green-600 bg-green-50' : 'text-gray-300 bg-[#e6f0fa]'
+            }`}
+          >
+            {isDone ? 'Done' : `${ex.questions.length} Qs`}
+          </div>
+        </button>
+      )
+    }
+
     return (
-      <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+      <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => setView('overview')}
@@ -884,46 +996,26 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          {exercises.map((ex) => {
-            const isDone = completedExerciseIds.has(ex.id)
-            return (
-              <button
-                key={ex.id}
-                onClick={() => {
-                  setSelectedExercise(ex)
-                  setView('exercise-runner')
-                }}
-                className={`bg-white rounded-2xl border-2 p-5 text-left transition-all group flex items-center gap-4 ${
-                  isDone
-                    ? 'border-green-300 hover:border-green-400'
-                    : 'border-[#cddcf0] hover:border-[#416ebe]'
-                }`}
-              >
-                <div className="text-3xl">{isDone ? '✅' : ex.icon}</div>
-                <div className="flex-1">
-                  <h3
-                    className={`text-sm font-bold group-hover:text-[#3560b0] ${
-                      isDone ? 'text-green-600' : 'text-[#416ebe]'
-                    }`}
-                  >
-                    {ex.title}
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {isDone ? 'Completed — tap to redo' : ex.subtitle}
-                  </p>
-                </div>
-                <div
-                  className={`text-xs px-2.5 py-1 rounded-full ${
-                    isDone ? 'text-green-600 bg-green-50' : 'text-gray-300 bg-[#e6f0fa]'
-                  }`}
-                >
-                  {isDone ? 'Done' : `${ex.questions.length} Qs`}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+        {/* Mandatory exercises */}
+        {mandatoryExercises.length > 0 && (
+          <div className="flex flex-col gap-3 mb-4">
+            {mandatoryExercises.map(ex => renderExerciseCard(ex))}
+          </div>
+        )}
+
+        {/* Bonus exercises */}
+        {bonusExercises.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 mb-3 mt-2">
+              <div className="flex-1 h-px bg-[#e6f0fa]" />
+              <span className="text-[10px] font-bold uppercase text-amber-500 tracking-wider">Bonus Exercises</span>
+              <div className="flex-1 h-px bg-[#e6f0fa]" />
+            </div>
+            <div className="flex flex-col gap-3">
+              {bonusExercises.map(ex => renderExerciseCard(ex, true))}
+            </div>
+          </>
+        )}
 
         {exercises.length === 0 && (
           <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">
@@ -947,7 +1039,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       const content = selectedBlock.content as MistakesContent
 
       return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
           <BackToLesson />
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
@@ -997,7 +1089,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                 {m.practice && m.practice.length > 0 && (
                   <div className="pt-2 border-t border-gray-100">
                     <p className="text-xs font-bold text-[#416ebe] mb-2">Quick practice</p>
-                    <InlineQuiz questions={m.practice} />
+                    <InlineQuiz questions={m.practice} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
                   </div>
                 )}
               </div>
@@ -1013,7 +1105,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       const videoId = getYouTubeId(content.youtube_url)
 
       return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
           <BackToLesson />
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
@@ -1044,7 +1136,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           {content.questions && content.questions.length > 0 && (
             <div>
               <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension questions</h2>
-              <InlineQuiz questions={content.questions} />
+              <InlineQuiz questions={content.questions} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
             </div>
           )}
         </main>
@@ -1056,7 +1148,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       const content = selectedBlock.content as ArticleContent
 
       return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
           <BackToLesson />
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
@@ -1082,7 +1174,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           {content.questions && content.questions.length > 0 && (
             <div>
               <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension questions</h2>
-              <InlineQuiz questions={content.questions} />
+              <InlineQuiz questions={content.questions} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
             </div>
           )}
         </main>
@@ -1092,7 +1184,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     // ── Dialogue Block ──
     if (selectedBlock.block_type === 'dialogue') {
       return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
           <BackToLesson />
           <div className="flex items-center gap-3 mb-4">
             <span className="text-3xl">{meta.icon}</span>
@@ -1108,6 +1200,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             block={selectedBlock}
             studentEmail={studentEmail}
             studentName={studentName}
+            onAllWordsUsed={() => handleBlockComplete(selectedBlock.id)}
           />
         </main>
       )
@@ -1118,7 +1211,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       const content = selectedBlock.content as GrammarContent
 
       return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
           <BackToLesson />
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
@@ -1163,7 +1256,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           {content.exercises && content.exercises.length > 0 && (
             <div>
               <h2 className="text-sm font-bold text-[#416ebe] mb-3">Practice</h2>
-              <InlineQuiz questions={content.exercises} />
+              <InlineQuiz questions={content.exercises} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
             </div>
           )}
         </main>
@@ -1176,7 +1269,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       const wordCount = writingText.trim() ? writingText.trim().split(/\s+/).length : 0
 
       return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
           <BackToLesson />
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
@@ -1266,7 +1359,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       const content = selectedBlock.content as PronunciationContent
 
       return (
-        <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
           <BackToLesson />
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
@@ -1308,7 +1401,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
 
     // ── Fallback for unknown block types ──
     return (
-      <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
+      <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
         <BackToLesson />
         <div className="text-center py-12">
           <div className="text-4xl mb-3">📦</div>
@@ -1333,18 +1426,21 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     subtitle: string
     onClick: () => void
     orderIndex: number
+    completed: boolean
   }[] = []
 
   // Vocabulary card — use first flashcard's order_index / 1000 for global position
-  if (flashcards.length > 0) {
+  const isTest = lessonType !== 'lesson'
+  if (flashcards.length > 0 && !isTest) {
     const globalOrder = Math.floor((flashcards[0].order_index ?? 0) / 1000)
     contentItems.push({
       key: 'vocab',
-      icon: '🃏',
+      icon: flashcardsCompleted ? '✅' : '🃏',
       label: 'New Words',
-      subtitle: `${flashcards.length} words to learn`,
+      subtitle: flashcardsCompleted ? 'Studied — tap to review' : `${flashcards.length} words to learn`,
       onClick: () => setView('flashcards'),
       orderIndex: globalOrder,
+      completed: flashcardsCompleted,
     })
   }
 
@@ -1361,17 +1457,19 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         setView('exercise-runner')
       },
       orderIndex: ex.order_index ?? 0,
+      completed: isDone,
     })
   })
 
   // Block cards
   blocks.forEach((block) => {
     const meta = BLOCK_META[block.block_type] || { icon: '📦', label: block.title }
+    const isDone = completedBlockIds.has(block.id)
     contentItems.push({
       key: `block-${block.id}`,
-      icon: meta.icon,
+      icon: isDone ? '✅' : meta.icon,
       label: block.title || meta.label,
-      subtitle: meta.label,
+      subtitle: isDone ? 'Completed — tap to review' : meta.label,
       onClick: () => {
         setSelectedBlock(block)
         setWritingText('')
@@ -1379,11 +1477,16 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         setView('block')
       },
       orderIndex: block.order_index,
+      completed: isDone,
     })
   })
 
   // Sort by the unified order_index
   contentItems.sort((a, b) => a.orderIndex - b.orderIndex)
+
+  const completedCount = contentItems.filter(i => i.completed).length
+  const totalCount = contentItems.length
+  const allComplete = totalCount > 0 && completedCount === totalCount
 
   return (
     <main className="min-h-screen flex flex-col items-center px-4 py-8">
@@ -1399,11 +1502,48 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         {/* Lesson Header */}
         <div className="bg-white rounded-2xl shadow-sm border-2 border-[#cddcf0] p-6 mb-4">
           <p className="text-xs text-gray-400 mb-1">{formatDate(lesson.lesson_date)}</p>
-          <h1 className="text-xl font-bold text-[#416ebe] mb-2">{lesson.title}</h1>
+          <h1 className="text-xl font-bold text-[#416ebe] mb-2">
+            {lesson.title}
+            {lessonType !== 'lesson' && (
+              <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-600 align-middle">
+                {lessonType === 'mid_course_test' ? '📝 Mid-Course Test' : lessonType === 'final_test' ? '🎓 Final Test' : '🔄 Review Test'}
+              </span>
+            )}
+          </h1>
           {lesson.summary && (
             <p className="text-sm text-gray-500 leading-relaxed">{lesson.summary}</p>
           )}
         </div>
+
+        {/* Progress Header */}
+        {totalCount > 0 && (
+          <div className={`rounded-2xl p-4 mb-4 transition-all ${
+            allComplete
+              ? 'bg-gradient-to-r from-green-400 to-emerald-500'
+              : 'bg-white border-2 border-[#cddcf0]'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-sm font-bold ${allComplete ? 'text-white' : 'text-[#46464b]'}`}>
+                {allComplete ? 'Lesson complete!' : 'Your progress'}
+              </span>
+              <span className={`text-xs font-bold ${allComplete ? 'text-green-100' : 'text-[#416ebe]'}`}>
+                {completedCount}/{totalCount}
+              </span>
+            </div>
+            <div className="flex gap-1">
+              {contentItems.map((item) => (
+                <div
+                  key={item.key}
+                  className={`h-2 flex-1 rounded-full transition-all duration-500 ${
+                    item.completed
+                      ? allComplete ? 'bg-white/70' : 'bg-green-400'
+                      : allComplete ? 'bg-white/30' : 'bg-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Content Cards */}
         {contentItems.length > 0 ? (
@@ -1412,11 +1552,17 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               <button
                 key={item.key}
                 onClick={item.onClick}
-                className="bg-white rounded-2xl shadow-sm border-2 border-[#cddcf0] hover:border-[#416ebe] p-5 text-left transition-all group flex items-center gap-4"
+                className={`bg-white rounded-2xl shadow-sm border-2 p-5 text-left transition-all group flex items-center gap-4 ${
+                  item.completed
+                    ? 'border-green-200 hover:border-green-400'
+                    : 'border-[#cddcf0] hover:border-[#416ebe]'
+                }`}
               >
                 <div className="text-3xl">{item.icon}</div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-bold text-[#416ebe] group-hover:text-[#3560b0]">
+                  <h3 className={`text-sm font-bold group-hover:text-[#3560b0] ${
+                    item.completed ? 'text-green-600' : 'text-[#416ebe]'
+                  }`}>
                     {item.label}
                   </h3>
                   <p className="text-xs text-gray-400 mt-0.5">{item.subtitle}</p>
