@@ -18,6 +18,7 @@ import RankOrderRunner from '@/components/RankOrderRunner'
 import TextSequencingRunner from '@/components/TextSequencingRunner'
 import AnagramRunner from '@/components/AnagramRunner'
 import ClozeListeningRunner from '@/components/ClozeListeningRunner'
+import MatchHalvesRunner from '@/components/MatchHalvesRunner'
 import AudioButton from '@/components/AudioButton'
 
 // ── Interfaces ──
@@ -836,6 +837,8 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       runnerContent = <AnagramRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Unscramble the letters to form the correct word.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else if (exType === 'cloze_listening') {
       runnerContent = <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'match_halves') {
+      runnerContent = <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else {
       // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
       runnerContent = <ExerciseRunner exercise={{ id: 0, title: selectedExercise.title, subtitle: selectedExercise.subtitle, icon: selectedExercise.icon, instructions: selectedExercise.instructions, questions: selectedExercise.questions }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />

@@ -13,6 +13,7 @@ import RankOrderRunner from '@/components/RankOrderRunner'
 import TextSequencingRunner from '@/components/TextSequencingRunner'
 import AnagramRunner from '@/components/AnagramRunner'
 import ClozeListeningRunner from '@/components/ClozeListeningRunner'
+import MatchHalvesRunner from '@/components/MatchHalvesRunner'
 
 interface ExercisePreviewProps {
   exercise: {
@@ -80,6 +81,9 @@ export default function ExercisePreview({ exercise, onClose }: ExercisePreviewPr
       break
     case 'cloze_listening':
       runner = <ClozeListeningRunner key={key} exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={handleComplete} onBack={onClose} />
+      break
+    case 'match_halves':
+      runner = <MatchHalvesRunner key={key} exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves.' }} onComplete={handleComplete} onBack={onClose} />
       break
     default:
       runner = <ExerciseRunner key={key} exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle || '', icon: exercise.icon || '📝', instructions: exercise.instructions, questions: exProps.questions }} onComplete={handleComplete} onBack={onClose} />

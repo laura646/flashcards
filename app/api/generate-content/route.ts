@@ -18,8 +18,8 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
 2. "fill_blank" — type the missing word/phrase (prompt uses ___ for the blank)
    {"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": ""}
 
-3. "match_halves" — match sentence beginnings with endings
-   {"id": 1, "prompt": "If it rains,", "options": ["I'll stay home", "she goes out", "they swim"], "correctIndex": 0, "hint": ""}
+3. "match_halves" — match keywords/beginnings with definitions/endings (drag-and-drop matching)
+   {"id": 1, "left": "to create", "right": "chairs"}
 
 4. "unjumble" — rearrange words to form correct sentences
    {"id": 1, "prompt": "school / to / I / go / every day", "options": ["I go to school every day"], "correctIndex": 0, "hint": ""}
@@ -231,11 +231,11 @@ Choose the BEST exercise type for the content. Available types:
 CLASSIC TYPES (use standard questions array):
 - "multiple_choice" — choose the correct answer from options
 - "fill_blank" — type the correct word/phrase
-- "match_halves" — match sentence beginnings with endings
 - "unjumble" — rearrange words to form correct sentences
 - "transform" — change sentences (e.g., positive to negative)
 
 NEW INTERACTIVE TYPES (each has its own data format):
+- "match_halves" — drag-and-drop matching of keywords to definitions
 - "true_or_false" — student decides if a statement is true or false
 - "hangman" — student guesses letters to reveal a word, given a clue
 - "type_answer" — student types the correct answer (no options given)
@@ -246,7 +246,7 @@ ${preferredType ? `IMPORTANT: The teacher wants exercise type "${preferredType}"
 
 Return ONLY a valid JSON object. The format depends on the exercise type:
 
-FOR "multiple_choice", "fill_blank", "match_halves", "unjumble", "transform":
+FOR "multiple_choice", "fill_blank", "unjumble", "transform":
 {
   "title": "Exercise title",
   "subtitle": "Brief description",
@@ -382,8 +382,8 @@ ${({
 - Each question needs a prompt, 3-4 options with one correct answer, and the correctIndex pointing to the right one.`,
   fill_blank: `"questions": [{"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": ""}]
 - Each question has a sentence with ___ for the blank, plus options.`,
-  match_halves: `"questions": [{"id": 1, "prompt": "If it rains,", "options": ["I'll stay home", "she goes out", "they swim"], "correctIndex": 0, "hint": ""}]
-- prompt is the sentence beginning, options are possible endings, correctIndex marks the match.`,
+  match_halves: `"questions": [{"id": 1, "left": "to create", "right": "chairs"}, {"id": 2, "left": "it looks", "right": "colorful"}]
+- Each pair has a "left" (keyword/beginning) and "right" (definition/ending). Students drag left tiles to match right definitions.`,
   unjumble: `"questions": [{"id": 1, "prompt": "school / to / I / go / every day", "options": ["I go to school every day"], "correctIndex": 0, "hint": ""}]
 - prompt has jumbled words separated by " / ", options[0] is the correct sentence.`,
   transform: `"questions": [{"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": ""}]

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GapFillBuilder from '@/components/GapFillBuilder'
 import ExercisePreview from '@/components/ExercisePreview'
+import MatchHalvesEditor from '@/components/MatchHalvesEditor'
 // Role-based admin check
 
 // ── Types ──
@@ -1619,6 +1620,12 @@ function LessonsAdminPage() {
               mode={exercise.exercise_type as 'complete_sentence' | 'cloze_listening'}
             />
           </div>
+        ) : exercise.exercise_type === 'match_halves' ? (
+          // Visual match halves editor
+          <MatchHalvesEditor
+            questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+            onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+          />
         ) : ['true_or_false', 'hangman', 'type_answer', 'complete_sentence', 'group_sort', 'dictation', 'error_correction', 'rank_order', 'text_sequencing', 'anagram', 'cloze_listening'].includes(exercise.exercise_type) ? (
           // For new exercise types, show a JSON data editor
           <div>
