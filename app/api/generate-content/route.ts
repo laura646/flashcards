@@ -511,51 +511,82 @@ For all other types, set groupData to null.`
       return NextResponse.json(parsed)
     }
 
-    // Generate exercises from an uploaded PDF or DOCX file
+    // Generate exercises from uploaded files (PDF, DOCX, JPEG, PNG)
     if (action === 'generate-exercises-from-upload') {
-      const { fileData, fileType } = body
-      if (!fileData) {
+      // Support both legacy single-file format and new multi-file format
+      const files: { data: string; type: string }[] = body.files || (body.fileData ? [{ data: body.fileData, type: body.fileType }] : [])
+      if (files.length === 0) {
         return NextResponse.json({ error: 'File data required' }, { status: 400 })
       }
 
-      // Validate file size before processing (base64 is ~33% larger than raw)
-      const estimatedBytes = Math.ceil((fileData.length * 3) / 4)
-      if (estimatedBytes > MAX_UPLOAD_SIZE_BYTES) {
-        return NextResponse.json({ error: 'File too large. Maximum size is 10 MB.' }, { status: 400 })
+      // Validate total size
+      const totalBytes = files.reduce((sum: number, f: { data: string }) => sum + Math.ceil((f.data.length * 3) / 4), 0)
+      if (totalBytes > MAX_UPLOAD_SIZE_BYTES) {
+        return NextResponse.json({ error: 'Files too large. Maximum total size is 10 MB.' }, { status: 400 })
       }
 
-      let docText: string
-      const buffer = Buffer.from(fileData, 'base64')
+      const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/jpg']
+      const hasImages = files.some((f: { type: string }) => IMAGE_TYPES.includes(f.type))
+      const hasDocuments = files.some((f: { type: string }) => !IMAGE_TYPES.includes(f.type))
 
-      try {
-        if (fileType === 'application/pdf' || fileType === 'pdf') {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const pdfParse = require('pdf-parse')
-          const pdfResult = await pdfParse(buffer)
-          docText = pdfResult.text
-        } else if (
-          fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-          fileType === 'docx'
-        ) {
-          const mammoth = await import('mammoth')
-          const result = await mammoth.extractRawText({ buffer })
-          docText = result.value
+      // Extract text from document files (PDF/DOCX)
+      let docText = ''
+      const imageBlocks: { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }[] = []
+
+      for (const file of files) {
+        if (IMAGE_TYPES.includes(file.type)) {
+          imageBlocks.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: file.type === 'image/jpg' ? 'image/jpeg' : file.type,
+              data: file.data,
+            },
+          })
         } else {
-          return NextResponse.json({ error: 'Unsupported file type. Please upload a PDF or DOCX file.' }, { status: 400 })
+          const buffer = Buffer.from(file.data, 'base64')
+          try {
+            if (file.type === 'application/pdf' || file.type === 'pdf') {
+              // eslint-disable-next-line @typescript-eslint/no-require-imports
+              const pdfParse = require('pdf-parse')
+              const pdfResult = await pdfParse(buffer)
+              docText += (docText ? '\n\n' : '') + pdfResult.text
+            } else if (
+              file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+              file.type === 'docx'
+            ) {
+              const mammoth = await import('mammoth')
+              const result = await mammoth.extractRawText({ buffer })
+              docText += (docText ? '\n\n' : '') + result.value
+            } else {
+              return NextResponse.json({ error: 'Unsupported file type. Please upload PDF, DOCX, JPEG, or PNG files.' }, { status: 400 })
+            }
+          } catch (parseErr) {
+            console.error('File parse error:', parseErr)
+            return NextResponse.json({ error: 'Failed to read an uploaded file. Make sure it is a valid PDF, DOCX, JPEG, or PNG.' }, { status: 400 })
+          }
         }
+      }
 
-        if (!docText.trim()) {
-          return NextResponse.json({ error: 'The document appears to be empty or could not be read.' }, { status: 400 })
-        }
-      } catch (parseErr) {
-        console.error('File parse error:', parseErr)
-        return NextResponse.json({ error: 'Failed to read the uploaded file. Make sure it is a valid PDF or DOCX.' }, { status: 400 })
+      if (!hasImages && !docText.trim()) {
+        return NextResponse.json({ error: 'The document appears to be empty or could not be read.' }, { status: 400 })
+      }
+
+      // Build message content: images use vision, documents use text
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const messageContent: any[] = []
+
+      if (imageBlocks.length > 0) {
+        messageContent.push({ type: 'text', text: EXERCISE_GEN_PROMPT + (hasDocuments && docText ? '\n\nAdditionally, here is text extracted from uploaded documents:\n\n' + docText : '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.') })
+        messageContent.push(...imageBlocks)
+      } else {
+        messageContent.push({ type: 'text', text: EXERCISE_GEN_PROMPT + docText })
       }
 
       const message = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 8192,
-        messages: [{ role: 'user', content: EXERCISE_GEN_PROMPT + docText }]
+        messages: [{ role: 'user', content: messageContent }]
       })
 
       const textContent = message.content.find(c => c.type === 'text')

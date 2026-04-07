@@ -343,7 +343,7 @@ function LessonsAdminPage() {
 
   // Create Exercises from Doc/Upload state
   const [exerciseDocUrl, setExerciseDocUrl] = useState('')
-  const [uploadedExerciseFile, setUploadedExerciseFile] = useState<File | null>(null)
+  const [uploadedExerciseFiles, setUploadedExerciseFiles] = useState<File[]>([])
   const [generatingExercises, setGeneratingExercises] = useState(false)
   const [generatedExercises, setGeneratedExercises] = useState<Exercise[]>([])
 
@@ -1082,24 +1082,36 @@ function LessonsAdminPage() {
   }
 
   const importExercisesFromUpload = async () => {
-    if (!uploadedExerciseFile) {
-      showToast('Please select a PDF or DOCX file')
+    if (uploadedExerciseFiles.length === 0) {
+      showToast('Please select a file (PDF, DOCX, JPEG, or PNG)')
       return
     }
     setGeneratingExercises(true)
     setGeneratedExercises([])
     try {
-      const arrayBuffer = await uploadedExerciseFile.arrayBuffer()
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      const files = await Promise.all(
+        uploadedExerciseFiles.map(async (file) => {
+          const arrayBuffer = await file.arrayBuffer()
+          const base64 = btoa(
+            new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+          )
+          const ext = file.name.split('.').pop()?.toLowerCase() || ''
+          const typeMap: Record<string, string> = {
+            pdf: 'application/pdf',
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            jpg: 'image/jpeg',
+            jpeg: 'image/jpeg',
+            png: 'image/png',
+          }
+          return { data: base64, type: file.type || typeMap[ext] || 'application/pdf' }
+        })
       )
       const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate-exercises-from-upload',
-          fileData: base64,
-          fileType: uploadedExerciseFile.type || (uploadedExerciseFile.name.endsWith('.pdf') ? 'pdf' : 'docx'),
+          files,
         }),
       })
       const data = await res.json()
@@ -2971,22 +2983,27 @@ function LessonsAdminPage() {
                 <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#cddcf0] rounded-xl cursor-pointer hover:border-[#416ebe] hover:bg-[#f7fafd] transition-colors ${generatingExercises ? 'opacity-50 pointer-events-none' : ''}`}>
                   <span className="text-base">&#x1F4C4;</span>
                   <span className="text-xs text-[#46464b] font-medium">
-                    {uploadedExerciseFile ? uploadedExerciseFile.name : 'Choose PDF or DOCX file'}
+                    {uploadedExerciseFiles.length > 0
+                      ? uploadedExerciseFiles.length === 1
+                        ? uploadedExerciseFiles[0].name
+                        : `${uploadedExerciseFiles.length} files selected`
+                      : 'Choose PDF, DOCX, JPEG, or PNG'}
                   </span>
                   <input
                     type="file"
-                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    multiple
+                    accept=".pdf,.docx,.jpg,.jpeg,.png,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
                     className="hidden"
                     onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) setUploadedExerciseFile(file)
+                      const files = e.target.files
+                      if (files && files.length > 0) setUploadedExerciseFiles(Array.from(files))
                     }}
                     disabled={generatingExercises}
                   />
                 </label>
                 <button
                   onClick={importExercisesFromUpload}
-                  disabled={generatingExercises || !uploadedExerciseFile}
+                  disabled={generatingExercises || uploadedExerciseFiles.length === 0}
                   className="px-5 py-2.5 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   {generatingExercises ? (
