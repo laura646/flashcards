@@ -477,7 +477,7 @@ function LessonsAdminPage() {
     setGoogleDocUrl('')
     setImportResult(null)
     setExerciseDocUrl('')
-    setUploadedExerciseFile(null)
+    setUploadedExerciseFiles([])
     setGeneratedExercises([])
     setView('editor')
 
@@ -558,7 +558,7 @@ function LessonsAdminPage() {
     setGoogleDocUrl('')
     setImportResult(null)
     setExerciseDocUrl('')
-    setUploadedExerciseFile(null)
+    setUploadedExerciseFiles([])
     setGeneratedExercises([])
     setView('editor')
   }
@@ -1167,7 +1167,7 @@ function LessonsAdminPage() {
     setContentItems((prev) => [...prev, ...newItems].map((item, i) => ({ ...item, order_index: i })))
     setGeneratedExercises([])
     setExerciseDocUrl('')
-    setUploadedExerciseFile(null)
+    setUploadedExerciseFiles([])
     showToast(`Added ${newItems.length} exercises to lesson!`)
   }
 
