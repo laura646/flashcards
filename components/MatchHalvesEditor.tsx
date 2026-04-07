@@ -16,6 +16,7 @@ interface Props {
 
 export default function MatchHalvesEditor({ questions, onChange }: Props) {
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const addPair = () => {
     onChange([...questions, { id: Date.now(), left: '', right: '' }])
@@ -39,6 +40,7 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
 
   const handleImageUpload = async (idx: number, file: File) => {
     setUploadingIdx(idx)
+    setUploadError(null)
     try {
       const arrayBuffer = await file.arrayBuffer()
       const base64 = btoa(
@@ -52,9 +54,11 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
       const data = await res.json()
       if (res.ok && data.url) {
         setImage(idx, data.url)
+      } else {
+        setUploadError(data.error || 'Upload failed')
       }
-    } catch {
-      // Upload failed
+    } catch (err) {
+      setUploadError('Upload failed — check connection')
     }
     setUploadingIdx(null)
   }
@@ -84,6 +88,14 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Upload error */}
+      {uploadError && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-2 flex items-center justify-between mb-2">
+          <p className="text-xs text-red-500">{uploadError}</p>
+          <button onClick={() => setUploadError(null)} className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">✕</button>
+        </div>
+      )}
 
       {/* Header */}
       {questions.length > 0 && (
