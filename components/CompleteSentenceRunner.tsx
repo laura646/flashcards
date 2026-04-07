@@ -7,6 +7,7 @@ interface CompleteSentenceQuestion {
   text: string // "I {{1}} to the store and {{2}} some milk."
   blanks: Record<string, string> // {"1": "went", "2": "bought"}
   wordBank: string[] // ["went", "bought", "gone", "buyed"]
+  image_url?: string
 }
 
 interface Props {
@@ -258,6 +259,17 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
 
       {/* Instructions */}
       <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+
+      {/* Question image */}
+      {current.image_url && (
+        <div className="flex justify-center">
+          <img
+            src={current.image_url}
+            alt=""
+            className="max-h-48 rounded-2xl border border-[#cddcf0] shadow-sm object-contain"
+          />
+        </div>
+      )}
 
       {/* Sentence with blanks */}
       <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">

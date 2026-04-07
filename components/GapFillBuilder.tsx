@@ -8,6 +8,7 @@ interface GapQuestion {
   blanks: Record<string, string>
   wordBank?: string[]
   audio_url?: string
+  image_url?: string
 }
 
 interface Props {
@@ -22,12 +23,15 @@ export default function GapFillBuilder({ questions, onChange, mode }: Props) {
   const [gappedIndices, setGappedIndices] = useState<Set<number>>(new Set())
   const [distractors, setDistractors] = useState('')
   const [audioUrl, setAudioUrl] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   const startNewQuestion = () => {
     setRawSentence('')
     setGappedIndices(new Set())
     setDistractors('')
     setAudioUrl('')
+    setImageUrl('')
     setEditingIndex(-1) // -1 = new question
   }
 
@@ -58,6 +62,7 @@ export default function GapFillBuilder({ questions, onChange, mode }: Props) {
     const dists = (q.wordBank || []).filter(w => !blankWords.has(w.toLowerCase()))
     setDistractors(dists.join(', '))
     setAudioUrl(q.audio_url || '')
+    setImageUrl(q.image_url || '')
     setEditingIndex(idx)
   }
 
@@ -116,6 +121,10 @@ export default function GapFillBuilder({ questions, onChange, mode }: Props) {
       delete q.wordBank
     }
 
+    if (mode === 'complete_sentence' && imageUrl) {
+      q.image_url = imageUrl
+    }
+
     return q
   }
 
@@ -135,6 +144,7 @@ export default function GapFillBuilder({ questions, onChange, mode }: Props) {
     setGappedIndices(new Set())
     setDistractors('')
     setAudioUrl('')
+    setImageUrl('')
   }
 
   const deleteQuestion = (idx: number) => {
@@ -192,6 +202,9 @@ export default function GapFillBuilder({ questions, onChange, mode }: Props) {
                         return <span key={pi}>{part}</span>
                       })}
                     </p>
+                    {q.image_url && (
+                      <img src={q.image_url} alt="" className="mt-2 h-16 rounded-lg border border-[#e6f0fa] object-cover" />
+                    )}
                     {q.wordBank && q.wordBank.length > 0 && (
                       <p className="text-[10px] text-gray-400 mt-1">
                         Word bank: {q.wordBank.join(', ')}
@@ -298,6 +311,62 @@ export default function GapFillBuilder({ questions, onChange, mode }: Props) {
           <p className="text-[10px] text-gray-400 mt-0.5">
             Wrong options added to the word bank alongside correct answers
           </p>
+        </div>
+      )}
+
+      {/* Image upload (complete_sentence only) */}
+      {mode === 'complete_sentence' && (
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+            Image (optional)
+          </label>
+          {imageUrl ? (
+            <div className="relative inline-block">
+              <img src={imageUrl} alt="" className="h-24 rounded-xl border border-[#e6f0fa] object-cover" />
+              <button
+                onClick={() => setImageUrl('')}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 hover:bg-red-500 text-white rounded-full text-xs flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[#cddcf0] rounded-xl cursor-pointer hover:border-[#416ebe] hover:bg-[#f7fafd] transition-colors ${uploadingImage ? 'opacity-50 pointer-events-none' : ''}`}>
+              <span className="text-sm">📷</span>
+              <span className="text-xs text-[#46464b] font-medium">
+                {uploadingImage ? 'Uploading...' : 'Add image'}
+              </span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                className="hidden"
+                disabled={uploadingImage}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setUploadingImage(true)
+                  try {
+                    const arrayBuffer = await file.arrayBuffer()
+                    const base64 = btoa(
+                      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+                    )
+                    const res = await fetch('/api/upload', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ fileData: base64, fileType: file.type, fileName: file.name }),
+                    })
+                    const data = await res.json()
+                    if (res.ok && data.url) {
+                      setImageUrl(data.url)
+                    }
+                  } catch {
+                    // Upload failed silently
+                  }
+                  setUploadingImage(false)
+                }}
+              />
+            </label>
+          )}
         </div>
       )}
 
