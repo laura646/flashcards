@@ -78,7 +78,7 @@ const EXERCISE_TYPES = [
   { value: 'error_correction', label: 'Error Correction', icon: '\uD83D\uDD0D' },
   { value: 'rank_order', label: 'Rank Order', icon: '\uD83D\uDD22' },
   { value: 'text_sequencing', label: 'Text Sequencing', icon: '\uD83D\uDCC4' },
-  { value: 'anagram', label: 'Anagram', icon: '\uD83D\uDD24' },
+  { value: 'anagram', label: 'Unjumble', icon: '🔀' },
   { value: 'cloze_listening', label: 'Cloze Listening', icon: '\uD83C\uDFA7' },
 ]
 
@@ -115,7 +115,7 @@ const EXERCISE_TYPE_LABELS: Record<string, string> = {
   error_correction: 'Error Correction',
   rank_order: 'Rank Order',
   text_sequencing: 'Text Sequencing',
-  anagram: 'Anagram',
+  anagram: 'Unjumble',
   cloze_listening: 'Cloze Listening',
 }
 
@@ -1660,7 +1660,7 @@ function LessonsAdminPage() {
               {exercise.exercise_type === 'error_correction' && 'Format: [{"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday.", "hints": "optional"}]'}
               {exercise.exercise_type === 'rank_order' && 'Format: [{"id": 1, "criterion": "From least to most frequent", "items": ["never", "rarely", "sometimes", "often", "always"]}]'}
               {exercise.exercise_type === 'text_sequencing' && 'Format: [{"id": 1, "segments": ["First sentence.", "Second sentence.", "Third sentence."], "level": "sentence"}]'}
-              {exercise.exercise_type === 'anagram' && 'Format: [{"id": 1, "word": "SCHOOL", "clue": "A place where children learn"}]'}
+              {exercise.exercise_type === 'anagram' && 'Format: [{"id": 1, "word": "SCHOOL", "clue": "A place where children learn"}] — For sentence unjumble use: {"word": "She is going to the market", "clue": "Rearrange the words"}'}
               {exercise.exercise_type === 'cloze_listening' && 'Format: [{"id": 1, "text": "The {{1}} sat on the {{2}}.", "blanks": {"1": "cat", "2": "mat"}, "audio_url": "optional URL"}]'}
             </p>
           </div>
