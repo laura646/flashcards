@@ -2949,7 +2949,7 @@ function LessonsAdminPage() {
                 <span className="text-lg">&#x1F3AF;</span>
                 <h2 className="font-bold text-[#46464b]">Create Exercises</h2>
               </div>
-              <p className="text-xs text-gray-400 mb-3">Paste a Google Docs link or upload a PDF/DOCX file containing exercises. AI will convert them into interactive digital exercises.</p>
+              <p className="text-xs text-gray-400 mb-3">Paste a Google Docs link or upload files (PDF, DOCX, JPEG, PNG) containing exercises. AI will convert them into interactive digital exercises.</p>
               <div className="flex gap-2">
                 <input
                   type="text"

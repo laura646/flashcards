@@ -577,8 +577,8 @@ For all other types, set groupData to null.`
       const messageContent: any[] = []
 
       if (imageBlocks.length > 0) {
-        messageContent.push({ type: 'text', text: EXERCISE_GEN_PROMPT + (hasDocuments && docText ? '\n\nAdditionally, here is text extracted from uploaded documents:\n\n' + docText : '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.') })
         messageContent.push(...imageBlocks)
+        messageContent.push({ type: 'text', text: EXERCISE_GEN_PROMPT + (hasDocuments && docText ? '\n\nAdditionally, here is text extracted from uploaded documents:\n\n' + docText : '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.') })
       } else {
         messageContent.push({ type: 'text', text: EXERCISE_GEN_PROMPT + docText })
       }
