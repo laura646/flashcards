@@ -315,7 +315,11 @@ export default function HomePage() {
         </button>
       </div>
 
-      <p className="mt-8 text-xs text-gray-400">englishwithlaura.com</p>
+      <div className="mt-8 flex items-center gap-3 text-xs text-gray-400">
+        <span>englishwithlaura.com</span>
+        <span>·</span>
+        <SignOutButton />
+      </div>
     </main>
   )
 }
