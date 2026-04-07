@@ -2621,31 +2621,6 @@ function LessonsAdminPage() {
               </div>
             )}
 
-            {/* Block Delete Confirmation Modal */}
-            {showBlockDeleteConfirm !== null && (
-              <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
-                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-                  <h3 className="font-bold text-[#46464b] mb-2">Delete Content Block?</h3>
-                  <p className="text-xs text-gray-400 mb-4">
-                    This will remove the {contentItems[showBlockDeleteConfirm] ? (BLOCK_CONFIG[contentItems[showBlockDeleteConfirm].type]?.label || 'content') : 'content'} block from the lesson. This cannot be undone.
-                  </p>
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      onClick={() => setShowBlockDeleteConfirm(null)}
-                      className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => { removeContentItem(showBlockDeleteConfirm); setShowBlockDeleteConfirm(null) }}
-                      className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </>
         )}
 
@@ -3219,6 +3194,32 @@ function LessonsAdminPage() {
                 {publishing ? 'Publishing...' : 'Publish'}
               </button>
             </div>
+
+            {/* Block Delete Confirmation Modal */}
+            {showBlockDeleteConfirm !== null && (
+              <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+                  <h3 className="font-bold text-[#46464b] mb-2">Delete Content Block?</h3>
+                  <p className="text-xs text-gray-400 mb-4">
+                    This will remove the {contentItems[showBlockDeleteConfirm] ? (BLOCK_CONFIG[contentItems[showBlockDeleteConfirm].type]?.label || 'content') : 'content'} block from the lesson. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => setShowBlockDeleteConfirm(null)}
+                      className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => { removeContentItem(showBlockDeleteConfirm); setShowBlockDeleteConfirm(null) }}
+                      className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
