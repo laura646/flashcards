@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GapFillBuilder from '@/components/GapFillBuilder'
+import ExercisePreview from '@/components/ExercisePreview'
 // Role-based admin check
 
 // ── Types ──
@@ -362,6 +363,7 @@ function LessonsAdminPage() {
   // Delete confirmation
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [showBlockDeleteConfirm, setShowBlockDeleteConfirm] = useState<number | null>(null)
+  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null)
 
   // Content Bank modal
   const [showContentBank, setShowContentBank] = useState(false)
@@ -1501,6 +1503,14 @@ function LessonsAdminPage() {
             )}
           </div>
         </div>
+
+        {/* Preview button */}
+        <button
+          onClick={() => setPreviewExercise(exercise)}
+          className="w-full py-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors"
+        >
+          ▶ Preview as student
+        </button>
 
         {/* Exercise Fields */}
         <div className="grid grid-cols-2 gap-3">
@@ -3194,6 +3204,14 @@ function LessonsAdminPage() {
                 {publishing ? 'Publishing...' : 'Publish'}
               </button>
             </div>
+
+            {/* Exercise Preview Modal */}
+            {previewExercise && (
+              <ExercisePreview
+                exercise={previewExercise}
+                onClose={() => setPreviewExercise(null)}
+              />
+            )}
 
             {/* Block Delete Confirmation Modal */}
             {showBlockDeleteConfirm !== null && (

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import ExercisePreview from '@/components/ExercisePreview'
 
 // ── Types ──
 
@@ -253,6 +254,7 @@ export default function ContentBankPage() {
   const [expandedExerciseId, setExpandedExerciseId] = useState<string | null>(null)
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null)
   const [savingExercise, setSavingExercise] = useState(false)
+  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null)
   const [convertingType, setConvertingType] = useState(false)
 
   // Clone modal
@@ -891,6 +893,12 @@ export default function ContentBankPage() {
                             <div className="border-t border-[#e6f0fa] p-4">
                               {/* Action buttons */}
                               <div className="flex gap-2 mb-4">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setPreviewExercise(ex) }}
+                                  className="px-3 py-1.5 bg-amber-500 text-white text-xs font-bold rounded-lg hover:bg-amber-600 transition-colors"
+                                >
+                                  ▶ Preview
+                                </button>
                                 {!isEditing ? (
                                   <button
                                     onClick={() => setEditingExercise({ ...ex, questions: ex.questions })}
@@ -1339,6 +1347,13 @@ export default function ContentBankPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* Exercise Preview Modal */}
+      {previewExercise && (
+        <ExercisePreview
+          exercise={previewExercise}
+          onClose={() => setPreviewExercise(null)}
+        />
       )}
     </div>
   )
