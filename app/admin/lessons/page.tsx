@@ -3184,7 +3184,7 @@ function LessonsAdminPage() {
                               &#x2715;
                             </button>
                             <span className="text-xs text-gray-300 ml-1">
-                              {item.collapsed ? '&#x25B6;' : '&#x25BC;'}
+                              {item.collapsed ? '\u25B6' : '\u25BC'}
                             </span>
                           </div>
                         </div>
