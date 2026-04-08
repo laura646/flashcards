@@ -7,6 +7,7 @@ interface MatchPair {
   left: string
   right: string
   image_url?: string
+  right_image_url?: string
 }
 
 interface Props {
@@ -32,13 +33,17 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
     onChange(questions.filter((_, i) => i !== idx))
   }
 
-  const setImage = (idx: number, url: string | undefined) => {
+  const setImage = (idx: number, side: 'left' | 'right', url: string | undefined) => {
     const updated = [...questions]
-    updated[idx] = { ...updated[idx], image_url: url }
+    if (side === 'left') {
+      updated[idx] = { ...updated[idx], image_url: url }
+    } else {
+      updated[idx] = { ...updated[idx], right_image_url: url }
+    }
     onChange(updated)
   }
 
-  const handleImageUpload = async (idx: number, file: File) => {
+  const handleImageUpload = async (idx: number, side: 'left' | 'right', file: File) => {
     setUploadingIdx(idx)
     setUploadError(null)
     try {
@@ -53,7 +58,7 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
       })
       const data = await res.json()
       if (res.ok && data.url) {
-        setImage(idx, data.url)
+        setImage(idx, side, data.url)
       } else {
         setUploadError(data.error || 'Upload failed')
       }
@@ -130,7 +135,7 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
                   <div className="relative inline-block">
                     <img src={q.image_url} alt="" className="h-12 object-cover" />
                     <button
-                      onClick={() => setImage(i, undefined)}
+                      onClick={() => setImage(i, 'left', undefined)}
                       className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 hover:bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center"
                     >
                       ✕
@@ -147,7 +152,7 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
                       disabled={uploadingIdx === i}
                       onChange={(e) => {
                         const file = e.target.files?.[0]
-                        if (file) handleImageUpload(i, file)
+                        if (file) handleImageUpload(i, 'left', file)
                       }}
                     />
                   </label>
@@ -156,13 +161,43 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
             </div>
 
             {/* Right (definition) */}
-            <input
-              type="text"
-              value={q.right}
-              onChange={(e) => updatePair(i, 'right', e.target.value)}
-              placeholder="Matching definition..."
-              className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe] transition-colors"
-            />
+            <div>
+              <input
+                type="text"
+                value={q.right}
+                onChange={(e) => updatePair(i, 'right', e.target.value)}
+                placeholder="Matching definition..."
+                className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe] transition-colors"
+              />
+              <div className="mt-1.5">
+                {q.right_image_url ? (
+                  <div className="relative inline-block">
+                    <img src={q.right_image_url} alt="" className="h-12 object-cover" />
+                    <button
+                      onClick={() => setImage(i, 'right', undefined)}
+                      className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 hover:bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <label className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] text-gray-400 hover:text-[#416ebe] cursor-pointer rounded-lg hover:bg-[#e6f0fa] transition-colors ${uploadingIdx === i ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <span>📷</span>
+                    <span>{uploadingIdx === i ? 'Uploading...' : 'Add image'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                      className="hidden"
+                      disabled={uploadingIdx === i}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleImageUpload(i, 'right', file)
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
 
             {/* Delete */}
             <button

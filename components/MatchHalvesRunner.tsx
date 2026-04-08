@@ -7,6 +7,7 @@ interface MatchPair {
   left: string
   right: string
   image_url?: string
+  right_image_url?: string
 }
 
 interface Props {
@@ -41,6 +42,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
   const shuffledRightSlots = useMemo(() => shuffle(pairs.map(p => ({
     id: p.id,
     text: p.right,
+    right_image_url: p.right_image_url,
   }))), [])
 
   // Track which tile is placed in which slot: slotId -> tileId
@@ -271,8 +273,13 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                 )}
               </div>
 
-              {/* Right side text */}
-              <p className="text-sm text-[#46464b] font-medium flex-1">{slot.text}</p>
+              {/* Right side text/image */}
+              <div className="flex items-center gap-2 flex-1">
+                {slot.right_image_url && (
+                  <img src={slot.right_image_url} alt="" className="w-10 h-10 object-cover rounded" />
+                )}
+                {slot.text && <p className="text-sm text-[#46464b] font-medium">{slot.text}</p>}
+              </div>
             </div>
           )
         })}
