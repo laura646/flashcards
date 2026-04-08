@@ -362,6 +362,17 @@ Return ONLY valid JSON, no markdown, no explanation.`
         return NextResponse.json({ error: 'Exercise data and new type required' }, { status: 400 })
       }
 
+      // Prevent hallucination: reject conversion if exercise has no real content
+      const questions = exercise.questions || []
+      const hasRealContent = exercise.groupData ||
+        (Array.isArray(questions) && questions.some((q: Record<string, unknown>) => {
+          const text = (q.prompt || q.statement || q.text || q.word || q.left || q.incorrect || '') as string
+          return text.trim().length > 0
+        }))
+      if (!hasRealContent) {
+        return NextResponse.json({ error: 'Exercise has no content to convert. Add questions first, then change the type.' }, { status: 400 })
+      }
+
       const message = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,

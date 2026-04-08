@@ -1540,9 +1540,17 @@ function LessonsAdminPage() {
               onChange={(e) => {
                 const newType = e.target.value
                 if (!newType || newType === exercise.exercise_type) return
-                // If exercise has questions, show warning before converting
-                const hasContent = (exercise.questions && (Array.isArray(exercise.questions) ? exercise.questions.length > 0 : true)) || exercise.groupData
-                if (hasContent) {
+                // If exercise has actual content (not just empty placeholders), show warning before converting
+                const hasRealContent = (() => {
+                  if (exercise.groupData) return true
+                  if (!exercise.questions || !Array.isArray(exercise.questions) || exercise.questions.length === 0) return false
+                  // Check if any question has meaningful content (non-empty fields)
+                  return exercise.questions.some((q: Record<string, unknown>) => {
+                    const prompt = (q.prompt || q.statement || q.text || q.word || q.left || q.incorrect || '') as string
+                    return prompt.trim().length > 0
+                  })
+                })()
+                if (hasRealContent) {
                   setPendingConversion({ itemIndex, newType })
                 } else {
                   updateField('exercise_type', newType)
