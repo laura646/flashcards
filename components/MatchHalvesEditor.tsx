@@ -128,7 +128,7 @@ export default function MatchHalvesEditor({ questions, onChange }: Props) {
               <div className="mt-1.5">
                 {q.image_url ? (
                   <div className="relative inline-block">
-                    <img src={q.image_url} alt="" className="h-12 rounded-lg border border-[#e6f0fa] object-cover" />
+                    <img src={q.image_url} alt="" className="h-12 object-cover" />
                     <button
                       onClick={() => setImage(i, undefined)}
                       className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 hover:bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center"

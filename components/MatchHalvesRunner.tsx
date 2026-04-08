@@ -218,7 +218,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
               }`}
             >
               {tile.image_url && (
-                <img src={tile.image_url} alt="" className="w-8 h-8 rounded object-cover" />
+                <img src={tile.image_url} alt="" className="w-8 h-8 object-cover" />
               )}
               {tile.text}
             </button>
@@ -256,7 +256,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                 {placedTile ? (
                   <>
                     {placedTile.image_url && (
-                      <img src={placedTile.image_url} alt="" className="w-6 h-6 rounded object-cover" />
+                      <img src={placedTile.image_url} alt="" className="w-6 h-6 object-cover" />
                     )}
                     <span className="text-sm font-bold">{placedTile.text}</span>
                   </>
