@@ -211,16 +211,23 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
               draggable
               onDragStart={() => handleDragStart(tile.id)}
               onClick={() => handleTileTap(tile.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all select-none cursor-pointer ${
+              className={`flex items-center gap-2 rounded-xl text-sm font-bold transition-all select-none cursor-pointer ${
+                tile.image_url ? 'p-0 overflow-hidden' : 'px-4 py-2.5'
+              } ${
                 selectedTile === tile.id
-                  ? 'bg-[#416ebe] text-white shadow-md scale-105'
+                  ? tile.image_url
+                    ? 'ring-3 ring-[#416ebe] shadow-md scale-105'
+                    : 'bg-[#416ebe] text-white shadow-md scale-105'
+                  : tile.image_url
+                  ? 'hover:ring-2 hover:ring-[#416ebe] active:scale-95'
                   : 'bg-[#e6f0fa] text-[#416ebe] border border-[#cddcf0] hover:bg-[#d0e0f5] active:scale-95'
               }`}
             >
-              {tile.image_url && (
-                <img src={tile.image_url} alt="" className="w-8 h-8 object-cover" />
+              {tile.image_url ? (
+                <img src={tile.image_url} alt={tile.text} className="w-16 h-16 object-cover rounded-xl" />
+              ) : (
+                tile.text
               )}
-              {tile.text}
             </button>
           ))}
           {availableTiles.length === 0 && (
@@ -254,12 +261,11 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                 }`}
               >
                 {placedTile ? (
-                  <>
-                    {placedTile.image_url && (
-                      <img src={placedTile.image_url} alt="" className="w-6 h-6 object-cover" />
-                    )}
+                  placedTile.image_url ? (
+                    <img src={placedTile.image_url} alt={placedTile.text} className="w-10 h-10 object-cover rounded" />
+                  ) : (
                     <span className="text-sm font-bold">{placedTile.text}</span>
-                  </>
+                  )
                 ) : (
                   <span className="text-xs">___</span>
                 )}
