@@ -349,6 +349,13 @@ function LessonsAdminPage() {
   const [generatingExercises, setGeneratingExercises] = useState(false)
   const [generatedExercises, setGeneratedExercises] = useState<Exercise[]>([])
 
+  // Exercise creation mode: 'choosing' shows the AI vs Manual choice, 'ai' shows the AI generation panel
+  const [exerciseCreationMode, setExerciseCreationMode] = useState<null | 'choosing' | 'ai'>(null)
+  const [aiExFiles, setAiExFiles] = useState<File[]>([])
+  const [aiExTextInput, setAiExTextInput] = useState('')
+  const [aiExPreferredType, setAiExPreferredType] = useState('')
+  const [aiExGenerating, setAiExGenerating] = useState(false)
+
   // Exercise type conversion state
   const [convertingExType, setConvertingExType] = useState(false)
   const [pendingConversion, setPendingConversion] = useState<{ itemIndex: number; newType: string } | null>(null)
@@ -756,10 +763,9 @@ function LessonsAdminPage() {
         { type: 'flashcards', data: [] as Flashcard[], collapsed: false, order_index: newIndex },
       ])
     } else if (type === 'exercise') {
-      setContentItems((prev) => [
-        ...prev,
-        { type: 'exercise', data: createDefaultExercise(newIndex), collapsed: false, order_index: newIndex },
-      ])
+      // Show AI vs Manual choice instead of immediately creating
+      setExerciseCreationMode('choosing')
+      return
     } else {
       const blockType = type as BlockType
       const block: ContentBlock = {
@@ -939,6 +945,124 @@ function LessonsAdminPage() {
     }
     updateContentItem(contentItemIndex, updatedExercise)
     showToast(`Generated ${generated.exercise_type || 'exercise'}: ${updatedExercise.title}`)
+  }
+
+  // ── AI Exercise Creation (from the creation mode panel) ──
+
+  const addManualExercise = () => {
+    const newIndex = contentItems.length
+    setContentItems((prev) => [
+      ...prev,
+      { type: 'exercise', data: createDefaultExercise(newIndex), collapsed: false, order_index: newIndex },
+    ])
+    setExerciseCreationMode(null)
+  }
+
+  const cancelExerciseCreation = () => {
+    setExerciseCreationMode(null)
+    setAiExFiles([])
+    setAiExTextInput('')
+    setAiExPreferredType('')
+  }
+
+  const aiExGenerateFromFiles = async () => {
+    if (aiExFiles.length === 0 && !aiExTextInput.trim()) {
+      showToast('Please upload files or paste text content')
+      return
+    }
+    setAiExGenerating(true)
+    try {
+      // If we have files, use the file upload flow
+      if (aiExFiles.length > 0) {
+        const files = await Promise.all(
+          aiExFiles.map(async (file) => {
+            const arrayBuffer = await file.arrayBuffer()
+            const base64 = btoa(
+              new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+            )
+            const ext = file.name.split('.').pop()?.toLowerCase() || ''
+            const typeMap: Record<string, string> = {
+              pdf: 'application/pdf',
+              docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+            }
+            return { data: base64, type: file.type || typeMap[ext] || 'application/pdf' }
+          })
+        )
+        const res = await fetch('/api/generate-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'generate-exercises-from-upload', files }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          showToast(data.error || 'Failed to generate exercises')
+          setAiExGenerating(false)
+          return
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const exercises: Exercise[] = (data.exercises || []).map((ex: any, i: number) => ({
+          title: ex.title || 'Exercise',
+          subtitle: ex.subtitle || '',
+          icon: ex.icon || '\uD83D\uDCDD',
+          instructions: ex.instructions || '',
+          exercise_type: ex.exercise_type || 'multiple_choice',
+          questions: ex.questions || [],
+          groupData: ex.groupData || undefined,
+          order_index: contentItems.length + i,
+        }))
+        // Add all generated exercises directly
+        if (exercises.length > 0) {
+          let idx = contentItems.length
+          const newItems = exercises.map((exercise) => ({
+            type: 'exercise' as ContentItemType,
+            data: { ...exercise, order_index: idx } as Exercise,
+            collapsed: false,
+            order_index: idx++,
+          }))
+          setContentItems((prev) => [...prev, ...newItems].map((item, i) => ({ ...item, order_index: i })))
+          showToast(`Added ${exercises.length} AI-generated exercise${exercises.length !== 1 ? 's' : ''}!`)
+        } else {
+          showToast('No exercises could be generated from the files')
+        }
+      } else {
+        // Text-only flow: generate a single exercise
+        const res = await fetch('/api/generate-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'generate-exercises',
+            text: aiExTextInput.trim(),
+            preferredType: aiExPreferredType || undefined,
+          }),
+        })
+        if (!res.ok) throw new Error('Generation failed')
+        const data = await res.json()
+        if (data.exercise) {
+          const newIndex = contentItems.length
+          const exercise: Exercise = {
+            title: data.exercise.title || 'Exercise',
+            subtitle: data.exercise.subtitle || '',
+            icon: data.exercise.icon || '\uD83D\uDCDD',
+            instructions: data.exercise.instructions || '',
+            exercise_type: data.exercise.exercise_type || 'multiple_choice',
+            questions: data.exercise.questions || [],
+            groupData: data.exercise.groupData || undefined,
+            order_index: newIndex,
+          }
+          setContentItems((prev) => [
+            ...prev,
+            { type: 'exercise' as ContentItemType, data: exercise, collapsed: false, order_index: newIndex },
+          ])
+          showToast(`Added AI-generated exercise: ${exercise.title}`)
+        }
+      }
+      // Reset and close
+      cancelExerciseCreation()
+    } catch {
+      showToast('Failed to generate exercises')
+    }
+    setAiExGenerating(false)
   }
 
   // ── Google Drive Import ──
@@ -3129,6 +3253,140 @@ function LessonsAdminPage() {
                 </div>
                 </div>
               </div>
+
+              {/* Exercise Creation Mode Panel */}
+              {exerciseCreationMode && (
+                <div className="bg-white rounded-2xl border-2 border-[#416ebe] shadow-lg overflow-hidden">
+                  {exerciseCreationMode === 'choosing' ? (
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-bold text-[#46464b]">Add Exercise</h3>
+                        <button onClick={cancelExerciseCreation} className="text-xs text-gray-400 hover:text-red-400 transition-colors">{'\u2715'}</button>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-5">How would you like to create this exercise?</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setExerciseCreationMode('ai')}
+                          className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-[#cddcf0] hover:border-[#416ebe] hover:bg-[#f7fafd] transition-all group"
+                        >
+                          <span className="text-3xl">{'\u2728'}</span>
+                          <span className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe]">Generate with AI</span>
+                          <span className="text-[10px] text-gray-400 text-center">Upload a file or paste text and AI will create the exercise</span>
+                        </button>
+                        <button
+                          onClick={addManualExercise}
+                          className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-[#cddcf0] hover:border-[#416ebe] hover:bg-[#f7fafd] transition-all group"
+                        >
+                          <span className="text-3xl">{'\u270D\uFE0F'}</span>
+                          <span className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe]">Create Manually</span>
+                          <span className="text-[10px] text-gray-400 text-center">Build the exercise yourself from scratch</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setExerciseCreationMode('choosing')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors">{'\u2190'} Back</button>
+                          <h3 className="text-sm font-bold text-[#46464b]">Generate Exercise with AI</h3>
+                        </div>
+                        <button onClick={cancelExerciseCreation} className="text-xs text-gray-400 hover:text-red-400 transition-colors">{'\u2715'}</button>
+                      </div>
+
+                      {/* Exercise type preference */}
+                      <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Exercise type</label>
+                        <select
+                          value={aiExPreferredType}
+                          onChange={(e) => setAiExPreferredType(e.target.value)}
+                          className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white"
+                        >
+                          <option value="">Let AI decide the best type</option>
+                          {EXERCISE_TYPES.map((t) => (
+                            <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* File upload */}
+                      <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Upload files</label>
+                        <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-[#cddcf0] rounded-xl cursor-pointer hover:border-[#416ebe] hover:bg-[#f7fafd] transition-colors ${aiExGenerating ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <p className="text-xs text-gray-400">Click to upload PDF, DOCX, JPEG, or PNG</p>
+                          <p className="text-[10px] text-gray-300 mt-1">You can select multiple files</p>
+                          <input
+                            type="file"
+                            accept=".pdf,.docx,.jpg,.jpeg,.png"
+                            multiple
+                            className="hidden"
+                            disabled={aiExGenerating}
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                setAiExFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+                              }
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+                        {aiExFiles.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {aiExFiles.map((f, i) => (
+                              <div key={i} className="flex items-center gap-2 text-xs text-gray-500 bg-[#f7fafd] rounded-lg px-3 py-1.5">
+                                <span className="flex-1 truncate">{f.name}</span>
+                                <button onClick={() => setAiExFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-400">{'\u2715'}</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Divider */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="flex-1 h-px bg-[#e6f0fa]" />
+                        <span className="text-[10px] text-gray-300 font-bold">OR</span>
+                        <div className="flex-1 h-px bg-[#e6f0fa]" />
+                      </div>
+
+                      {/* Text input */}
+                      <div className="mb-5">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Paste text content</label>
+                        <textarea
+                          value={aiExTextInput}
+                          onChange={(e) => setAiExTextInput(e.target.value)}
+                          placeholder="Paste lesson notes, vocabulary list, grammar rules, exercise text..."
+                          className="w-full h-28 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] transition-colors"
+                          disabled={aiExGenerating}
+                        />
+                      </div>
+
+                      {/* Generate button */}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={aiExGenerateFromFiles}
+                          disabled={aiExGenerating || (aiExFiles.length === 0 && !aiExTextInput.trim())}
+                          className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {aiExGenerating ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                              Generating...
+                            </span>
+                          ) : (
+                            <>{'\u2728'} Generate Exercise</>
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelExerciseCreation}
+                          disabled={aiExGenerating}
+                          className="px-5 py-3 border border-[#cddcf0] text-gray-500 font-bold rounded-xl text-sm hover:border-[#416ebe] transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Content Items List */}
               {contentItems.length === 0 ? (
