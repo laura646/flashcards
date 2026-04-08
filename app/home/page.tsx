@@ -133,7 +133,8 @@ export default function HomePage() {
     return (
       <main className="min-h-screen flex flex-col items-center px-4 py-8">
         <div className="mb-8 text-center">
-          <img src="/logo.svg" alt="English with Laura" className="h-16 mx-auto mb-3" />
+          <img src="/logo.svg" alt="English with Laura" className="h-32 mx-auto mb-2" />
+          <p className="text-xs font-medium text-gray-400 mb-3">English with Laura Learning Platform <span className="text-gray-300">(beta)</span></p>
           <p className="text-[#46464b] mt-1 text-sm">Welcome back, {studentName}!</p>
         </div>
 
@@ -168,7 +169,7 @@ export default function HomePage() {
         </div>
 
         <div className="mt-8 flex items-center gap-3 text-xs text-gray-400">
-        <span>englishwithlaura.com</span>
+        <a href="https://englishwithlaura.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#416ebe] transition-colors">englishwithlaura.com</a>
         <span>·</span>
         <SignOutButton />
       </div>
@@ -181,7 +182,8 @@ export default function HomePage() {
     <main className="min-h-screen flex flex-col items-center px-4 py-8">
       {/* Header */}
       <div className="mb-8 text-center">
-        <img src="/logo.svg" alt="English with Laura" className="h-16 mx-auto mb-3" />
+        <img src="/logo.svg" alt="English with Laura" className="h-32 mx-auto mb-2" />
+        <p className="text-xs font-medium text-gray-400 mb-3">English with Laura Learning Platform <span className="text-gray-300">(beta)</span></p>
         <p className="text-[#46464b] mt-1 text-sm">Welcome back, {studentName}!</p>
         {totalPoints > 0 && (
           <div className="mt-2 inline-flex items-center gap-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-sm">
@@ -316,7 +318,7 @@ export default function HomePage() {
       </div>
 
       <div className="mt-8 flex items-center gap-3 text-xs text-gray-400">
-        <span>englishwithlaura.com</span>
+        <a href="https://englishwithlaura.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#416ebe] transition-colors">englishwithlaura.com</a>
         <span>·</span>
         <SignOutButton />
       </div>
@@ -358,7 +360,8 @@ function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolle
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4">
-      <img src="/logo.svg" alt="English with Laura" className="h-16 mb-6" />
+      <img src="/logo.svg" alt="English with Laura" className="h-32 mb-2" />
+      <p className="text-xs font-medium text-gray-400 mb-4">English with Laura Learning Platform <span className="text-gray-300">(beta)</span></p>
       <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center max-w-md">
         <div className="text-4xl mb-3">📚</div>
         <h2 className="text-lg font-bold text-[#46464b] mb-2">Welcome, {studentName}!</h2>
@@ -387,7 +390,7 @@ function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolle
         {joinSuccess && <p className="text-xs text-green-600 font-bold mt-3">{joinSuccess}</p>}
       </div>
       <div className="mt-6 flex items-center gap-3 text-xs text-gray-400">
-        <span>englishwithlaura.com</span>
+        <a href="https://englishwithlaura.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#416ebe] transition-colors">englishwithlaura.com</a>
         <span>·</span>
         <SignOutButton />
       </div>
