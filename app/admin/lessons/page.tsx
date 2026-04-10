@@ -3400,8 +3400,9 @@ function LessonsAdminPage() {
                             className="hidden"
                             disabled={aiExGenerating}
                             onChange={(e) => {
-                              if (e.target.files) {
-                                setAiExFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+                              const newFiles = Array.from(e.target.files || [])
+                              if (newFiles.length > 0) {
+                                setAiExFiles((prev) => [...prev, ...newFiles])
                               }
                               e.target.value = ''
                             }}
