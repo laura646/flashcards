@@ -10,6 +10,9 @@ export default function CardFace({ card, showBack = false }: Props) {
   if (!showBack) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+        {card.image_url && (
+          <img src={card.image_url} alt={card.word} className="max-h-24 rounded-xl mb-3 object-contain" />
+        )}
         <p className="text-xs text-[#00aff0] font-bold uppercase tracking-widest mb-3">Word</p>
         <h2 className="text-4xl font-black text-[#416ebe] mb-3">{card.word}</h2>
         <div className="flex items-center gap-2">

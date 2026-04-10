@@ -15,6 +15,7 @@ interface VocabWord {
   meaning: string
   example: string
   notes?: string
+  image_url?: string
   lessons: {
     title: string
     lesson_date: string
@@ -101,6 +102,7 @@ export default function VocabularyPage() {
     meaning: w.meaning,
     example: w.example,
     notes: w.notes,
+    image_url: w.image_url,
   }))
 
   // Vocab Trainer (SRS)

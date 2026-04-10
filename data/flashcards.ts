@@ -5,6 +5,7 @@ export interface Flashcard {
   meaning: string
   example: string
   notes?: string
+  image_url?: string
 }
 
 export const flashcards: Flashcard[] = [

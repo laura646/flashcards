@@ -36,6 +36,7 @@ interface Flashcard {
   meaning: string
   example: string
   notes: string
+  image_url?: string
   order_index: number
 }
 
@@ -1449,7 +1450,7 @@ function LessonsAdminPage() {
     const addBlankFlashcard = () => {
       updateContentItem(itemIndex, [
         ...flashcards,
-        { word: '', phonetic: '', meaning: '', example: '', notes: '', order_index: flashcards.length },
+        { word: '', phonetic: '', meaning: '', example: '', notes: '', image_url: '', order_index: flashcards.length },
       ])
     }
 
@@ -1521,6 +1522,42 @@ function LessonsAdminPage() {
               <input type="text" value={fc.notes} onChange={(e) => updateFlashcard(fcIdx, 'notes', e.target.value)}
                 placeholder="Optional notes..."
                 className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
+            </div>
+            {/* Image upload */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Image (optional)</label>
+              {fc.image_url ? (
+                <div className="flex items-center gap-3">
+                  <img src={fc.image_url} alt="" className="w-16 h-16 object-cover rounded-lg border border-[#cddcf0]" />
+                  <button onClick={() => updateFlashcard(fcIdx, 'image_url', '')}
+                    className="text-xs text-gray-300 hover:text-red-400 transition-colors">{'\u2715'} Remove</button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#cddcf0] rounded-lg cursor-pointer hover:border-[#416ebe] transition-colors">
+                  <span className="text-xs text-gray-400">{'\uD83D\uDCF7'} Add image</span>
+                  <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    try {
+                      const base64 = await fileToBase64(file)
+                      const res = await fetch('/api/upload', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fileData: base64, fileType: file.type, fileName: file.name }),
+                      })
+                      const data = await res.json()
+                      if (res.ok && data.url) {
+                        updateFlashcard(fcIdx, 'image_url', data.url)
+                      } else {
+                        showToast(data.error || 'Upload failed')
+                      }
+                    } catch {
+                      showToast('Failed to upload image')
+                    }
+                    e.target.value = ''
+                  }} />
+                </label>
+              )}
             </div>
           </div>
         ))}

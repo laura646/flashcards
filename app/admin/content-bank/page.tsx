@@ -29,6 +29,7 @@ interface Flashcard {
   meaning: string
   example: string
   notes: string
+  image_url?: string
   order_index: number
 }
 

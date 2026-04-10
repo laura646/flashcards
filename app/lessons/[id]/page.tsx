@@ -30,6 +30,7 @@ interface Flashcard {
   meaning: string
   example: string
   notes?: string
+  image_url?: string
   order_index?: number
 }
 
@@ -866,6 +867,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       meaning: f.meaning,
       example: f.example,
       notes: f.notes,
+      image_url: f.image_url,
     }))
 
     const modeButtons: { key: FlashcardMode; label: string; description: string }[] = [
