@@ -315,6 +315,7 @@ function LessonsAdminPage() {
   const searchParams = useSearchParams()
   const contentBankMode = searchParams.get('mode') === 'content-bank'
   const urlCourseId = searchParams.get('course_id')
+  const urlLessonId = searchParams.get('id')
 
   // ── State ──
   const [view, setView] = useState<View>('list')
@@ -562,11 +563,22 @@ function LessonsAdminPage() {
 
   // Auto-start new lesson editor when coming from a course's "+ Create Lesson" button
   useEffect(() => {
-    if (urlCourseId && !contentBankMode && status === 'authenticated' && isAdmin && view === 'list') {
+    if (urlCourseId && !urlLessonId && !contentBankMode && status === 'authenticated' && isAdmin && view === 'list') {
       startNewLesson()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlCourseId, status, isAdmin])
+
+  // Auto-open lesson editor when coming from course view with ?id=
+  useEffect(() => {
+    if (urlLessonId && status === 'authenticated' && isAdmin && view === 'list' && !loading) {
+      const lesson = lessons.find(l => l.id === urlLessonId)
+      if (lesson) {
+        loadLessonForEditing(lesson)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlLessonId, status, isAdmin, loading])
 
   // ── Load Lesson for Editing ──
 
