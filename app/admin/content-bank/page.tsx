@@ -245,6 +245,10 @@ export default function ContentBankPage() {
   // Assign to folder modal
   const [assigningTemplate, setAssigningTemplate] = useState<Template | null>(null)
 
+  // Delete template
+  const [deletingTemplate, setDeletingTemplate] = useState<Template | null>(null)
+  const [deleteInProgress, setDeleteInProgress] = useState(false)
+
   // Detail view
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
@@ -518,6 +522,27 @@ export default function ContentBankPage() {
     }
   }
 
+  const deleteTemplate = async (template: Template) => {
+    setDeleteInProgress(true)
+    try {
+      const res = await fetch('/api/lessons', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lessonId: template.id }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast('Template deleted')
+      setDeletingTemplate(null)
+      setSelectedTemplate(null)
+      setFlashcards([]); setExercises([]); setBlocks([])
+      loadTemplates()
+      loadFolders()
+    } catch {
+      showToast('Failed to delete template')
+    }
+    setDeleteInProgress(false)
+  }
+
   const assignToFolder = async (template: Template, folderId: string) => {
     try {
       const res = await fetch('/api/content-bank', {
@@ -769,6 +794,34 @@ export default function ContentBankPage() {
         </div>
       )}
 
+      {/* Delete confirmation modal */}
+      {deletingTemplate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-[#46464b] mb-1">Delete Template?</h3>
+            <p className="text-xs text-gray-400 mb-4">
+              This will permanently delete &ldquo;{deletingTemplate.title}&rdquo; and all its content. This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeletingTemplate(null)}
+                disabled={deleteInProgress}
+                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteTemplate(deletingTemplate)}
+                disabled={deleteInProgress}
+                className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deleteInProgress ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══════════ DETAIL VIEW ══════════ */}
       {selectedTemplate ? (
         <div className="max-w-4xl mx-auto">
@@ -805,6 +858,12 @@ export default function ContentBankPage() {
               )}
             </div>
             <div className="flex gap-2 shrink-0">
+              <button
+                onClick={() => setDeletingTemplate(selectedTemplate)}
+                className="px-4 py-2.5 border border-red-200 text-red-400 text-xs font-bold rounded-xl hover:border-red-400 hover:text-red-500 transition-colors"
+              >
+                Delete
+              </button>
               <button
                 onClick={() => router.push(`/admin/lessons?edit=${selectedTemplate.id}&contentBank=1`)}
                 className="px-4 py-2.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-xl hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
