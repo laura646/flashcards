@@ -226,7 +226,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
               }`}
             >
               {tile.image_url ? (
-                <img src={tile.image_url} alt={tile.text} className="w-16 h-16 object-cover rounded-xl" />
+                <img src={tile.image_url} alt={tile.text} className="max-w-[200px] max-h-[150px] object-contain rounded-xl" />
               ) : (
                 tile.text
               )}
@@ -254,7 +254,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
               {/* Drop zone / placed tile */}
               <div
                 onClick={() => handleSlotTap(slot.id)}
-                className={`min-w-[7rem] min-h-[2.5rem] rounded-lg border-2 border-dashed flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all ${
+                className={`min-w-[7rem] min-h-[2.5rem] rounded-lg border-2 border-dashed flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all shrink-0 ${
                   placedTile
                     ? 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
                     : selectedTile !== null
@@ -264,7 +264,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
               >
                 {placedTile ? (
                   placedTile.image_url ? (
-                    <img src={placedTile.image_url} alt={placedTile.text} className="w-10 h-10 object-cover rounded" />
+                    <img src={placedTile.image_url} alt={placedTile.text} className="max-w-[180px] max-h-[130px] object-contain rounded" />
                   ) : (
                     <span className="text-sm font-bold">{placedTile.text}</span>
                   )
@@ -276,7 +276,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
               {/* Right side text/image */}
               <div className="flex items-center gap-2 flex-1">
                 {slot.right_image_url && (
-                  <img src={slot.right_image_url} alt="" className="w-10 h-10 object-cover rounded" />
+                  <img src={slot.right_image_url} alt="" className="max-w-[180px] max-h-[130px] object-contain rounded" />
                 )}
                 {slot.text && <p className="text-sm text-[#46464b] font-medium">{slot.text}</p>}
               </div>
