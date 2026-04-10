@@ -7,6 +7,7 @@ interface TypeAnswerQuestion {
   prompt: string
   answer: string
   hint?: string
+  image_url?: string
 }
 
 interface Props {
@@ -257,6 +258,9 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
         <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-3">
           Question {currentIndex + 1}
         </p>
+        {current.image_url && (
+          <img src={current.image_url} alt="" className="max-h-48 max-w-full object-contain rounded-xl mb-3" />
+        )}
         <p className="text-lg text-[#46464b] font-medium leading-relaxed">
           {formatPrompt(current.prompt)}
         </p>

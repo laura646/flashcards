@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import GapFillBuilder from '@/components/GapFillBuilder'
 import ExercisePreview from '@/components/ExercisePreview'
 import MatchHalvesEditor from '@/components/MatchHalvesEditor'
+import TypeAnswerEditor from '@/components/TypeAnswerEditor'
 // Role-based admin check
 
 // ── Types ──
@@ -1837,7 +1838,13 @@ function LessonsAdminPage() {
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}
             onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
           />
-        ) : ['true_or_false', 'hangman', 'type_answer', 'complete_sentence', 'group_sort', 'dictation', 'error_correction', 'rank_order', 'text_sequencing', 'anagram', 'cloze_listening'].includes(exercise.exercise_type) ? (
+        ) : exercise.exercise_type === 'type_answer' ? (
+          // Visual type the answer editor
+          <TypeAnswerEditor
+            questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+            onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+          />
+        ) : ['true_or_false', 'hangman', 'complete_sentence', 'group_sort', 'dictation', 'error_correction', 'rank_order', 'text_sequencing', 'anagram', 'cloze_listening'].includes(exercise.exercise_type) ? (
           // For new exercise types, show a JSON data editor
           <div>
             <div className="flex items-center justify-between mb-2">
