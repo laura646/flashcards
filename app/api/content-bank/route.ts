@@ -590,43 +590,50 @@ export async function POST(req: NextRequest) {
       if (insertErr) throw insertErr
       const newId = newLesson.id
 
-      // Copy flashcards
-      const flashcards = fcRes.data || []
-      if (flashcards.length > 0) {
-        const rows = flashcards.map((fc: Record<string, unknown>) => ({
-          lesson_id: newId, word: fc.word, phonetic: fc.phonetic,
-          meaning: fc.meaning, example: fc.example, notes: fc.notes,
-          image_url: fc.image_url || null, order_index: fc.order_index,
-        }))
-        const { error } = await supabase.from('lesson_flashcards').insert(rows)
-        if (error) throw error
-      }
+      try {
+        // Copy flashcards (match columns from clone-lesson)
+        const flashcards = fcRes.data || []
+        if (flashcards.length > 0) {
+          const rows = flashcards.map((fc: Record<string, unknown>) => ({
+            lesson_id: newId, word: fc.word, phonetic: fc.phonetic,
+            meaning: fc.meaning, example: fc.example, notes: fc.notes,
+            order_index: fc.order_index,
+          }))
+          const { error } = await supabase.from('lesson_flashcards').insert(rows)
+          if (error) throw error
+        }
 
-      // Copy exercises
-      const exercises = exRes.data || []
-      if (exercises.length > 0) {
-        const rows = exercises.map((ex: Record<string, unknown>) => ({
-          lesson_id: newId, title: ex.title, subtitle: ex.subtitle,
-          icon: ex.icon, instructions: ex.instructions,
-          exercise_type: ex.exercise_type, questions: ex.questions,
-          order_index: ex.order_index,
-          points_per_answer: ex.points_per_answer ?? 10,
-          completion_bonus: ex.completion_bonus ?? 0,
-          is_mandatory: ex.is_mandatory !== false,
-        }))
-        const { error } = await supabase.from('lesson_exercises').insert(rows)
-        if (error) throw error
-      }
+        // Copy exercises (match columns from lessons API)
+        const exercises = exRes.data || []
+        if (exercises.length > 0) {
+          const rows = exercises.map((ex: Record<string, unknown>) => ({
+            lesson_id: newId, title: ex.title, subtitle: ex.subtitle,
+            icon: ex.icon, instructions: ex.instructions,
+            exercise_type: ex.exercise_type,
+            questions: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.questions,
+            order_index: ex.order_index,
+            points_per_answer: ex.points_per_answer ?? 10,
+            completion_bonus: ex.completion_bonus ?? 0,
+            is_mandatory: ex.is_mandatory !== false,
+          }))
+          const { error } = await supabase.from('lesson_exercises').insert(rows)
+          if (error) throw error
+        }
 
-      // Copy blocks
-      const blocks = blockRes.data || []
-      if (blocks.length > 0) {
-        const rows = blocks.map((b: Record<string, unknown>) => ({
-          lesson_id: newId, block_type: b.block_type,
-          title: b.title, content: b.content, order_index: b.order_index,
-        }))
-        const { error } = await supabase.from('lesson_blocks').insert(rows)
-        if (error) throw error
+        // Copy blocks
+        const blocks = blockRes.data || []
+        if (blocks.length > 0) {
+          const rows = blocks.map((b: Record<string, unknown>) => ({
+            lesson_id: newId, block_type: b.block_type,
+            title: b.title, content: b.content, order_index: b.order_index,
+          }))
+          const { error } = await supabase.from('lesson_blocks').insert(rows)
+          if (error) throw error
+        }
+      } catch (copyErr) {
+        // Clean up the empty lesson shell if content copy fails
+        await supabase.from('lessons').delete().eq('id', newId)
+        throw copyErr
       }
 
       // Assign to folder if specified
