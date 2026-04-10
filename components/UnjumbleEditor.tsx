@@ -93,13 +93,13 @@ export default function UnjumbleEditor({ questions, onChange }: Props) {
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Correct Word or Sentence</label>
             <input
               type="text"
-              value={q.word}
+              value={q.word || ''}
               onChange={(e) => updateQuestion(i, 'word', e.target.value)}
               placeholder="e.g. SCHOOL or She is going to the market"
               className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
             />
             <p className="text-[10px] text-gray-300 mt-1">
-              {q.word.includes(' ') ? '📝 Sentence mode — words will be scrambled' : '🔤 Word mode — letters will be scrambled'}
+              {(q.word || '').includes(' ') ? '📝 Sentence mode — words will be scrambled' : '🔤 Word mode — letters will be scrambled'}
             </p>
           </div>
 
