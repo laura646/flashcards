@@ -119,6 +119,7 @@ const EXERCISE_TYPE_LABELS: Record<string, string> = {
   rank_order: 'Rank Order',
   text_sequencing: 'Text Sequencing',
   anagram: 'Unjumble',
+  unjumble: 'Unjumble',
   cloze_listening: 'Cloze Listening',
 }
 
@@ -1843,7 +1844,7 @@ function LessonsAdminPage() {
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}
             onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
           />
-        ) : exercise.exercise_type === 'anagram' ? (
+        ) : (exercise.exercise_type === 'anagram' || exercise.exercise_type === 'unjumble') ? (
           // Visual unjumble editor
           <UnjumbleEditor
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}

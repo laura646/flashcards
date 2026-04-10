@@ -83,6 +83,7 @@ const EXERCISE_TYPE_LABELS: Record<string, string> = {
   match_halves: 'Match Halves',
   transform: 'Transform',
   anagram: 'Unjumble',
+  unjumble: 'Unjumble',
   true_or_false: 'True or False',
   hangman: 'Hangman',
   type_answer: 'Type the Answer',

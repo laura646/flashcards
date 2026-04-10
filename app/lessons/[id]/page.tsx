@@ -834,7 +834,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       runnerContent = <RankOrderRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Drag or use arrows to rank the items in the correct order.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else if (exType === 'text_sequencing') {
       runnerContent = <TextSequencingRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Arrange the segments in the correct order.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'anagram') {
+    } else if (exType === 'anagram' || exType === 'unjumble') {
       runnerContent = <AnagramRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Unscramble the letters to form the correct word.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else if (exType === 'cloze_listening') {
       runnerContent = <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
