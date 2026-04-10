@@ -550,6 +550,142 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+    // ── Save entire lesson to content bank as template ──
+    if (action === 'save-lesson-to-bank') {
+      const { lesson_id, template_category, template_level, folder_id } = body
+      if (!lesson_id) return NextResponse.json({ error: 'Lesson ID required' }, { status: 400 })
+
+      // Fetch source lesson and all content
+      const [lessonRes, fcRes, exRes, blockRes] = await Promise.all([
+        supabase.from('lessons').select('*').eq('id', lesson_id).single(),
+        supabase.from('lesson_flashcards').select('*').eq('lesson_id', lesson_id).order('order_index'),
+        supabase.from('lesson_exercises').select('*').eq('lesson_id', lesson_id).order('order_index'),
+        supabase.from('lesson_blocks').select('*').eq('lesson_id', lesson_id).order('order_index'),
+      ])
+
+      if (lessonRes.error || !lessonRes.data) {
+        return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+      }
+
+      const src = lessonRes.data
+
+      // Create template lesson
+      const { data: newLesson, error: insertErr } = await supabase
+        .from('lessons')
+        .insert({
+          title: src.title,
+          lesson_date: src.lesson_date || new Date().toISOString().split('T')[0],
+          lesson_type: src.lesson_type || 'lesson',
+          summary: src.summary,
+          status: 'draft',
+          is_template: true,
+          template_category: template_category || null,
+          template_level: template_level || null,
+          course_id: null,
+          created_by: user.email,
+        })
+        .select('id')
+        .single()
+
+      if (insertErr) throw insertErr
+      const newId = newLesson.id
+
+      // Copy flashcards
+      const flashcards = fcRes.data || []
+      if (flashcards.length > 0) {
+        const rows = flashcards.map((fc: Record<string, unknown>) => ({
+          lesson_id: newId, word: fc.word, phonetic: fc.phonetic,
+          meaning: fc.meaning, example: fc.example, notes: fc.notes,
+          image_url: fc.image_url || null, order_index: fc.order_index,
+        }))
+        const { error } = await supabase.from('lesson_flashcards').insert(rows)
+        if (error) throw error
+      }
+
+      // Copy exercises
+      const exercises = exRes.data || []
+      if (exercises.length > 0) {
+        const rows = exercises.map((ex: Record<string, unknown>) => ({
+          lesson_id: newId, title: ex.title, subtitle: ex.subtitle,
+          icon: ex.icon, instructions: ex.instructions,
+          exercise_type: ex.exercise_type, questions: ex.questions,
+          order_index: ex.order_index,
+          points_per_answer: ex.points_per_answer ?? 10,
+          completion_bonus: ex.completion_bonus ?? 0,
+          is_mandatory: ex.is_mandatory !== false,
+        }))
+        const { error } = await supabase.from('lesson_exercises').insert(rows)
+        if (error) throw error
+      }
+
+      // Copy blocks
+      const blocks = blockRes.data || []
+      if (blocks.length > 0) {
+        const rows = blocks.map((b: Record<string, unknown>) => ({
+          lesson_id: newId, block_type: b.block_type,
+          title: b.title, content: b.content, order_index: b.order_index,
+        }))
+        const { error } = await supabase.from('lesson_blocks').insert(rows)
+        if (error) throw error
+      }
+
+      // Assign to folder if specified
+      if (folder_id) {
+        await supabase.from('lesson_folders').insert({ lesson_id: newId, folder_id })
+      }
+
+      return NextResponse.json({ ok: true, template_id: newId })
+    }
+
+    // ── Save single exercise to content bank ──
+    if (action === 'save-exercise-to-bank') {
+      const { exercise, template_category, template_level, folder_id } = body
+      if (!exercise || !exercise.title) return NextResponse.json({ error: 'Exercise data required' }, { status: 400 })
+
+      // Create a mini template lesson to hold the exercise
+      const { data: newLesson, error: insertErr } = await supabase
+        .from('lessons')
+        .insert({
+          title: exercise.title,
+          lesson_date: new Date().toISOString().split('T')[0],
+          lesson_type: 'lesson',
+          summary: `Saved exercise: ${exercise.title}`,
+          status: 'draft',
+          is_template: true,
+          template_category: template_category || null,
+          template_level: template_level || null,
+          course_id: null,
+          created_by: user.email,
+        })
+        .select('id')
+        .single()
+
+      if (insertErr) throw insertErr
+
+      // Insert the exercise
+      const { error: exErr } = await supabase.from('lesson_exercises').insert({
+        lesson_id: newLesson.id,
+        title: exercise.title,
+        subtitle: exercise.subtitle || '',
+        icon: exercise.icon || '',
+        instructions: exercise.instructions || '',
+        exercise_type: exercise.exercise_type,
+        questions: exercise.questions,
+        order_index: 0,
+        points_per_answer: exercise.points_per_answer ?? 10,
+        completion_bonus: exercise.completion_bonus ?? 0,
+        is_mandatory: exercise.is_mandatory !== false,
+      })
+      if (exErr) throw exErr
+
+      // Assign to folder if specified
+      if (folder_id) {
+        await supabase.from('lesson_folders').insert({ lesson_id: newLesson.id, folder_id })
+      }
+
+      return NextResponse.json({ ok: true, template_id: newLesson.id })
+    }
+
     void user
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {

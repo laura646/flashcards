@@ -394,6 +394,14 @@ function LessonsAdminPage() {
   const [templateCategory, setTemplateCategory] = useState('')
   const [templateLevel, setTemplateLevel] = useState('')
 
+  // Save to Content Bank
+  const [saveToBankModal, setSaveToBankModal] = useState<{ type: 'lesson' | 'exercise'; exerciseIndex?: number } | null>(null)
+  const [bankCategory, setBankCategory] = useState('')
+  const [bankLevel, setBankLevel] = useState('')
+  const [bankFolders, setBankFolders] = useState<{ id: string; name: string }[]>([])
+  const [bankFolderId, setBankFolderId] = useState('')
+  const [savingToBank, setSavingToBank] = useState(false)
+
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
 
   useEffect(() => {
@@ -403,6 +411,93 @@ function LessonsAdminPage() {
   const showToast = (msg: string) => {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
+  }
+
+  // ── Save to Content Bank ──
+  const openSaveToBankModal = async (type: 'lesson' | 'exercise', exerciseIndex?: number) => {
+    setSaveToBankModal({ type, exerciseIndex })
+    setBankCategory('')
+    setBankLevel('')
+    setBankFolderId('')
+    // Load folders
+    try {
+      const res = await fetch('/api/content-bank?action=list-folders')
+      const data = await res.json()
+      if (data.folders) {
+        const flat: { id: string; name: string }[] = []
+        const flatten = (folders: { id: string; name: string; children?: { id: string; name: string }[] }[], prefix = '') => {
+          for (const f of folders) {
+            flat.push({ id: f.id, name: prefix + f.name })
+            if (f.children?.length) flatten(f.children, prefix + f.name + ' / ')
+          }
+        }
+        flatten(data.folders)
+        setBankFolders(flat)
+      }
+    } catch { /* ignore */ }
+  }
+
+  const saveToBankConfirm = async () => {
+    if (!bankCategory || !bankLevel) {
+      showToast('Please select a category and level')
+      return
+    }
+    setSavingToBank(true)
+    try {
+      if (saveToBankModal?.type === 'lesson') {
+        if (!editingLessonId) {
+          showToast('Please save the lesson first')
+          setSavingToBank(false)
+          return
+        }
+        const res = await fetch('/api/content-bank', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'save-lesson-to-bank',
+            lesson_id: editingLessonId,
+            template_category: bankCategory,
+            template_level: bankLevel,
+            folder_id: bankFolderId || null,
+          }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          showToast('Lesson saved to Content Bank!')
+          setSaveToBankModal(null)
+        } else {
+          showToast(data.error || 'Failed to save')
+        }
+      } else if (saveToBankModal?.type === 'exercise' && saveToBankModal.exerciseIndex !== undefined) {
+        const exercise = contentItems[saveToBankModal.exerciseIndex]?.data as Exercise
+        if (!exercise?.title) {
+          showToast('Exercise needs a title')
+          setSavingToBank(false)
+          return
+        }
+        const res = await fetch('/api/content-bank', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'save-exercise-to-bank',
+            exercise,
+            template_category: bankCategory,
+            template_level: bankLevel,
+            folder_id: bankFolderId || null,
+          }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          showToast('Exercise saved to Content Bank!')
+          setSaveToBankModal(null)
+        } else {
+          showToast(data.error || 'Failed to save')
+        }
+      }
+    } catch {
+      showToast('Failed to save to Content Bank')
+    }
+    setSavingToBank(false)
   }
 
   const executeConversion = async (convItemIndex: number, newType: string) => {
@@ -1709,13 +1804,24 @@ function LessonsAdminPage() {
           </div>
         </div>
 
-        {/* Preview button */}
-        <button
-          onClick={() => setPreviewExercise(exercise)}
-          className="w-full py-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors"
-        >
-          ▶ Preview as student
-        </button>
+        {/* Preview + Save to Bank */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setPreviewExercise(exercise)}
+            className="flex-1 py-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors"
+          >
+            ▶ Preview as student
+          </button>
+          {!contentBankMode && (
+            <button
+              onClick={() => openSaveToBankModal('exercise', itemIndex)}
+              className="py-2 px-3 bg-[#e6f0fa] border border-[#cddcf0] text-[#416ebe] text-xs font-bold rounded-lg hover:bg-[#d0e0f5] transition-colors"
+              title="Save to Content Bank"
+            >
+              📥 Bank
+            </button>
+          )}
+        </div>
 
         {/* Exercise Fields */}
         <div className="grid grid-cols-2 gap-3">
@@ -3554,6 +3660,14 @@ function LessonsAdminPage() {
 
             {/* ── Save / Publish Buttons ── */}
             <div className="flex gap-3 justify-end pb-8">
+              {!contentBankMode && editingLessonId && (
+                <button
+                  onClick={() => openSaveToBankModal('lesson')}
+                  className="px-5 py-3 bg-[#e6f0fa] border border-[#cddcf0] text-[#416ebe] text-sm font-bold rounded-xl hover:bg-[#d0e0f5] transition-colors"
+                >
+                  📥 Save to Content Bank
+                </button>
+              )}
               <button
                 onClick={() => saveLesson('draft')}
                 disabled={saving || publishing}
@@ -3598,6 +3712,60 @@ function LessonsAdminPage() {
                       className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
                     >
                       Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Save to Content Bank Modal */}
+            {saveToBankModal && (
+              <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                  <h3 className="font-bold text-[#46464b] mb-1">
+                    📥 Save {saveToBankModal.type === 'lesson' ? 'Lesson' : 'Exercise'} to Content Bank
+                  </h3>
+                  <p className="text-xs text-gray-400 mb-4">
+                    {saveToBankModal.type === 'lesson'
+                      ? 'A copy of this lesson (with all content) will be saved as a template in the Content Bank.'
+                      : 'This exercise will be saved as a template in the Content Bank.'}
+                  </p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Category *</label>
+                      <select value={bankCategory} onChange={(e) => setBankCategory(e.target.value)}
+                        className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
+                        <option value="">Select category...</option>
+                        {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Level *</label>
+                      <select value={bankLevel} onChange={(e) => setBankLevel(e.target.value)}
+                        className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
+                        <option value="">Select level...</option>
+                        {TEMPLATE_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Folder (optional)</label>
+                      <select value={bankFolderId} onChange={(e) => setBankFolderId(e.target.value)}
+                        className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
+                        <option value="">No folder</option>
+                        {bankFolders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 justify-end mt-5">
+                    <button onClick={() => setSaveToBankModal(null)}
+                      className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600">
+                      Cancel
+                    </button>
+                    <button onClick={saveToBankConfirm} disabled={savingToBank}
+                      className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50">
+                      {savingToBank ? 'Saving...' : 'Save to Bank'}
                     </button>
                   </div>
                 </div>
