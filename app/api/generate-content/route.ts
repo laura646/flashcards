@@ -24,8 +24,9 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
 3. "match_halves" — match keywords/beginnings with definitions/endings (drag-and-drop matching)
    {"id": 1, "left": "to create", "right": "chairs"}
 
-4. "unjumble" — rearrange words to form correct sentences
-   {"id": 1, "prompt": "school / to / I / go / every day", "options": ["I go to school every day"], "correctIndex": 0, "hint": ""}
+4. "anagram" — unscramble letters to form a word, or rearrange words to form a sentence
+   For single words: {"id": 1, "word": "SCHOOL", "clue": "A place where children learn"}
+   For sentences: {"id": 1, "word": "She is going to the market", "clue": "Rearrange the words"}
 
 5. "transform" — change sentences (e.g., positive→negative, active→passive)
    {"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": ""}
@@ -60,11 +61,7 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
    {"id": 1, "segments": ["First, preheat the oven.", "Then, mix the ingredients.", "Next, pour into the pan.", "Finally, bake for 30 minutes."], "level": "sentence"}
    Segments must be in the CORRECT order. level is "sentence" or "paragraph". The app shuffles them.
 
-15. "anagram" — unscramble letters to form a word
-   {"id": 1, "word": "language", "clue": "A system of communication"}
-   The app scrambles the letters automatically.
-
-16. "cloze_listening" — listen to audio and fill in missing words
+15. "cloze_listening" — listen to audio and fill in missing words
    {"id": 1, "text": "The {{1}} sat on the {{2}}.", "blanks": {"1": "cat", "2": "mat"}, "audio_url": ""}
    text has {{n}} placeholders, blanks maps numbers to correct words. audio_url is optional (TTS auto-generated if empty). No word bank — student types freely.
 
@@ -82,7 +79,7 @@ TYPE SELECTION PRIORITY (IMPORTANT — avoid overusing type_answer):
 - "make positive/negative" → transform
 - "fill in the gaps/blanks" → fill_blank or complete_sentence
 - "match the beginnings with endings" → match_halves
-- "put the words in order" → unjumble
+- "put the words in order" → anagram
 - Conversations with blanks → complete_sentence (preferred) or fill_blank
 - Categorization/sorting → group_sort
 - True/false statements → true_or_false
@@ -234,10 +231,10 @@ Choose the BEST exercise type for the content. Available types:
 CLASSIC TYPES (use standard questions array):
 - "multiple_choice" — choose the correct answer from options
 - "fill_blank" — type the correct word/phrase
-- "unjumble" — rearrange words to form correct sentences
 - "transform" — change sentences (e.g., positive to negative)
 
 NEW INTERACTIVE TYPES (each has its own data format):
+- "anagram" — unscramble letters (single word) or rearrange words (sentence)
 - "match_halves" — drag-and-drop matching of keywords to definitions
 - "true_or_false" — student decides if a statement is true or false
 - "hangman" — student guesses letters to reveal a word, given a clue
@@ -249,7 +246,7 @@ ${preferredType ? `IMPORTANT: The teacher wants exercise type "${preferredType}"
 
 Return ONLY a valid JSON object. The format depends on the exercise type:
 
-FOR "multiple_choice", "fill_blank", "unjumble", "transform":
+FOR "multiple_choice", "fill_blank", "transform":
 {
   "title": "Exercise title",
   "subtitle": "Brief description",
@@ -398,8 +395,8 @@ ${({
 - Each question has a sentence with ___ for the blank, plus options.`,
   match_halves: `"questions": [{"id": 1, "left": "to create", "right": "chairs"}, {"id": 2, "left": "it looks", "right": "colorful"}]
 - Each pair has a "left" (keyword/beginning) and "right" (definition/ending). Students drag left tiles to match right definitions.`,
-  unjumble: `"questions": [{"id": 1, "prompt": "school / to / I / go / every day", "options": ["I go to school every day"], "correctIndex": 0, "hint": ""}]
-- prompt has jumbled words separated by " / ", options[0] is the correct sentence.`,
+  anagram: `"questions": [{"id": 1, "word": "She is going to the market", "clue": "Rearrange the words"}]
+- For single words, use just the word (letters get scrambled). For sentences, use the full sentence (words get scrambled). Clue is optional.`,
   transform: `"questions": [{"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": ""}]
 - prompt includes the transformation instruction, options are possible transformations.`,
   true_or_false: `"questions": [{"id": 1, "statement": "The past tense of go is goed.", "isTrue": false, "explanation": "The correct past tense is 'went'."}]
@@ -420,8 +417,6 @@ ${({
 - Each question has a criterion describing the ranking rule and items in the CORRECT order. The app shuffles them for the student.`,
   text_sequencing: `"questions": [{"id": 1, "segments": ["First, preheat the oven.", "Then, mix the ingredients.", "Next, pour into the pan.", "Finally, bake for 30 minutes."], "level": "sentence"}]
 - Each question has segments in the CORRECT order. level is "sentence" or "paragraph". The app shuffles them for the student.`,
-  anagram: `"questions": [{"id": 1, "word": "language", "clue": "A system of communication"}]
-- Each question has a word (the correct answer) and an optional clue. The app scrambles the letters for the student.`,
   cloze_listening: `"questions": [{"id": 1, "text": "The {{1}} sat on the {{2}}.", "blanks": {"1": "cat", "2": "mat"}, "audio_url": ""}]
 - text has {{n}} placeholders for blanks. blanks maps numbers to correct words. audio_url is optional (TTS auto-generated if empty). No word bank.`,
 } as Record<string, string>)[newType] || 'Use the standard questions format.'}

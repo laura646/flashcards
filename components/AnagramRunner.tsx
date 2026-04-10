@@ -6,6 +6,7 @@ interface AnagramQuestion {
   id: number
   word: string   // single word → letter mode, has spaces → sentence mode
   clue?: string
+  image_url?: string
 }
 
 interface Props {
@@ -302,6 +303,10 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
         <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-2">
           {sentenceMode ? 'Sentence' : 'Word'} {currentIndex + 1}
         </p>
+
+        {current.image_url && (
+          <img src={current.image_url} alt="" className="max-h-48 max-w-full object-contain rounded-xl mb-3" />
+        )}
 
         {current.clue && (
           <p className="text-sm text-[#46464b] mb-4 bg-[#e6f0fa] rounded-lg p-3">{current.clue}</p>
