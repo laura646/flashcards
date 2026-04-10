@@ -4,6 +4,9 @@ import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit } from '@/lib/rate-limit'
 
+// Allow large request bodies (base64 images can be several MB)
+export const maxDuration = 60 // seconds (for Vercel serverless timeout)
+
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB max file upload
 
 const EXERCISE_GEN_PROMPT = `You are an expert ESL teaching assistant. Analyze this exercise document and convert EACH exercise into a structured digital exercise format.

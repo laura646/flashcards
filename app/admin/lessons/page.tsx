@@ -973,14 +973,17 @@ function LessonsAdminPage() {
     }
     setAiExGenerating(true)
     try {
-      // If we have files, use the file upload flow
+      const IMAGE_EXTS = ['jpg', 'jpeg', 'png']
+      const allImages = aiExFiles.length > 0 && aiExFiles.every((f) => {
+        const ext = f.name.split('.').pop()?.toLowerCase() || ''
+        return IMAGE_EXTS.includes(ext)
+      })
+
+      // If we have files, convert to base64
       if (aiExFiles.length > 0) {
         const files = await Promise.all(
           aiExFiles.map(async (file) => {
-            const arrayBuffer = await file.arrayBuffer()
-            const base64 = btoa(
-              new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-            )
+            const base64 = await fileToBase64(file)
             const ext = file.name.split('.').pop()?.toLowerCase() || ''
             const typeMap: Record<string, string> = {
               pdf: 'application/pdf',
@@ -990,41 +993,80 @@ function LessonsAdminPage() {
             return { data: base64, type: file.type || typeMap[ext] || 'application/pdf' }
           })
         )
-        const res = await fetch('/api/generate-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'generate-exercises-from-upload', files }),
-        })
-        const data = await res.json()
-        if (!res.ok) {
-          showToast(data.error || 'Failed to generate exercises')
-          setAiExGenerating(false)
-          return
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const exercises: Exercise[] = (data.exercises || []).map((ex: any, i: number) => ({
-          title: ex.title || 'Exercise',
-          subtitle: ex.subtitle || '',
-          icon: ex.icon || '\uD83D\uDCDD',
-          instructions: ex.instructions || '',
-          exercise_type: ex.exercise_type || 'multiple_choice',
-          questions: ex.questions || [],
-          groupData: ex.groupData || undefined,
-          order_index: contentItems.length + i,
-        }))
-        // Add all generated exercises directly
-        if (exercises.length > 0) {
-          let idx = contentItems.length
-          const newItems = exercises.map((exercise) => ({
-            type: 'exercise' as ContentItemType,
-            data: { ...exercise, order_index: idx } as Exercise,
-            collapsed: false,
-            order_index: idx++,
-          }))
-          setContentItems((prev) => [...prev, ...newItems].map((item, i) => ({ ...item, order_index: i })))
-          showToast(`Added ${exercises.length} AI-generated exercise${exercises.length !== 1 ? 's' : ''}!`)
+
+        // Single image + preferred type: use the single-exercise generation (better for screenshots)
+        if (allImages && files.length === 1) {
+          const res = await fetch('/api/generate-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'generate-exercises',
+              image: files[0].data,
+              imageType: files[0].type,
+              preferredType: aiExPreferredType || undefined,
+            }),
+          })
+          const data = await res.json()
+          if (!res.ok) {
+            showToast(data.error || 'Failed to generate exercise')
+            setAiExGenerating(false)
+            return
+          }
+          if (data.exercise) {
+            const newIndex = contentItems.length
+            const exercise: Exercise = {
+              title: data.exercise.title || 'Exercise',
+              subtitle: data.exercise.subtitle || '',
+              icon: data.exercise.icon || '\uD83D\uDCDD',
+              instructions: data.exercise.instructions || '',
+              exercise_type: data.exercise.exercise_type || 'multiple_choice',
+              questions: data.exercise.questions || [],
+              groupData: data.exercise.groupData || undefined,
+              order_index: newIndex,
+            }
+            setContentItems((prev) => [
+              ...prev,
+              { type: 'exercise' as ContentItemType, data: exercise, collapsed: false, order_index: newIndex },
+            ])
+            showToast(`Added AI-generated exercise: ${exercise.title}`)
+          }
         } else {
-          showToast('No exercises could be generated from the files')
+          // Multi-file or document flow: use bulk generation
+          const res = await fetch('/api/generate-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'generate-exercises-from-upload', files }),
+          })
+          const data = await res.json()
+          if (!res.ok) {
+            showToast(data.error || 'Failed to generate exercises')
+            setAiExGenerating(false)
+            return
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const exercises: Exercise[] = (data.exercises || []).map((ex: any, i: number) => ({
+            title: ex.title || 'Exercise',
+            subtitle: ex.subtitle || '',
+            icon: ex.icon || '\uD83D\uDCDD',
+            instructions: ex.instructions || '',
+            exercise_type: ex.exercise_type || 'multiple_choice',
+            questions: ex.questions || [],
+            groupData: ex.groupData || undefined,
+            order_index: contentItems.length + i,
+          }))
+          if (exercises.length > 0) {
+            let idx = contentItems.length
+            const newItems = exercises.map((exercise) => ({
+              type: 'exercise' as ContentItemType,
+              data: { ...exercise, order_index: idx } as Exercise,
+              collapsed: false,
+              order_index: idx++,
+            }))
+            setContentItems((prev) => [...prev, ...newItems].map((item, i) => ({ ...item, order_index: i })))
+            showToast(`Added ${exercises.length} AI-generated exercise${exercises.length !== 1 ? 's' : ''}!`)
+          } else {
+            showToast('No exercises could be generated from the files')
+          }
         }
       } else {
         // Text-only flow: generate a single exercise
