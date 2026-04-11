@@ -862,6 +862,106 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, copied })
     }
 
+    // ── Create empty template lesson (for Save to Bank flow) ──
+    if (action === 'create-template') {
+      const { title: tTitle, template_category, template_level, folder_id } = body
+      if (!tTitle) return NextResponse.json({ error: 'Title required' }, { status: 400 })
+
+      const { data: newLesson, error: insertErr } = await supabase
+        .from('lessons')
+        .insert({
+          title: tTitle,
+          lesson_date: new Date().toISOString().split('T')[0],
+          lesson_type: 'lesson',
+          summary: null,
+          status: 'draft',
+          is_template: true,
+          template_category: template_category || null,
+          template_level: template_level || null,
+          course_id: null,
+          created_by: user.email,
+        })
+        .select('id')
+        .single()
+
+      if (insertErr) throw insertErr
+
+      if (folder_id) {
+        await supabase.from('lesson_folders').insert({ lesson_id: newLesson.id, folder_id })
+      }
+
+      return NextResponse.json({ ok: true, template_id: newLesson.id })
+    }
+
+    // ── Add content (exercises, flashcards, blocks) to existing template ──
+    if (action === 'add-content-to-template') {
+      const { template_id, exercises = [], flashcards = [], blocks = [] } = body
+      if (!template_id) return NextResponse.json({ error: 'Template ID required' }, { status: 400 })
+
+      // Get current max order_index for each content type
+      const [existingFc, existingEx, existingBlocks] = await Promise.all([
+        supabase.from('lesson_flashcards').select('order_index').eq('lesson_id', template_id).order('order_index', { ascending: false }).limit(1),
+        supabase.from('lesson_exercises').select('order_index').eq('lesson_id', template_id).order('order_index', { ascending: false }).limit(1),
+        supabase.from('lesson_blocks').select('order_index').eq('lesson_id', template_id).order('order_index', { ascending: false }).limit(1),
+      ])
+
+      const fcOffset = ((existingFc.data?.[0]?.order_index as number) ?? -1) + 1
+      const exOffset = ((existingEx.data?.[0]?.order_index as number) ?? -1) + 1
+      const blockOffset = ((existingBlocks.data?.[0]?.order_index as number) ?? -1) + 1
+
+      let added = 0
+
+      // Add flashcards
+      if (flashcards.length > 0) {
+        const rows = flashcards.map((fc: Record<string, unknown>, i: number) => ({
+          lesson_id: template_id,
+          word: fc.word || '', phonetic: fc.phonetic || '',
+          meaning: fc.meaning || '', example: fc.example || '',
+          notes: fc.notes || '',
+          order_index: fcOffset + i,
+        }))
+        const { error } = await supabase.from('lesson_flashcards').insert(rows)
+        if (error) throw error
+        added += flashcards.length
+      }
+
+      // Add exercises
+      if (exercises.length > 0) {
+        const rows = exercises.map((ex: Record<string, unknown>, i: number) => ({
+          lesson_id: template_id,
+          title: ex.title || ex.exercise_type || 'Exercise',
+          subtitle: ex.subtitle || '',
+          icon: ex.icon || '',
+          instructions: ex.instructions || '',
+          exercise_type: ex.exercise_type,
+          questions: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.questions,
+          order_index: exOffset + i,
+          points_per_answer: ex.points_per_answer ?? 10,
+          completion_bonus: ex.completion_bonus ?? 0,
+          is_mandatory: ex.is_mandatory !== false,
+        }))
+        const { error } = await supabase.from('lesson_exercises').insert(rows)
+        if (error) throw error
+        added += exercises.length
+      }
+
+      // Add blocks
+      if (blocks.length > 0) {
+        const rows = blocks.map((b: Record<string, unknown>, i: number) => ({
+          lesson_id: template_id,
+          block_type: b.block_type || 'article',
+          title: b.title || '',
+          content: b.content || {},
+          order_index: blockOffset + i,
+        }))
+        const { error } = await supabase.from('lesson_blocks').insert(rows)
+        if (error) throw error
+        added += blocks.length
+      }
+
+      return NextResponse.json({ ok: true, added })
+    }
+
     void user
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {

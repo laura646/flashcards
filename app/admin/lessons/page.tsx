@@ -397,12 +397,16 @@ function LessonsAdminPage() {
 
   // Save to Content Bank
   const [saveToBankModal, setSaveToBankModal] = useState<boolean>(false)
-  const [saveToBankStep, setSaveToBankStep] = useState<'select' | 'details'>('select')
+  const [saveToBankStep, setSaveToBankStep] = useState<'select' | 'pick-target' | 'create-new'>('select')
   const [selectedBankBlocks, setSelectedBankBlocks] = useState<number[]>([])
   const [bankCategory, setBankCategory] = useState('')
   const [bankLevel, setBankLevel] = useState('')
   const [bankFolders, setBankFolders] = useState<{ id: string; name: string }[]>([])
   const [bankFolderId, setBankFolderId] = useState('')
+  const [bankTemplates, setBankTemplates] = useState<{ id: string; title: string; summary: string | null }[]>([])
+  const [bankTargetTemplateId, setBankTargetTemplateId] = useState('')
+  const [bankNewTitle, setBankNewTitle] = useState('')
+  const [bankLoadingTemplates, setBankLoadingTemplates] = useState(false)
   const [savingToBank, setSavingToBank] = useState(false)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
@@ -424,6 +428,9 @@ function LessonsAdminPage() {
     setBankCategory('')
     setBankLevel('')
     setBankFolderId('')
+    setBankTemplates([])
+    setBankTargetTemplateId('')
+    setBankNewTitle('')
     // Load folders
     try {
       const res = await fetch('/api/content-bank?action=list-folders')
@@ -470,70 +477,95 @@ function LessonsAdminPage() {
     }
   }
 
+  const loadBankTemplatesForFolder = async (folderId: string) => {
+    setBankFolderId(folderId)
+    setBankTargetTemplateId('')
+    if (!folderId) { setBankTemplates([]); return }
+    setBankLoadingTemplates(true)
+    try {
+      const res = await fetch(`/api/content-bank?action=list&folder_id=${folderId}`)
+      const data = await res.json()
+      setBankTemplates((data.templates || []).map((t: { id: string; title: string; summary: string | null }) => ({
+        id: t.id, title: t.title, summary: t.summary,
+      })))
+    } catch { setBankTemplates([]) }
+    setBankLoadingTemplates(false)
+  }
+
   const saveToBankConfirm = async () => {
-    if (!bankCategory || !bankLevel) {
-      showToast('Please select a category and level')
-      return
-    }
     if (selectedBankBlocks.length === 0) {
       showToast('Please select at least one content block')
       return
     }
+
     setSavingToBank(true)
     try {
-      let savedCount = 0
+      let targetTemplateId = bankTargetTemplateId
+
+      // If creating a new lesson template, create it first
+      if (!targetTemplateId) {
+        if (!bankNewTitle.trim()) {
+          showToast('Please enter a lesson title')
+          setSavingToBank(false)
+          return
+        }
+        const createRes = await fetch('/api/content-bank', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create-template',
+            title: bankNewTitle.trim(),
+            template_category: bankCategory || null,
+            template_level: bankLevel || null,
+            folder_id: bankFolderId || null,
+          }),
+        })
+        const createData = await createRes.json()
+        if (!createRes.ok) {
+          showToast(createData.error || 'Failed to create lesson')
+          setSavingToBank(false)
+          return
+        }
+        targetTemplateId = createData.template_id
+      }
+
+      // Now add all selected content to the target template
+      // Collect exercises, flashcards, and blocks to send
+      const exercisesToAdd: Exercise[] = []
+      const blocksToAdd: { block_type: string; title: string; content: unknown }[] = []
+      let flashcardsToAdd: Flashcard[] = []
+
       for (const idx of selectedBankBlocks) {
         const item = contentItems[idx]
         if (!item) continue
-
         if (item.type === 'exercise') {
-          const exercise = item.data as Exercise
-          const res = await fetch('/api/content-bank', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'save-exercise-to-bank',
-              exercise,
-              template_category: bankCategory,
-              template_level: bankLevel,
-              folder_id: bankFolderId || null,
-            }),
-          })
-          if (res.ok) savedCount++
+          exercisesToAdd.push(item.data as Exercise)
         } else if (item.type === 'flashcards') {
-          const flashcards = item.data as Flashcard[]
-          const res = await fetch('/api/content-bank', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'save-flashcards-to-bank',
-              flashcards,
-              lesson_title: title || 'Vocabulary',
-              template_category: bankCategory,
-              template_level: bankLevel,
-              folder_id: bankFolderId || null,
-            }),
-          })
-          if (res.ok) savedCount++
+          flashcardsToAdd = item.data as Flashcard[]
         } else {
-          // Content blocks (mistakes, video, article, etc.)
           const block = item.data as ContentBlock
-          const res = await fetch('/api/content-bank', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'save-block-to-bank',
-              block: { ...block, block_type: item.type },
-              template_category: bankCategory,
-              template_level: bankLevel,
-              folder_id: bankFolderId || null,
-            }),
-          })
-          if (res.ok) savedCount++
+          blocksToAdd.push({ block_type: item.type, title: block.title || '', content: block.content || {} })
         }
       }
-      showToast(`${savedCount} item${savedCount !== 1 ? 's' : ''} saved to Content Bank!`)
-      setSaveToBankModal(false)
+
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add-content-to-template',
+          template_id: targetTemplateId,
+          exercises: exercisesToAdd,
+          flashcards: flashcardsToAdd,
+          blocks: blocksToAdd,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(`${data.added || 0} items added to Content Bank!`)
+        setSaveToBankModal(false)
+      } else {
+        showToast(data.error || 'Failed to save')
+      }
     } catch {
       showToast('Failed to save to Content Bank')
     }
@@ -3846,7 +3878,7 @@ function LessonsAdminPage() {
                               showToast('Select at least one block')
                               return
                             }
-                            setSaveToBankStep('details')
+                            setSaveToBankStep('pick-target')
                           }}
                           className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
                         >
@@ -3854,37 +3886,74 @@ function LessonsAdminPage() {
                         </button>
                       </div>
                     </>
-                  ) : (
+                  ) : saveToBankStep === 'pick-target' ? (
                     <>
                       <p className="text-xs text-gray-400 mb-4">
-                        {selectedBankBlocks.length} item{selectedBankBlocks.length !== 1 ? 's' : ''} selected. Choose category, level, and folder.
+                        {selectedBankBlocks.length} item{selectedBankBlocks.length !== 1 ? 's' : ''} selected. Choose a folder and lesson to add them to.
                       </p>
 
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Category *</label>
-                          <select value={bankCategory} onChange={(e) => setBankCategory(e.target.value)}
-                            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
-                            <option value="">Select category...</option>
-                            {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Level *</label>
-                          <select value={bankLevel} onChange={(e) => setBankLevel(e.target.value)}
-                            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
-                            <option value="">Select level...</option>
-                            {TEMPLATE_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Folder (optional)</label>
-                          <select value={bankFolderId} onChange={(e) => setBankFolderId(e.target.value)}
-                            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
-                            <option value="">No folder</option>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Folder</label>
+                          <select
+                            value={bankFolderId}
+                            onChange={(e) => loadBankTemplatesForFolder(e.target.value)}
+                            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]"
+                          >
+                            <option value="">Select a folder...</option>
                             {bankFolders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                           </select>
                         </div>
+
+                        {bankFolderId && (
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lesson</label>
+                            {bankLoadingTemplates ? (
+                              <p className="text-xs text-gray-400 py-2">Loading lessons...</p>
+                            ) : (
+                              <>
+                                {bankTemplates.length > 0 && (
+                                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto mb-2">
+                                    {bankTemplates.map(t => (
+                                      <button
+                                        key={t.id}
+                                        onClick={() => setBankTargetTemplateId(t.id)}
+                                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                                          bankTargetTemplateId === t.id
+                                            ? 'border-[#416ebe] bg-[#e6f0fa]'
+                                            : 'border-[#e6f0fa] bg-white hover:border-[#cddcf0]'
+                                        }`}
+                                      >
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                          bankTargetTemplateId === t.id ? 'border-[#416ebe] bg-[#416ebe]' : 'border-gray-300'
+                                        }`}>
+                                          {bankTargetTemplateId === t.id && <span className="text-white text-xs">✓</span>}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-bold text-[#46464b] truncate">{t.title}</p>
+                                          {t.summary && <p className="text-[10px] text-gray-400 truncate">{t.summary}</p>}
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                <div className="border-t border-[#e6f0fa] pt-2">
+                                  <button
+                                    onClick={() => {
+                                      setBankTargetTemplateId('')
+                                      setBankNewTitle(title || '')
+                                      setSaveToBankStep('create-new')
+                                    }}
+                                    className="w-full text-left p-3 rounded-xl border border-dashed border-[#cddcf0] text-sm text-[#416ebe] font-bold hover:bg-[#e6f0fa] transition-colors"
+                                  >
+                                    + Create New Lesson
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex gap-2 justify-end mt-5">
@@ -3892,9 +3961,62 @@ function LessonsAdminPage() {
                           className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600">
                           ← Back
                         </button>
-                        <button onClick={saveToBankConfirm} disabled={savingToBank}
-                          className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50">
-                          {savingToBank ? 'Saving...' : `Save ${selectedBankBlocks.length} Item${selectedBankBlocks.length !== 1 ? 's' : ''}`}
+                        <button
+                          onClick={saveToBankConfirm}
+                          disabled={savingToBank || !bankTargetTemplateId}
+                          className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50"
+                        >
+                          {savingToBank ? 'Saving...' : 'Add to Lesson'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    /* create-new step */
+                    <>
+                      <p className="text-xs text-gray-400 mb-4">
+                        Create a new lesson in the Content Bank and add {selectedBankBlocks.length} item{selectedBankBlocks.length !== 1 ? 's' : ''} to it.
+                      </p>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lesson Title *</label>
+                          <input
+                            type="text"
+                            value={bankNewTitle}
+                            onChange={(e) => setBankNewTitle(e.target.value)}
+                            placeholder="e.g. Travel Vocabulary"
+                            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Category</label>
+                          <select value={bankCategory} onChange={(e) => setBankCategory(e.target.value)}
+                            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
+                            <option value="">Select category...</option>
+                            {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Level</label>
+                          <select value={bankLevel} onChange={(e) => setBankLevel(e.target.value)}
+                            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]">
+                            <option value="">Select level...</option>
+                            {TEMPLATE_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 justify-end mt-5">
+                        <button onClick={() => setSaveToBankStep('pick-target')}
+                          className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600">
+                          ← Back
+                        </button>
+                        <button
+                          onClick={saveToBankConfirm}
+                          disabled={savingToBank || !bankNewTitle.trim()}
+                          className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50"
+                        >
+                          {savingToBank ? 'Saving...' : 'Create & Add'}
                         </button>
                       </div>
                     </>
