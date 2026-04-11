@@ -119,8 +119,8 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
   }, [placed.length])
 
   const submitAnswer = useCallback(() => {
-    if (!current || placed.length !== targetLength || feedback !== null) return
-    const correct = checkAnswer(placed, current.word)
+    if (!current || placed.length === 0 || feedback !== null) return
+    const correct = placed.length === targetLength && checkAnswer(placed, current.word)
     if (correct) {
       setFeedback('correct')
       const newResults = [...results]
@@ -403,14 +403,13 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
         {/* Action buttons */}
         {feedback === null && (
           <div className="flex flex-col items-center gap-2 mt-4">
-            {placed.length === targetLength && (
-              <button
-                onClick={submitAnswer}
-                className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm"
-              >
-                Submit
-              </button>
-            )}
+            <button
+              onClick={submitAnswer}
+              disabled={placed.length === 0}
+              className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Submit
+            </button>
             <div className="flex justify-center gap-3">
               <button onClick={resetTiles} className="text-xs text-gray-400 hover:text-[#416ebe] font-bold px-3 py-1.5 rounded-lg hover:bg-[#e6f0fa] transition-colors">
                 Reset
