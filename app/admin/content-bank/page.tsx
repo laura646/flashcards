@@ -269,6 +269,14 @@ export default function ContentBankPage() {
   const [selectedCourseId, setSelectedCourseId] = useState('')
   const [cloning, setCloning] = useState(false)
 
+  // Add to Lesson modal
+  const [showAddToLessonModal, setShowAddToLessonModal] = useState(false)
+  const [addToLessonCourseId, setAddToLessonCourseId] = useState('')
+  const [addToLessonLessons, setAddToLessonLessons] = useState<{ id: string; title: string; status: string }[]>([])
+  const [addToLessonId, setAddToLessonId] = useState('')
+  const [addToLessonLoading, setAddToLessonLoading] = useState(false)
+  const [copying, setCopying] = useState(false)
+
   // Confirm delete
   const [confirmDelete, setConfirmDelete] = useState<Folder | null>(null)
   const [confirmExerciseDelete, setConfirmExerciseDelete] = useState<string | null>(null)
@@ -452,6 +460,67 @@ export default function ContentBankPage() {
       showToast('Failed to clone lesson')
     }
     setCloning(false)
+  }
+
+  // ── Add to Lesson ──
+  const openAddToLessonModal = async () => {
+    setShowAddToLessonModal(true)
+    setAddToLessonCourseId('')
+    setAddToLessonLessons([])
+    setAddToLessonId('')
+    // Load courses if not already loaded
+    if (courses.length === 0) {
+      try {
+        const res = await fetch('/api/superadmin?action=courses')
+        if (res.ok) {
+          const data = await res.json()
+          setCourses(data.courses || [])
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
+  const loadLessonsForCourse = async (courseId: string) => {
+    setAddToLessonCourseId(courseId)
+    setAddToLessonId('')
+    if (!courseId) { setAddToLessonLessons([]); return }
+    setAddToLessonLoading(true)
+    try {
+      const res = await fetch(`/api/lessons?course_id=${courseId}&include_all=true`)
+      if (res.ok) {
+        const data = await res.json()
+        // Filter out templates
+        const lessons = (data.lessons || []).filter((l: { is_template?: boolean }) => !l.is_template)
+        setAddToLessonLessons(lessons)
+      }
+    } catch { /* ignore */ }
+    setAddToLessonLoading(false)
+  }
+
+  const copyToLesson = async () => {
+    if (!selectedTemplate || !addToLessonId) return
+    setCopying(true)
+    try {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'copy-to-lesson',
+          template_id: selectedTemplate.id,
+          target_lesson_id: addToLessonId,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showToast(`Content copied! ${data.copied} items added to lesson.`)
+        setShowAddToLessonModal(false)
+      } else {
+        showToast(data.error || 'Failed to copy')
+      }
+    } catch {
+      showToast('Failed to copy content')
+    }
+    setCopying(false)
   }
 
   // ── Folder actions ──
@@ -673,6 +742,74 @@ export default function ContentBankPage() {
         </div>
       )}
 
+      {/* Add to Lesson Modal */}
+      {showAddToLessonModal && selectedTemplate && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <h3 className="font-bold text-[#46464b] mb-1">Add to Existing Lesson</h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Copy all content from &ldquo;{selectedTemplate.title}&rdquo; into an existing lesson.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Course</label>
+                <select
+                  value={addToLessonCourseId}
+                  onChange={e => loadLessonsForCourse(e.target.value)}
+                  className="w-full px-3 py-2 border border-[#cddcf0] rounded-lg text-sm"
+                >
+                  <option value="">Select a course...</option>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {addToLessonCourseId && (
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lesson</label>
+                  {addToLessonLoading ? (
+                    <p className="text-xs text-gray-400 py-2">Loading lessons...</p>
+                  ) : addToLessonLessons.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-2">No lessons in this course yet.</p>
+                  ) : (
+                    <select
+                      value={addToLessonId}
+                      onChange={e => setAddToLessonId(e.target.value)}
+                      className="w-full px-3 py-2 border border-[#cddcf0] rounded-lg text-sm"
+                    >
+                      <option value="">Select a lesson...</option>
+                      {addToLessonLessons.map(l => (
+                        <option key={l.id} value={l.id}>
+                          {l.title} {l.status === 'draft' ? '(draft)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 justify-end mt-5">
+              <button
+                onClick={() => { setShowAddToLessonModal(false); setAddToLessonCourseId(''); setAddToLessonId('') }}
+                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={copyToLesson}
+                disabled={!addToLessonId || copying}
+                className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] disabled:opacity-50"
+              >
+                {copying ? 'Copying...' : 'Add to Lesson'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Rename Folder Modal */}
       {renamingFolder && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -875,6 +1012,12 @@ export default function ContentBankPage() {
                 className="px-4 py-2.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-xl hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
               >
                 Add to Folder
+              </button>
+              <button
+                onClick={openAddToLessonModal}
+                className="px-4 py-2.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-xl hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
+              >
+                Add to Lesson
               </button>
               <button
                 onClick={openCloneModal}

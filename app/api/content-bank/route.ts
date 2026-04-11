@@ -785,6 +785,83 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, template_id: newLesson.id })
     }
 
+    // ── Copy template content to existing lesson ──
+    if (action === 'copy-to-lesson') {
+      const { template_id, target_lesson_id } = body
+      if (!template_id || !target_lesson_id) {
+        return NextResponse.json({ error: 'Template ID and target lesson ID required' }, { status: 400 })
+      }
+
+      // Fetch template content
+      const [fcRes, exRes, blockRes] = await Promise.all([
+        supabase.from('lesson_flashcards').select('*').eq('lesson_id', template_id).order('order_index'),
+        supabase.from('lesson_exercises').select('*').eq('lesson_id', template_id).order('order_index'),
+        supabase.from('lesson_blocks').select('*').eq('lesson_id', template_id).order('order_index'),
+      ])
+
+      // Get current max order_index in target lesson for each content type
+      const [existingFc, existingEx, existingBlocks] = await Promise.all([
+        supabase.from('lesson_flashcards').select('order_index').eq('lesson_id', target_lesson_id).order('order_index', { ascending: false }).limit(1),
+        supabase.from('lesson_exercises').select('order_index').eq('lesson_id', target_lesson_id).order('order_index', { ascending: false }).limit(1),
+        supabase.from('lesson_blocks').select('order_index').eq('lesson_id', target_lesson_id).order('order_index', { ascending: false }).limit(1),
+      ])
+
+      const fcOffset = ((existingFc.data?.[0]?.order_index as number) ?? -1) + 1
+      const exOffset = ((existingEx.data?.[0]?.order_index as number) ?? -1) + 1
+      const blockOffset = ((existingBlocks.data?.[0]?.order_index as number) ?? -1) + 1
+
+      let copied = 0
+
+      // Copy flashcards
+      const flashcards = fcRes.data || []
+      if (flashcards.length > 0) {
+        const rows = flashcards.map((fc: Record<string, unknown>, i: number) => ({
+          lesson_id: target_lesson_id,
+          word: fc.word, phonetic: fc.phonetic,
+          meaning: fc.meaning, example: fc.example, notes: fc.notes,
+          order_index: fcOffset + i,
+        }))
+        const { error } = await supabase.from('lesson_flashcards').insert(rows)
+        if (error) throw error
+        copied += flashcards.length
+      }
+
+      // Copy exercises
+      const exercises = exRes.data || []
+      if (exercises.length > 0) {
+        const rows = exercises.map((ex: Record<string, unknown>, i: number) => ({
+          lesson_id: target_lesson_id,
+          title: ex.title, subtitle: ex.subtitle,
+          icon: ex.icon, instructions: ex.instructions,
+          exercise_type: ex.exercise_type,
+          questions: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.questions,
+          order_index: exOffset + i,
+          points_per_answer: ex.points_per_answer ?? 10,
+          completion_bonus: ex.completion_bonus ?? 0,
+          is_mandatory: ex.is_mandatory !== false,
+        }))
+        const { error } = await supabase.from('lesson_exercises').insert(rows)
+        if (error) throw error
+        copied += exercises.length
+      }
+
+      // Copy blocks
+      const blocks = blockRes.data || []
+      if (blocks.length > 0) {
+        const rows = blocks.map((b: Record<string, unknown>, i: number) => ({
+          lesson_id: target_lesson_id,
+          block_type: b.block_type,
+          title: b.title, content: b.content,
+          order_index: blockOffset + i,
+        }))
+        const { error } = await supabase.from('lesson_blocks').insert(rows)
+        if (error) throw error
+        copied += blocks.length
+      }
+
+      return NextResponse.json({ ok: true, copied })
+    }
+
     void user
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {
