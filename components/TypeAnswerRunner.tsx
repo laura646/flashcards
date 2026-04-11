@@ -58,8 +58,9 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
   const handleSubmitAnswer = () => {
     if (feedback !== null || inputValue.trim() === '') return
 
+    const stripPunctuation = (s: string) => s.replace(/[.,!?;:'"()\-\u2014\u2013\u2026]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
     const isCorrect =
-      inputValue.trim().toLowerCase() === current.answer.toLowerCase()
+      stripPunctuation(inputValue) === stripPunctuation(current.answer)
 
     const result: QuestionResult = {
       typed: inputValue.trim(),
