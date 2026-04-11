@@ -118,6 +118,26 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
     }
   }, [placed.length])
 
+  const submitAnswer = useCallback(() => {
+    if (!current || placed.length !== targetLength || feedback !== null) return
+    const correct = checkAnswer(placed, current.word)
+    if (correct) {
+      setFeedback('correct')
+      const newResults = [...results]
+      newResults[currentIndex] = true
+      setResults(newResults)
+      autoTimer.current = setTimeout(() => advance(newResults), 1500)
+    } else {
+      setShake(true)
+      setTimeout(() => setShake(false), 600)
+      setFeedback('wrong')
+      setRevealed(true)
+      const newResults = [...results]
+      newResults[currentIndex] = false
+      setResults(newResults)
+    }
+  }, [current, placed, targetLength, feedback, results, currentIndex])
+
   if (!exercise.questions || exercise.questions.length === 0) {
     return <div className="text-center py-8 text-sm text-gray-400">No questions in this exercise.</div>
   }
@@ -382,13 +402,23 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
 
         {/* Action buttons */}
         {feedback === null && (
-          <div className="flex justify-center gap-3 mt-4">
-            <button onClick={resetTiles} className="text-xs text-gray-400 hover:text-[#416ebe] font-bold px-3 py-1.5 rounded-lg hover:bg-[#e6f0fa] transition-colors">
-              Reset
-            </button>
-            <button onClick={showAnswer} className="text-xs text-gray-400 hover:text-amber-500 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors">
-              Show answer
-            </button>
+          <div className="flex flex-col items-center gap-2 mt-4">
+            {placed.length === targetLength && (
+              <button
+                onClick={submitAnswer}
+                className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm"
+              >
+                Submit
+              </button>
+            )}
+            <div className="flex justify-center gap-3">
+              <button onClick={resetTiles} className="text-xs text-gray-400 hover:text-[#416ebe] font-bold px-3 py-1.5 rounded-lg hover:bg-[#e6f0fa] transition-colors">
+                Reset
+              </button>
+              <button onClick={showAnswer} className="text-xs text-gray-400 hover:text-amber-500 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors">
+                Show answer
+              </button>
+            </div>
           </div>
         )}
       </div>
