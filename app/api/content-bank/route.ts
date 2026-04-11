@@ -693,6 +693,96 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, template_id: newLesson.id })
     }
 
+    // ── Save flashcards to content bank ──
+    if (action === 'save-flashcards-to-bank') {
+      const { flashcards, lesson_title, template_category, template_level, folder_id } = body
+      if (!flashcards?.length) return NextResponse.json({ error: 'Flashcards required' }, { status: 400 })
+
+      const { data: newLesson, error: insertErr } = await supabase
+        .from('lessons')
+        .insert({
+          title: lesson_title || 'Vocabulary',
+          lesson_date: new Date().toISOString().split('T')[0],
+          lesson_type: 'lesson',
+          summary: `Vocabulary: ${flashcards.length} flashcards`,
+          status: 'draft',
+          is_template: true,
+          template_category: template_category || null,
+          template_level: template_level || null,
+          course_id: null,
+          created_by: user.email,
+        })
+        .select('id')
+        .single()
+
+      if (insertErr) throw insertErr
+
+      const rows = flashcards.map((fc: Record<string, unknown>, i: number) => ({
+        lesson_id: newLesson.id,
+        word: fc.word || '',
+        phonetic: fc.phonetic || '',
+        meaning: fc.meaning || '',
+        example: fc.example || '',
+        notes: fc.notes || '',
+        order_index: i,
+      }))
+      const { error: fcErr } = await supabase.from('lesson_flashcards').insert(rows)
+      if (fcErr) {
+        await supabase.from('lessons').delete().eq('id', newLesson.id)
+        throw fcErr
+      }
+
+      if (folder_id) {
+        await supabase.from('lesson_folders').insert({ lesson_id: newLesson.id, folder_id })
+      }
+
+      return NextResponse.json({ ok: true, template_id: newLesson.id })
+    }
+
+    // ── Save content block to content bank ──
+    if (action === 'save-block-to-bank') {
+      const { block, template_category, template_level, folder_id } = body
+      if (!block) return NextResponse.json({ error: 'Block data required' }, { status: 400 })
+
+      const blockType = block.block_type || 'article'
+      const { data: newLesson, error: insertErr } = await supabase
+        .from('lessons')
+        .insert({
+          title: block.title || blockType,
+          lesson_date: new Date().toISOString().split('T')[0],
+          lesson_type: 'lesson',
+          summary: `Content block: ${blockType}`,
+          status: 'draft',
+          is_template: true,
+          template_category: template_category || null,
+          template_level: template_level || null,
+          course_id: null,
+          created_by: user.email,
+        })
+        .select('id')
+        .single()
+
+      if (insertErr) throw insertErr
+
+      const { error: blkErr } = await supabase.from('lesson_blocks').insert({
+        lesson_id: newLesson.id,
+        block_type: blockType,
+        title: block.title || '',
+        content: block.content || {},
+        order_index: 0,
+      })
+      if (blkErr) {
+        await supabase.from('lessons').delete().eq('id', newLesson.id)
+        throw blkErr
+      }
+
+      if (folder_id) {
+        await supabase.from('lesson_folders').insert({ lesson_id: newLesson.id, folder_id })
+      }
+
+      return NextResponse.json({ ok: true, template_id: newLesson.id })
+    }
+
     void user
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {
