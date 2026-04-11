@@ -89,6 +89,7 @@ const EXERCISE_TYPE_LABELS: Record<string, string> = {
   type_answer: 'Type the Answer',
   complete_sentence: 'Complete the Sentence',
   group_sort: 'Group Sort',
+  odd_one_out: 'Odd One Out',
 }
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {

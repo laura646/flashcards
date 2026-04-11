@@ -19,6 +19,7 @@ import TextSequencingRunner from '@/components/TextSequencingRunner'
 import AnagramRunner from '@/components/AnagramRunner'
 import ClozeListeningRunner from '@/components/ClozeListeningRunner'
 import MatchHalvesRunner from '@/components/MatchHalvesRunner'
+import OddOneOutRunner from '@/components/OddOneOutRunner'
 import AudioButton from '@/components/AudioButton'
 
 // ── Interfaces ──
@@ -840,6 +841,8 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       runnerContent = <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else if (exType === 'match_halves') {
       runnerContent = <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+    } else if (exType === 'odd_one_out') {
+      runnerContent = <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else {
       // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
       runnerContent = <ExerciseRunner exercise={{ id: 0, title: selectedExercise.title, subtitle: selectedExercise.subtitle, icon: selectedExercise.icon, instructions: selectedExercise.instructions, questions: selectedExercise.questions }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
@@ -1455,6 +1458,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     true_or_false: '✅', hangman: '🎮', type_answer: '⌨️', complete_sentence: '📝',
     group_sort: '🗂️', dictation: '🎧', error_correction: '🔍', rank_order: '🔢',
     text_sequencing: '📄', anagram: '🔀', unjumble: '🔀', cloze_listening: '🎧',
+    odd_one_out: '🚫',
   }
   const EXERCISE_TYPE_NAMES: Record<string, string> = {
     multiple_choice: 'Multiple Choice', fill_blank: 'Fill in the Blank', match_halves: 'Match Halves',
@@ -1463,6 +1467,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     group_sort: 'Group Sort', dictation: 'Dictation', error_correction: 'Error Correction',
     rank_order: 'Rank Order', text_sequencing: 'Text Sequencing', anagram: 'Unjumble',
     unjumble: 'Unjumble', cloze_listening: 'Cloze Listening',
+    odd_one_out: 'Odd One Out',
   }
   exercises.forEach((ex) => {
     const isDone = completedExerciseIds.has(ex.id)

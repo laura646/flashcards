@@ -8,6 +8,7 @@ import ExercisePreview from '@/components/ExercisePreview'
 import MatchHalvesEditor from '@/components/MatchHalvesEditor'
 import TypeAnswerEditor from '@/components/TypeAnswerEditor'
 import UnjumbleEditor from '@/components/UnjumbleEditor'
+import OddOneOutEditor from '@/components/OddOneOutEditor'
 // Role-based admin check
 
 // ── Types ──
@@ -84,6 +85,7 @@ const EXERCISE_TYPES = [
   { value: 'text_sequencing', label: 'Text Sequencing', icon: '\uD83D\uDCC4' },
   { value: 'anagram', label: 'Unjumble', icon: '🔀' },
   { value: 'cloze_listening', label: 'Cloze Listening', icon: '\uD83C\uDFA7' },
+  { value: 'odd_one_out', label: 'Odd One Out', icon: '🚫' },
 ]
 
 const LESSON_TYPES = [
@@ -121,6 +123,7 @@ const EXERCISE_TYPE_LABELS: Record<string, string> = {
   anagram: 'Unjumble',
   unjumble: 'Unjumble',
   cloze_listening: 'Cloze Listening',
+  odd_one_out: 'Odd One Out',
 }
 
 const BLOCK_TYPE_LABELS: Record<string, string> = {
@@ -2050,6 +2053,12 @@ function LessonsAdminPage() {
         ) : (exercise.exercise_type === 'anagram' || exercise.exercise_type === 'unjumble') ? (
           // Visual unjumble editor
           <UnjumbleEditor
+            questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+            onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+          />
+        ) : exercise.exercise_type === 'odd_one_out' ? (
+          // Visual odd one out editor
+          <OddOneOutEditor
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}
             onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
           />

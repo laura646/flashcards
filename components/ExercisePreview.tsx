@@ -14,6 +14,7 @@ import TextSequencingRunner from '@/components/TextSequencingRunner'
 import AnagramRunner from '@/components/AnagramRunner'
 import ClozeListeningRunner from '@/components/ClozeListeningRunner'
 import MatchHalvesRunner from '@/components/MatchHalvesRunner'
+import OddOneOutRunner from '@/components/OddOneOutRunner'
 
 interface ExercisePreviewProps {
   exercise: {
@@ -84,6 +85,9 @@ export default function ExercisePreview({ exercise, onClose }: ExercisePreviewPr
       break
     case 'match_halves':
       runner = <MatchHalvesRunner key={key} exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves.' }} onComplete={handleComplete} onBack={onClose} />
+      break
+    case 'odd_one_out':
+      runner = <OddOneOutRunner key={key} exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={handleComplete} onBack={onClose} />
       break
     default:
       runner = <ExerciseRunner key={key} exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle || '', icon: exercise.icon || '📝', instructions: exercise.instructions, questions: exProps.questions }} onComplete={handleComplete} onBack={onClose} />
