@@ -1450,13 +1450,30 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   }
 
   // Exercise cards
+  const EXERCISE_TYPE_ICONS: Record<string, string> = {
+    multiple_choice: '🎯', fill_blank: '✍️', match_halves: '🧩', transform: '🔄',
+    true_or_false: '✅', hangman: '🎮', type_answer: '⌨️', complete_sentence: '📝',
+    group_sort: '🗂️', dictation: '🎧', error_correction: '🔍', rank_order: '🔢',
+    text_sequencing: '📄', anagram: '🔀', unjumble: '🔀', cloze_listening: '🎧',
+  }
+  const EXERCISE_TYPE_NAMES: Record<string, string> = {
+    multiple_choice: 'Multiple Choice', fill_blank: 'Fill in the Blank', match_halves: 'Match Halves',
+    transform: 'Transform', true_or_false: 'True or False', hangman: 'Hangman',
+    type_answer: 'Type the Answer', complete_sentence: 'Complete the Sentence',
+    group_sort: 'Group Sort', dictation: 'Dictation', error_correction: 'Error Correction',
+    rank_order: 'Rank Order', text_sequencing: 'Text Sequencing', anagram: 'Unjumble',
+    unjumble: 'Unjumble', cloze_listening: 'Cloze Listening',
+  }
   exercises.forEach((ex) => {
     const isDone = completedExerciseIds.has(ex.id)
+    const fallbackIcon = EXERCISE_TYPE_ICONS[ex.exercise_type] || '📝'
+    const fallbackTitle = EXERCISE_TYPE_NAMES[ex.exercise_type] || 'Exercise'
+    const questionCount = Array.isArray(ex.questions) ? ex.questions.length : 0
     contentItems.push({
       key: `exercise-${ex.id}`,
-      icon: isDone ? '✅' : ex.icon,
-      label: ex.title,
-      subtitle: isDone ? 'Completed — tap to redo' : ex.subtitle,
+      icon: isDone ? '✅' : (ex.icon || fallbackIcon),
+      label: ex.title || fallbackTitle,
+      subtitle: isDone ? 'Completed — tap to redo' : (ex.subtitle || `${questionCount} question${questionCount !== 1 ? 's' : ''}`),
       onClick: () => {
         setSelectedExercise(ex)
         setView('exercise-runner')
