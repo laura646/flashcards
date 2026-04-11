@@ -1816,24 +1816,13 @@ function LessonsAdminPage() {
           </div>
         </div>
 
-        {/* Preview + Save to Bank */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setPreviewExercise(exercise)}
-            className="flex-1 py-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors"
-          >
-            ▶ Preview as student
-          </button>
-          {!contentBankMode && (
-            <button
-              onClick={() => openSaveToBankModal('exercise', itemIndex)}
-              className="py-2 px-3 bg-[#e6f0fa] border border-[#cddcf0] text-[#416ebe] text-xs font-bold rounded-lg hover:bg-[#d0e0f5] transition-colors"
-              title="Save to Content Bank"
-            >
-              📥 Bank
-            </button>
-          )}
-        </div>
+        {/* Preview button */}
+        <button
+          onClick={() => setPreviewExercise(exercise)}
+          className="w-full py-2 bg-amber-50 border border-amber-200 text-amber-600 text-xs font-bold rounded-lg hover:bg-amber-100 transition-colors"
+        >
+          ▶ Preview as student
+        </button>
 
         {/* Exercise Fields */}
         <div className="grid grid-cols-2 gap-3">
@@ -3651,6 +3640,15 @@ function LessonsAdminPage() {
                             >
                               &#x2715;
                             </button>
+                            {!contentBankMode && item.type === 'exercise' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openSaveToBankModal('exercise', index) }}
+                                className="p-1.5 text-xs text-gray-300 hover:text-[#416ebe] transition-colors"
+                                title="Save to Content Bank"
+                              >
+                                📥
+                              </button>
+                            )}
                             <span className="text-xs text-gray-300 ml-1">
                               {item.collapsed ? '\u25B6' : '\u25BC'}
                             </span>

@@ -865,7 +865,7 @@ export default function ContentBankPage() {
                 Delete
               </button>
               <button
-                onClick={() => router.push(`/admin/lessons?edit=${selectedTemplate.id}&contentBank=1`)}
+                onClick={() => router.push(`/admin/lessons?id=${selectedTemplate.id}`)}
                 className="px-4 py-2.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-xl hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
               >
                 Edit Template
