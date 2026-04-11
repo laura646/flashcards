@@ -647,16 +647,18 @@ export async function POST(req: NextRequest) {
     // ── Save single exercise to content bank ──
     if (action === 'save-exercise-to-bank') {
       const { exercise, template_category, template_level, folder_id } = body
-      if (!exercise || !exercise.title) return NextResponse.json({ error: 'Exercise data required' }, { status: 400 })
+      if (!exercise) return NextResponse.json({ error: 'Exercise data required' }, { status: 400 })
+
+      const exTitle = exercise.title || exercise.exercise_type || 'Exercise'
 
       // Create a mini template lesson to hold the exercise
       const { data: newLesson, error: insertErr } = await supabase
         .from('lessons')
         .insert({
-          title: exercise.title,
+          title: exTitle,
           lesson_date: new Date().toISOString().split('T')[0],
           lesson_type: 'lesson',
-          summary: `Saved exercise: ${exercise.title}`,
+          summary: `Saved exercise: ${exTitle}`,
           status: 'draft',
           is_template: true,
           template_category: template_category || null,
