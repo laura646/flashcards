@@ -1533,6 +1533,7 @@ function LessonsAdminPage() {
             meaning: fc.meaning,
             example: fc.example,
             notes: fc.notes,
+            image_url: fc.image_url || null,
             globalOrder: flashcardsGlobalOrder,
           })),
           exercises: exerciseItems,
@@ -1673,40 +1674,64 @@ function LessonsAdminPage() {
                 placeholder="Optional notes..."
                 className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
             </div>
-            {/* Image upload */}
+            {/* Image upload + search */}
             <div>
               <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Image (optional)</label>
               {fc.image_url ? (
                 <div className="flex items-center gap-3">
-                  <img src={fc.image_url} alt="" className="w-16 h-16 object-cover rounded-lg border border-[#cddcf0]" />
-                  <button onClick={() => updateFlashcard(fcIdx, 'image_url', '')}
-                    className="text-xs text-gray-300 hover:text-red-400 transition-colors">{'\u2715'} Remove</button>
+                  <img src={fc.image_url} alt="" className="max-h-20 max-w-[120px] object-contain rounded-lg border border-[#cddcf0]" />
+                  <div className="flex flex-col gap-1">
+                    <button onClick={() => updateFlashcard(fcIdx, 'image_url', '')}
+                      className="text-xs text-gray-300 hover:text-red-400 transition-colors">{'\u2715'} Remove</button>
+                  </div>
                 </div>
               ) : (
-                <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#cddcf0] rounded-lg cursor-pointer hover:border-[#416ebe] transition-colors">
-                  <span className="text-xs text-gray-400">{'\uD83D\uDCF7'} Add image</span>
-                  <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    try {
-                      const base64 = await fileToBase64(file)
-                      const res = await fetch('/api/upload', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ fileData: base64, fileType: file.type, fileName: file.name }),
-                      })
-                      const data = await res.json()
-                      if (res.ok && data.url) {
-                        updateFlashcard(fcIdx, 'image_url', data.url)
-                      } else {
-                        showToast(data.error || 'Upload failed')
+                <div className="flex gap-2">
+                  <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-[#cddcf0] rounded-lg cursor-pointer hover:border-[#416ebe] transition-colors">
+                    <span className="text-xs text-gray-400">{'\uD83D\uDCF7'} Upload</span>
+                    <input type="file" accept="image/jpeg,image/png" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      try {
+                        const base64 = await fileToBase64(file)
+                        const res = await fetch('/api/upload', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ fileData: base64, fileType: file.type, fileName: file.name }),
+                        })
+                        const data = await res.json()
+                        if (res.ok && data.url) {
+                          updateFlashcard(fcIdx, 'image_url', data.url)
+                        } else {
+                          showToast(data.error || 'Upload failed')
+                        }
+                      } catch {
+                        showToast('Failed to upload image')
                       }
-                    } catch {
-                      showToast('Failed to upload image')
-                    }
-                    e.target.value = ''
-                  }} />
-                </label>
+                      e.target.value = ''
+                    }} />
+                  </label>
+                  {fc.word && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/image-search?q=${encodeURIComponent(fc.word)}`)
+                          const data = await res.json()
+                          if (res.ok && data.images?.length > 0) {
+                            updateFlashcard(fcIdx, 'image_url', data.images[0].url)
+                          } else {
+                            showToast(data.error || 'No images found')
+                          }
+                        } catch {
+                          showToast('Failed to search images')
+                        }
+                      }}
+                      className="px-3 py-2 border border-dashed border-[#cddcf0] rounded-lg text-xs text-gray-400 hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
+                    >
+                      🔍 Find image
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>

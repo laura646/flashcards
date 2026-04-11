@@ -353,13 +353,14 @@ export async function POST(req: NextRequest) {
     // Save flashcards
     await supabase.from('lesson_flashcards').delete().eq('lesson_id', lessonId)
     if (flashcards && flashcards.length > 0) {
-      const fcRows = flashcards.map((fc: { word: string; phonetic: string; meaning: string; example: string; notes: string }, i: number) => ({
+      const fcRows = flashcards.map((fc: { word: string; phonetic: string; meaning: string; example: string; notes: string; image_url?: string }, i: number) => ({
         lesson_id: lessonId,
         word: fc.word,
         phonetic: fc.phonetic,
         meaning: fc.meaning,
         example: fc.example,
         notes: fc.notes,
+        image_url: fc.image_url || null,
         order_index: fc.hasOwnProperty('globalOrder') ? (fc as unknown as { globalOrder: number }).globalOrder * 1000 + i : i,
       }))
       const { error: fcError } = await supabase.from('lesson_flashcards').insert(fcRows)
