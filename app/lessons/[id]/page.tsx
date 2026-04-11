@@ -571,7 +571,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           if (p.activity_type === 'block' && blockIds.has(p.activity_id)) {
             completedBl.add(p.activity_id)
           }
-          if (p.activity_type === 'flashcard') {
+          if (p.activity_type === 'flashcard' && (p.activity_id === `${id}:flip` || p.activity_id === `${id}:self-assess` || p.activity_id === `${id}:quiz`)) {
             setFlashcardsCompleted(true)
           }
           // Writing submissions also count as block completion
@@ -622,7 +622,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         body: JSON.stringify({
           user_email: studentEmail,
           activity_type: 'flashcard',
-          activity_id: results.mode,
+          activity_id: `${id}:${results.mode}`,
           score: results.score ?? results.knewCount ?? null,
           total: results.total,
         }),
@@ -957,7 +957,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               : 'border-[#cddcf0] hover:border-[#416ebe]'
           }`}
         >
-          <div className="text-3xl">{isDone ? '✅' : ex.icon}</div>
+          <div className="text-3xl">{isDone ? '✅' : (ex.icon || '📝')}</div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h3
@@ -965,7 +965,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                   isDone ? 'text-green-600' : 'text-[#416ebe]'
                 }`}
               >
-                {ex.title}
+                {ex.title || ({ multiple_choice: 'Multiple Choice', fill_blank: 'Fill in the Blank', match_halves: 'Match Halves', type_answer: 'Type the Answer', anagram: 'Unjumble', unjumble: 'Unjumble', true_or_false: 'True or False', hangman: 'Hangman', error_correction: 'Error Correction', complete_sentence: 'Complete the Sentence', group_sort: 'Group Sort', dictation: 'Dictation', rank_order: 'Rank Order', text_sequencing: 'Text Sequencing', transform: 'Transform', cloze_listening: 'Cloze Listening' } as Record<string, string>)[ex.exercise_type] || 'Exercise'}
               </h3>
               {isBonus && (
                 <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-600">Bonus</span>
