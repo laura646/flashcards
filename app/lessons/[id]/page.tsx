@@ -1,26 +1,34 @@
 'use client'
 
-import { useState, useEffect, useRef, use } from 'react'
+import { useState, useEffect, useRef, use, lazy, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import FlipMode from '@/components/FlipMode'
-import SelfAssessMode from '@/components/SelfAssessMode'
-import QuizMode from '@/components/QuizMode'
-import ExerciseRunner from '@/components/ExerciseRunner'
-import TrueOrFalseRunner from '@/components/TrueOrFalseRunner'
-import HangmanRunner from '@/components/HangmanRunner'
-import TypeAnswerRunner from '@/components/TypeAnswerRunner'
-import CompleteSentenceRunner from '@/components/CompleteSentenceRunner'
-import GroupSortRunner from '@/components/GroupSortRunner'
-import DictationRunner from '@/components/DictationRunner'
-import ErrorCorrectionRunner from '@/components/ErrorCorrectionRunner'
-import RankOrderRunner from '@/components/RankOrderRunner'
-import TextSequencingRunner from '@/components/TextSequencingRunner'
-import AnagramRunner from '@/components/AnagramRunner'
-import ClozeListeningRunner from '@/components/ClozeListeningRunner'
-import MatchHalvesRunner from '@/components/MatchHalvesRunner'
-import OddOneOutRunner from '@/components/OddOneOutRunner'
 import AudioButton from '@/components/AudioButton'
+
+// Lazy load exercise runners — only loaded when student opens an exercise
+const FlipMode = lazy(() => import('@/components/FlipMode'))
+const SelfAssessMode = lazy(() => import('@/components/SelfAssessMode'))
+const QuizMode = lazy(() => import('@/components/QuizMode'))
+const ExerciseRunner = lazy(() => import('@/components/ExerciseRunner'))
+const TrueOrFalseRunner = lazy(() => import('@/components/TrueOrFalseRunner'))
+const HangmanRunner = lazy(() => import('@/components/HangmanRunner'))
+const TypeAnswerRunner = lazy(() => import('@/components/TypeAnswerRunner'))
+const CompleteSentenceRunner = lazy(() => import('@/components/CompleteSentenceRunner'))
+const GroupSortRunner = lazy(() => import('@/components/GroupSortRunner'))
+const DictationRunner = lazy(() => import('@/components/DictationRunner'))
+const ErrorCorrectionRunner = lazy(() => import('@/components/ErrorCorrectionRunner'))
+const RankOrderRunner = lazy(() => import('@/components/RankOrderRunner'))
+const TextSequencingRunner = lazy(() => import('@/components/TextSequencingRunner'))
+const AnagramRunner = lazy(() => import('@/components/AnagramRunner'))
+const ClozeListeningRunner = lazy(() => import('@/components/ClozeListeningRunner'))
+const MatchHalvesRunner = lazy(() => import('@/components/MatchHalvesRunner'))
+const OddOneOutRunner = lazy(() => import('@/components/OddOneOutRunner'))
+
+const ExerciseLoadingFallback = () => (
+  <div className="flex items-center justify-center py-12">
+    <div className="text-[#416ebe] text-sm">Loading exercise...</div>
+  </div>
+)
 
 // ── Interfaces ──
 
@@ -852,7 +860,9 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       <>
         <PointsToast />
         <main className={mainCls}>
-          {runnerContent}
+          <Suspense fallback={<ExerciseLoadingFallback />}>
+            {runnerContent}
+          </Suspense>
         </main>
       </>
     )
@@ -909,30 +919,32 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           ))}
         </div>
 
-        {flashcardMode === 'flip' && (
-          <FlipMode
-            cards={flashcardsForMode}
-            onComplete={(total) => handleFlashcardComplete({ mode: 'flip', total })}
-          />
-        )}
-        {flashcardMode === 'self-assess' && (
-          <SelfAssessMode
-            cards={flashcardsForMode}
-            userEmail={studentEmail}
-            onComplete={(knewCount, total) =>
-              handleFlashcardComplete({ mode: 'self-assess', knewCount, total })
-            }
-          />
-        )}
-        {flashcardMode === 'quiz' && (
-          <QuizMode
-            cards={flashcardsForMode}
-            userEmail={studentEmail}
-            onComplete={(score, total) =>
-              handleFlashcardComplete({ mode: 'quiz', score, total })
-            }
-          />
-        )}
+        <Suspense fallback={<ExerciseLoadingFallback />}>
+          {flashcardMode === 'flip' && (
+            <FlipMode
+              cards={flashcardsForMode}
+              onComplete={(total) => handleFlashcardComplete({ mode: 'flip', total })}
+            />
+          )}
+          {flashcardMode === 'self-assess' && (
+            <SelfAssessMode
+              cards={flashcardsForMode}
+              userEmail={studentEmail}
+              onComplete={(knewCount, total) =>
+                handleFlashcardComplete({ mode: 'self-assess', knewCount, total })
+              }
+            />
+          )}
+          {flashcardMode === 'quiz' && (
+            <QuizMode
+              cards={flashcardsForMode}
+              userEmail={studentEmail}
+              onComplete={(score, total) =>
+                handleFlashcardComplete({ mode: 'quiz', score, total })
+              }
+            />
+          )}
+        </Suspense>
       </main>
     )
   }

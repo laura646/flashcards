@@ -58,17 +58,23 @@ export default function HomePage() {
         return
       }
 
-      // Fetch student's courses
+      // Fetch student's courses (and pre-fetch lessons in parallel if possible)
       fetch('/api/student/courses')
         .then((res) => res.json())
-        .then((data) => {
+        .then(async (data) => {
           const studentCourses = data.courses || []
           setCourses(studentCourses)
 
-          // If only 1 course, auto-select it and load lessons
+          // If only 1 course, auto-select and load lessons immediately
           if (studentCourses.length === 1) {
             setSelectedCourse(studentCourses[0])
-            loadLessons(studentCourses[0].id)
+            try {
+              const lessonsRes = await fetch(`/api/lessons?course_id=${studentCourses[0].id}`)
+              const lessonsData = await lessonsRes.json()
+              setLessons(lessonsData.lessons || [])
+              setTotalPoints(lessonsData.total_points || 0)
+            } catch { /* ignore */ }
+            setLoading(false)
           } else {
             setLoading(false)
           }

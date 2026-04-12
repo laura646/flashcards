@@ -121,10 +121,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ lessons: [] })
     }
 
-    const [flashcardCountsRes, exerciseCountsRes, blockCountsRes] = await Promise.all([
+    const [flashcardCountsRes, exerciseCountsRes, blockCountsRes, exerciseIdsRes] = await Promise.all([
       supabase.from('lesson_flashcards').select('lesson_id').in('lesson_id', lessonIds),
       supabase.from('lesson_exercises').select('lesson_id, is_mandatory').in('lesson_id', lessonIds),
       supabase.from('lesson_blocks').select('lesson_id, block_type').in('lesson_id', lessonIds),
+      // Pre-fetch exercise IDs for progress query (students only, but cheap to run always)
+      supabase.from('lesson_exercises').select('id, lesson_id, is_mandatory').in('lesson_id', lessonIds),
     ])
 
     const flashcardCounts: Record<string, number> = {}
@@ -158,12 +160,7 @@ export async function GET(req: NextRequest) {
     let totalPoints = 0
 
     if (role === 'student') {
-      // Get all exercise IDs grouped by lesson
-      const exerciseIdsRes = await supabase
-        .from('lesson_exercises')
-        .select('id, lesson_id, is_mandatory')
-        .in('lesson_id', lessonIds)
-
+      // exerciseIdsRes already fetched in the Promise.all above
       const exerciseIdsByLesson: Record<string, string[]> = {}
       const mandatoryIdsByLesson: Record<string, string[]> = {}
       const bonusIdsByLesson: Record<string, string[]> = {}
@@ -182,11 +179,14 @@ export async function GET(req: NextRequest) {
       const allExerciseIds = (exerciseIdsRes.data || []).map((e: { id: string }) => e.id)
 
       if (allExerciseIds.length > 0) {
+        // Filter progress at DB level — only fetch records for exercises in these lessons
+        const allActivityIds = [...allExerciseIds, ...lessonIds] // exercise IDs + lesson IDs (for flashcard progress)
         const progressRes = await supabase
           .from('progress')
           .select('activity_type, activity_id, points_earned')
           .eq('user_email', email)
           .in('activity_type', ['exercise', 'flashcard'])
+          .in('activity_id', allActivityIds)
 
         const completedActivityIds = new Set(
           (progressRes.data || [])
