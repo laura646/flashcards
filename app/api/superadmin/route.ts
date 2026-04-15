@@ -84,10 +84,23 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'course_id required' }, { status: 400 })
       }
 
+      // SECURITY: whitelist columns instead of select('*') so any future sensitive
+      // column added to these tables isn't automatically exposed in API responses.
       const [courseRes, teachersRes, studentsRes] = await Promise.all([
-        supabase.from('courses').select('*').eq('id', courseId).single(),
-        supabase.from('course_teachers').select('*').eq('course_id', courseId),
-        supabase.from('course_students').select('*').eq('course_id', courseId).is('removed_at', null),
+        supabase
+          .from('courses')
+          .select('id, name, description, invite_code, course_type, level, telegram_link, lesson_link, schedule, total_planned_sessions, teacher_notes, created_by, created_at, updated_at, archived_at')
+          .eq('id', courseId)
+          .maybeSingle(),
+        supabase
+          .from('course_teachers')
+          .select('course_id, teacher_email')
+          .eq('course_id', courseId),
+        supabase
+          .from('course_students')
+          .select('course_id, student_email, joined_at, removed_at')
+          .eq('course_id', courseId)
+          .is('removed_at', null),
       ])
 
       if (courseRes.error) throw courseRes.error
@@ -257,9 +270,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Course name required' }, { status: 400 })
       }
 
-      // Generate a unique invite code (6 chars, uppercase)
-      const inviteCode = name.trim().replace(/\s+/g, '').substring(0, 4).toUpperCase() +
-        Math.random().toString(36).substring(2, 6).toUpperCase()
+      // Generate a cryptographically strong invite code:
+      // 4-char course prefix + 12 hex chars (2^48 = ~281 trillion combinations).
+      // Prevents brute-force enumeration of courses via the /api/join endpoint.
+      const { randomBytes } = await import('crypto')
+      const prefix = name.trim().replace(/\s+/g, '').substring(0, 4).toUpperCase()
+      const inviteCode = prefix + '-' + randomBytes(6).toString('hex').toUpperCase()
 
       const { data, error } = await supabase
         .from('courses')

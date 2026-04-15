@@ -2,12 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import { rateLimit } from '@/lib/rate-limit'
+
+// Helper: get client IP for rate limiting
+function getClientIp(req: NextRequest): string {
+  const fwd = req.headers.get('x-forwarded-for')
+  if (fwd) return fwd.split(',')[0].trim()
+  return req.headers.get('x-real-ip') || 'unknown'
+}
 
 // GET: Look up course by invite code (no auth required — used on the join page before sign-in)
 export async function GET(req: NextRequest) {
+  // Rate limit: 10 lookups per minute per IP to prevent brute-force enumeration of codes
+  const ip = getClientIp(req)
+  const { allowed } = rateLimit(`join-lookup:${ip}`, 10)
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many attempts. Please try again in a minute.' }, { status: 429 })
+  }
+
   const code = req.nextUrl.searchParams.get('code')
-  if (!code) {
-    return NextResponse.json({ error: 'Invite code required' }, { status: 400 })
+  if (!code || typeof code !== 'string' || code.length < 4 || code.length > 32) {
+    return NextResponse.json({ error: 'Invalid invite code' }, { status: 400 })
   }
 
   try {
@@ -15,7 +30,7 @@ export async function GET(req: NextRequest) {
       .from('courses')
       .select('id, name')
       .eq('invite_code', code.toUpperCase())
-      .single()
+      .maybeSingle()
 
     if (error || !data) {
       return NextResponse.json({ error: 'Invalid invite link. Please check with your teacher.' }, { status: 404 })
@@ -34,10 +49,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please sign in first' }, { status: 401 })
   }
 
+  // Rate limit: 5 enrollment attempts per minute per user to prevent abuse
+  const { allowed } = rateLimit(`join-post:${session.user.email}`, 5)
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many attempts. Please try again in a minute.' }, { status: 429 })
+  }
+
   try {
     const { code } = await req.json()
-    if (!code) {
-      return NextResponse.json({ error: 'Invite code required' }, { status: 400 })
+    if (!code || typeof code !== 'string' || code.length < 4 || code.length > 32) {
+      return NextResponse.json({ error: 'Invalid invite code' }, { status: 400 })
     }
 
     // Find the course

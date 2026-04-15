@@ -202,7 +202,11 @@ export async function GET(req: NextRequest) {
     if (action === 'students') {
       const allowedEmails = await getTeacherStudentEmails(email, role)
 
-      let usersQuery = supabase.from('users').select('*').order('created_at', { ascending: false })
+      // SECURITY: Never select password_hash, reset_token, or reset_token_expires_at
+      let usersQuery = supabase
+        .from('users')
+        .select('email, name, role, created_at, level, learning_goals, company, country, specialization, common_issues_tags, common_issues_comments, blocked, notes')
+        .order('created_at', { ascending: false })
       if (allowedEmails !== null) {
         if (allowedEmails.length === 0) return NextResponse.json({ students: [] })
         usersQuery = usersQuery.in('email', allowedEmails)
@@ -213,14 +217,19 @@ export async function GET(req: NextRequest) {
 
       const userEmails = (users || []).map((u: { email: string }) => u.email)
 
-      let progressQuery = supabase.from('progress').select('*').order('completed_at', { ascending: false })
+      let progressQuery = supabase
+        .from('progress')
+        .select('user_email, activity_type, activity_id, score, total, points_earned, completed_at')
+        .order('completed_at', { ascending: false })
       if (allowedEmails !== null) {
         progressQuery = progressQuery.in('user_email', userEmails)
       }
       const { data: progress, error: progressError } = await progressQuery
       if (progressError) throw progressError
 
-      let assignmentsQuery = supabase.from('student_assignments').select('*')
+      let assignmentsQuery = supabase
+        .from('student_assignments')
+        .select('id, user_email, set_name, assigned_at')
       if (allowedEmails !== null) {
         assignmentsQuery = assignmentsQuery.in('user_email', userEmails)
       }
@@ -311,10 +320,22 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
 
+      // SECURITY: Never select password_hash, reset_token, or reset_token_expires_at
       const [progressRes, userRes, assignmentsRes] = await Promise.all([
-        supabase.from('progress').select('*').eq('user_email', studentEmail).order('completed_at', { ascending: false }),
-        supabase.from('users').select('*').eq('email', studentEmail).single(),
-        supabase.from('student_assignments').select('*').eq('user_email', studentEmail),
+        supabase
+          .from('progress')
+          .select('user_email, activity_type, activity_id, score, total, points_earned, completed_at')
+          .eq('user_email', studentEmail)
+          .order('completed_at', { ascending: false }),
+        supabase
+          .from('users')
+          .select('email, name, role, created_at, level, learning_goals, company, country, specialization, common_issues_tags, common_issues_comments, blocked, notes')
+          .eq('email', studentEmail)
+          .maybeSingle(),
+        supabase
+          .from('student_assignments')
+          .select('id, user_email, set_name, assigned_at')
+          .eq('user_email', studentEmail),
       ])
 
       if (progressRes.error) throw progressRes.error
