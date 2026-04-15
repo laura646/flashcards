@@ -3,6 +3,7 @@ import GoogleProvider from 'next-auth/providers/google'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { supabase } from './supabase'
 import bcrypt from 'bcryptjs'
+import { rateLimit } from './rate-limit'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -19,11 +20,24 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null
 
+        const normalizedEmail = credentials.email.toLowerCase().trim()
+
+        // Brute-force protection: max 5 login attempts per email per minute.
+        // In-memory limit (resets per serverless instance) is acceptable here
+        // because bcrypt.compare is slow enough that even unlimited attempts
+        // can only do ~10 guesses/sec/instance.
+        const { allowed } = rateLimit(`login:${normalizedEmail}`, 5)
+        if (!allowed) {
+          // Returning null gives the same generic error as a wrong password —
+          // no leak that the account is being throttled.
+          return null
+        }
+
         const { data: user } = await supabase
           .from('users')
           .select('email, name, password_hash, blocked')
-          .eq('email', credentials.email.toLowerCase().trim())
-          .single()
+          .eq('email', normalizedEmail)
+          .maybeSingle()
 
         if (!user) return null
         if (user.blocked) return null

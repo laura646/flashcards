@@ -32,14 +32,14 @@ export async function POST(req: NextRequest) {
     // Hash the incoming token to compare with stored hash
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
 
-    // Look up user and verify token
+    // Look up user and verify token + expiry
     const { data: user } = await supabase
       .from('users')
       .select('email, reset_token, reset_token_expires_at')
       .eq('email', trimmedEmail)
-      .single()
+      .maybeSingle()
 
-    if (!user || user.reset_token !== hashedToken) {
+    if (!user || !user.reset_token || user.reset_token !== hashedToken) {
       return NextResponse.json({ error: 'Invalid or expired reset link. Please request a new one.' }, { status: 400 })
     }
 
@@ -47,10 +47,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This reset link has expired. Please request a new one.' }, { status: 400 })
     }
 
-    // Hash new password and clear token
+    // Hash new password
     const passwordHash = await bcrypt.hash(password, 12)
 
-    const { error } = await supabase
+    // ATOMIC token invalidation: only update if the token still matches.
+    // If two requests arrive with the same token, only the first wins.
+    // The second's UPDATE will affect zero rows because reset_token is now NULL.
+    const { data: updated, error } = await supabase
       .from('users')
       .update({
         password_hash: passwordHash,
@@ -58,8 +61,14 @@ export async function POST(req: NextRequest) {
         reset_token_expires_at: null,
       })
       .eq('email', trimmedEmail)
+      .eq('reset_token', hashedToken)
+      .select('email')
 
     if (error) throw error
+    if (!updated || updated.length === 0) {
+      // Token was already consumed by a concurrent request
+      return NextResponse.json({ error: 'This reset link has already been used. Please request a new one.' }, { status: 400 })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {

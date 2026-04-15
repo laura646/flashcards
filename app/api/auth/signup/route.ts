@@ -40,25 +40,49 @@ export async function POST(req: NextRequest) {
       .from('users')
       .select('email, password_hash')
       .eq('email', trimmedEmail)
-      .single()
+      .maybeSingle()
 
     const passwordHash = await bcrypt.hash(password, 12)
+    let isExistingPasswordUser = false
 
     if (existingUser) {
       if (existingUser.password_hash) {
-        return NextResponse.json({ error: 'An account with this email already exists. Please sign in.' }, { status: 409 })
+        // SECURITY: Don't confirm to attackers that this email is registered.
+        // Return a generic success-style response so signup looks identical
+        // whether the email exists or not. We email the real owner separately.
+        isExistingPasswordUser = true
+      } else {
+        // Google-only user — link account by adding password
+        await supabase
+          .from('users')
+          .update({ password_hash: passwordHash, name: trimmedName })
+          .eq('email', trimmedEmail)
       }
-      // Google-only user — link account by adding password
-      await supabase
-        .from('users')
-        .update({ password_hash: passwordHash, name: trimmedName })
-        .eq('email', trimmedEmail)
     } else {
       // New user
       const { error } = await supabase
         .from('users')
         .insert({ email: trimmedEmail, name: trimmedName, role: 'student', password_hash: passwordHash })
       if (error) throw error
+    }
+
+    // If this email already had a password account, notify the real owner
+    // (not the attacker) and silently return success to the request.
+    if (isExistingPasswordUser) {
+      const apiKey = process.env.RESEND_API_KEY
+      if (apiKey) {
+        try {
+          const resend = new Resend(apiKey)
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
+          await resend.emails.send({
+            from: 'English with Laura <noreply@learn.englishwithlaura.com>',
+            to: trimmedEmail,
+            subject: 'Someone tried to sign up with your email',
+            html: `<p>Hi,</p><p>Someone just tried to create an English with Laura account using your email address. If this was you and you forgot you already have an account, you can <a href="${appUrl}/forgot-password">reset your password here</a>.</p><p>If it wasn't you, no action is needed — your account is safe.</p><p>— English with Laura</p>`,
+          })
+        } catch { /* ignore email errors */ }
+      }
+      return NextResponse.json({ ok: true })
     }
 
     // Send welcome email
