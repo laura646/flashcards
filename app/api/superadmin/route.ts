@@ -84,26 +84,20 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'course_id required' }, { status: 400 })
       }
 
-      // SECURITY: whitelist columns instead of select('*') so any future sensitive
-      // column added to these tables isn't automatically exposed in API responses.
+      // NOTE: Using select('*') here as a stable baseline. These tables are
+      // superadmin-only and currently contain no password/token columns. If you
+      // add sensitive columns to courses / course_teachers / course_students,
+      // come back and switch to an explicit whitelist.
       const [courseRes, teachersRes, studentsRes] = await Promise.all([
-        supabase
-          .from('courses')
-          .select('id, name, description, invite_code, course_type, level, telegram_link, lesson_link, schedule, total_planned_sessions, teacher_notes, created_by, created_at, updated_at, archived_at')
-          .eq('id', courseId)
-          .maybeSingle(),
-        supabase
-          .from('course_teachers')
-          .select('course_id, teacher_email')
-          .eq('course_id', courseId),
-        supabase
-          .from('course_students')
-          .select('course_id, student_email, joined_at, removed_at')
-          .eq('course_id', courseId)
-          .is('removed_at', null),
+        supabase.from('courses').select('*').eq('id', courseId).single(),
+        supabase.from('course_teachers').select('*').eq('course_id', courseId),
+        supabase.from('course_students').select('*').eq('course_id', courseId).is('removed_at', null),
       ])
 
       if (courseRes.error) throw courseRes.error
+      // Surface query errors so silent failures don't go unnoticed
+      if (teachersRes.error) console.error('course-detail teachers query error:', teachersRes.error.message)
+      if (studentsRes.error) console.error('course-detail students query error:', studentsRes.error.message)
 
       // Fetch user details separately to avoid FK join issues
       const teacherEmails = (teachersRes.data || []).map((t: { teacher_email: string }) => t.teacher_email)
