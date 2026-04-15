@@ -560,10 +560,16 @@ export async function POST(req: NextRequest) {
 
     // ── Update teacher profile ──
     if (action === 'update-teacher-profile') {
-      const { email, country, specialization } = body
+      const { email, name, country, specialization } = body
       if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
       const updateData: Record<string, unknown> = {}
+      if (name !== undefined) {
+        const trimmed = typeof name === 'string' ? name.trim() : ''
+        if (!trimmed) return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
+        if (trimmed.length > 100) return NextResponse.json({ error: 'Name too long (max 100 chars)' }, { status: 400 })
+        updateData.name = trimmed
+      }
       if (country !== undefined) updateData.country = country || null
       if (specialization !== undefined) updateData.specialization = specialization || null
 
@@ -574,10 +580,16 @@ export async function POST(req: NextRequest) {
 
     // ── Update student profile ──
     if (action === 'update-student-profile') {
-      const { email, level, learning_goals, company, common_issues_tags, common_issues_comments } = body
+      const { email, name, level, learning_goals, company, common_issues_tags, common_issues_comments } = body
       if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
       const updateData: Record<string, unknown> = {}
+      if (name !== undefined) {
+        const trimmed = typeof name === 'string' ? name.trim() : ''
+        if (!trimmed) return NextResponse.json({ error: 'Name cannot be empty' }, { status: 400 })
+        if (trimmed.length > 100) return NextResponse.json({ error: 'Name too long (max 100 chars)' }, { status: 400 })
+        updateData.name = trimmed
+      }
       if (level !== undefined) updateData.level = level || null
       if (learning_goals !== undefined) updateData.learning_goals = learning_goals || null
       if (company !== undefined) updateData.company = company || null

@@ -159,7 +159,7 @@ export default function SuperadminPage() {
 
   // Teacher profile editing
   const [editingTeacher, setEditingTeacher] = useState<string | null>(null)
-  const [teacherForm, setTeacherForm] = useState({ country: '', specialization: '' })
+  const [teacherForm, setTeacherForm] = useState({ name: '', country: '', specialization: '' })
 
   // Add student (no course)
   const [showAddNewStudent, setShowAddNewStudent] = useState(false)
@@ -170,6 +170,7 @@ export default function SuperadminPage() {
   // Student profile editing
   const [editingStudent, setEditingStudent] = useState<string | null>(null)
   const [studentForm, setStudentForm] = useState({
+    name: '',
     level: '',
     learning_goals: '',
     company: '',
@@ -630,7 +631,7 @@ export default function SuperadminPage() {
       setNewStudentEmail('')
       setNewStudentName('')
       setShowAddNewStudent(false)
-      setStudentForm({ level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' })
+      setStudentForm({ name: '', level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' })
       setCustomTag('')
       await loadAllStudents()
     } catch { showToast('Failed to add student') }
@@ -734,7 +735,7 @@ export default function SuperadminPage() {
                       onClick={() => {
                         if (editingTeacher === t.email) { setEditingTeacher(null); return }
                         setEditingTeacher(t.email)
-                        setTeacherForm({ country: t.country || '', specialization: t.specialization || '' })
+                        setTeacherForm({ name: t.name || '', country: t.country || '', specialization: t.specialization || '' })
                       }}
                       className="text-xs text-[#416ebe] font-bold hover:underline"
                     >
@@ -744,6 +745,10 @@ export default function SuperadminPage() {
 
                   {editingTeacher === t.email && (
                     <div className="mt-4 pt-4 border-t border-[#e6f0fa] space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 block mb-1">Name</label>
+                        <input type="text" value={teacherForm.name} onChange={e => setTeacherForm(f => ({ ...f, name: e.target.value }))} placeholder="Teacher's full name" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+                      </div>
                       <div>
                         <label className="text-xs font-bold text-gray-500 block mb-1">Country</label>
                         <select value={teacherForm.country} onChange={e => setTeacherForm(f => ({ ...f, country: e.target.value }))} className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]">
@@ -796,7 +801,7 @@ export default function SuperadminPage() {
           <button onClick={() => setView('courses')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-4">&larr; Back to dashboard</button>
           <div className="flex items-center justify-between mb-1">
             <h1 className="text-xl font-bold text-[#416ebe]">All Students ({allStudents.length})</h1>
-            <button onClick={() => { setShowAddNewStudent(!showAddNewStudent); setStudentForm({ level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag(''); setNewStudentEmail(''); setNewStudentName('') }} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0]">+ Add Student</button>
+            <button onClick={() => { setShowAddNewStudent(!showAddNewStudent); setStudentForm({ name: '', level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag(''); setNewStudentEmail(''); setNewStudentName('') }} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0]">+ Add Student</button>
           </div>
           <p className="text-xs text-gray-400 mb-4">Click Edit to update student profiles with level, goals, and common issues.</p>
 
@@ -873,7 +878,7 @@ export default function SuperadminPage() {
 
                 <div className="flex gap-2">
                   <button onClick={createNewStudent} disabled={addingNewStudent || !newStudentEmail.trim()} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50">{addingNewStudent ? 'Adding...' : 'Add Student'}</button>
-                  <button onClick={() => { setShowAddNewStudent(false); setNewStudentEmail(''); setNewStudentName(''); setStudentForm({ level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag('') }} className="px-6 py-2.5 text-sm text-gray-400">Cancel</button>
+                  <button onClick={() => { setShowAddNewStudent(false); setNewStudentEmail(''); setNewStudentName(''); setStudentForm({ name: '', level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag('') }} className="px-6 py-2.5 text-sm text-gray-400">Cancel</button>
                 </div>
               </div>
             </div>
@@ -911,6 +916,7 @@ export default function SuperadminPage() {
                         if (editingStudent === s.email) { setEditingStudent(null); return }
                         setEditingStudent(s.email)
                         setStudentForm({
+                          name: s.name || '',
                           level: s.level || '',
                           learning_goals: s.learning_goals || '',
                           company: s.company || '',
@@ -927,6 +933,10 @@ export default function SuperadminPage() {
 
                   {editingStudent === s.email && (
                     <div className="mt-4 pt-4 border-t border-[#e6f0fa] space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 block mb-1">Name</label>
+                        <input type="text" value={studentForm.name} onChange={e => setStudentForm(f => ({ ...f, name: e.target.value }))} placeholder="Student's full name" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+                      </div>
                       <div>
                         <label className="text-xs font-bold text-gray-500 block mb-1">Level</label>
                         <select value={studentForm.level} onChange={e => setStudentForm(f => ({ ...f, level: e.target.value }))} className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]">
