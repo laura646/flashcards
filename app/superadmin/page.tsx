@@ -363,6 +363,10 @@ export default function SuperadminPage() {
       })
       if (!res.ok) throw new Error()
       showToast(editingCourse ? 'Course updated!' : 'Course created!')
+      // If we're editing the currently-open course detail, patch its visible state too
+      if (editingCourse && selectedCourse?.id === editingCourse.id) {
+        setSelectedCourse({ ...selectedCourse, name: courseName.trim(), description: courseDesc.trim() || null })
+      }
       setShowNewCourse(false)
       setEditingCourse(null)
       setCourseName('')
