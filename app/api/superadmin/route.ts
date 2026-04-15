@@ -9,10 +9,7 @@ function handleError(err: unknown) {
     return NextResponse.json({ error: e.message }, { status: e.status })
   }
   console.error('Superadmin API error:', err)
-  // TEMPORARY DEBUG: surface the real error in the response so we can diagnose
-  // the course-detail 500. Revert this after the bug is fixed.
-  const debugMsg = err instanceof Error ? err.message : (typeof err === 'string' ? err : JSON.stringify(err))
-  return NextResponse.json({ error: 'Internal server error', debug: debugMsg }, { status: 500 })
+  return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
 }
 
 // ── GET: Fetch data ──
