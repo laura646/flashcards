@@ -6,6 +6,7 @@ interface TypeAnswerQuestion {
   id: number | string
   prompt: string
   answer: string
+  alternatives?: string[]
   hint?: string
   image_url?: string
 }
@@ -19,10 +20,28 @@ export default function TypeAnswerEditor({ questions, onChange }: Props) {
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null)
   const [uploadError, setUploadError] = useState('')
 
-  const updateQuestion = (index: number, field: keyof TypeAnswerQuestion, value: string | undefined) => {
+  const updateQuestion = (index: number, field: keyof TypeAnswerQuestion, value: string | string[] | undefined) => {
     const updated = [...questions]
     updated[index] = { ...updated[index], [field]: value }
     onChange(updated)
+  }
+
+  const addAlternative = (index: number) => {
+    const current = questions[index].alternatives || []
+    updateQuestion(index, 'alternatives', [...current, ''])
+  }
+
+  const updateAlternative = (qIdx: number, altIdx: number, value: string) => {
+    const current = questions[qIdx].alternatives || []
+    const next = [...current]
+    next[altIdx] = value
+    updateQuestion(qIdx, 'alternatives', next)
+  }
+
+  const removeAlternative = (qIdx: number, altIdx: number) => {
+    const current = questions[qIdx].alternatives || []
+    const next = current.filter((_, i) => i !== altIdx)
+    updateQuestion(qIdx, 'alternatives', next.length > 0 ? next : undefined)
   }
 
   const addQuestion = () => {
@@ -108,6 +127,38 @@ export default function TypeAnswerEditor({ questions, onChange }: Props) {
               className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
             />
             <p className="text-[10px] text-gray-300 mt-1">Not case-sensitive — students can type in any capitalization</p>
+          </div>
+
+          {/* Alternative answers */}
+          <div className="mb-3">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+              Also Accept (optional)
+            </label>
+            {(q.alternatives || []).map((alt, altIdx) => (
+              <div key={altIdx} className="flex items-center gap-2 mb-1">
+                <input
+                  type="text"
+                  value={alt}
+                  onChange={(e) => updateAlternative(i, altIdx, e.target.value)}
+                  placeholder="Another accepted answer"
+                  className="flex-1 px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
+                />
+                <button
+                  onClick={() => removeAlternative(i, altIdx)}
+                  className="text-xs text-gray-300 hover:text-red-400 px-2"
+                  aria-label="Remove alternative"
+                >
+                  {'\u2715'}
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => addAlternative(i)}
+              className="text-xs text-[#416ebe] font-bold hover:underline mt-1"
+            >
+              + Add alternative
+            </button>
+            <p className="text-[10px] text-gray-300 mt-1">Students can type any of these and get it right (useful for synonyms)</p>
           </div>
 
           {/* Image */}

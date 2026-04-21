@@ -2124,11 +2124,50 @@ function LessonsAdminPage() {
               <button onClick={addQuestion} className="text-xs text-[#416ebe] font-bold hover:underline">+ Add Question</button>
             </div>
 
-            {Array.isArray(exercise.questions) && exercise.questions.map((q: ExerciseQuestion, qIdx: number) => (
+            {Array.isArray(exercise.questions) && exercise.questions.map((q: ExerciseQuestion, qIdx: number) => {
+              const isMulti = Array.isArray(q.correctIndices)
+              const selected: number[] = isMulti ? (q.correctIndices || []) : [q.correctIndex]
+
+              const toggleMultiMode = () => {
+                if (isMulti) {
+                  // Switch to single: keep first selected option (or fall back to 0)
+                  const first = selected.length > 0 ? selected[0] : 0
+                  updateQuestion(qIdx, 'correctIndices', undefined)
+                  updateQuestion(qIdx, 'correctIndex', first)
+                } else {
+                  // Switch to multi: preserve the currently-selected index as the first correct one
+                  updateQuestion(qIdx, 'correctIndices', [q.correctIndex])
+                }
+              }
+
+              const toggleOption = (oIdx: number) => {
+                if (isMulti) {
+                  const current = q.correctIndices || []
+                  const next = current.includes(oIdx)
+                    ? current.filter((i) => i !== oIdx)
+                    : [...current, oIdx].sort((a, b) => a - b)
+                  updateQuestion(qIdx, 'correctIndices', next)
+                } else {
+                  updateQuestion(qIdx, 'correctIndex', oIdx)
+                }
+              }
+
+              return (
               <div key={q.id || qIdx} className="bg-[#f7fafd] rounded-xl p-4 border border-[#e6f0fa]">
                 <div className="flex items-start justify-between mb-3">
                   <span className="text-xs font-bold text-[#416ebe]">Q{qIdx + 1}</span>
-                  <button onClick={() => removeQuestion(qIdx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={isMulti}
+                        onChange={toggleMultiMode}
+                        className="accent-[#416ebe]"
+                      />
+                      Multiple correct
+                    </label>
+                    <button onClick={() => removeQuestion(qIdx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
+                  </div>
                 </div>
                 <div className="mb-3">
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Prompt</label>
@@ -2136,14 +2175,16 @@ function LessonsAdminPage() {
                     className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
                 </div>
                 <div className="mb-3">
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Options</label>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                    Options {isMulti && <span className="text-[#416ebe]">(tick all correct answers — student picks them all)</span>}
+                  </label>
                   {q.options.map((opt: string, oIdx: number) => (
                     <div key={oIdx} className="flex items-center gap-2 mb-1">
                       <input
-                        type="radio"
+                        type={isMulti ? 'checkbox' : 'radio'}
                         name={`correct-${itemIndex}-${qIdx}`}
-                        checked={q.correctIndex === oIdx}
-                        onChange={() => updateQuestion(qIdx, 'correctIndex', oIdx)}
+                        checked={isMulti ? selected.includes(oIdx) : q.correctIndex === oIdx}
+                        onChange={() => toggleOption(oIdx)}
                         className="accent-[#416ebe]"
                       />
                       <input type="text" value={opt}
@@ -2164,7 +2205,8 @@ function LessonsAdminPage() {
                     className="w-full px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
                 </div>
               </div>
-            ))}
+              )
+            })}
           </>
         )}
       </div>
