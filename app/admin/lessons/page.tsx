@@ -1823,7 +1823,7 @@ function LessonsAdminPage() {
       updateContentItem(itemIndex, { ...exercise, [field]: value })
     }
 
-    const updateQuestion = (qIndex: number, field: keyof ExerciseQuestion, value: string | number | string[]) => {
+    const updateQuestion = (qIndex: number, field: keyof ExerciseQuestion, value: string | number | string[] | number[] | undefined) => {
       const questions = [...exercise.questions]
       questions[qIndex] = { ...questions[qIndex], [field]: value }
       updateContentItem(itemIndex, { ...exercise, questions })
