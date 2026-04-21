@@ -3,6 +3,10 @@ export interface ExerciseQuestion {
   prompt: string
   options: string[]
   correctIndex: number
+  // If set, this question is in "select all that apply" mode.
+  // Student sees checkboxes instead of radios; all-or-nothing scoring.
+  // When this field is present, correctIndex is ignored.
+  correctIndices?: number[]
   hint?: string
 }
 
