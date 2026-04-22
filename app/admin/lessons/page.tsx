@@ -695,6 +695,7 @@ function LessonsAdminPage() {
         meaning: fc.meaning,
         example: fc.example,
         notes: fc.notes || '',
+        image_url: fc.image_url || '',
         order_index: fc.order_index,
       }))
       if (flashcards.length > 0) {
@@ -713,6 +714,8 @@ function LessonsAdminPage() {
         questions: ex.exercise_type === 'group_sort' ? [] : (ex.questions || []),
         groupData: ex.exercise_type === 'group_sort' ? (ex.questions || ex.groupData) : ex.groupData,
         order_index: ex.order_index,
+        points_per_answer: ex.points_per_answer,
+        completion_bonus: ex.completion_bonus,
         is_mandatory: ex.is_mandatory !== false,
       }))
       exercises.forEach((ex) => {
