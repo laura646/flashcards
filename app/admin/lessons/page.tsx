@@ -1578,7 +1578,7 @@ function LessonsAdminPage() {
       // Extract flashcards, exercises, and blocks from content items
       let flashcardItems: Flashcard[] = []
       let flashcardsGlobalOrder = 0
-      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean }[] = []
+      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null }[] = []
       const blockItems: { block_type: string; title: string; content: unknown; order_index: number }[] = []
 
       contentItems.forEach((item, idx) => {
