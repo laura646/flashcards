@@ -9,6 +9,7 @@ import MatchHalvesEditor from '@/components/MatchHalvesEditor'
 import TypeAnswerEditor from '@/components/TypeAnswerEditor'
 import UnjumbleEditor from '@/components/UnjumbleEditor'
 import OddOneOutEditor from '@/components/OddOneOutEditor'
+import GroupSortEditor from '@/components/GroupSortEditor'
 // Role-based admin check
 
 // ── Types ──
@@ -2065,12 +2066,18 @@ function LessonsAdminPage() {
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}
             onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
           />
-        ) : ['true_or_false', 'hangman', 'complete_sentence', 'group_sort', 'dictation', 'error_correction', 'rank_order', 'text_sequencing', 'cloze_listening'].includes(exercise.exercise_type) ? (
+        ) : exercise.exercise_type === 'group_sort' ? (
+          // Visual group sort editor (Wordwall-style)
+          <GroupSortEditor
+            groupData={exercise.groupData}
+            onChange={(data) => updateContentItem(itemIndex, { ...exercise, groupData: data })}
+          />
+        ) : ['true_or_false', 'hangman', 'complete_sentence', 'dictation', 'error_correction', 'rank_order', 'text_sequencing', 'cloze_listening'].includes(exercise.exercise_type) ? (
           // For new exercise types, show a JSON data editor
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold text-gray-500">
-                Exercise Data {exercise.exercise_type === 'group_sort' ? '(Groups)' : `(${Array.isArray(exercise.questions) ? exercise.questions.length : 0} items)`}
+                Exercise Data ({Array.isArray(exercise.questions) ? exercise.questions.length : 0} items)
               </p>
               <div className="flex items-center gap-2">
                 {['complete_sentence', 'cloze_listening'].includes(exercise.exercise_type) && (
@@ -2081,24 +2088,15 @@ function LessonsAdminPage() {
                     Visual Builder
                   </button>
                 )}
-                <p className="text-[10px] text-gray-400">
-                  {exercise.exercise_type === 'group_sort' ? 'Edit groupData JSON' : 'Edit questions JSON'}
-                </p>
+                <p className="text-[10px] text-gray-400">Edit questions JSON</p>
               </div>
             </div>
             <textarea
-              value={JSON.stringify(
-                exercise.exercise_type === 'group_sort' ? (exercise.groupData || { groups: [] }) : (exercise.questions || []),
-                null, 2
-              )}
+              value={JSON.stringify(exercise.questions || [], null, 2)}
               onChange={(e) => {
                 try {
                   const parsed = JSON.parse(e.target.value)
-                  if (exercise.exercise_type === 'group_sort') {
-                    updateContentItem(itemIndex, { ...exercise, groupData: parsed })
-                  } else {
-                    updateContentItem(itemIndex, { ...exercise, questions: parsed })
-                  }
+                  updateContentItem(itemIndex, { ...exercise, questions: parsed })
                 } catch {
                   // Invalid JSON, don't update
                 }
@@ -2111,7 +2109,6 @@ function LessonsAdminPage() {
               {exercise.exercise_type === 'hangman' && 'Format: [{"id": 1, "word": "WORD", "clue": "Definition or clue"}]'}
               {exercise.exercise_type === 'type_answer' && 'Format: [{"id": 1, "prompt": "Question?", "answer": "correct answer", "hint": "optional"}]'}
               {exercise.exercise_type === 'complete_sentence' && 'Format: [{"id": 1, "text": "I {{1}} to...", "blanks": {"1": "went"}, "wordBank": ["went", "gone"]}]'}
-              {exercise.exercise_type === 'group_sort' && 'Format: {"groups": [{"name": "Group A", "items": ["item1", "item2"]}, ...]}'}
               {exercise.exercise_type === 'dictation' && 'Format: [{"id": 1, "text": "The sentence to dictate.", "audio_url": "optional URL", "speed": "normal"}]'}
               {exercise.exercise_type === 'error_correction' && 'Format: [{"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday.", "hints": "optional"}]'}
               {exercise.exercise_type === 'rank_order' && 'Format: [{"id": 1, "criterion": "From least to most frequent", "items": ["never", "rarely", "sometimes", "often", "always"]}]'}
