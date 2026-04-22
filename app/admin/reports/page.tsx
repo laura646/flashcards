@@ -43,6 +43,25 @@ interface ProgressRecord {
   completed_at: string
 }
 
+interface AttendanceRow {
+  lesson_id: string
+  student_email: string
+  status: string
+  notes: string | null
+  marked_by: string | null
+  marked_at: string | null
+}
+
+interface NoteRow {
+  id: string
+  student_email: string
+  course_id: string
+  author_email: string
+  tag: string
+  text: string
+  created_at: string
+}
+
 interface ReportData {
   courses: Course[]
   course: Course | null
@@ -50,7 +69,22 @@ interface ReportData {
   lessons: Lesson[]
   exercises: Exercise[]
   progress: ProgressRecord[]
+  attendance: AttendanceRow[]
 }
+
+const NOTE_TAGS = [
+  { value: 'general', label: 'General', color: 'bg-gray-100 text-gray-600' },
+  { value: 'homework', label: 'Homework', color: 'bg-blue-100 text-blue-600' },
+  { value: 'behaviour', label: 'Behaviour', color: 'bg-purple-100 text-purple-600' },
+  { value: 'parent_contact', label: 'Parent contact', color: 'bg-green-100 text-green-600' },
+  { value: 'academic_concern', label: 'Academic concern', color: 'bg-amber-100 text-amber-600' },
+]
+
+const getTagLabel = (tag: string) => NOTE_TAGS.find((t) => t.value === tag)?.label || tag
+const getTagColor = (tag: string) => NOTE_TAGS.find((t) => t.value === tag)?.color || 'bg-gray-100 text-gray-600'
+
+// Attendance is considered "counted as present" for % calc if status is present or late.
+const ATTENDANCE_PRESENT_STATUSES = new Set(['present', 'late'])
 
 // ─────────── Component ───────────
 
@@ -63,6 +97,13 @@ export default function ReportsPage() {
   const [days, setDays] = useState<string>('30')
   const [selectedStudentEmail, setSelectedStudentEmail] = useState<string>('')
   const [loading, setLoading] = useState(true)
+
+  // Notes loaded on-demand per selected student (not in the main /api/reports payload)
+  const [notes, setNotes] = useState<NoteRow[]>([])
+  const [notesLoading, setNotesLoading] = useState(false)
+  const [newNoteText, setNewNoteText] = useState('')
+  const [newNoteTag, setNewNoteTag] = useState('general')
+  const [notesError, setNotesError] = useState('')
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
 
@@ -103,12 +144,85 @@ export default function ReportsPage() {
       .catch(() => setLoading(false))
   }, [selectedCourseId, days])
 
+  // Load notes for a student when one is selected (separate endpoint)
+  useEffect(() => {
+    if (!selectedStudentEmail || !selectedCourseId) {
+      setNotes([])
+      return
+    }
+    setNotesLoading(true)
+    setNotesError('')
+    fetch(
+      `/api/student-notes?studentEmail=${encodeURIComponent(selectedStudentEmail)}&courseId=${encodeURIComponent(selectedCourseId)}`
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        setNotes(d.notes || [])
+      })
+      .catch(() => setNotesError('Failed to load notes'))
+      .finally(() => setNotesLoading(false))
+  }, [selectedStudentEmail, selectedCourseId])
+
+  const addNote = async () => {
+    if (!selectedStudentEmail || !selectedCourseId || !newNoteText.trim()) return
+    setNotesError('')
+    try {
+      const res = await fetch('/api/student-notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentEmail: selectedStudentEmail,
+          courseId: selectedCourseId,
+          tag: newNoteTag,
+          text: newNoteText.trim(),
+        }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'Failed to add note')
+      setNotes((prev) => [body.note as NoteRow, ...prev])
+      setNewNoteText('')
+      setNewNoteTag('general')
+    } catch (e) {
+      setNotesError((e as Error).message)
+    }
+  }
+
+  const deleteNote = async (noteId: string) => {
+    if (!confirm('Delete this note?')) return
+    setNotesError('')
+    try {
+      const res = await fetch(`/api/student-notes?noteId=${encodeURIComponent(noteId)}`, {
+        method: 'DELETE',
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'Failed to delete note')
+      setNotes((prev) => prev.filter((n) => n.id !== noteId))
+    } catch (e) {
+      setNotesError((e as Error).message)
+    }
+  }
+
   // ─────────── Aggregations ───────────
+
+  // Lessons filtered to the selected time range (for attendance %)
+  const lessonsInRange = useMemo(() => {
+    if (!data) return [] as Lesson[]
+    if (days === 'all') return data.lessons
+    const n = parseInt(days, 10)
+    if (isNaN(n) || n <= 0) return data.lessons
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - n)
+    return data.lessons.filter((l) => {
+      if (!l.lesson_date) return false
+      return new Date(l.lesson_date) >= cutoff
+    })
+  }, [data, days])
 
   // One row per student for the overview table
   const studentAggregates = useMemo(() => {
     if (!data) return []
     const courseExerciseIds = new Set(data.exercises.map((e) => e.id))
+    const lessonsInRangeIds = new Set(lessonsInRange.map((l) => l.id))
 
     return data.students
       .map((s) => {
@@ -152,6 +266,14 @@ export default function ReportsPage() {
         const avgLatest = latestPcts.length > 0 ? Math.round(latestPcts.reduce((a, b) => a + b, 0) / latestPcts.length) : null
         const avgBest = bestPcts.length > 0 ? Math.round(bestPcts.reduce((a, b) => a + b, 0) / bestPcts.length) : null
 
+        // Attendance: count marked lessons in range where student was present-or-late
+        const studentAttendance = data.attendance.filter(
+          (a) => a.student_email === s.email && lessonsInRangeIds.has(a.lesson_id)
+        )
+        const marked = studentAttendance.length
+        const presentOrLate = studentAttendance.filter((a) => ATTENDANCE_PRESENT_STATUSES.has(a.status)).length
+        const attendancePct = marked > 0 ? Math.round((presentOrLate / marked) * 100) : null
+
         return {
           email: s.email,
           name: s.name || s.email,
@@ -161,10 +283,12 @@ export default function ReportsPage() {
           avgLatest,
           avgBest,
           totalAttempts,
+          attendancePct,
+          attendanceMarked: marked,
         }
       })
       .sort((a, b) => b.completionPct - a.completionPct || a.name.localeCompare(b.name))
-  }, [data])
+  }, [data, lessonsInRange])
 
   // Per-exercise breakdown for the currently selected student
   const studentDetail = useMemo(() => {
@@ -208,7 +332,36 @@ export default function ReportsPage() {
     const assigned = data.exercises.length
     const completionPct = assigned > 0 ? Math.round((attempted / assigned) * 100) : 0
 
-    return { student, perExercise, trend, attempted, assigned, completionPct }
+    // Attendance: filter attendance rows for this student, join with lessons for date/title
+    const lessonById = new Map(data.lessons.map((l) => [l.id, l]))
+    const studentAttendanceRows = data.attendance
+      .filter((a) => a.student_email === selectedStudentEmail)
+      .map((a) => ({
+        ...a,
+        lesson_title: lessonById.get(a.lesson_id)?.title || '(unknown lesson)',
+        lesson_date: lessonById.get(a.lesson_id)?.lesson_date || null,
+      }))
+      .sort((x, y) => {
+        const dx = x.lesson_date ? new Date(x.lesson_date).getTime() : 0
+        const dy = y.lesson_date ? new Date(y.lesson_date).getTime() : 0
+        return dy - dx // newest first
+      })
+
+    const marked = studentAttendanceRows.length
+    const presentOrLate = studentAttendanceRows.filter((a) => ATTENDANCE_PRESENT_STATUSES.has(a.status)).length
+    const attendancePct = marked > 0 ? Math.round((presentOrLate / marked) * 100) : null
+
+    return {
+      student,
+      perExercise,
+      trend,
+      attempted,
+      assigned,
+      completionPct,
+      attendanceRows: studentAttendanceRows,
+      attendancePct,
+      attendanceMarked: marked,
+    }
   }, [data, selectedStudentEmail])
 
   // ─────────── States ───────────
@@ -254,6 +407,13 @@ export default function ReportsPage() {
           <option value="all">All time</option>
         </select>
 
+        <a
+          href="/admin/attendance"
+          className="text-sm text-[#416ebe] hover:underline font-bold"
+        >
+          Mark attendance →
+        </a>
+
         <button
           onClick={() => window.print()}
           className="bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
@@ -297,7 +457,20 @@ export default function ReportsPage() {
           onClickStudent={(email) => setSelectedStudentEmail(email)}
         />
       ) : studentDetail ? (
-        <StudentDetail detail={studentDetail} />
+        <StudentDetail
+          detail={studentDetail}
+          notes={notes}
+          notesLoading={notesLoading}
+          notesError={notesError}
+          newNoteText={newNoteText}
+          newNoteTag={newNoteTag}
+          currentUserEmail={session?.user?.email || ''}
+          isSuperadmin={session?.user?.role === 'superadmin'}
+          onChangeNewNoteText={setNewNoteText}
+          onChangeNewNoteTag={setNewNoteTag}
+          onAddNote={addNote}
+          onDeleteNote={deleteNote}
+        />
       ) : (
         <div className="text-sm text-gray-500">Student not found.</div>
       )}
@@ -316,6 +489,8 @@ type AggregateRow = {
   avgLatest: number | null
   avgBest: number | null
   totalAttempts: number
+  attendancePct: number | null
+  attendanceMarked: number
 }
 
 function OverviewTable({ rows, onClickStudent }: { rows: AggregateRow[]; onClickStudent: (email: string) => void }) {
@@ -329,6 +504,7 @@ function OverviewTable({ rows, onClickStudent }: { rows: AggregateRow[]; onClick
           <tr>
             <th className="py-2 px-3 border-b border-[#e6f0fa]">Student</th>
             <th className="py-2 px-3 border-b border-[#e6f0fa]">Completion</th>
+            <th className="py-2 px-3 border-b border-[#e6f0fa]">Attendance</th>
             <th className="py-2 px-3 border-b border-[#e6f0fa]">Avg Latest</th>
             <th className="py-2 px-3 border-b border-[#e6f0fa]">Avg Best</th>
             <th className="py-2 px-3 border-b border-[#e6f0fa]">Attempts</th>
@@ -358,6 +534,16 @@ function OverviewTable({ rows, onClickStudent }: { rows: AggregateRow[]; onClick
                   </span>
                 </div>
               </td>
+              <td className="py-3 px-3">
+                {r.attendancePct != null ? (
+                  <span className="text-xs text-[#46464b] whitespace-nowrap">
+                    {r.attendancePct}%
+                    <span className="text-gray-400 ml-1">({r.attendanceMarked} marked)</span>
+                  </span>
+                ) : (
+                  <span className="text-gray-300">—</span>
+                )}
+              </td>
               <td className="py-3 px-3">{r.avgLatest != null ? `${r.avgLatest}%` : <span className="text-gray-300">—</span>}</td>
               <td className="py-3 px-3">{r.avgBest != null ? `${r.avgBest}%` : <span className="text-gray-300">—</span>}</td>
               <td className="py-3 px-3">{r.totalAttempts}</td>
@@ -376,13 +562,44 @@ type StudentDetailData = {
   attempted: number
   assigned: number
   completionPct: number
+  attendanceRows: (AttendanceRow & { lesson_title: string; lesson_date: string | null })[]
+  attendancePct: number | null
+  attendanceMarked: number
 }
 
-function StudentDetail({ detail }: { detail: StudentDetailData }) {
+interface StudentDetailProps {
+  detail: StudentDetailData
+  notes: NoteRow[]
+  notesLoading: boolean
+  notesError: string
+  newNoteText: string
+  newNoteTag: string
+  currentUserEmail: string
+  isSuperadmin: boolean
+  onChangeNewNoteText: (v: string) => void
+  onChangeNewNoteTag: (v: string) => void
+  onAddNote: () => void
+  onDeleteNote: (id: string) => void
+}
+
+function StudentDetail({
+  detail,
+  notes,
+  notesLoading,
+  notesError,
+  newNoteText,
+  newNoteTag,
+  currentUserEmail,
+  isSuperadmin,
+  onChangeNewNoteText,
+  onChangeNewNoteTag,
+  onAddNote,
+  onDeleteNote,
+}: StudentDetailProps) {
   return (
     <div className="space-y-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <SummaryCard label="Completion" value={`${detail.completionPct}%`} sub={`${detail.attempted}/${detail.assigned}`} />
         <SummaryCard
           label="Avg Latest"
@@ -393,6 +610,11 @@ function StudentDetail({ detail }: { detail: StudentDetailData }) {
           label="Avg Best"
           value={avgOrDash(detail.perExercise.map((e) => e.best).filter((x): x is number => x != null))}
           sub="across exercises"
+        />
+        <SummaryCard
+          label="Attendance"
+          value={detail.attendancePct != null ? `${detail.attendancePct}%` : '—'}
+          sub={detail.attendanceMarked > 0 ? `${detail.attendanceMarked} marked` : 'nothing marked yet'}
         />
         <SummaryCard
           label="Total Attempts"
@@ -415,6 +637,116 @@ function StudentDetail({ detail }: { detail: StudentDetailData }) {
                 <Line type="monotone" dataKey="score" stroke="#416ebe" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher notes */}
+      <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+        <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">Teacher notes</h3>
+
+        {/* Add note form */}
+        <div className="bg-[#f7fafd] rounded-lg p-3 mb-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <label className="text-[10px] font-bold text-gray-500 uppercase">Tag</label>
+            <select
+              value={newNoteTag}
+              onChange={(e) => onChangeNewNoteTag(e.target.value)}
+              className="px-2 py-1 text-xs border border-[#cddcf0] rounded bg-white focus:outline-none focus:border-[#416ebe]"
+            >
+              {NOTE_TAGS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <textarea
+            value={newNoteText}
+            onChange={(e) => onChangeNewNoteText(e.target.value)}
+            placeholder="Add a note about this student…"
+            rows={2}
+            className="w-full px-2 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded bg-white focus:outline-none focus:border-[#416ebe] resize-y"
+          />
+          <div className="flex items-center justify-between mt-2">
+            {notesError && <span className="text-[10px] text-red-500">{notesError}</span>}
+            <button
+              onClick={onAddNote}
+              disabled={!newNoteText.trim()}
+              className="ml-auto bg-[#416ebe] hover:bg-[#3560b0] text-white text-xs font-bold px-3 py-1.5 rounded transition-colors disabled:opacity-50"
+            >
+              Add note
+            </button>
+          </div>
+        </div>
+
+        {/* Existing notes list */}
+        {notesLoading ? (
+          <div className="text-xs text-gray-400">Loading notes…</div>
+        ) : notes.length === 0 ? (
+          <div className="text-xs text-gray-400 py-2">No notes yet.</div>
+        ) : (
+          <div className="space-y-2">
+            {notes.map((n) => {
+              const canDelete = isSuperadmin || n.author_email === currentUserEmail
+              return (
+                <div key={n.id} className="border border-[#e6f0fa] rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${getTagColor(n.tag)}`}>
+                        {getTagLabel(n.tag)}
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        {new Date(n.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {' • '}
+                        {n.author_email}
+                      </span>
+                    </div>
+                    {canDelete && (
+                      <button
+                        onClick={() => onDeleteNote(n.id)}
+                        className="text-[10px] text-gray-300 hover:text-red-400 transition-colors print:hidden"
+                        title="Delete note"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-sm text-[#46464b] whitespace-pre-wrap">{n.text}</p>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Recent attendance */}
+      {detail.attendanceRows.length > 0 && (
+        <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+          <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">Attendance history</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-[#f7fafd] text-[10px] font-bold text-gray-500 uppercase">
+                <tr>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Lesson</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Date</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Status</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.attendanceRows.map((a) => (
+                  <tr key={a.lesson_id} className="border-b border-[#e6f0fa]">
+                    <td className="py-2 px-3 text-[#46464b]">{a.lesson_title}</td>
+                    <td className="py-2 px-3 text-xs text-gray-500">
+                      {a.lesson_date ? new Date(a.lesson_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                    </td>
+                    <td className="py-2 px-3">
+                      <AttendanceBadge status={a.status} />
+                    </td>
+                    <td className="py-2 px-3 text-xs text-gray-500">{a.notes || <span className="text-gray-300">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -454,6 +786,21 @@ function StudentDetail({ detail }: { detail: StudentDetailData }) {
         )}
       </div>
     </div>
+  )
+}
+
+function AttendanceBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; cls: string }> = {
+    present: { label: '✓ Present', cls: 'bg-green-50 text-green-600 border-green-200' },
+    absent: { label: '✕ Absent', cls: 'bg-red-50 text-red-500 border-red-200' },
+    late: { label: '🕐 Late', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
+    excused: { label: '📝 Excused', cls: 'bg-blue-50 text-blue-500 border-blue-200' },
+  }
+  const c = config[status] || { label: status, cls: 'bg-gray-50 text-gray-500 border-gray-200' }
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${c.cls}`}>
+      {c.label}
+    </span>
   )
 }
 

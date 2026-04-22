@@ -54,6 +54,15 @@ interface ProgressRecord {
   completed_at: string
 }
 
+interface AttendanceRow {
+  lesson_id: string
+  student_email: string
+  status: string
+  notes: string | null
+  marked_by: string | null
+  marked_at: string | null
+}
+
 export async function GET(req: NextRequest) {
   let auth
   try {
@@ -84,6 +93,7 @@ export async function GET(req: NextRequest) {
       lessons: [],
       exercises: [],
       progress: [],
+      attendance: [],
     })
   }
 
@@ -165,6 +175,16 @@ export async function GET(req: NextRequest) {
       progress = (progressRows || []) as ProgressRecord[]
     }
 
+    // 6. Attendance records for these lessons
+    let attendance: AttendanceRow[] = []
+    if (lessonIds.length > 0) {
+      const { data: attRows } = await supabase
+        .from('attendance')
+        .select('lesson_id, student_email, status, notes, marked_by, marked_at')
+        .in('lesson_id', lessonIds)
+      attendance = (attRows || []) as AttendanceRow[]
+    }
+
     return NextResponse.json({
       courses: (courses || []) as Course[],
       course: course as Course,
@@ -172,6 +192,7 @@ export async function GET(req: NextRequest) {
       lessons: (lessons || []) as Lesson[],
       exercises,
       progress,
+      attendance,
     })
   } catch (err) {
     console.error('Reports GET error:', err)
