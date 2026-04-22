@@ -6,9 +6,6 @@ interface TypeAnswerQuestion {
   id: number
   prompt: string
   answer: string
-  // Optional list of additional accepted answers (synonyms, variants, etc.)
-  // The student's typed answer matches if it equals `answer` OR any of these.
-  alternatives?: string[]
   hint?: string
   image_url?: string
 }
@@ -62,12 +59,8 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
     if (feedback !== null || inputValue.trim() === '') return
 
     const stripPunctuation = (s: string) => s.replace(/[.,!?;:'"()\-\u2014\u2013\u2026]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
-    const normalizedInput = stripPunctuation(inputValue)
-    // Accept the primary answer OR any listed alternative (synonyms, variants).
-    const acceptedAnswers = [current.answer, ...(current.alternatives || [])].filter(Boolean)
-    const isCorrect = acceptedAnswers.some(
-      (a) => stripPunctuation(a) === normalizedInput
-    )
+    const isCorrect =
+      stripPunctuation(inputValue) === stripPunctuation(current.answer)
 
     const result: QuestionResult = {
       typed: inputValue.trim(),
@@ -309,11 +302,6 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
             <p className="text-sm text-[#46464b]">
               Correct answer:{' '}
               <span className="font-bold text-green-600">{current.answer}</span>
-              {current.alternatives && current.alternatives.length > 0 && (
-                <span className="text-xs text-gray-500">
-                  {' '}(also accepted: {current.alternatives.join(', ')})
-                </span>
-              )}
             </p>
           </div>
         )}
