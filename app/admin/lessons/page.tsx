@@ -71,7 +71,22 @@ interface Exercise {
   points_per_answer?: number
   completion_bonus?: number
   is_mandatory?: boolean
+  skills?: string[]             // Phase C: multi-select skill tags
+  cefr_level?: string | null    // Phase C: A1 / A2 / B1 / B2 / C1 / C2
 }
+
+// Phase C: valid skill tags (displayed in editor + used by reports)
+const SKILL_OPTIONS = [
+  { value: 'vocabulary', label: 'Vocabulary' },
+  { value: 'grammar', label: 'Grammar' },
+  { value: 'listening', label: 'Listening' },
+  { value: 'reading', label: 'Reading' },
+  { value: 'writing', label: 'Writing' },
+  { value: 'speaking', label: 'Speaking' },
+  { value: 'pronunciation', label: 'Pronunciation' },
+] as const
+
+const CEFR_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
 
 const EXERCISE_TYPES = [
   { value: 'multiple_choice', label: 'Multiple Choice', icon: '\uD83C\uDFAF' },
@@ -717,6 +732,8 @@ function LessonsAdminPage() {
         points_per_answer: ex.points_per_answer,
         completion_bonus: ex.completion_bonus,
         is_mandatory: ex.is_mandatory !== false,
+        skills: ex.skills || [],
+        cefr_level: ex.cefr_level || null,
       }))
       exercises.forEach((ex) => {
         items.push({ type: 'exercise', data: ex, collapsed: true, order_index: orderIdx++ })
@@ -1582,6 +1599,8 @@ function LessonsAdminPage() {
             points_per_answer: ex.points_per_answer ?? 10,
             completion_bonus: ex.completion_bonus ?? 0,
             is_mandatory: ex.is_mandatory !== false,
+            skills: ex.skills && ex.skills.length > 0 ? ex.skills : null,
+            cefr_level: ex.cefr_level || null,
           })
         } else {
           const b = item.data as ContentBlock
@@ -2007,6 +2026,50 @@ function LessonsAdminPage() {
             <input type="number" min={0} value={exercise.completion_bonus ?? 0}
               onChange={(e) => updateContentItem(itemIndex, { ...exercise, completion_bonus: parseInt(e.target.value) || 0 })}
               className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
+          </div>
+        </div>
+
+        {/* Skills (multi-select) + CEFR level — powers per-skill and per-level aggregation in Reports */}
+        <div className="flex gap-3 items-start">
+          <div className="flex-1">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Skills this exercise develops</label>
+            <div className="flex flex-wrap gap-1.5">
+              {SKILL_OPTIONS.map((s) => {
+                const active = (exercise.skills || []).includes(s.value)
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => {
+                      const current = exercise.skills || []
+                      const next = active ? current.filter((x) => x !== s.value) : [...current, s.value]
+                      updateContentItem(itemIndex, { ...exercise, skills: next })
+                    }}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-full border transition-colors ${
+                      active
+                        ? 'bg-[#416ebe] text-white border-[#416ebe]'
+                        : 'bg-white text-gray-400 border-[#cddcf0] hover:border-[#416ebe] hover:text-[#416ebe]'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[10px] text-gray-300 mt-1">Tap to toggle. Multiple skills allowed.</p>
+          </div>
+          <div className="w-32">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">CEFR level</label>
+            <select
+              value={exercise.cefr_level || ''}
+              onChange={(e) => updateContentItem(itemIndex, { ...exercise, cefr_level: e.target.value || null })}
+              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white"
+            >
+              <option value="">—</option>
+              {CEFR_OPTIONS.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
         </div>
 

@@ -370,7 +370,7 @@ export async function POST(req: NextRequest) {
     // Save exercises
     await supabase.from('lesson_exercises').delete().eq('lesson_id', lessonId)
     if (exercises && exercises.length > 0) {
-      const exRows = exercises.map((ex: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean }) => ({
+      const exRows = exercises.map((ex: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null }) => ({
         lesson_id: lessonId,
         title: ex.title,
         subtitle: ex.subtitle,
@@ -382,6 +382,8 @@ export async function POST(req: NextRequest) {
         points_per_answer: ex.points_per_answer ?? 10,
         completion_bonus: ex.completion_bonus ?? 0,
         is_mandatory: ex.is_mandatory !== false,
+        skills: ex.skills && ex.skills.length > 0 ? ex.skills : null,
+        cefr_level: ex.cefr_level || null,
       }))
       const { error: exError } = await supabase.from('lesson_exercises').insert(exRows)
       if (exError) throw exError

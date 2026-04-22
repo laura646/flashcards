@@ -32,6 +32,8 @@ interface Exercise {
   title: string
   exercise_type: string
   is_mandatory: boolean | null
+  skills: string[] | null
+  cefr_level: string | null
 }
 
 interface ProgressRecord {
@@ -85,6 +87,51 @@ const getTagColor = (tag: string) => NOTE_TAGS.find((t) => t.value === tag)?.col
 
 // Attendance is considered "counted as present" for % calc if status is present or late.
 const ATTENDANCE_PRESENT_STATUSES = new Set(['present', 'late'])
+
+// Phase C: pretty labels for skill tags (match SKILL_OPTIONS in admin/lessons)
+const SKILL_LABELS: Record<string, string> = {
+  vocabulary: 'Vocabulary',
+  grammar: 'Grammar',
+  listening: 'Listening',
+  reading: 'Reading',
+  writing: 'Writing',
+  speaking: 'Speaking',
+  pronunciation: 'Pronunciation',
+}
+
+const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+
+// Compute consecutive-day streak counting back from today. A "study day"
+// is any day with at least one completed progress row.
+function computeStreak(completedDates: string[]): number {
+  if (completedDates.length === 0) return 0
+  // Collect YYYY-MM-DD strings in local time, de-duped
+  const daysSet = new Set(
+    completedDates.map((iso) => {
+      const d = new Date(iso)
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+    })
+  )
+  let streak = 0
+  const cursor = new Date()
+  // Allow today OR yesterday to start the streak (so evening-cutoff quirks are tolerated)
+  const todayKey = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`
+  const yestCursor = new Date()
+  yestCursor.setDate(yestCursor.getDate() - 1)
+  const yesterdayKey = `${yestCursor.getFullYear()}-${yestCursor.getMonth()}-${yestCursor.getDate()}`
+  if (!daysSet.has(todayKey) && !daysSet.has(yesterdayKey)) return 0
+  if (!daysSet.has(todayKey)) cursor.setDate(cursor.getDate() - 1) // start from yesterday
+  while (true) {
+    const k = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`
+    if (daysSet.has(k)) {
+      streak += 1
+      cursor.setDate(cursor.getDate() - 1)
+    } else {
+      break
+    }
+  }
+  return streak
+}
 
 // ─────────── Component ───────────
 
@@ -351,6 +398,63 @@ export default function ReportsPage() {
     const presentOrLate = studentAttendanceRows.filter((a) => ATTENDANCE_PRESENT_STATUSES.has(a.status)).length
     const attendancePct = marked > 0 ? Math.round((presentOrLate / marked) * 100) : null
 
+    // ─── Phase C: streak, skill breakdown, CEFR performance ───
+
+    // Streak: distinct days with any completed activity for this student
+    // (note: uses full progress history, not the time-range filter)
+    const allStudentProgress = data.progress.filter((p) => p.user_email === selectedStudentEmail)
+    const streak = computeStreak(allStudentProgress.map((p) => p.completed_at))
+
+    // Index: exercise id -> Exercise row (for skills + cefr_level lookup)
+    const exerciseById = new Map(data.exercises.map((e) => [e.id, e]))
+
+    // Best-score per attempted exercise (so we have one number per exercise)
+    // Using the "best" score for skill/CEFR aggregation matches the spec's
+    // "celebrate peaks" framing for tagged dimensions. (Latest is shown
+    // elsewhere via the Avg Latest card.)
+    const bestByExerciseId: Record<string, number> = {}
+    for (const ex of perExercise) {
+      if (ex.best != null) bestByExerciseId[ex.id] = ex.best
+    }
+
+    // Skill breakdown: for each skill, average the best scores across
+    // exercises tagged with that skill (only exercises the student attempted)
+    const skillSums: Record<string, { sum: number; count: number }> = {}
+    for (const [exId, pct] of Object.entries(bestByExerciseId)) {
+      const ex = exerciseById.get(exId)
+      if (!ex || !ex.skills) continue
+      for (const skill of ex.skills) {
+        if (!skillSums[skill]) skillSums[skill] = { sum: 0, count: 0 }
+        skillSums[skill].sum += pct
+        skillSums[skill].count += 1
+      }
+    }
+    const skillBreakdown = Object.entries(skillSums)
+      .map(([skill, { sum, count }]) => ({
+        skill,
+        label: SKILL_LABELS[skill] || skill,
+        avgPct: Math.round(sum / count),
+        attempted: count,
+      }))
+      .sort((a, b) => b.avgPct - a.avgPct)
+
+    // CEFR performance: same idea but grouped by level
+    const cefrSums: Record<string, { sum: number; count: number }> = {}
+    for (const [exId, pct] of Object.entries(bestByExerciseId)) {
+      const ex = exerciseById.get(exId)
+      if (!ex || !ex.cefr_level) continue
+      if (!cefrSums[ex.cefr_level]) cefrSums[ex.cefr_level] = { sum: 0, count: 0 }
+      cefrSums[ex.cefr_level].sum += pct
+      cefrSums[ex.cefr_level].count += 1
+    }
+    const cefrBreakdown = CEFR_ORDER
+      .filter((level) => cefrSums[level])
+      .map((level) => ({
+        level,
+        avgPct: Math.round(cefrSums[level].sum / cefrSums[level].count),
+        attempted: cefrSums[level].count,
+      }))
+
     return {
       student,
       perExercise,
@@ -361,6 +465,9 @@ export default function ReportsPage() {
       attendanceRows: studentAttendanceRows,
       attendancePct,
       attendanceMarked: marked,
+      streak,
+      skillBreakdown,
+      cefrBreakdown,
     }
   }, [data, selectedStudentEmail])
 
@@ -565,6 +672,9 @@ type StudentDetailData = {
   attendanceRows: (AttendanceRow & { lesson_title: string; lesson_date: string | null })[]
   attendancePct: number | null
   attendanceMarked: number
+  streak: number
+  skillBreakdown: { skill: string; label: string; avgPct: number; attempted: number }[]
+  cefrBreakdown: { level: string; avgPct: number; attempted: number }[]
 }
 
 interface StudentDetailProps {
@@ -599,7 +709,7 @@ function StudentDetail({
   return (
     <div className="space-y-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <SummaryCard label="Completion" value={`${detail.completionPct}%`} sub={`${detail.attempted}/${detail.assigned}`} />
         <SummaryCard
           label="Avg Latest"
@@ -617,11 +727,71 @@ function StudentDetail({
           sub={detail.attendanceMarked > 0 ? `${detail.attendanceMarked} marked` : 'nothing marked yet'}
         />
         <SummaryCard
+          label="Streak"
+          value={detail.streak > 0 ? `${detail.streak}🔥` : '—'}
+          sub={detail.streak === 0 ? 'no active streak' : `day${detail.streak === 1 ? '' : 's'}`}
+        />
+        <SummaryCard
           label="Total Attempts"
           value={String(detail.perExercise.reduce((sum, e) => sum + e.attempts, 0))}
           sub="all exercises"
         />
       </div>
+
+      {/* Skill breakdown + CEFR performance (side-by-side on md+) */}
+      {(detail.skillBreakdown.length > 0 || detail.cefrBreakdown.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {detail.skillBreakdown.length > 0 && (
+            <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+              <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">Skill breakdown</h3>
+              <div className="space-y-2">
+                {detail.skillBreakdown.map((s) => (
+                  <div key={s.skill}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-medium text-[#46464b]">{s.label}</span>
+                      <span className="text-gray-500">
+                        {s.avgPct}%
+                        <span className="text-gray-300 ml-1">({s.attempted} ex.)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-[#e6f0fa] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#416ebe] rounded-full"
+                        style={{ width: `${s.avgPct}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {detail.cefrBreakdown.length > 0 && (
+            <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+              <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">CEFR performance</h3>
+              <div className="space-y-2">
+                {detail.cefrBreakdown.map((c) => (
+                  <div key={c.level}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-bold text-[#416ebe]">{c.level}</span>
+                      <span className="text-gray-500">
+                        {c.avgPct}%
+                        <span className="text-gray-300 ml-1">({c.attempted} ex.)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-[#e6f0fa] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#00aff0] rounded-full"
+                        style={{ width: `${c.avgPct}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Score trend */}
       {detail.trend.length > 1 && (
