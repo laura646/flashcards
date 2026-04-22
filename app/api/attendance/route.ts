@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'lessonId required' }, { status: 400 })
   }
 
-  const accessCheck = await loadLessonAndCheckAccess(lessonId, auth.email, auth.role)
+  const accessCheck = await loadLessonAndCheckAccess(lessonId, auth.email, auth.role as 'teacher' | 'superadmin')
   if (!accessCheck.ok) return accessCheck.response
   const lesson = accessCheck.lesson
 
@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'lessonId + records[] required' }, { status: 400 })
     }
 
-    const accessCheck = await loadLessonAndCheckAccess(lessonId, auth.email, auth.role)
+    const accessCheck = await loadLessonAndCheckAccess(lessonId, auth.email, auth.role as 'teacher' | 'superadmin')
     if (!accessCheck.ok) return accessCheck.response
 
     const now = new Date().toISOString()
