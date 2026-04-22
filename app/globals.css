@@ -39,3 +39,28 @@ body {
   width: 100%;
   height: 100%;
 }
+
+/* Print styles — used by the Reports page "Export as PDF" flow.
+   We also hide common app chrome (header/nav) so the PDF shows only
+   the report content. */
+@media print {
+  body {
+    background: #fff !important;
+  }
+  header, nav, footer {
+    display: none !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  thead {
+    display: table-header-group;
+  }
+}
