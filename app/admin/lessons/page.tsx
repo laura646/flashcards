@@ -48,6 +48,9 @@ interface ExerciseQuestion {
   prompt: string
   options: string[]
   correctIndex: number
+  // Optional: when present, the question is in "select all that apply" mode.
+  // Student sees checkboxes; all-or-nothing scoring against this set.
+  correctIndices?: number[]
   hint: string
 }
 
