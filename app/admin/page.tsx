@@ -453,10 +453,8 @@ export default function AdminPage() {
               Content Bank
             </button>
             <button
-              onClick={() => { setView('reports'); loadCourses() }}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-                view === 'reports' ? 'bg-[#416ebe] text-white' : 'text-[#46464b] hover:text-[#416ebe]'
-              }`}
+              onClick={() => router.push('/admin/reports')}
+              className="px-4 py-2 rounded-lg text-xs font-bold text-[#46464b] hover:text-[#416ebe] transition-all"
             >
               Reports
             </button>
