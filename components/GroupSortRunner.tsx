@@ -2,11 +2,31 @@
 
 import { useState, useMemo } from 'react'
 
+// ------- Types -------
+
+// Legacy items were plain strings. New items are objects with optional image.
+type RawItem = string | { id?: string; text: string; image_url?: string }
+
+interface RawGroup {
+  name: string
+  image_url?: string
+  items: RawItem[]
+}
+
 interface GroupData {
-  groups: {
-    name: string
-    items: string[]
-  }[]
+  groups: RawGroup[]
+}
+
+// Normalized shape used inside the component
+interface NormItem {
+  text: string
+  image_url?: string
+}
+
+interface NormGroup {
+  name: string
+  image_url?: string
+  items: NormItem[]
 }
 
 interface Props {
@@ -19,34 +39,53 @@ interface Props {
   onBack: () => void
 }
 
-export default function GroupSortRunner({ exercise, onComplete, onBack }: Props) {
-  const { groups } = exercise.groupData
+// ------- Normalization -------
 
-  // Build the answer key: item -> correct group name
-  const answerKey = useMemo(() => {
-    const map: Record<string, string> = {}
-    groups.forEach((g) => {
-      g.items.forEach((item) => {
-        map[item] = g.name
-      })
-    })
+const normalizeGroup = (g: RawGroup): NormGroup => ({
+  name: g.name,
+  image_url: g.image_url,
+  items: (g.items || []).map((it) =>
+    typeof it === 'string' ? { text: it } : { text: it.text || '', image_url: it.image_url }
+  ),
+})
+
+// ------- Component -------
+
+export default function GroupSortRunner({ exercise, onComplete, onBack }: Props) {
+  // Normalize once per groupData change (handles both legacy string items and new object items)
+  const groups = useMemo<NormGroup[]>(
+    () => (exercise.groupData?.groups || []).map(normalizeGroup),
+    [exercise.groupData]
+  )
+
+  // Lookup: item text -> image URL (for rendering placed items anywhere)
+  const itemImageMap = useMemo(() => {
+    const map: Record<string, string | undefined> = {}
+    groups.forEach((g) => g.items.forEach((it) => { map[it.text] = it.image_url }))
     return map
   }, [groups])
 
-  // Shuffle all items
+  // Answer key: item text -> correct group name
+  const answerKey = useMemo(() => {
+    const map: Record<string, string> = {}
+    groups.forEach((g) => g.items.forEach((it) => { map[it.text] = g.name }))
+    return map
+  }, [groups])
+
+  // Shuffle all items (stable for this exercise session)
   const allItems = useMemo(() => {
-    const items = groups.flatMap((g) => g.items)
-    for (let i = items.length - 1; i > 0; i--) {
+    const flat = groups.flatMap((g) => g.items.map((it) => it.text))
+    for (let i = flat.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
-      ;[items[i], items[j]] = [items[j], items[i]]
+      ;[flat[i], flat[j]] = [flat[j], flat[i]]
     }
-    return items
+    return flat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const totalItems = allItems.length
 
-  // Track where each item has been placed: item -> group name
+  // Track where each item has been placed: item text -> group name
   const [placements, setPlacements] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState(false)
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
@@ -77,9 +116,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
 
   const handleGroupTap = (groupName: string) => {
     if (submitted) return
-    if (selectedItem) {
-      placeItem(selectedItem, groupName)
-    }
+    if (selectedItem) placeItem(selectedItem, groupName)
   }
 
   const handleDrop = (groupName: string) => {
@@ -89,18 +126,42 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
 
   const handleCheck = () => {
     setSubmitted(true)
-    const score = Object.entries(placements).filter(
-      ([item, group]) => answerKey[item] === group
-    ).length
-    onComplete(score, totalItems)
+    const s = Object.entries(placements).filter(([item, group]) => answerKey[item] === group).length
+    onComplete(s, totalItems)
   }
 
-  const score = Object.entries(placements).filter(
-    ([item, group]) => answerKey[item] === group
-  ).length
+  const score = Object.entries(placements).filter(([item, group]) => answerKey[item] === group).length
   const pct = totalItems > 0 ? Math.round((score / totalItems) * 100) : 0
 
-  // Summary screen
+  // ------- Sub-renderers -------
+
+  // Small image for an item inside a button/pill
+  const ItemImage = ({ url, size = 'sm' }: { url?: string; size?: 'sm' | 'md' }) => {
+    if (!url) return null
+    const cls = size === 'md' ? 'h-10 w-10' : 'h-6 w-6'
+    return (
+      <img
+        src={url}
+        alt=""
+        className={`${cls} object-cover rounded-md flex-shrink-0`}
+      />
+    )
+  }
+
+  // Small image next to a group name in the group header
+  const GroupHeaderImage = ({ url }: { url?: string }) => {
+    if (!url) return null
+    return (
+      <img
+        src={url}
+        alt=""
+        className="h-8 w-8 object-cover rounded-lg flex-shrink-0"
+      />
+    )
+  }
+
+  // ------- Summary view -------
+
   if (submitted) {
     return (
       <div className="flex flex-col gap-4">
@@ -125,15 +186,18 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
 
             return (
               <div key={group.name} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4">
-                <h3 className="text-sm font-bold text-[#416ebe] mb-3">{group.name}</h3>
+                <div className="flex items-center gap-2 mb-3">
+                  <GroupHeaderImage url={group.image_url} />
+                  <h3 className="text-sm font-bold text-[#416ebe]">{group.name}</h3>
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  {group.items.map((item) => {
-                    const wasPlacedHere = placedHere.includes(item)
-                    const wasPlacedElsewhere = placements[item] && placements[item] !== group.name
+                  {group.items.map((it) => {
+                    const wasPlacedHere = placedHere.includes(it.text)
+                    const wasPlacedElsewhere = placements[it.text] && placements[it.text] !== group.name
                     return (
                       <span
-                        key={item}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${
+                        key={it.text}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border-2 ${
                           wasPlacedHere
                             ? 'border-green-300 bg-green-50 text-green-700'
                             : wasPlacedElsewhere
@@ -141,11 +205,12 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
                             : 'border-gray-200 bg-gray-50 text-gray-400'
                         }`}
                       >
-                        {wasPlacedHere && '✓ '}
-                        {wasPlacedElsewhere && '✗ '}
-                        {item}
+                        {wasPlacedHere && '✓'}
+                        {wasPlacedElsewhere && '✗'}
+                        <ItemImage url={it.image_url} size="sm" />
+                        <span>{it.text}</span>
                         {wasPlacedElsewhere && (
-                          <span className="text-gray-400 ml-1">(was in {placements[item]})</span>
+                          <span className="text-gray-400 ml-1">(was in {placements[it.text]})</span>
                         )}
                       </span>
                     )
@@ -166,7 +231,8 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
     )
   }
 
-  // Active view
+  // ------- Active view -------
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
@@ -200,21 +266,26 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
         <div>
           <p className="text-xs font-bold text-gray-400 mb-2">Items to sort</p>
           <div className="flex flex-wrap gap-2">
-            {unplacedItems.map((item) => (
-              <button
-                key={item}
-                draggable
-                onDragStart={() => setDraggedItem(item)}
-                onClick={() => handleItemTap(item)}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                  selectedItem === item
-                    ? 'bg-[#416ebe] text-white border-2 border-[#416ebe] scale-105 shadow-md'
-                    : 'bg-white text-[#46464b] border-2 border-[#cddcf0] hover:border-[#416ebe] hover:text-[#416ebe] cursor-grab active:cursor-grabbing'
-                }`}
-              >
-                {item}
-              </button>
-            ))}
+            {unplacedItems.map((item) => {
+              const imageUrl = itemImageMap[item]
+              const isSelected = selectedItem === item
+              return (
+                <button
+                  key={item}
+                  draggable
+                  onDragStart={() => setDraggedItem(item)}
+                  onClick={() => handleItemTap(item)}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                    isSelected
+                      ? 'bg-[#416ebe] text-white border-2 border-[#416ebe] scale-105 shadow-md'
+                      : 'bg-white text-[#46464b] border-2 border-[#cddcf0] hover:border-[#416ebe] hover:text-[#416ebe] cursor-grab active:cursor-grabbing'
+                  }`}
+                >
+                  <ItemImage url={imageUrl} size="md" />
+                  <span>{item}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -238,26 +309,34 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
                   : 'border-[#cddcf0] bg-white'
               }`}
             >
-              <h3 className="text-sm font-bold text-[#416ebe] mb-3 text-center">{group.name}</h3>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <GroupHeaderImage url={group.image_url} />
+                <h3 className="text-sm font-bold text-[#416ebe] text-center">{group.name}</h3>
+              </div>
               <div className="flex flex-wrap gap-1.5 justify-center">
                 {placedItems.length === 0 && (
                   <p className="text-xs text-gray-300 italic">
                     {selectedItem ? 'Tap to place here' : 'Drop items here'}
                   </p>
                 )}
-                {placedItems.map((item) => (
-                  <button
-                    key={item}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeItem(item)
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#e6f0fa] text-[#416ebe] border border-[#cddcf0] hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
-                    title="Click to remove"
-                  >
-                    {item} ✕
-                  </button>
-                ))}
+                {placedItems.map((item) => {
+                  const imageUrl = itemImageMap[item]
+                  return (
+                    <button
+                      key={item}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeItem(item)
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#e6f0fa] text-[#416ebe] border border-[#cddcf0] hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
+                      title="Click to remove"
+                    >
+                      <ItemImage url={imageUrl} size="sm" />
+                      <span>{item}</span>
+                      <span>✕</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )
