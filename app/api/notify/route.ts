@@ -6,10 +6,24 @@ import { Resend } from 'resend'
 
 const TEACHER_EMAIL = 'laura@englishwithlaura.com'
 
+// ═══════════════════════════════════════════════════════════════
+// Student-activity emails are DISABLED (per Laura's request).
+// We still accept and ack the POSTs so the student-side calls do not
+// error. No emails are sent for any event type.
+// To re-enable, remove the early return below.
+// ═══════════════════════════════════════════════════════════════
+const STUDENT_ACTIVITY_EMAILS_ENABLED = false
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Hard-off for all student-activity notifications (session_start,
+  // session_complete, exercise_complete, writing_submitted).
+  if (!STUDENT_ACTIVITY_EMAILS_ENABLED) {
+    return NextResponse.json({ ok: true })
   }
 
   const body = await req.json()
