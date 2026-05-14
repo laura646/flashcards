@@ -80,7 +80,7 @@ interface ProgressRecord {
   completed_at: string
 }
 
-type View = 'my-courses' | 'course-detail' | 'my-students' | 'student-detail' | 'reports'
+type View = 'my-courses' | 'course-detail' | 'my-students' | 'student-detail'
 
 export default function AdminPage() {
   const { data: session, status } = useSession()
@@ -126,9 +126,6 @@ export default function AdminPage() {
   const [reminderMessage, setReminderMessage] = useState('')
   const [reminderSending, setReminderSending] = useState(false)
   const [reminderSent, setReminderSent] = useState(false)
-
-  // Reports state
-  const [reportCourse, setReportCourse] = useState<string>('')
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -1117,59 +1114,6 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
-            </div>
-          </>
-        )}
-
-        {/* ══════════ REPORTS VIEW ══════════ */}
-        {view === 'reports' && (
-          <>
-            <h2 className="text-lg font-bold text-[#46464b] mb-4">Reports</h2>
-
-            <div className="grid grid-cols-2 gap-4">
-              {/* Per Course Reports */}
-              <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm p-5">
-                <h3 className="font-bold text-[#46464b] mb-3">Course Reports</h3>
-                <p className="text-xs text-gray-400 mb-4">Select a course to generate a report</p>
-                <select
-                  value={reportCourse}
-                  onChange={e => setReportCourse(e.target.value)}
-                  className="w-full text-sm border border-[#cddcf0] rounded-lg px-3 py-2 mb-3 focus:outline-none focus:border-[#416ebe]"
-                >
-                  <option value="">Choose a course...</option>
-                  {courses.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <div className="flex gap-2">
-                  <button
-                    disabled={!reportCourse}
-                    className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-30"
-                    onClick={() => showToast('PDF export coming soon')}
-                  >
-                    Export PDF
-                  </button>
-                  <button
-                    disabled={!reportCourse}
-                    className="px-4 py-2 border-2 border-[#416ebe] text-[#416ebe] text-xs font-bold rounded-lg hover:bg-[#e6f0fa] transition-colors disabled:opacity-30"
-                    onClick={() => showToast('CSV export coming soon')}
-                  >
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-
-              {/* Per Student Reports */}
-              <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm p-5">
-                <h3 className="font-bold text-[#46464b] mb-3">Student Reports</h3>
-                <p className="text-xs text-gray-400 mb-4">Go to a student profile to generate their report</p>
-                <button
-                  onClick={() => { setView('my-students'); loadMyStudents() }}
-                  className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
-                >
-                  Go to My Students
-                </button>
-              </div>
             </div>
           </>
         )}
