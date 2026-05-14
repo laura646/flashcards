@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import SignOutButton from '@/components/SignOutButton'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES } from '@/lib/common-issues'
 
 // ── Interfaces ──
@@ -85,7 +84,11 @@ type View = 'my-courses' | 'course-detail' | 'my-students' | 'student-detail'
 export default function AdminPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [view, setView] = useState<View>('my-courses')
+  const searchParams = useSearchParams()
+  // Initial view honours ?view=students (so the sidebar's "My Students"
+  // link deep-links straight to that tab). Default is my-courses.
+  const initialView: View = searchParams.get('view') === 'students' ? 'my-students' : 'my-courses'
+  const [view, setView] = useState<View>(initialView)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -219,9 +222,15 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && isAdmin) {
-      loadCourses()
+      // Load whichever data is needed for the initial view
+      if (initialView === 'my-students') {
+        loadMyStudents()
+      } else {
+        loadCourses()
+      }
     }
-  }, [status, isAdmin, loadCourses])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, isAdmin])
 
   // ── Actions ──
 
@@ -410,18 +419,12 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <button onClick={() => router.push('/home')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors">
-                &larr; Home
-              </button>
-              <span className="text-xs text-gray-300">·</span>
-              <SignOutButton />
-            </div>
-            <h1 className="text-2xl font-bold text-[#416ebe]">Admin Panel</h1>
-          </div>
+        {/* Simple page title — sidebar handles primary nav now.
+            View-switching between "My Courses" and "My Students" still
+            happens inline below; deep routing for course/student detail
+            is the next refactor. */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-[#416ebe]">Admin Panel</h1>
           <div className="flex items-center gap-1 bg-white border border-[#cddcf0] rounded-xl p-1">
             {[
               { key: 'my-courses' as View, label: 'My Courses' },
@@ -443,18 +446,6 @@ export default function AdminPage() {
                 {tab.label}
               </button>
             ))}
-            <button
-              onClick={() => router.push('/admin/content-bank')}
-              className="px-4 py-2 rounded-lg text-xs font-bold text-[#46464b] hover:text-[#416ebe] transition-all"
-            >
-              Content Bank
-            </button>
-            <button
-              onClick={() => router.push('/admin/reports')}
-              className="px-4 py-2 rounded-lg text-xs font-bold text-[#46464b] hover:text-[#416ebe] transition-all"
-            >
-              Reports
-            </button>
           </div>
         </div>
 
