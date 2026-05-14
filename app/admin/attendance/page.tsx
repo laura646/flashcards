@@ -196,11 +196,28 @@ export default function AttendancePage() {
 
   // ─────────── States ───────────
 
-  if (authStatus === 'loading') return <div className="p-8 text-sm text-gray-400">Checking session…</div>
+  if (authStatus === 'loading' || (loading && courses.length === 0)) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto animate-pulse">
+        <div className="h-7 w-32 bg-gray-200 rounded mb-6" />
+        <div className="h-9 w-full bg-gray-100 rounded-lg mb-3" />
+        <div className="space-y-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-white border border-[#e6f0fa] rounded-xl" />
+          ))}
+        </div>
+      </div>
+    )
+  }
   if (!isAdmin) return <div className="p-8 text-sm text-red-500">Access denied — admin or teacher only.</div>
-  if (loading && courses.length === 0) return <div className="p-8 text-sm text-gray-400">Loading…</div>
   if (courses.length === 0) {
-    return <div className="p-8 text-sm text-gray-500">No courses assigned to you.</div>
+    return (
+      <div className="p-8 max-w-md mx-auto text-center">
+        <div className="text-5xl mb-3">🦗</div>
+        <p className="text-sm font-bold text-[#46464b]">Crickets…</p>
+        <p className="text-xs text-gray-400 mt-1">No courses assigned to you yet. Ask a superadmin to add you as a teacher of a course.</p>
+      </div>
+    )
   }
 
   // ─────────── Render ───────────
@@ -224,7 +241,11 @@ export default function AttendancePage() {
       <div className="mb-5">
         <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Lesson</label>
         {lessons.length === 0 ? (
-          <p className="text-sm text-gray-500">No lessons in this course yet.</p>
+          <div className="bg-white border border-[#e6f0fa] rounded-xl p-6 text-center">
+            <div className="text-4xl mb-2">📅</div>
+            <p className="text-sm font-bold text-[#46464b]">No lessons in this course yet</p>
+            <p className="text-xs text-gray-400 mt-1">Create a lesson in the lesson editor before you can take attendance.</p>
+          </div>
         ) : (
           <select
             value={selectedLessonId}
@@ -246,9 +267,21 @@ export default function AttendancePage() {
       {selectedLessonId && (
         <>
           {loading ? (
-            <div className="text-sm text-gray-400">Loading roster…</div>
+            <div className="space-y-2 animate-pulse">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="bg-white border border-[#e6f0fa] rounded-xl p-3">
+                  <div className="h-3 w-32 bg-gray-200 rounded mb-2" />
+                  <div className="h-2 w-44 bg-gray-100 rounded mb-2" />
+                  <div className="h-7 w-full bg-gray-100 rounded" />
+                </div>
+              ))}
+            </div>
           ) : students.length === 0 ? (
-            <div className="text-sm text-gray-500">No students enrolled in this course.</div>
+            <div className="bg-white border border-[#e6f0fa] rounded-xl p-8 text-center">
+              <div className="text-4xl mb-2">🦗</div>
+              <p className="text-sm font-bold text-[#46464b]">Crickets…</p>
+              <p className="text-xs text-gray-400 mt-1">No students enrolled in this course yet.</p>
+            </div>
           ) : (
             <>
               <div className="flex items-center justify-between mb-3">
