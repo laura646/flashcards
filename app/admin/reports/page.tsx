@@ -757,7 +757,7 @@ function HeatmapView({
       byLesson.get(ex.lesson_id)!.push(ex)
     }
     const out: Exercise[] = []
-    const lessonIdsByDate = [...lessonOrder.keys()].sort(
+    const lessonIdsByDate = Array.from(lessonOrder.keys()).sort(
       (a, b) => (lessonOrder.get(a) ?? 999) - (lessonOrder.get(b) ?? 999)
     )
     for (const lid of lessonIdsByDate) {
