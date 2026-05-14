@@ -73,7 +73,16 @@ interface Exercise {
   is_mandatory?: boolean
   skills?: string[]             // Phase C: multi-select skill tags
   cefr_level?: string | null    // Phase C: A1 / A2 / B1 / B2 / C1 / C2
+  test_type?: string | null     // null = regular practice; or review / mid_course / end_of_course
 }
+
+// Optional test-type tag for the reports "Tests" section
+const TEST_TYPE_OPTIONS = [
+  { value: '', label: 'Practice (default)' },
+  { value: 'review', label: 'Review test' },
+  { value: 'mid_course', label: 'Mid-course test' },
+  { value: 'end_of_course', label: 'End-of-course test' },
+] as const
 
 // Phase C: valid skill tags (displayed in editor + used by reports)
 const SKILL_OPTIONS = [
@@ -734,6 +743,7 @@ function LessonsAdminPage() {
         is_mandatory: ex.is_mandatory !== false,
         skills: ex.skills || [],
         cefr_level: ex.cefr_level || null,
+        test_type: ex.test_type || null,
       }))
       exercises.forEach((ex) => {
         items.push({ type: 'exercise', data: ex, collapsed: true, order_index: orderIdx++ })
@@ -1578,7 +1588,7 @@ function LessonsAdminPage() {
       // Extract flashcards, exercises, and blocks from content items
       let flashcardItems: Flashcard[] = []
       let flashcardsGlobalOrder = 0
-      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null }[] = []
+      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null; test_type?: string | null }[] = []
       const blockItems: { block_type: string; title: string; content: unknown; order_index: number }[] = []
 
       contentItems.forEach((item, idx) => {
@@ -1601,6 +1611,7 @@ function LessonsAdminPage() {
             is_mandatory: ex.is_mandatory !== false,
             skills: ex.skills && ex.skills.length > 0 ? ex.skills : null,
             cefr_level: ex.cefr_level || null,
+            test_type: ex.test_type || null,
           })
         } else {
           const b = item.data as ContentBlock
@@ -2058,7 +2069,7 @@ function LessonsAdminPage() {
             </div>
             <p className="text-[10px] text-gray-300 mt-1">Tap to toggle. Multiple skills allowed.</p>
           </div>
-          <div className="w-32">
+          <div className="w-28">
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">CEFR level</label>
             <select
               value={exercise.cefr_level || ''}
@@ -2068,6 +2079,19 @@ function LessonsAdminPage() {
               <option value="">—</option>
               {CEFR_OPTIONS.map((c) => (
                 <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div className="w-40">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Test type</label>
+            <select
+              value={exercise.test_type || ''}
+              onChange={(e) => updateContentItem(itemIndex, { ...exercise, test_type: e.target.value || null })}
+              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white"
+              title="Mark as a test so the report uses the first-attempt score (the 'real grade') and shows it in the Tests section"
+            >
+              {TEST_TYPE_OPTIONS.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
           </div>

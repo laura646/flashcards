@@ -34,6 +34,14 @@ interface Exercise {
   is_mandatory: boolean | null
   skills: string[] | null
   cefr_level: string | null
+  test_type: string | null
+}
+
+// Display label for test_type values
+const TEST_TYPE_LABELS: Record<string, string> = {
+  review: 'Review test',
+  mid_course: 'Mid-course test',
+  end_of_course: 'End-of-course test',
 }
 
 interface ProgressRecord {
@@ -676,6 +684,45 @@ export default function ReportsPage() {
         attempted: cefrSums[level].count,
       }))
 
+    // Tests: exercises tagged with a test_type. Use the FIRST attempt as the
+    // real grade (test conditions); show latest too for comparison/retakes.
+    const tests = data.exercises
+      .filter((ex) => ex.test_type)
+      .map((ex) => {
+        const attempts = studentExerciseProgress.filter((p) => p.activity_id === ex.id)
+        if (attempts.length === 0) {
+          return {
+            id: ex.id,
+            title: ex.title,
+            test_type: ex.test_type as string,
+            attempts: 0,
+            first: null as number | null,
+            latest: null as number | null,
+            firstAt: null as string | null,
+          }
+        }
+        // progress is sorted DESC by completed_at — first chronological attempt is the LAST element
+        const firstAttempt = attempts[attempts.length - 1]
+        const latestAttempt = attempts[0]
+        const firstPct =
+          firstAttempt.score != null && firstAttempt.total
+            ? Math.round((firstAttempt.score / firstAttempt.total) * 100)
+            : null
+        const latestPct =
+          latestAttempt.score != null && latestAttempt.total
+            ? Math.round((latestAttempt.score / latestAttempt.total) * 100)
+            : null
+        return {
+          id: ex.id,
+          title: ex.title,
+          test_type: ex.test_type as string,
+          attempts: attempts.length,
+          first: firstPct,
+          latest: latestPct,
+          firstAt: firstAttempt.completed_at,
+        }
+      })
+
     return {
       student,
       perExercise,
@@ -689,6 +736,7 @@ export default function ReportsPage() {
       streak,
       skillBreakdown,
       cefrBreakdown,
+      tests,
     }
   }, [data, selectedStudentEmail])
 
@@ -960,6 +1008,15 @@ type StudentDetailData = {
   streak: number
   skillBreakdown: { skill: string; label: string; avgPct: number; attempted: number }[]
   cefrBreakdown: { level: string; avgPct: number; attempted: number }[]
+  tests: {
+    id: string
+    title: string
+    test_type: string
+    attempts: number
+    first: number | null
+    latest: number | null
+    firstAt: string | null
+  }[]
 }
 
 // ─────────── HeatmapView ───────────
@@ -1378,6 +1435,54 @@ function StudentDetail({
                       <AttendanceBadge status={a.status} />
                     </td>
                     <td className="py-2 px-3 text-xs text-gray-500">{a.notes || <span className="text-gray-300">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tests (only shown when there's at least one tagged test in the course) */}
+      {detail.tests.length > 0 && (
+        <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+          <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">Tests</h3>
+          <p className="text-[10px] text-gray-400 mb-3">
+            First-attempt scores represent the &quot;real grade&quot;. Latest is shown for context if the student retook.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-[#f7fafd] text-[10px] font-bold text-gray-500 uppercase">
+                <tr>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Test</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Type</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">First attempt</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Latest</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Attempts</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Taken</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.tests.map((t) => (
+                  <tr key={t.id} className="border-b border-[#e6f0fa]">
+                    <td className="py-3 px-3 font-medium text-[#46464b]">{t.title || '(untitled)'}</td>
+                    <td className="py-3 px-3 text-xs text-gray-500">{TEST_TYPE_LABELS[t.test_type] || t.test_type}</td>
+                    <td className="py-3 px-3 font-bold">
+                      {t.first != null ? (
+                        <span className={t.first >= 70 ? 'text-green-600' : t.first >= 50 ? 'text-amber-600' : 'text-red-500'}>
+                          {t.first}%
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3">
+                      {t.latest != null && t.attempts > 1 ? `${t.latest}%` : t.latest != null ? <span className="text-gray-300">(same)</span> : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="py-3 px-3">{t.attempts}</td>
+                    <td className="py-3 px-3 text-xs text-gray-500">
+                      {t.firstAt ? new Date(t.firstAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : <span className="text-gray-300">not taken</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

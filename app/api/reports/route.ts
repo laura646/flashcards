@@ -45,6 +45,7 @@ interface Exercise {
   is_mandatory: boolean | null
   skills: string[] | null
   cefr_level: string | null
+  test_type: string | null
 }
 
 interface ProgressRecord {
@@ -149,7 +150,7 @@ export async function GET(req: NextRequest) {
     if (lessonIds.length > 0) {
       const { data: exRows } = await supabase
         .from('lesson_exercises')
-        .select('id, lesson_id, title, exercise_type, is_mandatory, skills, cefr_level')
+        .select('id, lesson_id, title, exercise_type, is_mandatory, skills, cefr_level, test_type')
         .in('lesson_id', lessonIds)
         .order('order_index', { ascending: true })
       exercises = (exRows || []) as Exercise[]
