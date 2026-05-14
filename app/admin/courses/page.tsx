@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import WhatsNewPanel from '@/components/WhatsNewPanel'
 
 // ─── Types ───
 
@@ -75,6 +76,8 @@ export default function CoursesListPage() {
   return (
     <div className="px-4 py-6">
       <div className="max-w-5xl mx-auto">
+        <WhatsNewPanel />
+
         <h1 className="text-2xl font-bold text-[#416ebe] mb-6">
           My Courses <span className="text-sm font-normal text-gray-400">({courses.length})</span>
         </h1>

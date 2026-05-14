@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { useConfirm } from '@/components/ConfirmDialog'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -332,6 +333,7 @@ function computeStreak(completedDates: string[]): number {
 export default function ReportsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const confirm = useConfirm()
 
   const [data, setData] = useState<ReportData | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<string>('')
@@ -475,9 +477,12 @@ export default function ReportsPage() {
   // Deletes the progress row so the student can take it again.
   const resetTestAttempt = async (activityId: string) => {
     if (!selectedStudentEmail) return
-    const ok = confirm(
-      'Reset this test attempt? The student will be able to take it again. This cannot be undone.'
-    )
+    const ok = await confirm({
+      title: 'Reset test attempt?',
+      message: 'The student will be able to take this test again. Their previous attempt (including score and per-question results) will be deleted. This cannot be undone.',
+      confirmLabel: 'Reset attempt',
+      danger: true,
+    })
     if (!ok) return
     try {
       const res = await fetch(
@@ -498,7 +503,13 @@ export default function ReportsPage() {
   }
 
   const deleteNote = async (noteId: string) => {
-    if (!confirm('Delete this note?')) return
+    const ok = await confirm({
+      title: 'Delete this note?',
+      message: 'The note will be removed from this student\'s log. This cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
     setNotesError('')
     try {
       const res = await fetch(`/api/student-notes?noteId=${encodeURIComponent(noteId)}`, {
