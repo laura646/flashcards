@@ -58,6 +58,20 @@ interface LessonExercise {
   points_per_answer?: number
   completion_bonus?: number
   is_mandatory?: boolean
+  test_type?: string | null
+}
+
+// State of a test attempt for the current student. Computed when they tap
+// a test-tagged exercise — drives whether we show the runner or a locked
+// screen.
+type TestAttemptStatus = 'started' | 'already_submitted' | 'already_started'
+interface TestAttempt {
+  activity_id: string
+  score: number | null
+  total: number | null
+  started_at: string | null
+  completed_at: string | null
+  per_question_results: boolean[] | null
 }
 
 interface ExerciseQuestion {
@@ -514,6 +528,17 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const [view, setView] = useState<View>('overview')
   const [flashcardMode, setFlashcardMode] = useState<FlashcardMode>('flip')
   const [selectedExercise, setSelectedExercise] = useState<LessonExercise | null>(null)
+
+  // Test-lock state: only relevant when selectedExercise.test_type is set.
+  // 'loading' = waiting for the test-attempt API response.
+  // 'started' = fresh start, render runner normally.
+  // 'already_submitted' = locked, show score + per-question review.
+  // 'already_started' = locked, show "contact teacher to reset" message.
+  const [testAttemptStatus, setTestAttemptStatus] = useState<
+    'loading' | 'started' | 'already_submitted' | 'already_started' | 'error' | null
+  >(null)
+  const [testAttempt, setTestAttempt] = useState<TestAttempt | null>(null)
+  const [testAttemptError, setTestAttemptError] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<ContentBlock | null>(null)
   const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set())
   const [completedBlockIds, setCompletedBlockIds] = useState<Set<string>>(new Set())
@@ -547,6 +572,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             ...ex,
             // For group_sort, the questions column stores groupData
             groupData: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.groupData,
+            test_type: ex.test_type || null,
           })))
           setBlocks(
             (data.blocks || []).sort(
@@ -652,7 +678,64 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     } catch {}
   }
 
-  const handleExerciseComplete = async (score: number, total: number) => {
+  // When a test-tagged exercise is selected, hit /api/test-attempt to either
+  // start a new attempt (201) or learn that the student has already taken it
+  // (409 with attempt details). Non-test exercises are untouched.
+  useEffect(() => {
+    if (!selectedExercise) {
+      setTestAttemptStatus(null)
+      setTestAttempt(null)
+      setTestAttemptError('')
+      return
+    }
+    if (!selectedExercise.test_type) {
+      // Regular practice — no lock logic
+      setTestAttemptStatus(null)
+      setTestAttempt(null)
+      return
+    }
+
+    let cancelled = false
+    setTestAttemptStatus('loading')
+    setTestAttemptError('')
+    fetch('/api/test-attempt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activity_id: selectedExercise.id }),
+    })
+      .then(async (res) => {
+        const body = await res.json()
+        if (cancelled) return
+        if (res.status === 201) {
+          setTestAttemptStatus('started')
+          setTestAttempt(body.attempt || null)
+        } else if (res.status === 409) {
+          setTestAttemptStatus(body.status === 'already_submitted' ? 'already_submitted' : 'already_started')
+          setTestAttempt(body.attempt || null)
+        } else {
+          setTestAttemptStatus('error')
+          setTestAttemptError(body.error || 'Could not start test')
+        }
+      })
+      .catch(() => {
+        if (cancelled) return
+        setTestAttemptStatus('error')
+        setTestAttemptError('Network error starting test')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedExercise])
+
+  // Helper for runners that want to report per-question right/wrong on submit.
+  // Most runners just pass undefined for the third arg (we still store a null
+  // per_question_results on the test row in that case).
+  const handleExerciseComplete = async (
+    score: number,
+    total: number,
+    perQuestionResults?: boolean[]
+  ) => {
     if (!selectedExercise) return
 
     const newCompleted = new Set(completedExerciseIds)
@@ -670,19 +753,35 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       setTimeout(() => setPointsToast(null), 4000)
     }
 
+    // Tests use the test-attempt endpoint (PATCH the already-started row).
+    // Regular practice uses /api/progress as before.
+    const isTest = !!selectedExercise.test_type
     try {
-      await fetch('/api/progress', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_email: studentEmail,
-          activity_type: 'exercise',
-          activity_id: selectedExercise.id,
-          score,
-          total,
-          points_earned: pointsEarned,
-        }),
-      })
+      if (isTest) {
+        await fetch('/api/test-attempt', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            activity_id: selectedExercise.id,
+            score,
+            total,
+            per_question_results: perQuestionResults ?? null,
+          }),
+        })
+      } else {
+        await fetch('/api/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_email: studentEmail,
+            activity_type: 'exercise',
+            activity_id: selectedExercise.id,
+            score,
+            total,
+            points_earned: pointsEarned,
+          }),
+        })
+      }
     } catch {}
 
     try {
@@ -825,6 +924,135 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     let runnerContent: React.ReactNode = null
     const mainCls = "min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto"
 
+    // ─── Test-lock branching ─────────────────────────────────────
+    // For test-tagged exercises, we override the normal runner with
+    // a lock screen when the student has already opened or submitted.
+    if (selectedExercise.test_type) {
+      if (testAttemptStatus === 'loading' || testAttemptStatus === null) {
+        runnerContent = (
+          <div className="flex flex-col gap-4">
+            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+              ← Back
+            </button>
+            <div className="text-center text-sm text-gray-400 mt-12">Preparing test…</div>
+          </div>
+        )
+      } else if (testAttemptStatus === 'error') {
+        runnerContent = (
+          <div className="flex flex-col gap-4">
+            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+              ← Back
+            </button>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+              <p className="text-sm font-bold text-red-600 mb-1">Could not open test</p>
+              <p className="text-xs text-red-500">{testAttemptError || 'Please try again or contact your teacher.'}</p>
+            </div>
+          </div>
+        )
+      } else if (testAttemptStatus === 'already_started') {
+        // Strict single-start: they opened it before but never submitted.
+        // Locked. Only teacher can reset.
+        runnerContent = (
+          <div className="flex flex-col gap-4">
+            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+              ← Back
+            </button>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+              <div className="text-4xl text-center mb-3">⏸️</div>
+              <h2 className="text-base font-bold text-amber-700 text-center mb-2">Test attempt incomplete</h2>
+              <p className="text-sm text-amber-700 text-center leading-relaxed">
+                You opened this test on{' '}
+                <span className="font-bold">
+                  {testAttempt?.started_at
+                    ? new Date(testAttempt.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : 'an earlier date'}
+                </span>{' '}
+                but didn&apos;t submit it. Tests can only be taken once.
+              </p>
+              <p className="text-xs text-amber-600 text-center mt-3">
+                Please contact your teacher to reset your attempt.
+              </p>
+            </div>
+          </div>
+        )
+      } else if (testAttemptStatus === 'already_submitted') {
+        // Already submitted — show score + cheap per-question right/wrong review
+        // (we don't show what they chose, just which questions they got right).
+        const a = testAttempt
+        const submittedPct = a?.score != null && a?.total ? Math.round((a.score / a.total) * 100) : null
+        const submittedAtLabel = a?.completed_at
+          ? new Date(a.completed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+          : ''
+        // Compute correct-answer text per question for the review screen.
+        // We rely on the same `questions` shape stored on the exercise.
+        const reviewQuestions = Array.isArray(selectedExercise.questions) ? selectedExercise.questions : []
+        const perResults = Array.isArray(a?.per_question_results) ? (a!.per_question_results as boolean[]) : []
+        runnerContent = (
+          <div className="flex flex-col gap-4">
+            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+              ← Back
+            </button>
+            <div className="text-center py-2">
+              <div className="text-5xl mb-3">
+                {submittedPct != null ? (submittedPct >= 80 ? '🌟' : submittedPct >= 60 ? '👍' : '💪') : '📝'}
+              </div>
+              <h2 className="text-xl font-bold text-[#416ebe]">Test completed</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {submittedPct != null ? <>You scored {a?.score}/{a?.total} ({submittedPct}%)</> : 'Score: not recorded'}
+                {submittedAtLabel && <> · {submittedAtLabel}</>}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1">
+                Tests can only be taken once. Contact your teacher if you need a retry.
+              </p>
+            </div>
+            {perResults.length > 0 && reviewQuestions.length > 0 && (
+              <div className="space-y-2">
+                {reviewQuestions.map((q: { prompt?: string; options?: string[]; correctIndex?: number; answer?: string; correctIndices?: number[] }, i: number) => {
+                  const correct = perResults[i] === true
+                  // Derive a readable "correct answer" string per common shape.
+                  let correctText = ''
+                  if (Array.isArray(q.options) && Array.isArray(q.correctIndices)) {
+                    correctText = q.correctIndices.map((idx) => q.options?.[idx]).filter(Boolean).join(', ')
+                  } else if (Array.isArray(q.options) && typeof q.correctIndex === 'number') {
+                    correctText = q.options[q.correctIndex] || ''
+                  } else if (typeof q.answer === 'string') {
+                    correctText = q.answer
+                  }
+                  return (
+                    <div key={i} className={`bg-white rounded-xl border-2 p-3 ${correct ? 'border-green-200' : 'border-red-200'}`}>
+                      <div className="flex items-start gap-2">
+                        <span className={`text-sm font-bold mt-0.5 ${correct ? 'text-green-500' : 'text-red-400'}`}>
+                          {correct ? '✓' : '✗'}
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-sm text-[#46464b]">{q.prompt || `Question ${i + 1}`}</p>
+                          {correctText && (
+                            <p className="text-xs mt-1">
+                              <span className="text-gray-400">Correct: </span>
+                              <span className="text-green-600 font-bold">{correctText}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {(perResults.length === 0 || reviewQuestions.length === 0) && (
+              <p className="text-xs text-gray-400 text-center italic">
+                Detailed per-question review is not available for this exercise.
+              </p>
+            )}
+          </div>
+        )
+      }
+      // else testAttemptStatus === 'started' → fall through to render the
+      // normal runner below
+    }
+
+    if (!runnerContent) {
+
     if (exType === 'true_or_false') {
       runnerContent = <TrueOrFalseRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else if (exType === 'hangman') {
@@ -855,6 +1083,8 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
       runnerContent = <ExerciseRunner exercise={{ id: 0, title: selectedExercise.title, subtitle: selectedExercise.subtitle, icon: selectedExercise.icon, instructions: selectedExercise.instructions, questions: selectedExercise.questions }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     }
+    } // end of if (!runnerContent) — skip the runner-selection chain when
+      // the test-lock branch above already produced runnerContent
 
     return (
       <>

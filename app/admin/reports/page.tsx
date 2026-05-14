@@ -471,6 +471,32 @@ export default function ReportsPage() {
     }
   }
 
+  // Teacher action: reset a student's attempt on a specific test.
+  // Deletes the progress row so the student can take it again.
+  const resetTestAttempt = async (activityId: string) => {
+    if (!selectedStudentEmail) return
+    const ok = confirm(
+      'Reset this test attempt? The student will be able to take it again. This cannot be undone.'
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(
+        `/api/test-attempt?activity_id=${encodeURIComponent(activityId)}&student_email=${encodeURIComponent(selectedStudentEmail)}`,
+        { method: 'DELETE' }
+      )
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'Failed to reset')
+      // Re-fetch report data so the Tests row updates
+      if (selectedCourseId) {
+        const r = await fetch(`/api/reports?courseId=${encodeURIComponent(selectedCourseId)}&days=${days}`)
+        const d = await r.json()
+        setData(d)
+      }
+    } catch (e) {
+      alert((e as Error).message || 'Failed to reset attempt')
+    }
+  }
+
   const deleteNote = async (noteId: string) => {
     if (!confirm('Delete this note?')) return
     setNotesError('')
@@ -940,6 +966,7 @@ export default function ReportsPage() {
             onChangeNewNoteTag={setNewNoteTag}
             onAddNote={addNote}
             onDeleteNote={deleteNote}
+            onResetTestAttempt={resetTestAttempt}
           />
         </div>
       ) : (
@@ -1251,6 +1278,7 @@ interface StudentDetailProps {
   onChangeNewNoteTag: (v: string) => void
   onAddNote: () => void
   onDeleteNote: (id: string) => void
+  onResetTestAttempt: (activityId: string) => void
 }
 
 function StudentDetail({
@@ -1266,6 +1294,7 @@ function StudentDetail({
   onChangeNewNoteTag,
   onAddNote,
   onDeleteNote,
+  onResetTestAttempt,
 }: StudentDetailProps) {
   return (
     <div className="space-y-5">
@@ -1499,6 +1528,7 @@ function StudentDetail({
                   <th className="py-2 px-3 border-b border-[#e6f0fa]">Latest</th>
                   <th className="py-2 px-3 border-b border-[#e6f0fa]">Attempts</th>
                   <th className="py-2 px-3 border-b border-[#e6f0fa]">Taken</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa] print:hidden"></th>
                 </tr>
               </thead>
               <tbody>
@@ -1521,6 +1551,17 @@ function StudentDetail({
                     <td className="py-3 px-3">{t.attempts}</td>
                     <td className="py-3 px-3 text-xs text-gray-500">
                       {t.firstAt ? new Date(t.firstAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : <span className="text-gray-300">not taken</span>}
+                    </td>
+                    <td className="py-3 px-3 text-right print:hidden">
+                      {t.attempts > 0 && (
+                        <button
+                          onClick={() => onResetTestAttempt(t.id)}
+                          title="Delete this attempt so the student can retake the test"
+                          className="text-[10px] text-gray-300 hover:text-red-500 font-bold transition-colors"
+                        >
+                          ↺ Reset
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
