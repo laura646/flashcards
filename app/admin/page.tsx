@@ -85,9 +85,20 @@ export default function AdminPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
-  // Initial view honours ?view=students (so the sidebar's "My Students"
-  // link deep-links straight to that tab). Default is my-courses.
-  const initialView: View = searchParams.get('view') === 'students' ? 'my-students' : 'my-courses'
+  // URL-driven initial view. Supports four entry shapes:
+  //   ?view=students         → My Students list (sidebar entry)
+  //   ?courseDetail=<id>     → Course detail (redirected from /admin/courses/[id])
+  //   ?studentDetail=<email> → Student detail (redirected from /admin/students/[email])
+  //   (no param)             → My Courses list (default)
+  const initialCourseDetail = searchParams.get('courseDetail')
+  const initialStudentDetail = searchParams.get('studentDetail')
+  const initialView: View = initialCourseDetail
+    ? 'course-detail'
+    : initialStudentDetail
+    ? 'student-detail'
+    : searchParams.get('view') === 'students'
+    ? 'my-students'
+    : 'my-courses'
   const [view, setView] = useState<View>(initialView)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
@@ -222,8 +233,28 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (status === 'authenticated' && isAdmin) {
-      // Load whichever data is needed for the initial view
-      if (initialView === 'my-students') {
+      // Load whichever data is needed for the initial view.
+      // courseDetail / studentDetail URL params come from the new
+      // /admin/courses/[id] and /admin/students/[email] redirects.
+      if (initialCourseDetail) {
+        loadCourseDetail(initialCourseDetail)
+      } else if (initialStudentDetail) {
+        // Need a minimal stub student to feed loadStudentDetail. The
+        // real data gets fetched server-side anyway.
+        loadStudentDetail({
+          email: initialStudentDetail,
+          name: '',
+          created_at: '',
+          level: null,
+          learning_goals: null,
+          company: null,
+          common_issues_tags: [],
+          common_issues_comments: null,
+          blocked: false,
+          notes: null,
+          courses: [],
+        })
+      } else if (initialView === 'my-students') {
         loadMyStudents()
       } else {
         loadCourses()

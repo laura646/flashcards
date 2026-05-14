@@ -20,22 +20,27 @@ interface NavItem {
 // Primary nav (above the divider). Order matters — what teachers
 // hit most often goes near the top.
 //
-// Note: "My Courses" and "My Students" both live on the /admin page
-// (legacy tabbed) until we extract them into proper /admin/courses
-// and /admin/students routes. The sidebar distinguishes via the
-// ?view=students query param.
+// My Courses and My Students now have their own clean routes
+// (/admin/courses and /admin/students). The detail-level routes
+// (/admin/courses/[id] and /admin/students/[email]) currently redirect
+// to /admin?courseDetail=… / ?studentDetail=… so the legacy detail
+// views keep working. The matcher accounts for either landing spot.
 const PRIMARY_NAV: NavItem[] = [
   {
-    href: '/admin',
+    href: '/admin/courses',
     label: 'My Courses',
     icon: '📚',
-    match: (p, v) => p === '/admin' && v !== 'students',
+    match: (p, v) =>
+      (p?.startsWith('/admin/courses') ?? false) ||
+      (p === '/admin' && v !== 'students'),
   },
   {
-    href: '/admin?view=students',
+    href: '/admin/students',
     label: 'My Students',
     icon: '👥',
-    match: (p, v) => p === '/admin' && v === 'students',
+    match: (p, v) =>
+      (p?.startsWith('/admin/students') ?? false) ||
+      (p === '/admin' && v === 'students'),
   },
   {
     href: '/admin/lessons',
@@ -60,6 +65,12 @@ const PRIMARY_NAV: NavItem[] = [
     label: 'Content Bank',
     icon: '🗃️',
     match: (p) => p?.startsWith('/admin/content-bank') ?? false,
+  },
+  {
+    href: '/admin/help',
+    label: 'Help & Docs',
+    icon: '❓',
+    match: (p) => p?.startsWith('/admin/help') ?? false,
   },
 ]
 
