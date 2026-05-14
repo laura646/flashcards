@@ -143,6 +143,7 @@ export default function ReportsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>('')
   const [days, setDays] = useState<string>('30')
   const [selectedStudentEmail, setSelectedStudentEmail] = useState<string>('')
+  const [overviewMode, setOverviewMode] = useState<'table' | 'heatmap'>('table')
   const [loading, setLoading] = useState(true)
 
   // Notes loaded on-demand per selected student (not in the main /api/reports payload)
@@ -557,12 +558,48 @@ export default function ReportsPage() {
         </button>
       )}
 
+      {/* View toggle (only shown on overview, hidden in print) */}
+      {!selectedStudentEmail && (
+        <div className="flex items-center gap-1 mb-3 print:hidden">
+          <button
+            onClick={() => setOverviewMode('table')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+              overviewMode === 'table'
+                ? 'bg-[#416ebe] text-white'
+                : 'text-[#46464b] hover:text-[#416ebe]'
+            }`}
+          >
+            Table
+          </button>
+          <button
+            onClick={() => setOverviewMode('heatmap')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+              overviewMode === 'heatmap'
+                ? 'bg-[#416ebe] text-white'
+                : 'text-[#46464b] hover:text-[#416ebe]'
+            }`}
+          >
+            Heatmap
+          </button>
+        </div>
+      )}
+
       {/* Overview or detail */}
       {!selectedStudentEmail ? (
-        <OverviewTable
-          rows={studentAggregates}
-          onClickStudent={(email) => setSelectedStudentEmail(email)}
-        />
+        overviewMode === 'heatmap' ? (
+          <HeatmapView
+            students={data.students}
+            exercises={data.exercises}
+            lessons={data.lessons}
+            progress={data.progress}
+            onClickStudent={(email) => setSelectedStudentEmail(email)}
+          />
+        ) : (
+          <OverviewTable
+            rows={studentAggregates}
+            onClickStudent={(email) => setSelectedStudentEmail(email)}
+          />
+        )
       ) : studentDetail ? (
         <StudentDetail
           detail={studentDetail}
@@ -675,6 +712,186 @@ type StudentDetailData = {
   streak: number
   skillBreakdown: { skill: string; label: string; avgPct: number; attempted: number }[]
   cefrBreakdown: { level: string; avgPct: number; attempted: number }[]
+}
+
+// ─────────── HeatmapView ───────────
+// Class-wide grid: rows = students, columns = exercises (ordered by lesson
+// date then by order_index). Cell colour = student's latest score on that
+// exercise. Hover for full info, click for student detail.
+
+function getHeatmapColor(latest: number | null): string {
+  if (latest == null) return 'bg-gray-100 text-gray-300'
+  if (latest < 50) return 'bg-red-100 text-red-700'
+  if (latest < 70) return 'bg-amber-100 text-amber-700'
+  if (latest < 90) return 'bg-lime-100 text-lime-700'
+  return 'bg-green-100 text-green-700'
+}
+
+function HeatmapView({
+  students,
+  exercises,
+  lessons,
+  progress,
+  onClickStudent,
+}: {
+  students: Student[]
+  exercises: Exercise[]
+  lessons: Lesson[]
+  progress: ProgressRecord[]
+  onClickStudent: (email: string) => void
+}) {
+  // Lesson date order — used to sort exercises across lessons
+  const lessonOrder = useMemo(() => {
+    const m = new Map<string, number>()
+    lessons.forEach((l, i) => m.set(l.id, i))
+    return m
+  }, [lessons])
+
+  // Sort exercises by lesson order, then their own order_index from the API
+  // (the API already returned them ordered by order_index ascending within
+  // each lesson)
+  const sortedExercises = useMemo(() => {
+    const byLesson = new Map<string, Exercise[]>()
+    for (const ex of exercises) {
+      if (!byLesson.has(ex.lesson_id)) byLesson.set(ex.lesson_id, [])
+      byLesson.get(ex.lesson_id)!.push(ex)
+    }
+    const out: Exercise[] = []
+    const lessonIdsByDate = [...lessonOrder.keys()].sort(
+      (a, b) => (lessonOrder.get(a) ?? 999) - (lessonOrder.get(b) ?? 999)
+    )
+    for (const lid of lessonIdsByDate) {
+      const arr = byLesson.get(lid) || []
+      out.push(...arr)
+    }
+    return out
+  }, [exercises, lessonOrder])
+
+  // Map: lesson_id -> lesson title (for tooltip on the column header)
+  const lessonTitleById = useMemo(
+    () => new Map(lessons.map((l) => [l.id, l.title])),
+    [lessons]
+  )
+
+  // Grid: studentEmail -> exerciseId -> { latest, attempts }
+  const grid = useMemo(() => {
+    const g: Record<string, Record<string, { latest: number | null; attempts: number }>> = {}
+    for (const s of students) g[s.email] = {}
+    const courseExerciseIds = new Set(exercises.map((e) => e.id))
+
+    // Progress is sorted DESC by completed_at from /api/reports — so the
+    // first time we see a (student, exercise) pair is the LATEST attempt.
+    for (const p of progress) {
+      if (p.activity_type !== 'exercise') continue
+      if (!courseExerciseIds.has(p.activity_id)) continue
+      if (!g[p.user_email]) continue
+      if (!g[p.user_email][p.activity_id]) {
+        const latestPct = p.score != null && p.total ? Math.round((p.score / p.total) * 100) : null
+        g[p.user_email][p.activity_id] = { latest: latestPct, attempts: 1 }
+      } else {
+        g[p.user_email][p.activity_id].attempts += 1
+      }
+    }
+    return g
+  }, [students, exercises, progress])
+
+  // Sort students: highest completion first, ties by name
+  const sortedStudents = useMemo(() => {
+    return [...students]
+      .map((s) => {
+        const completed = Object.values(grid[s.email] || {}).filter((c) => c.latest != null).length
+        return { ...s, completed }
+      })
+      .sort((a, b) => b.completed - a.completed || (a.name || a.email).localeCompare(b.name || b.email))
+  }, [students, grid])
+
+  if (sortedStudents.length === 0) {
+    return <div className="text-sm text-gray-500 py-8 text-center">No students enrolled in this course yet.</div>
+  }
+  if (sortedExercises.length === 0) {
+    return <div className="text-sm text-gray-500 py-8 text-center">No exercises in this course yet.</div>
+  }
+
+  return (
+    <div className="bg-white border border-[#e6f0fa] rounded-xl">
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-3 px-3 py-2 border-b border-[#e6f0fa] text-[10px] text-gray-500">
+        <span className="font-bold uppercase">Legend:</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-100" /> &lt;50</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-100" /> 50–69</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-lime-100" /> 70–89</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-green-100" /> 90+</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-gray-100" /> not attempted</span>
+        <span className="ml-auto text-gray-400">Tip: hover a cell for details. Click for student detail.</span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="text-xs border-collapse">
+          <thead>
+            <tr className="bg-[#f7fafd]">
+              <th className="sticky left-0 z-10 bg-[#f7fafd] py-2 px-3 border-b border-[#e6f0fa] text-left text-[10px] font-bold text-gray-500 uppercase min-w-[160px]">
+                Student
+              </th>
+              {sortedExercises.map((ex, i) => {
+                const prevEx = sortedExercises[i - 1]
+                const newLesson = !prevEx || prevEx.lesson_id !== ex.lesson_id
+                const lessonTitle = lessonTitleById.get(ex.lesson_id) || ''
+                return (
+                  <th
+                    key={ex.id}
+                    title={`${lessonTitle ? lessonTitle + ' — ' : ''}${ex.title || '(untitled)'}`}
+                    className={`py-2 px-1.5 border-b border-[#e6f0fa] text-[10px] font-bold text-gray-500 text-center min-w-[28px] ${
+                      newLesson && i > 0 ? 'border-l-2 border-l-[#cddcf0]' : ''
+                    }`}
+                  >
+                    {i + 1}
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedStudents.map((s) => (
+              <tr key={s.email} className="hover:bg-[#fafcff]">
+                <td
+                  onClick={() => onClickStudent(s.email)}
+                  className="sticky left-0 z-10 bg-white py-2 px-3 border-b border-[#e6f0fa] cursor-pointer hover:bg-[#f7fafd] min-w-[160px]"
+                  title="Click to open student detail"
+                >
+                  <div className="font-medium text-[#46464b] truncate" style={{ maxWidth: 160 }}>
+                    {s.name || s.email}
+                  </div>
+                  <div className="text-[10px] text-gray-400 truncate" style={{ maxWidth: 160 }}>
+                    {s.email}
+                  </div>
+                </td>
+                {sortedExercises.map((ex, i) => {
+                  const prevEx = sortedExercises[i - 1]
+                  const newLesson = !prevEx || prevEx.lesson_id !== ex.lesson_id
+                  const cell = grid[s.email]?.[ex.id]
+                  const latest = cell?.latest ?? null
+                  const attempts = cell?.attempts ?? 0
+                  const tooltip = `${s.name || s.email} — ${ex.title || '(untitled)'}\n${latest != null ? `Latest: ${latest}%` : 'Not attempted'}${attempts > 0 ? `\nAttempts: ${attempts}` : ''}`
+                  return (
+                    <td
+                      key={ex.id}
+                      title={tooltip}
+                      onClick={() => onClickStudent(s.email)}
+                      className={`py-2 px-1 border-b border-[#e6f0fa] text-center font-bold cursor-pointer hover:opacity-70 transition-opacity ${getHeatmapColor(latest)} ${
+                        newLesson && i > 0 ? 'border-l-2 border-l-[#cddcf0]' : ''
+                      }`}
+                    >
+                      {latest != null ? latest : ''}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
 
 interface StudentDetailProps {
