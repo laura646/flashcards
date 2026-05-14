@@ -101,6 +101,184 @@ const SKILL_LABELS: Record<string, string> = {
 
 const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
 
+// Payload sent to /api/student-summary. Must match DigestPayload there.
+interface SummaryDigest {
+  studentName: string
+  studentEmail: string
+  courseId: string
+  courseName: string
+  timeRangeLabel: string
+  completionPct: number
+  attempted: number
+  assigned: number
+  avgLatestPct: number | null
+  avgBestPct: number | null
+  attendancePct: number | null
+  attendanceMarked: number
+  streak: number
+  totalAttempts: number
+  trendDirection: 'up' | 'down' | 'flat' | 'none'
+  topStrengths: { title: string; pct: number }[]
+  topWeaknesses: { title: string; pct: number }[]
+  skillBreakdown: { label: string; avgPct: number; attempted: number }[]
+  cefrBreakdown: { level: string; avgPct: number; attempted: number }[]
+}
+
+// Pure helper — builds the digest for one student from the report payload.
+// Duplicates some of studentDetail's computation, intentionally, so it can
+// run from fetchSummary without depending on the React-scoped useMemo.
+function computeStudentDigest(
+  data: {
+    course: { id: string; name: string } | null
+    students: { email: string; name: string | null }[]
+    lessons: { id: string; lesson_date: string | null }[]
+    exercises: { id: string; lesson_id: string; title: string; skills: string[] | null; cefr_level: string | null }[]
+    progress: { user_email: string; activity_type: string; activity_id: string; score: number | null; total: number | null; completed_at: string }[]
+    attendance: { lesson_id: string; student_email: string; status: string }[]
+  },
+  studentEmail: string,
+  days: string
+): SummaryDigest | null {
+  if (!data.course) return null
+  const student = data.students.find((s) => s.email === studentEmail)
+  if (!student) return null
+
+  const courseExerciseIds = new Set(data.exercises.map((e) => e.id))
+  const exById = new Map(data.exercises.map((e) => [e.id, e]))
+  const studentExProgress = data.progress.filter(
+    (p) => p.user_email === studentEmail && p.activity_type === 'exercise' && courseExerciseIds.has(p.activity_id)
+  )
+
+  // Per-exercise latest + best
+  type PerEx = { id: string; title: string; attempts: number; latest: number | null; best: number | null }
+  const perEx: PerEx[] = data.exercises.map((ex) => {
+    const attempts = studentExProgress.filter((p) => p.activity_id === ex.id)
+    if (attempts.length === 0) return { id: ex.id, title: ex.title, attempts: 0, latest: null, best: null }
+    const latest = attempts[0]
+    const latestPct = latest.score != null && latest.total ? Math.round((latest.score / latest.total) * 100) : null
+    let best = 0
+    for (const a of attempts) {
+      if (a.score != null && a.total) {
+        const pct = Math.round((a.score / a.total) * 100)
+        if (pct > best) best = pct
+      }
+    }
+    return { id: ex.id, title: ex.title, attempts: attempts.length, latest: latestPct, best }
+  })
+
+  const attempted = perEx.filter((p) => p.attempts > 0).length
+  const assigned = data.exercises.length
+  const completionPct = assigned > 0 ? Math.round((attempted / assigned) * 100) : 0
+  const totalAttempts = perEx.reduce((s, p) => s + p.attempts, 0)
+
+  const latestPcts = perEx.map((p) => p.latest).filter((x): x is number => x != null)
+  const bestPcts = perEx.map((p) => p.best).filter((x): x is number => x != null)
+  const avgLatestPct = latestPcts.length > 0 ? Math.round(latestPcts.reduce((a, b) => a + b, 0) / latestPcts.length) : null
+  const avgBestPct = bestPcts.length > 0 ? Math.round(bestPcts.reduce((a, b) => a + b, 0) / bestPcts.length) : null
+
+  // Attendance %, filtered to lessons in the selected time range
+  const cutoffMs = (() => {
+    if (days === 'all') return 0
+    const n = parseInt(days, 10)
+    if (isNaN(n) || n <= 0) return 0
+    return Date.now() - n * 24 * 60 * 60 * 1000
+  })()
+  const lessonsInRangeIds = new Set(
+    data.lessons.filter((l) => !l.lesson_date || new Date(l.lesson_date).getTime() >= cutoffMs).map((l) => l.id)
+  )
+  const studentAttendance = data.attendance.filter(
+    (a) => a.student_email === studentEmail && lessonsInRangeIds.has(a.lesson_id)
+  )
+  const attendanceMarked = studentAttendance.length
+  const presentOrLate = studentAttendance.filter((a) => a.status === 'present' || a.status === 'late').length
+  const attendancePct = attendanceMarked > 0 ? Math.round((presentOrLate / attendanceMarked) * 100) : null
+
+  // Streak (uses full progress history, not time-range filtered)
+  const allStudentProgress = data.progress.filter((p) => p.user_email === studentEmail)
+  const streak = computeStreak(allStudentProgress.map((p) => p.completed_at))
+
+  // Score trend direction: compare first-half vs second-half avg of attempt scores
+  const scoredProgress = studentExProgress.filter((p) => p.score != null && p.total)
+  let trendDirection: 'up' | 'down' | 'flat' | 'none' = 'none'
+  if (scoredProgress.length >= 4) {
+    // progress is sorted desc by completed_at, so reverse for chronological
+    const chrono = scoredProgress.slice().reverse()
+    const half = Math.floor(chrono.length / 2)
+    const firstHalf = chrono.slice(0, half)
+    const secondHalf = chrono.slice(-half)
+    const avg = (arr: typeof chrono) =>
+      arr.reduce((s, p) => s + ((p.score as number) / (p.total as number)) * 100, 0) / arr.length
+    const diff = avg(secondHalf) - avg(firstHalf)
+    if (diff > 5) trendDirection = 'up'
+    else if (diff < -5) trendDirection = 'down'
+    else trendDirection = 'flat'
+  }
+
+  // Top strengths (best score) and weaknesses (latest score), excluding untaken
+  const topStrengths = perEx
+    .filter((p) => p.best != null)
+    .sort((a, b) => (b.best as number) - (a.best as number))
+    .slice(0, 3)
+    .map((p) => ({ title: p.title || '(untitled)', pct: p.best as number }))
+
+  const topWeaknesses = perEx
+    .filter((p) => p.latest != null)
+    .sort((a, b) => (a.latest as number) - (b.latest as number))
+    .slice(0, 3)
+    .map((p) => ({ title: p.title || '(untitled)', pct: p.latest as number }))
+
+  // Skill + CEFR breakdown (best score per exercise)
+  const bestByEx: Record<string, number> = {}
+  for (const p of perEx) if (p.best != null) bestByEx[p.id] = p.best
+  const skillSums: Record<string, { sum: number; count: number }> = {}
+  for (const [exId, pct] of Object.entries(bestByEx)) {
+    const ex = exById.get(exId)
+    if (!ex || !ex.skills) continue
+    for (const s of ex.skills) {
+      if (!skillSums[s]) skillSums[s] = { sum: 0, count: 0 }
+      skillSums[s].sum += pct
+      skillSums[s].count += 1
+    }
+  }
+  const skillBreakdown = Object.entries(skillSums)
+    .map(([s, v]) => ({ label: SKILL_LABELS[s] || s, avgPct: Math.round(v.sum / v.count), attempted: v.count }))
+    .sort((a, b) => b.avgPct - a.avgPct)
+
+  const cefrSums: Record<string, { sum: number; count: number }> = {}
+  for (const [exId, pct] of Object.entries(bestByEx)) {
+    const ex = exById.get(exId)
+    if (!ex || !ex.cefr_level) continue
+    if (!cefrSums[ex.cefr_level]) cefrSums[ex.cefr_level] = { sum: 0, count: 0 }
+    cefrSums[ex.cefr_level].sum += pct
+    cefrSums[ex.cefr_level].count += 1
+  }
+  const cefrBreakdown = CEFR_ORDER
+    .filter((l) => cefrSums[l])
+    .map((l) => ({ level: l, avgPct: Math.round(cefrSums[l].sum / cefrSums[l].count), attempted: cefrSums[l].count }))
+
+  return {
+    studentName: student.name || student.email,
+    studentEmail,
+    courseId: data.course.id,
+    courseName: data.course.name,
+    timeRangeLabel: days === 'all' ? 'All time' : `Last ${days} days`,
+    completionPct,
+    attempted,
+    assigned,
+    avgLatestPct,
+    avgBestPct,
+    attendancePct,
+    attendanceMarked,
+    streak,
+    totalAttempts,
+    trendDirection,
+    topStrengths,
+    topWeaknesses,
+    skillBreakdown,
+    cefrBreakdown,
+  }
+}
+
 // Compute consecutive-day streak counting back from today. A "study day"
 // is any day with at least one completed progress row.
 function computeStreak(completedDates: string[]): number {
@@ -153,6 +331,11 @@ export default function ReportsPage() {
   const [newNoteTag, setNewNoteTag] = useState('general')
   const [notesError, setNotesError] = useState('')
 
+  // AI narrative summary state — also per-student, lazy-loaded
+  const [summary, setSummary] = useState<string>('')
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState('')
+
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
 
   useEffect(() => {
@@ -191,6 +374,43 @@ export default function ReportsPage() {
       })
       .catch(() => setLoading(false))
   }, [selectedCourseId, days])
+
+  // Generate the AI narrative summary for the currently selected student.
+  // Called from the useEffect on student change AND from a manual "Regenerate"
+  // button.
+  const fetchSummary = async (d: ReportData | null) => {
+    if (!d || !selectedStudentEmail) return
+    const digest = computeStudentDigest(d, selectedStudentEmail, days)
+    if (!digest) return
+    setSummaryLoading(true)
+    setSummaryError('')
+    setSummary('')
+    try {
+      const res = await fetch('/api/student-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(digest),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error || 'Failed to generate summary')
+      setSummary(body.summary)
+    } catch (e) {
+      setSummaryError((e as Error).message)
+    }
+    setSummaryLoading(false)
+  }
+
+  // Trigger summary fetch when the selected student changes (not on every
+  // data refresh — teachers can hit Regenerate if data has materially shifted)
+  useEffect(() => {
+    if (!selectedStudentEmail) {
+      setSummary('')
+      setSummaryError('')
+      return
+    }
+    fetchSummary(data)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStudentEmail])
 
   // Load notes for a student when one is selected (separate endpoint)
   useEffect(() => {
@@ -601,20 +821,48 @@ export default function ReportsPage() {
           />
         )
       ) : studentDetail ? (
-        <StudentDetail
-          detail={studentDetail}
-          notes={notes}
-          notesLoading={notesLoading}
-          notesError={notesError}
-          newNoteText={newNoteText}
-          newNoteTag={newNoteTag}
-          currentUserEmail={session?.user?.email || ''}
-          isSuperadmin={session?.user?.role === 'superadmin'}
-          onChangeNewNoteText={setNewNoteText}
-          onChangeNewNoteTag={setNewNoteTag}
-          onAddNote={addNote}
-          onDeleteNote={deleteNote}
-        />
+        <div className="space-y-5">
+          {/* AI narrative summary card (at the top of student detail) */}
+          <div className="bg-gradient-to-br from-[#e6f0fa] to-white border border-[#cddcf0] rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-[10px] font-bold text-[#416ebe] uppercase flex items-center gap-1.5">
+                <span>✨</span> AI summary
+              </h3>
+              <button
+                onClick={() => fetchSummary(data)}
+                disabled={summaryLoading}
+                className="text-[10px] text-[#416ebe] font-bold hover:underline disabled:opacity-50 print:hidden"
+                title="Regenerate the summary with the latest data"
+              >
+                {summaryLoading ? 'Generating…' : '↻ Regenerate'}
+              </button>
+            </div>
+            {summaryError ? (
+              <p className="text-xs text-red-500">{summaryError}</p>
+            ) : summaryLoading && !summary ? (
+              <p className="text-sm text-gray-400 italic">Generating summary…</p>
+            ) : summary ? (
+              <p className="text-sm text-[#46464b] leading-relaxed">{summary}</p>
+            ) : (
+              <p className="text-sm text-gray-400 italic">Summary will appear here.</p>
+            )}
+          </div>
+
+          <StudentDetail
+            detail={studentDetail}
+            notes={notes}
+            notesLoading={notesLoading}
+            notesError={notesError}
+            newNoteText={newNoteText}
+            newNoteTag={newNoteTag}
+            currentUserEmail={session?.user?.email || ''}
+            isSuperadmin={session?.user?.role === 'superadmin'}
+            onChangeNewNoteText={setNewNoteText}
+            onChangeNewNoteTag={setNewNoteTag}
+            onAddNote={addNote}
+            onDeleteNote={deleteNote}
+          />
+        </div>
       ) : (
         <div className="text-sm text-gray-500">Student not found.</div>
       )}
