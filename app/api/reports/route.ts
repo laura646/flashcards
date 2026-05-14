@@ -55,6 +55,13 @@ interface ProgressRecord {
   score: number | null
   total: number | null
   completed_at: string
+  response_text: string | null
+}
+
+interface WritingBlock {
+  id: string
+  lesson_id: string
+  title: string | null
 }
 
 interface AttendanceRow {
@@ -97,6 +104,7 @@ export async function GET(req: NextRequest) {
       exercises: [],
       progress: [],
       attendance: [],
+      writingBlocks: [],
     })
   }
 
@@ -161,7 +169,7 @@ export async function GET(req: NextRequest) {
     if (studentEmails.length > 0) {
       let query = supabase
         .from('progress')
-        .select('user_email, activity_type, activity_id, score, total, completed_at')
+        .select('user_email, activity_type, activity_id, score, total, completed_at, response_text')
         .in('user_email', studentEmails)
         .order('completed_at', { ascending: false })
 
@@ -188,6 +196,18 @@ export async function GET(req: NextRequest) {
       attendance = (attRows || []) as AttendanceRow[]
     }
 
+    // 7. Writing blocks (lesson_blocks where block_type = 'writing') — used to
+    // resolve the title/lesson of each writing submission in the timeline.
+    let writingBlocks: WritingBlock[] = []
+    if (lessonIds.length > 0) {
+      const { data: blockRows } = await supabase
+        .from('lesson_blocks')
+        .select('id, lesson_id, title')
+        .in('lesson_id', lessonIds)
+        .eq('block_type', 'writing')
+      writingBlocks = (blockRows || []) as WritingBlock[]
+    }
+
     return NextResponse.json({
       courses: (courses || []) as Course[],
       course: course as Course,
@@ -196,6 +216,7 @@ export async function GET(req: NextRequest) {
       exercises,
       progress,
       attendance,
+      writingBlocks,
     })
   } catch (err) {
     console.error('Reports GET error:', err)

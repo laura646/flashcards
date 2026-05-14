@@ -51,6 +51,13 @@ interface ProgressRecord {
   score: number | null
   total: number | null
   completed_at: string
+  response_text: string | null
+}
+
+interface WritingBlock {
+  id: string
+  lesson_id: string
+  title: string | null
 }
 
 interface AttendanceRow {
@@ -80,6 +87,7 @@ interface ReportData {
   exercises: Exercise[]
   progress: ProgressRecord[]
   attendance: AttendanceRow[]
+  writingBlocks: WritingBlock[]
 }
 
 const NOTE_TAGS = [
@@ -684,6 +692,28 @@ export default function ReportsPage() {
         attempted: cefrSums[level].count,
       }))
 
+    // Writing submissions for this student (chronological, newest first).
+    // Each entry pairs a progress row (activity_type='writing') with its
+    // lesson_block title via the writingBlocks payload.
+    const writingBlocksById = new Map((data.writingBlocks || []).map((b) => [b.id, b]))
+    const lessonTitleById = new Map(data.lessons.map((l) => [l.id, l.title]))
+    const writingSubmissions = data.progress
+      .filter((p) => p.user_email === selectedStudentEmail && p.activity_type === 'writing')
+      .map((p) => {
+        const block = writingBlocksById.get(p.activity_id)
+        const lessonTitle = block ? lessonTitleById.get(block.lesson_id) || '' : ''
+        const text = p.response_text || ''
+        const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0
+        return {
+          id: p.activity_id + '_' + p.completed_at,
+          title: block?.title || 'Writing exercise',
+          lessonTitle,
+          completedAt: p.completed_at,
+          text,
+          wordCount,
+        }
+      })
+
     // Tests: exercises tagged with a test_type. Use the FIRST attempt as the
     // real grade (test conditions); show latest too for comparison/retakes.
     const tests = data.exercises
@@ -737,6 +767,7 @@ export default function ReportsPage() {
       skillBreakdown,
       cefrBreakdown,
       tests,
+      writingSubmissions,
     }
   }, [data, selectedStudentEmail])
 
@@ -1016,6 +1047,14 @@ type StudentDetailData = {
     first: number | null
     latest: number | null
     firstAt: string | null
+  }[]
+  writingSubmissions: {
+    id: string
+    title: string
+    lessonTitle: string
+    completedAt: string
+    text: string
+    wordCount: number
   }[]
 }
 
@@ -1491,6 +1530,20 @@ function StudentDetail({
         </div>
       )}
 
+      {/* Writing submissions timeline (only shown if there's at least one) */}
+      {detail.writingSubmissions.length > 0 && (
+        <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+          <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">
+            Writing submissions ({detail.writingSubmissions.length})
+          </h3>
+          <div className="space-y-3">
+            {detail.writingSubmissions.map((w) => (
+              <WritingEntry key={w.id} entry={w} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Per-exercise table */}
       <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
         <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">Per-exercise breakdown</h3>
@@ -1525,6 +1578,57 @@ function StudentDetail({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// Expandable writing-submission card. Shows date, prompt title, word count
+// and an excerpt by default. Click "Show full text" to expand.
+function WritingEntry({
+  entry,
+}: {
+  entry: { title: string; lessonTitle: string; completedAt: string; text: string; wordCount: number }
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const dateLabel = new Date(entry.completedAt).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+  const hasText = entry.text.trim().length > 0
+  const excerpt = entry.text.length > 240 ? entry.text.slice(0, 240).trim() + '…' : entry.text
+
+  return (
+    <div className="border border-[#e6f0fa] rounded-lg p-3">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-[#46464b]">{entry.title}</p>
+          <p className="text-[10px] text-gray-400">
+            {entry.lessonTitle && <>{entry.lessonTitle}{' • '}</>}
+            {dateLabel}
+            {' • '}
+            {entry.wordCount} word{entry.wordCount === 1 ? '' : 's'}
+          </p>
+        </div>
+        {hasText && entry.text.length > 240 && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="text-[10px] text-[#416ebe] font-bold hover:underline whitespace-nowrap print:hidden"
+          >
+            {expanded ? 'Collapse' : 'Show full text'}
+          </button>
+        )}
+      </div>
+      {hasText ? (
+        <p className="text-sm text-[#46464b] whitespace-pre-wrap leading-relaxed mt-2">
+          {expanded ? entry.text : excerpt}
+        </p>
+      ) : (
+        <p className="text-xs text-gray-300 italic mt-2">
+          No text recorded for this submission. (Likely submitted before the
+          response-text fix — only future writings will be saved.)
+        </p>
+      )}
     </div>
   )
 }

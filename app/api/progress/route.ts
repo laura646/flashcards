@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { user_email, activity_type, activity_id, score, total, points_earned } = body
+    const { user_email, activity_type, activity_id, score, total, points_earned, response_text } = body
 
     if (!user_email || !activity_type || !activity_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -106,6 +106,9 @@ export async function POST(req: NextRequest) {
         score: score ?? null,
         total: total ?? null,
         points_earned: points_earned ?? null,
+        // Writing submissions send the actual text here. Other activity
+        // types don't, so this is just null for them.
+        response_text: typeof response_text === 'string' && response_text.trim() ? response_text : null,
       })
 
     if (error) {
