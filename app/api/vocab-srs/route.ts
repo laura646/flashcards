@@ -23,7 +23,10 @@ export async function GET(req: NextRequest) {
 
   try {
     if (action === 'due') {
-      // Get words due for review (next_review_at <= now)
+      // Get words due for review (next_review_at <= now).
+      // Cap raised from 20 → 50 so larger backlogs aren't silently
+      // truncated. The trainer reviews this batch, then "Done" reloads
+      // the next batch, so nothing is permanently hidden.
       const { data, error } = await supabase
         .from('vocab_srs')
         .select('*')
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
         .lte('next_review_at', new Date().toISOString())
         .order('box_level', { ascending: true })
         .order('next_review_at', { ascending: true })
-        .limit(20)
+        .limit(50)
 
       if (error) throw error
       return NextResponse.json({ words: data || [] })
@@ -124,6 +127,14 @@ export async function POST(req: NextRequest) {
 
       const existingWords = new Set((existing || []).map((w: { word: string }) => w.word.toLowerCase()))
 
+      // Build a lookup of flashcard metadata by lowercased word so we can
+      // ENRICH struggled words instead of inserting blank meanings.
+      const fcByWord = new Map<string, { word: string; phonetic: string; meaning: string; example: string }>()
+      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string }) => {
+        const key = fc.word.toLowerCase()
+        if (!fcByWord.has(key)) fcByWord.set(key, fc)
+      })
+
       // Build new words to insert
       const newWords: { user_email: string; word: string; meaning: string; phonetic: string; example: string; box_level: number; next_review_at: string }[] = []
 
@@ -143,16 +154,20 @@ export async function POST(req: NextRequest) {
         }
       })
 
-      // From word struggles (words the student got wrong)
+      // From word struggles (words the student got wrong). Enrich from the
+      // matching flashcard if we have one — never insert blank metadata,
+      // because a card with no meaning is useless in flip/quiz review.
       ;(struggles || []).forEach((s: { word: string }) => {
-        if (!existingWords.has(s.word.toLowerCase())) {
-          existingWords.add(s.word.toLowerCase())
+        const key = s.word.toLowerCase()
+        if (!existingWords.has(key)) {
+          existingWords.add(key)
+          const match = fcByWord.get(key)
           newWords.push({
             user_email: email,
             word: s.word,
-            meaning: '',
-            phonetic: '',
-            example: '',
+            meaning: match?.meaning || '',
+            phonetic: match?.phonetic || '',
+            example: match?.example || '',
             box_level: 1,
             next_review_at: new Date().toISOString(),
           })

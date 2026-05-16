@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import SignOutButton from '@/components/SignOutButton'
 import { useRouter } from 'next/navigation'
+import VocabDueCard from '@/components/VocabDueCard'
 
 interface Course {
   id: string
@@ -236,6 +237,10 @@ export default function HomePage() {
             </div>
           </div>
         )}
+
+        {/* Daily spaced-repetition nudge — the #1 retention driver.
+            Self-contained: syncs + fetches its own data, hides if empty. */}
+        <VocabDueCard />
 
         {lessons.length === 0 ? (
           <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">

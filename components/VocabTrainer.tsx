@@ -62,8 +62,23 @@ export default function VocabTrainer({ onBack }: Props) {
   }, [])
 
   useEffect(() => {
-    Promise.all([loadStats(), loadDueWords()])
-      .finally(() => setLoading(false))
+    // Auto-sync on mount so the SRS self-populates from the student's
+    // lessons — no manual button click required. Silent + best-effort:
+    // if it fails we still show whatever's already in the box.
+    const init = async () => {
+      try {
+        await fetch('/api/vocab-srs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sync' }),
+        })
+      } catch {
+        /* non-blocking — fall through to load whatever exists */
+      }
+      await Promise.all([loadStats(), loadDueWords()])
+      setLoading(false)
+    }
+    init()
   }, [loadStats, loadDueWords])
 
   const handleSync = async () => {
@@ -498,8 +513,9 @@ export default function VocabTrainer({ onBack }: Props) {
           onClick={handleSync}
           disabled={syncing}
           className="flex-1 bg-[#e6f0fa] text-[#416ebe] font-bold py-3 rounded-xl text-sm hover:bg-[#cddcf0] transition-colors disabled:opacity-50"
+          title="Your words sync automatically — use this only if something looks out of date"
         >
-          {syncing ? 'Syncing...' : '🔄 Sync from lessons'}
+          {syncing ? 'Syncing...' : '🔄 Refresh'}
         </button>
         <button
           onClick={() => setView('add')}
@@ -512,7 +528,9 @@ export default function VocabTrainer({ onBack }: Props) {
       {stats && stats.total === 0 && (
         <div className="bg-[#f7fafd] rounded-xl border border-[#e6f0fa] p-4 text-center">
           <p className="text-xs text-gray-400">
-            No words yet. Click &quot;Sync from lessons&quot; to import your vocabulary, or add words manually.
+            No words yet. Your vocabulary imports automatically from your lessons —
+            once your teacher publishes lessons with flashcards, they&apos;ll appear
+            here. You can also add words manually.
           </p>
         </div>
       )}
