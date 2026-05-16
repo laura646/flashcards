@@ -10,6 +10,7 @@ interface SrsWord {
   meaning: string
   phonetic: string
   example: string
+  translation?: string | null
   image_url?: string | null
   box_level: number
   next_review_at: string
@@ -66,6 +67,69 @@ export default function VocabTrainer({ onBack }: Props) {
   const [stageBox, setStageBox] = useState<number | null>(null)
   const [stageWords, setStageWords] = useState<SrsWord[]>([])
   const [stageLoading, setStageLoading] = useState(false)
+
+  // Inline edit state (student editing their own word in the stage list)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ word: '', phonetic: '', meaning: '', example: '', translation: '' })
+  const [editSaving, setEditSaving] = useState(false)
+
+  const startEdit = (w: SrsWord) => {
+    setEditingId(w.id)
+    setEditForm({
+      word: w.word || '',
+      phonetic: w.phonetic || '',
+      meaning: w.meaning || '',
+      example: w.example || '',
+      translation: w.translation || '',
+    })
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+  }
+
+  const saveEdit = async (id: string) => {
+    if (!editForm.word.trim()) return
+    setEditSaving(true)
+    try {
+      const res = await fetch('/api/vocab-srs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          word_id: id,
+          word: editForm.word.trim(),
+          phonetic: editForm.phonetic,
+          meaning: editForm.meaning,
+          example: editForm.example,
+          translation: editForm.translation,
+        }),
+      })
+      if (res.ok) {
+        // Patch the row in place so the list reflects the edit immediately
+        setStageWords((prev) =>
+          prev.map((w) =>
+            w.id === id
+              ? {
+                  ...w,
+                  word: editForm.word.trim(),
+                  phonetic: editForm.phonetic,
+                  meaning: editForm.meaning,
+                  example: editForm.example,
+                  translation: editForm.translation || null,
+                }
+              : w
+          )
+        )
+        setEditingId(null)
+      } else {
+        setError('Could not save your changes. Please try again.')
+      }
+    } catch {
+      setError('Network error — changes not saved.')
+    }
+    setEditSaving(false)
+  }
 
   const openStage = useCallback(async (box: number) => {
     setStageBox(box)
@@ -401,6 +465,9 @@ export default function VocabTrainer({ onBack }: Props) {
           {flipped ? (
             <div className="text-center animate-fade-in">
               <p className="text-base text-[#46464b] font-medium">{word.meaning}</p>
+              {word.translation && (
+                <p className="text-sm text-[#416ebe] font-medium mt-1">🌐 {word.translation}</p>
+              )}
               {word.example && (
                 <p className="text-xs text-gray-400 italic mt-2">{word.example}</p>
               )}
@@ -596,18 +663,101 @@ export default function VocabTrainer({ onBack }: Props) {
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden divide-y divide-[#e6f0fa]">
-            {stageWords.map((w) => (
-              <div key={w.id} className="px-4 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <h4 className="text-sm font-bold text-[#46464b] truncate">{w.word}</h4>
-                    <AudioButton text={w.word} />
+            {stageWords.map((w) =>
+              editingId === w.id ? (
+                // ── Inline edit form ──
+                <div key={w.id} className="px-4 py-3 bg-[#f7fafd] space-y-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Word</label>
+                    <input
+                      type="text"
+                      value={editForm.word}
+                      onChange={(e) => setEditForm((f) => ({ ...f, word: e.target.value }))}
+                      className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#416ebe]"
+                    />
                   </div>
-                  {w.phonetic && <span className="text-xs text-gray-400 shrink-0">{w.phonetic}</span>}
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Phonetic</label>
+                    <input
+                      type="text"
+                      value={editForm.phonetic}
+                      onChange={(e) => setEditForm((f) => ({ ...f, phonetic: e.target.value }))}
+                      className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#416ebe]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Meaning</label>
+                    <input
+                      type="text"
+                      value={editForm.meaning}
+                      onChange={(e) => setEditForm((f) => ({ ...f, meaning: e.target.value }))}
+                      className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#416ebe]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">
+                      Translation <span className="text-gray-300 normal-case">(your language)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.translation}
+                      onChange={(e) => setEditForm((f) => ({ ...f, translation: e.target.value }))}
+                      placeholder="e.g. your own-language word"
+                      className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#416ebe]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Example</label>
+                    <input
+                      type="text"
+                      value={editForm.example}
+                      onChange={(e) => setEditForm((f) => ({ ...f, example: e.target.value }))}
+                      className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#416ebe]"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => saveEdit(w.id)}
+                      disabled={editSaving || !editForm.word.trim()}
+                      className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-2 rounded-lg text-xs transition-colors disabled:opacity-50"
+                    >
+                      {editSaving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      disabled={editSaving}
+                      className="px-4 text-xs font-bold text-gray-400 hover:text-[#46464b]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-                {w.meaning && <p className="text-xs text-gray-500 mt-0.5">{w.meaning}</p>}
-              </div>
-            ))}
+              ) : (
+                // ── Read-only row ──
+                <div key={w.id} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h4 className="text-sm font-bold text-[#46464b] truncate">{w.word}</h4>
+                      <AudioButton text={w.word} />
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {w.phonetic && <span className="text-xs text-gray-400">{w.phonetic}</span>}
+                      <button
+                        onClick={() => startEdit(w)}
+                        title="Edit this word (only you see your changes)"
+                        className="text-xs text-gray-300 hover:text-[#416ebe] transition-colors"
+                      >
+                        ✎ Edit
+                      </button>
+                    </div>
+                  </div>
+                  {w.meaning && <p className="text-xs text-gray-500 mt-0.5">{w.meaning}</p>}
+                  {w.translation && (
+                    <p className="text-xs text-[#416ebe] mt-0.5">🌐 {w.translation}</p>
+                  )}
+                </div>
+              )
+            )}
           </div>
         )}
       </div>

@@ -242,13 +242,20 @@ export async function POST(req: NextRequest) {
         .eq('user_email', email)
         .eq('knew', false)
 
-      // Get existing SRS words
+      // Get existing SRS words. We dedup against BOTH the (possibly
+      // student-edited) word AND the original source_word, so a student
+      // fixing a word's spelling never causes the next sync to re-add
+      // the old spelling as a duplicate.
       const { data: existing } = await supabase
         .from('vocab_srs')
-        .select('word')
+        .select('word, source_word')
         .eq('user_email', email)
 
-      const existingWords = new Set((existing || []).map((w: { word: string }) => w.word.toLowerCase()))
+      const existingWords = new Set<string>()
+      ;(existing || []).forEach((w: { word: string; source_word: string | null }) => {
+        if (w.word) existingWords.add(w.word.toLowerCase())
+        if (w.source_word) existingWords.add(w.source_word.toLowerCase())
+      })
 
       // Build a lookup of flashcard metadata by lowercased word so we can
       // ENRICH struggled words instead of inserting blank meanings.
@@ -259,7 +266,7 @@ export async function POST(req: NextRequest) {
       })
 
       // Build new words to insert
-      const newWords: { user_email: string; word: string; meaning: string; phonetic: string; example: string; image_url: string | null; box_level: number; next_review_at: string }[] = []
+      const newWords: { user_email: string; word: string; source_word: string; meaning: string; phonetic: string; example: string; image_url: string | null; box_level: number; next_review_at: string }[] = []
 
       // From flashcards
       ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null }) => {
@@ -268,6 +275,7 @@ export async function POST(req: NextRequest) {
           newWords.push({
             user_email: email,
             word: fc.word,
+            source_word: fc.word, // remember the original spelling for dedup
             meaning: fc.meaning || '',
             phonetic: fc.phonetic || '',
             example: fc.example || '',
@@ -289,6 +297,7 @@ export async function POST(req: NextRequest) {
           newWords.push({
             user_email: email,
             word: s.word,
+            source_word: s.word, // remember the original spelling for dedup
             meaning: match?.meaning || '',
             phonetic: match?.phonetic || '',
             example: match?.example || '',
@@ -371,7 +380,7 @@ export async function POST(req: NextRequest) {
 
     // Add a single word manually
     if (action === 'add') {
-      const { word, meaning, phonetic, example } = body
+      const { word, meaning, phonetic, example, translation } = body
       if (!word) {
         return NextResponse.json({ error: 'Missing word' }, { status: 400 })
       }
@@ -379,12 +388,51 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from('vocab_srs').upsert({
         user_email: email,
         word,
+        source_word: word,
         meaning: meaning || '',
         phonetic: phonetic || '',
         example: example || '',
+        translation: translation || null,
         box_level: 1,
         next_review_at: new Date().toISOString(),
       }, { onConflict: 'user_email,word' })
+
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // Student edits their OWN word. vocab_srs is per-user so this is
+    // private by construction — the .eq('user_email', email) guard
+    // means a student can only ever touch their own rows. source_word
+    // is intentionally NOT changed here, so sync keeps deduping against
+    // the original spelling even after the student fixes the word.
+    if (action === 'update') {
+      const { word_id, word, meaning, phonetic, example, notes, translation } = body
+      if (!word_id) {
+        return NextResponse.json({ error: 'Missing word_id' }, { status: 400 })
+      }
+      if (typeof word === 'string' && !word.trim()) {
+        return NextResponse.json({ error: 'Word cannot be empty' }, { status: 400 })
+      }
+
+      // Build a patch only from fields that were actually provided
+      const patch: Record<string, string | null> = {}
+      if (typeof word === 'string') patch.word = word.trim()
+      if (typeof meaning === 'string') patch.meaning = meaning
+      if (typeof phonetic === 'string') patch.phonetic = phonetic
+      if (typeof example === 'string') patch.example = example
+      if (typeof notes === 'string') patch.notes = notes
+      if (translation !== undefined) patch.translation = translation || null
+
+      if (Object.keys(patch).length === 0) {
+        return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+      }
+
+      const { error } = await supabase
+        .from('vocab_srs')
+        .update(patch)
+        .eq('id', word_id)
+        .eq('user_email', email)
 
       if (error) throw error
       return NextResponse.json({ ok: true })
