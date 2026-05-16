@@ -62,6 +62,30 @@ export default function VocabTrainer({ onBack }: Props) {
   const [focusWords, setFocusWords] = useState<{ id: string; word: string; meaning: string }[]>([])
   const [showFocus, setShowFocus] = useState(false)
 
+  // Clickable stage browser: which box (1–5) is being viewed + its words
+  const [stageBox, setStageBox] = useState<number | null>(null)
+  const [stageWords, setStageWords] = useState<SrsWord[]>([])
+  const [stageLoading, setStageLoading] = useState(false)
+
+  const openStage = useCallback(async (box: number) => {
+    setStageBox(box)
+    setStageLoading(true)
+    setStageWords([])
+    try {
+      const res = await fetch('/api/vocab-srs?action=all')
+      const data = await res.json()
+      const all: SrsWord[] = data.words || []
+      setStageWords(
+        all
+          .filter((w) => (w.box_level || 1) === box)
+          .sort((a, b) => a.word.localeCompare(b.word))
+      )
+    } catch {
+      /* leave empty — the view shows an empty state */
+    }
+    setStageLoading(false)
+  }, [])
+
   const loadStats = useCallback(async () => {
     const res = await fetch('/api/vocab-srs?action=stats')
     const data = await res.json()
@@ -190,6 +214,21 @@ export default function VocabTrainer({ onBack }: Props) {
     setReviewMode(effectiveMode)
     setView('review')
     if (effectiveMode === 'quiz') generateQuizOptions(0)
+  }
+
+  // Drill the currently-open stage's words as a focused review session
+  const reviewStage = () => {
+    if (stageWords.length === 0) return
+    setDueWords(stageWords)
+    setStageBox(null)
+    // Always flip mode for a stage drill (quiz needs a due-word pool)
+    setReviewMode('flip')
+    setCurrentIdx(0)
+    setFlipped(false)
+    setQuizSelected(null)
+    setSessionResults({ correct: 0, total: 0 })
+    setSessionDone(false)
+    setView('review')
   }
 
   const handleReviewResult = async (grade: Grade) => {
@@ -519,6 +558,62 @@ export default function VocabTrainer({ onBack }: Props) {
     )
   }
 
+  // ── STAGE WORD LIST (clicked a bar on the dashboard) ──
+  if (stageBox !== null) {
+    const label = BOX_LABELS[stageBox]
+    const isWeakStage = stageBox <= 3 // New / Learning / Familiar — worth drilling
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setStageBox(null)} className="text-sm text-gray-400 hover:text-[#416ebe]">← Back</button>
+          <h2 className="text-sm font-bold text-[#416ebe] flex-1">
+            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white mr-2 ${BOX_COLORS[stageBox]}`}>
+              {label}
+            </span>
+            {stageWords.length} word{stageWords.length === 1 ? '' : 's'}
+          </h2>
+        </div>
+
+        {isWeakStage && stageWords.length > 0 && (
+          <button
+            onClick={reviewStage}
+            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          >
+            Review these {stageWords.length} word{stageWords.length === 1 ? '' : 's'} now
+          </button>
+        )}
+
+        {stageLoading ? (
+          <div className="text-sm text-gray-400 text-center py-8">Loading…</div>
+        ) : stageWords.length === 0 ? (
+          <div className="bg-[#f7fafd] rounded-xl border border-[#e6f0fa] p-6 text-center">
+            <div className="text-3xl mb-2">{stageBox === 5 ? '🏆' : '📭'}</div>
+            <p className="text-xs text-gray-400">
+              {stageBox === 5
+                ? "No mastered words yet — keep reviewing and they'll land here."
+                : 'No words in this stage right now.'}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden divide-y divide-[#e6f0fa]">
+            {stageWords.map((w) => (
+              <div key={w.id} className="px-4 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h4 className="text-sm font-bold text-[#46464b] truncate">{w.word}</h4>
+                    <AudioButton text={w.word} />
+                  </div>
+                  {w.phonetic && <span className="text-xs text-gray-400 shrink-0">{w.phonetic}</span>}
+                </div>
+                {w.meaning && <p className="text-xs text-gray-500 mt-0.5">{w.meaning}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   // ── HOME / DASHBOARD ──
   const dueCount = stats?.due || dueWords.length
 
@@ -584,13 +679,21 @@ export default function VocabTrainer({ onBack }: Props) {
       {/* Box distribution */}
       {stats && stats.total > 0 && (
         <div className="bg-white rounded-2xl border border-[#cddcf0] p-4">
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Leitner Boxes — {stats.total} words</p>
+          <p className="text-xs font-bold text-gray-400 uppercase mb-3">Your words — {stats.total} total</p>
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((box) => {
               const count = stats[box as keyof Stats] as number || 0
               const pctHeight = stats.total > 0 ? Math.max((count / stats.total) * 100, count > 0 ? 10 : 0) : 0
               return (
-                <div key={box} className="flex-1 flex flex-col items-center gap-1">
+                <button
+                  key={box}
+                  onClick={() => count > 0 && openStage(box)}
+                  disabled={count === 0}
+                  className={`flex-1 flex flex-col items-center gap-1 rounded-lg p-1 transition-colors ${
+                    count > 0 ? 'hover:bg-[#f7fafd] cursor-pointer' : 'cursor-default'
+                  }`}
+                  title={count > 0 ? `See your ${count} ${BOX_LABELS[box]} word${count === 1 ? '' : 's'}` : undefined}
+                >
                   <div className="w-full h-20 bg-gray-100 rounded-lg relative overflow-hidden">
                     <div
                       className={`absolute bottom-0 w-full rounded-lg ${BOX_COLORS[box]} transition-all duration-500`}
@@ -599,10 +702,11 @@ export default function VocabTrainer({ onBack }: Props) {
                   </div>
                   <span className="text-xs font-bold text-gray-500">{count}</span>
                   <span className="text-[9px] text-gray-400">{BOX_LABELS[box]}</span>
-                </div>
+                </button>
               )
             })}
           </div>
+          <p className="text-[10px] text-gray-300 text-center mt-2">Tap a bar to see those words</p>
         </div>
       )}
 
