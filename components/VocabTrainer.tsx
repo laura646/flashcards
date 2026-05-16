@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import AudioButton from '@/components/AudioButton'
 
 interface SrsWord {
   id: string
@@ -8,9 +9,12 @@ interface SrsWord {
   meaning: string
   phonetic: string
   example: string
+  image_url?: string | null
   box_level: number
   next_review_at: string
 }
+
+type Grade = 'again' | 'hard' | 'good' | 'easy'
 
 interface Stats {
   1: number; 2: number; 3: number; 4: number; 5: number
@@ -162,16 +166,19 @@ export default function VocabTrainer({ onBack }: Props) {
     if (effectiveMode === 'quiz') generateQuizOptions(0)
   }
 
-  const handleReviewResult = async (correct: boolean) => {
+  const handleReviewResult = async (grade: Grade) => {
     const word = dueWords[currentIdx]
     if (!word) return
 
-    // Update SRS
+    // "again" is the only grade that counts as a miss for the session tally
+    const correct = grade !== 'again'
+
+    // Update SRS with the SM-2 grade
     try {
       const res = await fetch('/api/vocab-srs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'review', word_id: word.id, correct }),
+        body: JSON.stringify({ action: 'review', word_id: word.id, grade }),
       })
       if (!res.ok) setError('Failed to save review. Progress may be lost.')
     } catch {
@@ -201,8 +208,9 @@ export default function VocabTrainer({ onBack }: Props) {
     if (quizSelected !== null) return
     setQuizSelected(optionIdx)
     const correct = quizOptions[optionIdx] === dueWords[currentIdx].meaning
-    // Auto-advance after delay
-    setTimeout(() => handleReviewResult(correct), 1200)
+    // In quiz mode there's no self-grade — a right pick is "good",
+    // a wrong pick is "again" (SM-2 resets it).
+    setTimeout(() => handleReviewResult(correct ? 'good' : 'again'), 1200)
   }
 
   if (loading) {
@@ -291,7 +299,20 @@ export default function VocabTrainer({ onBack }: Props) {
           <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white mb-3 ${BOX_COLORS[word.box_level]}`}>
             {BOX_LABELS[word.box_level]}
           </span>
-          <h3 className="text-2xl font-bold text-[#46464b] mb-1">{word.word}</h3>
+          {word.image_url && (
+            <img
+              src={word.image_url}
+              alt=""
+              className="max-h-28 max-w-[200px] object-contain rounded-xl mb-3"
+            />
+          )}
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-2xl font-bold text-[#46464b]">{word.word}</h3>
+            {/* stopPropagation so tapping audio doesn't flip the card */}
+            <span onClick={(e) => e.stopPropagation()}>
+              <AudioButton text={word.word} />
+            </span>
+          </div>
           {word.phonetic && <p className="text-xs text-gray-400 mb-4">{word.phonetic}</p>}
 
           {flipped ? (
@@ -306,20 +327,36 @@ export default function VocabTrainer({ onBack }: Props) {
           )}
         </div>
 
-        {/* Answer buttons */}
+        {/* SM-2 grade buttons — how well did you recall it? */}
         {flipped && (
-          <div className="flex gap-3">
+          <div className="grid grid-cols-4 gap-2">
             <button
-              onClick={() => handleReviewResult(false)}
-              className="flex-1 bg-red-50 border-2 border-red-200 text-red-500 font-bold py-3 rounded-xl text-sm hover:bg-red-100 transition-colors"
+              onClick={() => handleReviewResult('again')}
+              className="bg-red-50 border-2 border-red-200 text-red-500 font-bold py-3 rounded-xl text-xs hover:bg-red-100 transition-colors"
             >
-              ✗ Didn&apos;t know
+              Again
+              <span className="block text-[9px] font-normal text-red-400 mt-0.5">forgot</span>
             </button>
             <button
-              onClick={() => handleReviewResult(true)}
-              className="flex-1 bg-green-50 border-2 border-green-200 text-green-600 font-bold py-3 rounded-xl text-sm hover:bg-green-100 transition-colors"
+              onClick={() => handleReviewResult('hard')}
+              className="bg-orange-50 border-2 border-orange-200 text-orange-500 font-bold py-3 rounded-xl text-xs hover:bg-orange-100 transition-colors"
             >
-              ✓ Knew it
+              Hard
+              <span className="block text-[9px] font-normal text-orange-400 mt-0.5">barely</span>
+            </button>
+            <button
+              onClick={() => handleReviewResult('good')}
+              className="bg-green-50 border-2 border-green-200 text-green-600 font-bold py-3 rounded-xl text-xs hover:bg-green-100 transition-colors"
+            >
+              Good
+              <span className="block text-[9px] font-normal text-green-500 mt-0.5">got it</span>
+            </button>
+            <button
+              onClick={() => handleReviewResult('easy')}
+              className="bg-blue-50 border-2 border-blue-200 text-blue-500 font-bold py-3 rounded-xl text-xs hover:bg-blue-100 transition-colors"
+            >
+              Easy
+              <span className="block text-[9px] font-normal text-blue-400 mt-0.5">too easy</span>
             </button>
           </div>
         )}
@@ -350,7 +387,10 @@ export default function VocabTrainer({ onBack }: Props) {
           <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white mb-3 ${BOX_COLORS[word.box_level]}`}>
             {BOX_LABELS[word.box_level]}
           </span>
-          <h3 className="text-2xl font-bold text-[#46464b]">{word.word}</h3>
+          <div className="flex items-center justify-center gap-2">
+            <h3 className="text-2xl font-bold text-[#46464b]">{word.word}</h3>
+            <AudioButton text={word.word} />
+          </div>
           {word.phonetic && <p className="text-xs text-gray-400 mt-1">{word.phonetic}</p>}
           <p className="text-xs text-gray-400 mt-3">What does this word mean?</p>
         </div>

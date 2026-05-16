@@ -3,13 +3,71 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 
-// Leitner intervals in hours
-const BOX_INTERVALS: Record<number, number> = {
-  1: 0,      // Box 1: review every session (immediate)
-  2: 48,     // Box 2: 2 days
-  3: 96,     // Box 3: 4 days
-  4: 192,    // Box 4: 8 days
-  5: 336,    // Box 5: 14 days (mastered)
+// ── SM-2 (SuperMemo 2) ──
+// 4 grade buttons map to SM-2 quality scores:
+//   Again = 1 (failed)  ·  Hard = 3  ·  Good = 4  ·  Easy = 5
+const GRADE_QUALITY: Record<string, number> = {
+  again: 1,
+  hard: 3,
+  good: 4,
+  easy: 5,
+}
+
+const MIN_EASE = 1.3
+const DEFAULT_EASE = 2.5
+
+// Max brand-new words (never reviewed) to surface per fetch, so a big
+// freshly-synced backlog doesn't overwhelm the student in one sitting.
+const NEW_WORDS_PER_FETCH = 15
+
+interface Sm2State {
+  ease_factor: number
+  interval_days: number
+  repetitions: number
+}
+
+// Run one SM-2 step. Returns the new memory state + next review date.
+function sm2(prev: Sm2State, quality: number): Sm2State & { next_review_at: string; box_level: number } {
+  let ease = prev.ease_factor || DEFAULT_EASE
+  let reps = prev.repetitions || 0
+  let interval = prev.interval_days || 0
+
+  if (quality < 3) {
+    // Failed recall — reset the streak, see it again tomorrow
+    reps = 0
+    interval = 1
+  } else {
+    if (reps === 0) interval = 1
+    else if (reps === 1) interval = 6
+    else interval = Math.round(interval * ease)
+    reps += 1
+  }
+
+  // Update the ease factor (standard SM-2 formula), clamped to a floor
+  ease = ease + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+  if (ease < MIN_EASE) ease = MIN_EASE
+
+  const next = new Date(Date.now() + interval * 24 * 60 * 60 * 1000)
+
+  return {
+    ease_factor: ease,
+    interval_days: interval,
+    repetitions: reps,
+    next_review_at: next.toISOString(),
+    box_level: boxFromInterval(interval),
+  }
+}
+
+// The existing stats bar chart is built around 5 "boxes". With SM-2 we
+// no longer have boxes — so derive a 1–5 mastery stage from the interval
+// to keep that visualisation working without a rewrite.
+//   <1d New · <7d Learning · <21d Familiar · <60d Known · ≥60d Mastered
+function boxFromInterval(intervalDays: number): number {
+  if (intervalDays < 1) return 1
+  if (intervalDays < 7) return 2
+  if (intervalDays < 21) return 3
+  if (intervalDays < 60) return 4
+  return 5
 }
 
 export async function GET(req: NextRequest) {
@@ -23,21 +81,35 @@ export async function GET(req: NextRequest) {
 
   try {
     if (action === 'due') {
-      // Get words due for review (next_review_at <= now).
-      // Cap raised from 20 → 50 so larger backlogs aren't silently
-      // truncated. The trainer reviews this batch, then "Done" reloads
-      // the next batch, so nothing is permanently hidden.
-      const { data, error } = await supabase
+      const nowIso = new Date().toISOString()
+
+      // 1. In-progress reviews that are due (already seen at least once).
+      //    These take priority — keeping known words fresh matters most.
+      const { data: reviewDue, error: rErr } = await supabase
         .from('vocab_srs')
         .select('*')
         .eq('user_email', email)
-        .lte('next_review_at', new Date().toISOString())
-        .order('box_level', { ascending: true })
+        .gt('repetitions', 0)
+        .lte('next_review_at', nowIso)
         .order('next_review_at', { ascending: true })
         .limit(50)
+      if (rErr) throw rErr
 
-      if (error) throw error
-      return NextResponse.json({ words: data || [] })
+      // 2. Brand-new words (never reviewed), throttled so a freshly
+      //    synced backlog doesn't dump hundreds at once.
+      const { data: newWords, error: nErr } = await supabase
+        .from('vocab_srs')
+        .select('*')
+        .eq('user_email', email)
+        .eq('repetitions', 0)
+        .lte('next_review_at', nowIso)
+        .order('next_review_at', { ascending: true })
+        .limit(NEW_WORDS_PER_FETCH)
+      if (nErr) throw nErr
+
+      // Reviews first, then a capped trickle of new words
+      const words = [...(reviewDue || []), ...(newWords || [])]
+      return NextResponse.json({ words })
     }
 
     if (action === 'stats') {
@@ -103,7 +175,7 @@ export async function POST(req: NextRequest) {
       // Get all flashcards the student has access to
       let flashcardQuery = supabase
         .from('lesson_flashcards')
-        .select('word, phonetic, meaning, example, lessons!inner(status, course_id)')
+        .select('word, phonetic, meaning, example, image_url, lessons!inner(status, course_id)')
         .eq('lessons.status', 'published')
 
       if (courseId) {
@@ -129,17 +201,17 @@ export async function POST(req: NextRequest) {
 
       // Build a lookup of flashcard metadata by lowercased word so we can
       // ENRICH struggled words instead of inserting blank meanings.
-      const fcByWord = new Map<string, { word: string; phonetic: string; meaning: string; example: string }>()
-      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string }) => {
+      const fcByWord = new Map<string, { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null }>()
+      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null }) => {
         const key = fc.word.toLowerCase()
         if (!fcByWord.has(key)) fcByWord.set(key, fc)
       })
 
       // Build new words to insert
-      const newWords: { user_email: string; word: string; meaning: string; phonetic: string; example: string; box_level: number; next_review_at: string }[] = []
+      const newWords: { user_email: string; word: string; meaning: string; phonetic: string; example: string; image_url: string | null; box_level: number; next_review_at: string }[] = []
 
       // From flashcards
-      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string }) => {
+      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null }) => {
         if (!existingWords.has(fc.word.toLowerCase())) {
           existingWords.add(fc.word.toLowerCase())
           newWords.push({
@@ -148,6 +220,7 @@ export async function POST(req: NextRequest) {
             meaning: fc.meaning || '',
             phonetic: fc.phonetic || '',
             example: fc.example || '',
+            image_url: fc.image_url || null,
             box_level: 1,
             next_review_at: new Date().toISOString(),
           })
@@ -168,6 +241,7 @@ export async function POST(req: NextRequest) {
             meaning: match?.meaning || '',
             phonetic: match?.phonetic || '',
             example: match?.example || '',
+            image_url: match?.image_url || null,
             box_level: 1,
             next_review_at: new Date().toISOString(),
           })
@@ -182,15 +256,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, added: newWords.length })
     }
 
-    // Review: update a word's box level based on correct/incorrect
+    // Review: run one SM-2 step from the student's grade.
+    // Accepts the new graded API { word_id, grade: again|hard|good|easy }
+    // and stays backward-compatible with the old { word_id, correct }.
     if (action === 'review') {
-      const { word_id, correct } = body
+      const { word_id, grade, correct } = body
 
-      if (!word_id || correct === undefined) {
-        return NextResponse.json({ error: 'Missing word_id or correct' }, { status: 400 })
+      if (!word_id) {
+        return NextResponse.json({ error: 'Missing word_id' }, { status: 400 })
       }
 
-      // Get current word
+      // Resolve the SM-2 quality score
+      let quality: number
+      if (typeof grade === 'string' && grade in GRADE_QUALITY) {
+        quality = GRADE_QUALITY[grade]
+      } else if (correct !== undefined) {
+        // Legacy binary path: knew it → Good, didn't → Again
+        quality = correct ? GRADE_QUALITY.good : GRADE_QUALITY.again
+      } else {
+        return NextResponse.json({ error: 'Missing grade or correct' }, { status: 400 })
+      }
+
       const { data: word } = await supabase
         .from('vocab_srs')
         .select('*')
@@ -202,29 +288,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Word not found' }, { status: 404 })
       }
 
-      let newBox: number
-      if (correct) {
-        // Move up one box (max 5)
-        newBox = Math.min(word.box_level + 1, 5)
-      } else {
-        // Back to box 1
-        newBox = 1
-      }
-
-      const intervalHours = BOX_INTERVALS[newBox] || 0
-      const nextReview = new Date(Date.now() + intervalHours * 60 * 60 * 1000)
+      const next = sm2(
+        {
+          ease_factor: word.ease_factor ?? DEFAULT_EASE,
+          interval_days: word.interval_days ?? 0,
+          repetitions: word.repetitions ?? 0,
+        },
+        quality
+      )
 
       const { error } = await supabase
         .from('vocab_srs')
         .update({
-          box_level: newBox,
-          next_review_at: nextReview.toISOString(),
+          ease_factor: next.ease_factor,
+          interval_days: next.interval_days,
+          repetitions: next.repetitions,
+          box_level: next.box_level,
+          next_review_at: next.next_review_at,
         })
         .eq('id', word_id)
         .eq('user_email', email)
 
       if (error) throw error
-      return NextResponse.json({ ok: true, new_box: newBox, next_review_at: nextReview.toISOString() })
+      return NextResponse.json({
+        ok: true,
+        new_box: next.box_level,
+        interval_days: next.interval_days,
+        next_review_at: next.next_review_at,
+      })
     }
 
     // Add a single word manually
