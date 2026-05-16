@@ -138,6 +138,57 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ stats })
     }
 
+    if (action === 'streak') {
+      // Consecutive-day review streak, computed from vocab_review rows
+      // logged to the progress table when a trainer session completes.
+      const { data: rows } = await supabase
+        .from('progress')
+        .select('completed_at')
+        .eq('user_email', email)
+        .eq('activity_type', 'vocab_review')
+        .order('completed_at', { ascending: false })
+        .limit(400)
+
+      const dayKeys = new Set(
+        (rows || []).map((r: { completed_at: string }) => {
+          const d = new Date(r.completed_at)
+          return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`
+        })
+      )
+
+      const keyFor = (d: Date) => `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`
+      const today = new Date()
+      const yesterday = new Date()
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+
+      let streak = 0
+      if (dayKeys.has(keyFor(today)) || dayKeys.has(keyFor(yesterday))) {
+        const cursor = new Date()
+        if (!dayKeys.has(keyFor(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1)
+        while (dayKeys.has(keyFor(cursor))) {
+          streak += 1
+          cursor.setUTCDate(cursor.getUTCDate() - 1)
+        }
+      }
+      return NextResponse.json({ streak, reviewedToday: dayKeys.has(keyFor(today)) })
+    }
+
+    if (action === 'focus') {
+      // "Leech" proxy: SM-2 drives the ease factor down toward the 1.3
+      // floor for words a student keeps failing. Low ease = needs extra
+      // attention. We surface the hardest ones.
+      const { data, error } = await supabase
+        .from('vocab_srs')
+        .select('id, word, meaning, phonetic, ease_factor, box_level')
+        .eq('user_email', email)
+        .lte('ease_factor', 1.8)
+        .gt('repetitions', 0)
+        .order('ease_factor', { ascending: true })
+        .limit(10)
+      if (error) throw error
+      return NextResponse.json({ words: data || [] })
+    }
+
     if (action === 'all') {
       const { data, error } = await supabase
         .from('vocab_srs')

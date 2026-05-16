@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import AudioButton from '@/components/AudioButton'
 
 interface SrsWord {
@@ -31,6 +32,8 @@ const BOX_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
 const BOX_COLORS = ['', 'bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-blue-400', 'bg-green-400']
 
 export default function VocabTrainer({ onBack }: Props) {
+  const { data: session } = useSession()
+  const studentEmail = session?.user?.email || ''
   const [view, setView] = useState<'home' | 'review' | 'add'>('home')
   const [stats, setStats] = useState<Stats | null>(null)
   const [dueWords, setDueWords] = useState<SrsWord[]>([])
@@ -53,6 +56,12 @@ export default function VocabTrainer({ onBack }: Props) {
   const [addPhonetic, setAddPhonetic] = useState('')
   const [addExample, setAddExample] = useState('')
 
+  // Phase 3: streak + focus words
+  const [streak, setStreak] = useState(0)
+  const [reviewedToday, setReviewedToday] = useState(false)
+  const [focusWords, setFocusWords] = useState<{ id: string; word: string; meaning: string }[]>([])
+  const [showFocus, setShowFocus] = useState(false)
+
   const loadStats = useCallback(async () => {
     const res = await fetch('/api/vocab-srs?action=stats')
     const data = await res.json()
@@ -63,6 +72,23 @@ export default function VocabTrainer({ onBack }: Props) {
     const res = await fetch('/api/vocab-srs?action=due')
     const data = await res.json()
     setDueWords(data.words || [])
+  }, [])
+
+  const loadStreak = useCallback(async () => {
+    try {
+      const res = await fetch('/api/vocab-srs?action=streak')
+      const data = await res.json()
+      setStreak(data.streak || 0)
+      setReviewedToday(!!data.reviewedToday)
+    } catch { /* non-blocking */ }
+  }, [])
+
+  const loadFocus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/vocab-srs?action=focus')
+      const data = await res.json()
+      setFocusWords(data.words || [])
+    } catch { /* non-blocking */ }
   }, [])
 
   useEffect(() => {
@@ -79,11 +105,11 @@ export default function VocabTrainer({ onBack }: Props) {
       } catch {
         /* non-blocking — fall through to load whatever exists */
       }
-      await Promise.all([loadStats(), loadDueWords()])
+      await Promise.all([loadStats(), loadDueWords(), loadStreak(), loadFocus()])
       setLoading(false)
     }
     init()
-  }, [loadStats, loadDueWords])
+  }, [loadStats, loadDueWords, loadStreak, loadFocus])
 
   const handleSync = async () => {
     setSyncing(true)
@@ -200,7 +226,25 @@ export default function VocabTrainer({ onBack }: Props) {
       if (reviewMode === 'quiz') generateQuizOptions(nextIdx)
     } else {
       setSessionDone(true)
+      // Log this completed review session to the progress table so the
+      // consecutive-day streak can be computed. Best-effort.
+      const finalCorrect = newResults.correct
+      const finalTotal = newResults.total
+      if (studentEmail) {
+        fetch('/api/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_email: studentEmail,
+            activity_type: 'vocab_review',
+            activity_id: 'srs',
+            score: finalCorrect,
+            total: finalTotal,
+          }),
+        }).catch(() => { /* non-blocking */ })
+      }
       loadStats()
+      loadStreak()
     }
   }
 
@@ -492,6 +536,21 @@ export default function VocabTrainer({ onBack }: Props) {
         </div>
       )}
 
+      {/* Streak banner — loss-aversion nudge */}
+      {streak > 0 && (
+        <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl p-4 text-white flex items-center gap-3">
+          <span className="text-3xl">🔥</span>
+          <div className="flex-1">
+            <p className="text-lg font-bold leading-tight">{streak}-day streak</p>
+            <p className="text-[11px] text-amber-50">
+              {reviewedToday
+                ? 'Reviewed today — nice. Keep it going tomorrow!'
+                : `Review today to keep your ${streak}-day streak alive`}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Due words card */}
       <div className="bg-gradient-to-r from-[#416ebe] to-[#5a8fd4] rounded-2xl p-5 text-white">
         <div className="flex items-center justify-between">
@@ -564,6 +623,34 @@ export default function VocabTrainer({ onBack }: Props) {
           + Add word
         </button>
       </div>
+
+      {/* Focus words — the ones the student keeps struggling with */}
+      {focusWords.length > 0 && (
+        <div className="bg-white rounded-2xl border border-[#cddcf0] p-4">
+          <button
+            onClick={() => setShowFocus((v) => !v)}
+            className="w-full flex items-center justify-between"
+          >
+            <p className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1.5">
+              <span>🎯</span> {focusWords.length} word{focusWords.length === 1 ? '' : 's'} need extra attention
+            </p>
+            <span className="text-xs text-gray-400">{showFocus ? '▲' : '▼'}</span>
+          </button>
+          {showFocus && (
+            <div className="mt-3 space-y-1.5">
+              {focusWords.map((w) => (
+                <div key={w.id} className="flex items-baseline justify-between gap-2 border-b border-[#f0f4f9] pb-1.5 last:border-b-0">
+                  <span className="text-sm font-bold text-[#46464b]">{w.word}</span>
+                  <span className="text-xs text-gray-400 text-right">{w.meaning || '—'}</span>
+                </div>
+              ))}
+              <p className="text-[10px] text-gray-300 pt-1">
+                These come back often in your reviews until they stick. That&apos;s the system working.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {stats && stats.total === 0 && (
         <div className="bg-[#f7fafd] rounded-xl border border-[#e6f0fa] p-4 text-center">

@@ -89,6 +89,7 @@ interface ReportData {
   progress: ProgressRecord[]
   attendance: AttendanceRow[]
   writingBlocks: WritingBlock[]
+  vocabStruggles?: Record<string, number>
 }
 
 const NOTE_TAGS = [
@@ -805,6 +806,7 @@ export default function ReportsPage() {
       cefrBreakdown,
       tests,
       writingSubmissions,
+      vocabStruggling: data.vocabStruggles?.[selectedStudentEmail] ?? 0,
     }
   }, [data, selectedStudentEmail])
 
@@ -1095,6 +1097,7 @@ type StudentDetailData = {
     text: string
     wordCount: number
   }[]
+  vocabStruggling: number
 }
 
 // ─────────── HeatmapView ───────────
@@ -1311,7 +1314,7 @@ function StudentDetail({
   return (
     <div className="space-y-5">
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <SummaryCard label="Completion" value={`${detail.completionPct}%`} sub={`${detail.attempted}/${detail.assigned}`} />
         <SummaryCard
           label="Avg Latest"
@@ -1337,6 +1340,11 @@ function StudentDetail({
           label="Total Attempts"
           value={String(detail.perExercise.reduce((sum, e) => sum + e.attempts, 0))}
           sub="all exercises"
+        />
+        <SummaryCard
+          label="Vocab focus"
+          value={detail.vocabStruggling > 0 ? String(detail.vocabStruggling) : '—'}
+          sub={detail.vocabStruggling > 0 ? 'words struggling' : 'none flagged'}
         />
       </div>
 

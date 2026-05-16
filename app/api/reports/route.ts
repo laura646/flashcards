@@ -105,6 +105,7 @@ export async function GET(req: NextRequest) {
       progress: [],
       attendance: [],
       writingBlocks: [],
+      vocabStruggles: {},
     })
   }
 
@@ -208,6 +209,23 @@ export async function GET(req: NextRequest) {
       writingBlocks = (blockRows || []) as WritingBlock[]
     }
 
+    // 8. Vocabulary "leeches" — words a student keeps failing. SM-2
+    //    drives ease_factor toward 1.3 for repeatedly-missed words, so
+    //    ease <= 1.8 (and seen at least once) is a solid struggling proxy.
+    //    Returned as a per-student count for the teacher report.
+    const vocabStruggles: Record<string, number> = {}
+    if (studentEmails.length > 0) {
+      const { data: leechRows } = await supabase
+        .from('vocab_srs')
+        .select('user_email')
+        .in('user_email', studentEmails)
+        .lte('ease_factor', 1.8)
+        .gt('repetitions', 0)
+      ;(leechRows || []).forEach((r: { user_email: string }) => {
+        vocabStruggles[r.user_email] = (vocabStruggles[r.user_email] || 0) + 1
+      })
+    }
+
     return NextResponse.json({
       courses: (courses || []) as Course[],
       course: course as Course,
@@ -217,6 +235,7 @@ export async function GET(req: NextRequest) {
       progress,
       attendance,
       writingBlocks,
+      vocabStruggles,
     })
   } catch (err) {
     console.error('Reports GET error:', err)

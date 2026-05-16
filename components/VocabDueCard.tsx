@@ -20,6 +20,8 @@ interface SrsStats {
 export default function VocabDueCard() {
   const router = useRouter()
   const [stats, setStats] = useState<SrsStats | null>(null)
+  const [streak, setStreak] = useState(0)
+  const [reviewedToday, setReviewedToday] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -35,11 +37,19 @@ export default function VocabDueCard() {
       } catch {
         /* non-blocking */
       }
-      // 2. Fetch the due/total counts
+      // 2. Fetch the due/total counts + the review streak in parallel
       try {
-        const res = await fetch('/api/vocab-srs?action=stats')
-        const data = await res.json()
-        if (!cancelled && data.stats) setStats(data.stats)
+        const [statsRes, streakRes] = await Promise.all([
+          fetch('/api/vocab-srs?action=stats'),
+          fetch('/api/vocab-srs?action=streak'),
+        ])
+        const statsData = await statsRes.json()
+        const streakData = await streakRes.json()
+        if (!cancelled) {
+          if (statsData.stats) setStats(statsData.stats)
+          setStreak(streakData.streak || 0)
+          setReviewedToday(!!streakData.reviewedToday)
+        }
       } catch {
         /* leave stats null → card hides itself */
       }
@@ -98,11 +108,20 @@ export default function VocabDueCard() {
       <div className="flex items-center gap-4">
         <div className="text-3xl">🧠</div>
         <div className="flex-1">
-          <h3 className="text-sm font-bold text-white">
-            {due} {due === 1 ? 'word' : 'words'} due for review
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-white">
+              {due} {due === 1 ? 'word' : 'words'} due for review
+            </h3>
+            {streak > 0 && (
+              <span className="bg-white/25 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                🔥 {streak}
+              </span>
+            )}
+          </div>
           <p className="text-xs text-amber-50 mt-0.5">
-            A quick {due <= 10 ? '2-minute' : '5-minute'} review keeps them in your memory
+            {streak > 0 && !reviewedToday
+              ? `Review now to keep your ${streak}-day streak alive`
+              : `A quick ${due <= 10 ? '2-minute' : '5-minute'} review keeps them in your memory`}
           </p>
         </div>
         <span className="bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
