@@ -312,20 +312,6 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* All Vocabulary Button */}
-        <button
-          onClick={() => router.push(`/vocabulary${selectedCourse ? `?course_id=${selectedCourse.id}` : ''}`)}
-          className="w-full bg-gradient-to-r from-[#416ebe] to-[#5a8fd4] rounded-2xl shadow-sm p-5 text-left transition-all hover:shadow-md group"
-        >
-          <div className="flex items-center gap-4">
-            <div className="text-3xl">📖</div>
-            <div className="flex-1">
-              <h3 className="text-sm font-bold text-white">All My Vocabulary</h3>
-              <p className="text-xs text-blue-100 mt-0.5">Review all words from every lesson</p>
-            </div>
-            <span className="text-blue-200 group-hover:text-white transition-colors text-lg">&rarr;</span>
-          </div>
-        </button>
       </div>
 
       <div className="mt-8 flex items-center gap-3 text-xs text-gray-400">
