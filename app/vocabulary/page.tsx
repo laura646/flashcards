@@ -35,29 +35,42 @@ function VocabularyInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [words, setWords] = useState<VocabWord[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [browseLoaded, setBrowseLoaded] = useState(false)
   // Deep-linkable: /vocabulary?mode=trainer jumps straight into the SRS
   const [mode, setMode] = useState<Mode>(
     searchParams.get('mode') === 'trainer' ? 'trainer' : 'browse'
   )
+
+  const loadWords = () => {
+    setLoading(true)
+    fetch('/api/lessons?all_vocabulary=true')
+      .then((res) => res.json())
+      .then((data) => {
+        setWords(data.flashcards || [])
+        setBrowseLoaded(true)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.replace('/')
       return
     }
-    if (status === 'authenticated') {
-      fetch('/api/lessons?all_vocabulary=true')
-        .then((res) => res.json())
-        .then((data) => {
-          setWords(data.flashcards || [])
-          setLoading(false)
-        })
-        .catch(() => setLoading(false))
+    // Only fetch word list when starting in browse mode — trainer doesn't need it
+    if (status === 'authenticated' && mode === 'browse') {
+      loadWords()
     }
-  }, [status, router])
+  }, [status, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (status === 'loading' || loading) {
+  const goToBrowse = () => {
+    if (!browseLoaded) loadWords()
+    setMode('browse')
+  }
+
+  if (status === 'loading') {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-[#416ebe] text-sm">Loading vocabulary…</div>
@@ -71,7 +84,15 @@ function VocabularyInner() {
   if (mode === 'trainer') {
     return (
       <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
-        <VocabTrainer onBack={() => setMode('browse')} />
+        <VocabTrainer onBack={goToBrowse} />
+      </main>
+    )
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center">
+        <div className="text-[#416ebe] text-sm">Loading vocabulary…</div>
       </main>
     )
   }
