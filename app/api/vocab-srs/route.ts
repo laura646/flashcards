@@ -195,7 +195,7 @@ export async function GET(req: NextRequest) {
         .select('*')
         .eq('user_email', email)
         .gte('ease_factor', 2.5)
-        .gt('repetitions', 2)
+        .gte('repetitions', 1)
         .order('ease_factor', { ascending: false })
         .limit(50)
       if (error) throw error
