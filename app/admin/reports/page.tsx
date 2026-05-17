@@ -80,6 +80,18 @@ interface NoteRow {
   created_at: string
 }
 
+interface LessonFlashcard {
+  lesson_id: string
+  word: string
+}
+
+interface VocabSrsRow {
+  user_email: string
+  word: string
+  box_level: number
+  repetitions: number
+}
+
 interface ReportData {
   courses: Course[]
   course: Course | null
@@ -90,7 +102,12 @@ interface ReportData {
   attendance: AttendanceRow[]
   writingBlocks: WritingBlock[]
   vocabStruggles?: Record<string, number>
+  lessonFlashcards?: LessonFlashcard[]
+  vocabSrs?: VocabSrsRow[]
 }
+
+// Mastery stage labels — box_level 1–5 from the SM-2 trainer.
+const VOCAB_STAGE_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
 
 const NOTE_TAGS = [
   { value: 'general', label: 'General', color: 'bg-gray-100 text-gray-600' },
@@ -791,6 +808,72 @@ export default function ReportsPage() {
         }
       })
 
+    // ─── Vocabulary breakdown ───
+    const studentSrs = (data.vocabSrs || []).filter((v) => v.user_email === selectedStudentEmail)
+    const srsByWord = new Map<string, { box_level: number; repetitions: number }>()
+    studentSrs.forEach((v) => {
+      srsByWord.set(v.word.toLowerCase(), { box_level: v.box_level, repetitions: v.repetitions })
+    })
+
+    const vocabStageCounts = [0, 0, 0, 0, 0, 0] // indices 1..5 = New..Mastered
+    studentSrs.forEach((v) => {
+      const b = v.box_level >= 1 && v.box_level <= 5 ? v.box_level : 1
+      vocabStageCounts[b]++
+    })
+    const vocabTotal = studentSrs.length
+    const vocabMastered = vocabStageCounts[4] + vocabStageCounts[5] // Known + Mastered
+    const vocabStarted = studentSrs.filter((v) => v.repetitions > 0).length
+    const vocabNeedsAttention = studentSrs.filter((v) => v.repetitions > 0 && v.box_level <= 2).length
+    const vocabMasteredPct = vocabTotal > 0 ? Math.round((vocabMastered / vocabTotal) * 100) : 0
+
+    // Map flashcards to lessons for the per-lesson breakdown
+    const flashcardsByLesson = new Map<string, string[]>()
+    ;(data.lessonFlashcards || []).forEach((fc) => {
+      if (!flashcardsByLesson.has(fc.lesson_id)) flashcardsByLesson.set(fc.lesson_id, [])
+      flashcardsByLesson.get(fc.lesson_id)!.push(fc.word)
+    })
+
+    const vocabByLesson = data.lessons
+      .map((l) => {
+        const words = flashcardsByLesson.get(l.id) || []
+        if (words.length === 0) return null
+        let started = 0
+        let mastered = 0
+        words.forEach((w) => {
+          const srs = srsByWord.get(w.toLowerCase())
+          if (srs) {
+            if (srs.repetitions > 0) started++
+            if (srs.box_level >= 4) mastered++
+          }
+        })
+        return { lessonId: l.id, lessonTitle: l.title, totalWords: words.length, started, mastered }
+      })
+      .filter(
+        (x): x is { lessonId: string; lessonTitle: string; totalWords: number; started: number; mastered: number } =>
+          x !== null
+      )
+
+    // Course total — unique words across all lessons
+    const allCourseWords = new Set<string>()
+    ;(data.lessonFlashcards || []).forEach((fc) => allCourseWords.add(fc.word.toLowerCase()))
+    let courseStarted = 0
+    let courseMastered = 0
+    allCourseWords.forEach((w) => {
+      const srs = srsByWord.get(w)
+      if (srs) {
+        if (srs.repetitions > 0) courseStarted++
+        if (srs.box_level >= 4) courseMastered++
+      }
+    })
+
+    const vocabWords = studentSrs
+      .map((v) => ({
+        word: v.word,
+        stage: v.box_level >= 1 && v.box_level <= 5 ? v.box_level : 1,
+        repetitions: v.repetitions,
+      }))
+      .sort((a, b) => b.stage - a.stage || a.word.localeCompare(b.word))
+
     return {
       student,
       perExercise,
@@ -807,6 +890,19 @@ export default function ReportsPage() {
       tests,
       writingSubmissions,
       vocabStruggling: data.vocabStruggles?.[selectedStudentEmail] ?? 0,
+      vocab: {
+        total: vocabTotal,
+        started: vocabStarted,
+        mastered: vocabMastered,
+        masteredPct: vocabMasteredPct,
+        needsAttention: vocabNeedsAttention,
+        stageCounts: vocabStageCounts,
+        byLesson: vocabByLesson,
+        courseTotal: allCourseWords.size,
+        courseStarted,
+        courseMastered,
+        words: vocabWords,
+      },
     }
   }, [data, selectedStudentEmail])
 
@@ -1098,6 +1194,19 @@ type StudentDetailData = {
     wordCount: number
   }[]
   vocabStruggling: number
+  vocab: {
+    total: number
+    started: number
+    mastered: number
+    masteredPct: number
+    needsAttention: number
+    stageCounts: number[]
+    byLesson: { lessonId: string; lessonTitle: string; totalWords: number; started: number; mastered: number }[]
+    courseTotal: number
+    courseStarted: number
+    courseMastered: number
+    words: { word: string; stage: number; repetitions: number }[]
+  }
 }
 
 // ─────────── HeatmapView ───────────
@@ -1403,6 +1512,9 @@ function StudentDetail({
         </div>
       )}
 
+      {/* Vocabulary */}
+      <VocabularySection vocab={detail.vocab} />
+
       {/* Score trend */}
       {detail.trend.length > 1 && (
         <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
@@ -1639,6 +1751,146 @@ function StudentDetail({
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// Vocabulary mastery section: summary stats, stage distribution, a
+// per-lesson breakdown, the course total, and a collapsible word list.
+const VOCAB_STAGE_COLORS = ['', 'bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-blue-400', 'bg-green-500']
+const VOCAB_STAGE_PILLS = [
+  '',
+  'bg-red-100 text-red-500',
+  'bg-orange-100 text-orange-500',
+  'bg-yellow-100 text-yellow-600',
+  'bg-blue-100 text-blue-500',
+  'bg-green-100 text-green-600',
+]
+
+function VocabularySection({ vocab }: { vocab: StudentDetailData['vocab'] }) {
+  const [showWords, setShowWords] = useState(false)
+
+  if (vocab.total === 0) {
+    return (
+      <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+        <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">Vocabulary</h3>
+        <p className="text-sm text-gray-400 py-2">
+          No vocabulary tracked yet. Words appear here once the student starts using the Vocabulary Trainer.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white border border-[#e6f0fa] rounded-xl p-4">
+      <h3 className="text-xs font-bold text-[#416ebe] uppercase mb-3">Vocabulary</h3>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="bg-[#f7fafd] rounded-lg p-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase">Total words</p>
+          <p className="text-2xl font-bold text-[#416ebe] mt-1">{vocab.total}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{vocab.started} started</p>
+        </div>
+        <div className="bg-[#f7fafd] rounded-lg p-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase">Mastered</p>
+          <p className="text-2xl font-bold text-[#416ebe] mt-1">{vocab.masteredPct}%</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{vocab.mastered} of {vocab.total} words</p>
+        </div>
+        <div className="bg-[#f7fafd] rounded-lg p-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase">Needs attention</p>
+          <p className="text-2xl font-bold text-[#416ebe] mt-1">{vocab.needsAttention || '—'}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">struggling words</p>
+        </div>
+        <div className="bg-[#f7fafd] rounded-lg p-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase">Course words</p>
+          <p className="text-2xl font-bold text-[#416ebe] mt-1">
+            {vocab.courseMastered}/{vocab.courseTotal}
+          </p>
+          <p className="text-[10px] text-gray-400 mt-0.5">mastered overall</p>
+        </div>
+      </div>
+
+      {/* Mastery stage distribution */}
+      <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Mastery stages</p>
+      <div className="flex gap-1 mb-4">
+        {[1, 2, 3, 4, 5].map((stage) => {
+          const count = vocab.stageCounts[stage] || 0
+          const pct = vocab.total > 0 ? Math.max((count / vocab.total) * 100, count > 0 ? 6 : 0) : 0
+          return (
+            <div key={stage} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full h-14 bg-gray-100 rounded-lg relative overflow-hidden">
+                <div
+                  className={`absolute bottom-0 w-full rounded-lg ${VOCAB_STAGE_COLORS[stage]}`}
+                  style={{ height: `${pct}%` }}
+                />
+              </div>
+              <span className="text-[11px] font-bold text-gray-500">{count}</span>
+              <span className="text-[9px] text-gray-400">{VOCAB_STAGE_LABELS[stage]}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Per-lesson breakdown */}
+      {vocab.byLesson.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">By lesson</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-[#f7fafd] text-[10px] font-bold text-gray-500 uppercase">
+                <tr>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Lesson</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Words</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Started</th>
+                  <th className="py-2 px-3 border-b border-[#e6f0fa]">Mastered</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vocab.byLesson.map((l) => (
+                  <tr key={l.lessonId} className="border-b border-[#e6f0fa]">
+                    <td className="py-2 px-3 text-[#46464b]">{l.lessonTitle || '(untitled)'}</td>
+                    <td className="py-2 px-3 text-gray-500">{l.totalWords}</td>
+                    <td className="py-2 px-3 text-gray-500">
+                      {l.started}/{l.totalWords}
+                    </td>
+                    <td className="py-2 px-3">
+                      <span className={l.mastered === l.totalWords && l.totalWords > 0 ? 'text-green-600 font-bold' : 'text-[#46464b]'}>
+                        {l.mastered}/{l.totalWords}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible word-level detail */}
+      <button
+        onClick={() => setShowWords((v) => !v)}
+        className="text-[10px] text-[#00aff0] font-bold hover:underline print:hidden"
+      >
+        {showWords ? '▲ Hide word list' : `▼ Show all ${vocab.words.length} words`}
+      </button>
+      {showWords && (
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+          {vocab.words.map((w) => (
+            <div
+              key={w.word}
+              className="flex items-center justify-between gap-2 border-b border-[#f0f4f9] pb-1"
+            >
+              <span className="text-sm text-[#46464b] truncate">{w.word}</span>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${VOCAB_STAGE_PILLS[w.stage]}`}
+              >
+                {VOCAB_STAGE_LABELS[w.stage]}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -106,6 +106,8 @@ export async function GET(req: NextRequest) {
       attendance: [],
       writingBlocks: [],
       vocabStruggles: {},
+      lessonFlashcards: [],
+      vocabSrs: [],
     })
   }
 
@@ -226,6 +228,29 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    // 9. Lesson flashcards (the vocab words assigned per lesson) — used to
+    //    map a student's SRS words back to the lessons they came from for
+    //    the per-lesson vocabulary breakdown.
+    let lessonFlashcards: { lesson_id: string; word: string }[] = []
+    if (lessonIds.length > 0) {
+      const { data: fcRows } = await supabase
+        .from('lesson_flashcards')
+        .select('lesson_id, word')
+        .in('lesson_id', lessonIds)
+      lessonFlashcards = (fcRows || []) as { lesson_id: string; word: string }[]
+    }
+
+    // 10. Full SRS state per student (mastery stage + reps) for the
+    //     vocabulary report section.
+    let vocabSrs: { user_email: string; word: string; box_level: number; repetitions: number }[] = []
+    if (studentEmails.length > 0) {
+      const { data: srsRows } = await supabase
+        .from('vocab_srs')
+        .select('user_email, word, box_level, repetitions')
+        .in('user_email', studentEmails)
+      vocabSrs = (srsRows || []) as { user_email: string; word: string; box_level: number; repetitions: number }[]
+    }
+
     return NextResponse.json({
       courses: (courses || []) as Course[],
       course: course as Course,
@@ -236,6 +261,8 @@ export async function GET(req: NextRequest) {
       attendance,
       writingBlocks,
       vocabStruggles,
+      lessonFlashcards,
+      vocabSrs,
     })
   } catch (err) {
     console.error('Reports GET error:', err)
