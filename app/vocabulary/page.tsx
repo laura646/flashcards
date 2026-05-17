@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import VocabTrainer from '@/components/VocabTrainer'
+import AudioButton from '@/components/AudioButton'
 
 interface VocabWord {
   id: string
@@ -158,8 +159,11 @@ function VocabularyInner() {
               <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden divide-y divide-[#e6f0fa]">
                 {lessonWords.map((word) => (
                   <div key={word.id} className="px-4 py-3">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <h4 className="text-sm font-bold text-[#46464b]">{word.word}</h4>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h4 className="text-sm font-bold text-[#46464b]">{word.word}</h4>
+                        <AudioButton text={word.word} />
+                      </div>
                       <span className="text-xs text-gray-400 shrink-0">{word.phonetic}</span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">{word.meaning}</p>
