@@ -62,6 +62,7 @@ export default function VocabTrainer({ onBack }: Props) {
   // Review state
   const [currentIdx, setCurrentIdx] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const [hasFlipped, setHasFlipped] = useState(false)
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null)
   const [quizOptions, setQuizOptions] = useState<string[]>([])
   const [quizSelected, setQuizSelected] = useState<number | null>(null)
@@ -250,6 +251,7 @@ export default function VocabTrainer({ onBack }: Props) {
     setReviewMode(mode)
     setCurrentIdx(0)
     setFlipped(false)
+    setHasFlipped(false)
     setSelectedGrade(null)
     setQuizSelected(null)
     setSessionResults({ again: 0, hard: 0, good: 0, easy: 0, total: 0 })
@@ -322,6 +324,7 @@ export default function VocabTrainer({ onBack }: Props) {
     if (currentIdx + 1 < dueWords.length) {
       setCurrentIdx(currentIdx + 1)
       setFlipped(false)
+      setHasFlipped(false)
       setSelectedGrade(null)
       setQuizSelected(null)
       if (reviewMode === 'quiz') generateQuizOptions(currentIdx + 1)
@@ -443,7 +446,7 @@ export default function VocabTrainer({ onBack }: Props) {
             {/* FRONT — word only */}
             <div
               className="card-front bg-white border-2 border-[#cddcf0] rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-[#416ebe] transition-colors"
-              onClick={() => !flipped && setFlipped(true)}
+              onClick={() => { setFlipped(true); setHasFlipped(true) }}
             >
               <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white mb-3 ${BOX_COLORS[word.box_level]}`}>
                 {BOX_LABELS[word.box_level]}
@@ -459,7 +462,10 @@ export default function VocabTrainer({ onBack }: Props) {
             </div>
 
             {/* BACK — meaning, photo, translation, example */}
-            <div className="card-back bg-white border-2 border-[#416ebe] rounded-2xl p-6 flex flex-col items-center justify-center overflow-auto">
+            <div
+              className="card-back bg-white border-2 border-[#416ebe] rounded-2xl p-6 flex flex-col items-center justify-center overflow-auto cursor-pointer"
+              onClick={() => setFlipped(false)}
+            >
               {word.image_url && (
                 <img src={word.image_url} alt="" className="max-h-24 max-w-[180px] object-contain rounded-xl mb-3" />
               )}
@@ -470,13 +476,14 @@ export default function VocabTrainer({ onBack }: Props) {
               {word.example && (
                 <p className="text-xs text-gray-400 italic mt-2 text-center">{word.example}</p>
               )}
+              <p className="text-[10px] text-gray-300 mt-3">Tap to flip back</p>
             </div>
 
           </div>
         </div>
 
-        {/* Grade buttons + Next */}
-        {flipped && (
+        {/* Grade buttons + Next — visible once answer has been seen */}
+        {hasFlipped && (
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-4 gap-2">
               {GRADE_CONFIG.map(({ grade, label, sub, base, active }) => (
