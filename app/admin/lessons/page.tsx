@@ -346,6 +346,7 @@ function LessonsAdminPage() {
   const searchParams = useSearchParams()
   const contentBankMode = searchParams.get('mode') === 'content-bank'
   const urlCourseId = searchParams.get('course_id')
+  const urlCourseName = searchParams.get('course_name') || ''
   const urlLessonId = searchParams.get('id')
 
   // ── State ──
@@ -357,6 +358,7 @@ function LessonsAdminPage() {
   // Editor state
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
   const [courseId, setCourseId] = useState<string | null>(urlCourseId)
+  const [courseName, setCourseName] = useState<string>(urlCourseName)
   const [title, setTitle] = useState('')
   const [lessonDate, setLessonDate] = useState('')
   const [lessonType, setLessonType] = useState<string>('lesson')
@@ -687,6 +689,7 @@ function LessonsAdminPage() {
   const loadLessonForEditing = async (lesson: Lesson) => {
     setEditingLessonId(lesson.id)
     setCourseId(lesson.course_id || urlCourseId)
+    if (urlCourseName) setCourseName(urlCourseName)
     setTitle(lesson.title)
     setLessonDate(lesson.lesson_date)
     setLessonType(lesson.lesson_type || 'lesson')
@@ -3218,13 +3221,15 @@ function LessonsAdminPage() {
                   onClick={() => {
                     if (contentBankMode) {
                       router.push('/admin/content-bank')
+                    } else if (courseId) {
+                      router.push(`/admin?courseDetail=${courseId}`)
                     } else {
                       setView('list'); setUploadedImages([])
                     }
                   }}
                   className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-1"
                 >
-                  &larr; {contentBankMode ? 'Back to Content Bank' : 'Back to lessons'}
+                  &larr; {contentBankMode ? 'Back to Content Bank' : courseId ? `Back to ${courseName || 'course'}` : 'Back to lessons'}
                 </button>
                 <h1 className="text-2xl font-bold text-[#416ebe]">
                   {contentBankMode

@@ -589,7 +589,7 @@ export default function AdminPage() {
                 <div className="px-6 py-4 border-b border-[#e6f0fa] flex items-center justify-between">
                   <h3 className="font-bold text-[#46464b]">Lessons</h3>
                   <button
-                    onClick={() => router.push(`/admin/lessons?course_id=${selectedCourse.id}`)}
+                    onClick={() => router.push(`/admin/lessons?course_id=${selectedCourse.id}&course_name=${encodeURIComponent(selectedCourse.name)}`)}
                     className="text-xs font-bold text-[#416ebe] hover:underline"
                   >
                     + Create Lesson
@@ -602,7 +602,7 @@ export default function AdminPage() {
                     {courseLessons.map(lesson => (
                       <div
                         key={lesson.id}
-                        onClick={() => router.push(`/admin/lessons?id=${lesson.id}`)}
+                        onClick={() => router.push(`/admin/lessons?id=${lesson.id}&course_id=${selectedCourse.id}&course_name=${encodeURIComponent(selectedCourse.name)}`)}
                         className="px-6 py-4 flex items-center justify-between hover:bg-[#f7fafd] cursor-pointer transition-colors"
                       >
                         <div>
