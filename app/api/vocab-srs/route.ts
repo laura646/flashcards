@@ -235,12 +235,38 @@ export async function POST(req: NextRequest) {
     // Sync: import flashcards + word_struggles into SRS
     if (action === 'sync') {
       const courseId = body.course_id
+      const role = (session.user as { role?: string }).role || 'student'
 
-      // Get all flashcards the student has access to
+      // Scope to courses the user is actually enrolled in / has access to
+      let enrolledCourseIds: string[] = []
+      if (role === 'superadmin') {
+        const { data: allCourses } = await supabase.from('courses').select('id')
+        enrolledCourseIds = (allCourses || []).map((c: { id: string }) => c.id)
+      } else if (role === 'teacher') {
+        const { data: taught } = await supabase
+          .from('course_teachers')
+          .select('course_id')
+          .eq('teacher_email', email)
+        enrolledCourseIds = (taught || []).map((c: { course_id: string }) => c.course_id)
+      } else {
+        const { data: enrolled } = await supabase
+          .from('course_students')
+          .select('course_id')
+          .eq('student_email', email)
+          .is('removed_at', null)
+        enrolledCourseIds = (enrolled || []).map((c: { course_id: string }) => c.course_id)
+      }
+
+      if (enrolledCourseIds.length === 0) {
+        return NextResponse.json({ ok: true, added: 0 })
+      }
+
+      // Get flashcards scoped to enrolled/accessible courses only
       let flashcardQuery = supabase
         .from('lesson_flashcards')
         .select('word, phonetic, meaning, example, image_url, lessons!inner(status, course_id)')
         .eq('lessons.status', 'published')
+        .in('lessons.course_id', enrolledCourseIds)
 
       if (courseId) {
         flashcardQuery = flashcardQuery.eq('lessons.course_id', courseId)
@@ -326,7 +352,33 @@ export async function POST(req: NextRequest) {
         if (error) throw error
       }
 
-      return NextResponse.json({ ok: true, added: newWords.length })
+      // Clean up any duplicate rows that accumulated before this fix.
+      // Keep the row with the most review progress (highest repetitions,
+      // then highest box_level as tiebreaker). Delete the rest.
+      const { data: allSrsWords } = await supabase
+        .from('vocab_srs')
+        .select('id, word, repetitions, box_level')
+        .eq('user_email', email)
+
+      const wordGroups = new Map<string, { id: string; repetitions: number; box_level: number }[]>()
+      ;(allSrsWords || []).forEach((w: { id: string; word: string; repetitions: number; box_level: number }) => {
+        const key = w.word.toLowerCase()
+        if (!wordGroups.has(key)) wordGroups.set(key, [])
+        wordGroups.get(key)!.push(w)
+      })
+
+      const idsToDelete: string[] = []
+      wordGroups.forEach((rows) => {
+        if (rows.length <= 1) return
+        rows.sort((a, b) => b.repetitions - a.repetitions || b.box_level - a.box_level)
+        rows.slice(1).forEach((r) => idsToDelete.push(r.id))
+      })
+
+      if (idsToDelete.length > 0) {
+        await supabase.from('vocab_srs').delete().in('id', idsToDelete).eq('user_email', email)
+      }
+
+      return NextResponse.json({ ok: true, added: newWords.length, deduped: idsToDelete.length })
     }
 
     // Review: run one SM-2 step from the student's grade.
