@@ -184,7 +184,7 @@ export async function GET(req: NextRequest) {
         .lte('ease_factor', 1.8)
         .gt('repetitions', 0)
         .order('ease_factor', { ascending: true })
-        .limit(10)
+        .limit(50)
       if (error) throw error
       return NextResponse.json({ words: data || [] })
     }

@@ -10,6 +10,7 @@ interface SrsWord {
   meaning: string
   phonetic: string
   example: string
+  notes?: string | null
   translation?: string | null
   image_url?: string | null
   box_level: number
@@ -73,6 +74,7 @@ export default function VocabTrainer({ onBack }: Props) {
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewWordCount, setReviewWordCount] = useState(15)
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('due')
+  const [modalMode, setModalMode] = useState<ReviewMode>('flip')
   const [modalLoading, setModalLoading] = useState(false)
   const [modalError, setModalError] = useState('')
 
@@ -96,7 +98,7 @@ export default function VocabTrainer({ onBack }: Props) {
 
   // Inline edit
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ word: '', phonetic: '', meaning: '', example: '', translation: '', image_url: '' })
+  const [editForm, setEditForm] = useState({ word: '', phonetic: '', meaning: '', example: '', notes: '', translation: '', image_url: '' })
   const [editSaving, setEditSaving] = useState(false)
 
   const startEdit = (w: SrsWord) => {
@@ -106,6 +108,7 @@ export default function VocabTrainer({ onBack }: Props) {
       phonetic: w.phonetic || '',
       meaning: w.meaning || '',
       example: w.example || '',
+      notes: w.notes || '',
       translation: w.translation || '',
       image_url: w.image_url || '',
     })
@@ -127,6 +130,7 @@ export default function VocabTrainer({ onBack }: Props) {
           phonetic: editForm.phonetic,
           meaning: editForm.meaning,
           example: editForm.example,
+          notes: editForm.notes,
           translation: editForm.translation,
           image_url: editForm.image_url || null,
         }),
@@ -141,6 +145,7 @@ export default function VocabTrainer({ onBack }: Props) {
                   phonetic: editForm.phonetic,
                   meaning: editForm.meaning,
                   example: editForm.example,
+                  notes: editForm.notes || null,
                   translation: editForm.translation || null,
                   image_url: editForm.image_url || null,
                 }
@@ -292,7 +297,7 @@ export default function VocabTrainer({ onBack }: Props) {
       }
       setDueWords(words)
       setShowReviewModal(false)
-      startReview('flip')
+      startReview(modalMode)
     } catch {
       setModalError('Could not load words. Please try again.')
     }
@@ -320,6 +325,11 @@ export default function VocabTrainer({ onBack }: Props) {
       total: sessionResults.total + 1,
     }
     setSessionResults(newResults)
+
+    // Re-queue failed words at the end so they come back in the same session
+    if (grade === 'again') {
+      setDueWords(prev => [...prev, word])
+    }
 
     if (currentIdx + 1 < dueWords.length) {
       setCurrentIdx(currentIdx + 1)
@@ -413,7 +423,7 @@ export default function VocabTrainer({ onBack }: Props) {
         )}
 
         <button
-          onClick={() => { setView('home'); loadDueWords() }}
+          onClick={() => { setView('home'); loadDueWords(); loadStats() }}
           className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Done
@@ -440,7 +450,7 @@ export default function VocabTrainer({ onBack }: Props) {
         </div>
 
         {/* 3D flip card */}
-        <div className="card-flip w-full" style={{ height: '280px' }}>
+        <div className="card-flip w-full" style={{ minHeight: '280px' }}>
           <div className={`card-flip-inner w-full h-full${flipped ? ' flipped' : ''}`}>
 
             {/* FRONT — word only */}
@@ -644,6 +654,7 @@ export default function VocabTrainer({ onBack }: Props) {
                     { key: 'meaning' as const, label: 'Meaning', placeholder: '' },
                     { key: 'translation' as const, label: 'Translation (your language)', placeholder: 'e.g. your own-language word' },
                     { key: 'example' as const, label: 'Example', placeholder: '' },
+                    { key: 'notes' as const, label: 'My notes (memory tricks, personal associations…)', placeholder: 'e.g. sounds like "ubiquitous" → think of ants everywhere' },
                     { key: 'image_url' as const, label: 'Image URL (optional — paste a direct image link)', placeholder: 'https://…' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key}>
@@ -729,6 +740,23 @@ export default function VocabTrainer({ onBack }: Props) {
                 <button key={value} onClick={() => setReviewFilter(value)}
                   className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
                     reviewFilter === value
+                      ? 'bg-[#416ebe] border-[#416ebe] text-white'
+                      : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Mode</label>
+            <div className="grid grid-cols-2 gap-2 mb-5">
+              {([
+                { value: 'flip' as ReviewMode, label: '🃏 Flip cards' },
+                { value: 'quiz' as ReviewMode, label: '📝 Quiz' },
+              ]).map(({ value, label }) => (
+                <button key={value} onClick={() => setModalMode(value)}
+                  className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
+                    modalMode === value
                       ? 'bg-[#416ebe] border-[#416ebe] text-white'
                       : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'
                   }`}>

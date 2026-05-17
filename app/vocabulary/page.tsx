@@ -38,6 +38,7 @@ function VocabularyInner() {
   const [words, setWords] = useState<VocabWord[]>([])
   const [loading, setLoading] = useState(false)
   const [browseLoaded, setBrowseLoaded] = useState(false)
+  const [savedScroll, setSavedScroll] = useState(0)
   // Deep-linkable: /vocabulary?mode=trainer jumps straight into the SRS
   const [mode, setMode] = useState<Mode>(
     searchParams.get('mode') === 'trainer' ? 'trainer' : 'browse'
@@ -66,9 +67,15 @@ function VocabularyInner() {
     }
   }, [status, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const goToTrainer = () => {
+    setSavedScroll(window.scrollY)
+    setMode('trainer')
+  }
+
   const goToBrowse = () => {
     if (!browseLoaded) loadWords()
     setMode('browse')
+    setTimeout(() => window.scrollTo({ top: savedScroll }), 0)
   }
 
   if (status === 'loading') {
@@ -89,6 +96,7 @@ function VocabularyInner() {
       </main>
     )
   }
+
 
   if (loading) {
     return (
@@ -123,7 +131,7 @@ function VocabularyInner() {
 
       {/* HERO: the one practice path — spaced-repetition trainer */}
       <button
-        onClick={() => setMode('trainer')}
+        onClick={goToTrainer}
         className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white py-5 rounded-2xl text-sm font-bold hover:from-amber-500 hover:to-orange-600 transition-all shadow-sm mb-6"
       >
         <div className="flex items-center justify-center gap-3">
