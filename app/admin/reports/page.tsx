@@ -104,7 +104,20 @@ interface ReportData {
   vocabStruggles?: Record<string, number>
   lessonFlashcards?: LessonFlashcard[]
   vocabSrs?: VocabSrsRow[]
+  notes?: NoteRow[]
 }
+
+// Export modal — selectable report sections.
+const EXPORT_SECTIONS: { key: string; label: string }[] = [
+  { key: 'summary', label: 'Summary stats (completion, attendance, streak)' },
+  { key: 'scores', label: 'Exercise scores & per-exercise breakdown' },
+  { key: 'trend', label: 'Score trend' },
+  { key: 'vocab', label: 'Vocabulary progress' },
+  { key: 'skills', label: 'Skill & CEFR breakdown' },
+  { key: 'tests', label: 'Tests' },
+  { key: 'attendance', label: 'Attendance history' },
+  { key: 'notes', label: 'Teacher notes' },
+]
 
 // Mastery stage labels — box_level 1–5 from the SM-2 trainer.
 const VOCAB_STAGE_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
@@ -372,6 +385,14 @@ export default function ReportsPage() {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState('')
 
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exportStudents, setExportStudents] = useState<Set<string>>(new Set())
+  const [exportSections, setExportSections] = useState<Set<string>>(
+    new Set(EXPORT_SECTIONS.map((s) => s.key))
+  )
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'csv'>('pdf')
+
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
 
   useEffect(() => {
@@ -538,6 +559,108 @@ export default function ReportsPage() {
       setNotes((prev) => prev.filter((n) => n.id !== noteId))
     } catch (e) {
       setNotesError((e as Error).message)
+    }
+  }
+
+  // Per-student vocabulary summary (for CSV export). Mirrors the
+  // computation in studentDetail but lightweight + for every student.
+  const vocabSummaryByStudent = useMemo(() => {
+    const out = new Map<
+      string,
+      { total: number; started: number; mastered: number; masteredPct: number; needsAttention: number }
+    >()
+    if (!data) return out
+    const byUser = new Map<string, VocabSrsRow[]>()
+    ;(data.vocabSrs || []).forEach((v) => {
+      if (!byUser.has(v.user_email)) byUser.set(v.user_email, [])
+      byUser.get(v.user_email)!.push(v)
+    })
+    byUser.forEach((rows, email) => {
+      const total = rows.length
+      const mastered = rows.filter((r) => r.box_level >= 4).length
+      const started = rows.filter((r) => r.repetitions > 0).length
+      const needsAttention = rows.filter((r) => r.repetitions > 0 && r.box_level <= 2).length
+      out.set(email, {
+        total,
+        started,
+        mastered,
+        masteredPct: total > 0 ? Math.round((mastered / total) * 100) : 0,
+        needsAttention,
+      })
+    })
+    return out
+  }, [data])
+
+  // Open the export modal — default to all students selected.
+  const openExportModal = () => {
+    if (data) setExportStudents(new Set(data.students.map((s) => s.email)))
+    setShowExportModal(true)
+  }
+
+  // Build + download a CSV: one row per selected student, columns chosen
+  // by the selected sections.
+  const exportCsv = () => {
+    if (!data) return
+    const sel = exportStudents
+    const sections = exportSections
+    const rows = studentAggregates.filter((r) => sel.has(r.email))
+
+    const headers: string[] = ['Student', 'Email']
+    if (sections.has('summary')) {
+      headers.push('Completion %', 'Completed', 'Assigned', 'Avg Latest %', 'Avg Best %', 'Total Attempts', 'Streak (days)')
+    }
+    if (sections.has('attendance')) {
+      headers.push('Attendance %', 'Lessons Marked')
+    }
+    if (sections.has('vocab')) {
+      headers.push('Vocab Total', 'Vocab Started', 'Vocab Mastered', 'Vocab Mastered %', 'Vocab Needs Attention')
+    }
+
+    const esc = (v: string | number | null) => {
+      const s = v == null ? '' : String(v)
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+
+    const lines = [headers.join(',')]
+    for (const r of rows) {
+      const cells: (string | number | null)[] = [r.name, r.email]
+      if (sections.has('summary')) {
+        const studentProgress = data.progress.filter((p) => p.user_email === r.email)
+        const streak = computeStreak(studentProgress.map((p) => p.completed_at))
+        cells.push(r.completionPct, r.completed, r.assigned, r.avgLatest, r.avgBest, r.totalAttempts, streak)
+      }
+      if (sections.has('attendance')) {
+        cells.push(r.attendancePct, r.attendanceMarked)
+      }
+      if (sections.has('vocab')) {
+        const v = vocabSummaryByStudent.get(r.email)
+        cells.push(v?.total ?? 0, v?.started ?? 0, v?.mastered ?? 0, v?.masteredPct ?? 0, v?.needsAttention ?? 0)
+      }
+      lines.push(cells.map(esc).join(','))
+    }
+
+    const csv = lines.join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const courseName = (data.course?.name || 'report').replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+    a.href = url
+    a.download = `${courseName}-report-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setShowExportModal(false)
+  }
+
+  const handleExport = () => {
+    if (exportFormat === 'csv') {
+      exportCsv()
+    } else {
+      // PDF: branded multi-student print view lands in the next increment.
+      // For now, close the modal and use the browser print of the current view.
+      setShowExportModal(false)
+      setTimeout(() => window.print(), 100)
     }
   }
 
@@ -958,12 +1081,43 @@ export default function ReportsPage() {
         </a>
 
         <button
-          onClick={() => window.print()}
+          onClick={openExportModal}
           className="bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
         >
-          Export as PDF
+          Export…
         </button>
       </div>
+
+      {showExportModal && (
+        <ExportModal
+          students={data.students}
+          selectedStudents={exportStudents}
+          sections={exportSections}
+          format={exportFormat}
+          onToggleStudent={(email) =>
+            setExportStudents((prev) => {
+              const next = new Set(prev)
+              if (next.has(email)) next.delete(email)
+              else next.add(email)
+              return next
+            })
+          }
+          onToggleAllStudents={(all) =>
+            setExportStudents(all ? new Set(data.students.map((s) => s.email)) : new Set())
+          }
+          onToggleSection={(key) =>
+            setExportSections((prev) => {
+              const next = new Set(prev)
+              if (next.has(key)) next.delete(key)
+              else next.add(key)
+              return next
+            })
+          }
+          onSetFormat={setExportFormat}
+          onClose={() => setShowExportModal(false)}
+          onExport={handleExport}
+        />
+      )}
 
       {/* Header (visible in print) */}
       <div className="mb-4 pb-3 border-b border-[#e6f0fa]">
@@ -1891,6 +2045,144 @@ function VocabularySection({ vocab }: { vocab: StudentDetailData['vocab'] }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// Export modal — choose students, sections, and format before exporting.
+function ExportModal({
+  students,
+  selectedStudents,
+  sections,
+  format,
+  onToggleStudent,
+  onToggleAllStudents,
+  onToggleSection,
+  onSetFormat,
+  onClose,
+  onExport,
+}: {
+  students: Student[]
+  selectedStudents: Set<string>
+  sections: Set<string>
+  format: 'pdf' | 'csv'
+  onToggleStudent: (email: string) => void
+  onToggleAllStudents: (all: boolean) => void
+  onToggleSection: (key: string) => void
+  onSetFormat: (f: 'pdf' | 'csv') => void
+  onClose: () => void
+  onExport: () => void
+}) {
+  const allSelected = students.length > 0 && selectedStudents.size === students.length
+  const canExport = selectedStudents.size > 0 && sections.size > 0
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 print:hidden"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-bold text-[#46464b] mb-1">Export report</h3>
+        <p className="text-xs text-gray-400 mb-5">
+          Choose what to include. One file is produced with each student in its own section.
+        </p>
+
+        {/* Format */}
+        <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Format</p>
+        <div className="grid grid-cols-2 gap-2 mb-5">
+          {(['pdf', 'csv'] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => onSetFormat(f)}
+              className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
+                format === f
+                  ? 'bg-[#416ebe] border-[#416ebe] text-white'
+                  : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'
+              }`}
+            >
+              {f === 'pdf' ? '📄 PDF' : '📊 CSV'}
+            </button>
+          ))}
+        </div>
+
+        {/* Sections */}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold text-gray-400 uppercase">Sections</p>
+        </div>
+        <div className="space-y-1.5 mb-5">
+          {EXPORT_SECTIONS.map((s) => (
+            <label
+              key={s.key}
+              className="flex items-center gap-2 text-sm text-[#46464b] cursor-pointer hover:bg-[#f7fafd] rounded px-2 py-1.5"
+            >
+              <input
+                type="checkbox"
+                checked={sections.has(s.key)}
+                onChange={() => onToggleSection(s.key)}
+                className="accent-[#416ebe] w-4 h-4"
+              />
+              {s.label}
+            </label>
+          ))}
+          {format === 'csv' && (
+            <p className="text-[10px] text-gray-400 px-2 pt-1">
+              CSV exports tabular metrics only — Summary, Attendance, and Vocabulary columns.
+            </p>
+          )}
+        </div>
+
+        {/* Students */}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold text-gray-400 uppercase">
+            Students ({selectedStudents.size}/{students.length})
+          </p>
+          <button
+            onClick={() => onToggleAllStudents(!allSelected)}
+            className="text-[10px] text-[#00aff0] font-bold hover:underline"
+          >
+            {allSelected ? 'Deselect all' : 'Select all'}
+          </button>
+        </div>
+        <div className="space-y-1 mb-6 max-h-48 overflow-y-auto border border-[#e6f0fa] rounded-lg p-2">
+          {students.length === 0 ? (
+            <p className="text-xs text-gray-400 py-2 px-1">No students in this course.</p>
+          ) : (
+            students.map((s) => (
+              <label
+                key={s.email}
+                className="flex items-center gap-2 text-sm text-[#46464b] cursor-pointer hover:bg-[#f7fafd] rounded px-2 py-1.5"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedStudents.has(s.email)}
+                  onChange={() => onToggleStudent(s.email)}
+                  className="accent-[#416ebe] w-4 h-4"
+                />
+                <span className="truncate">{s.name || s.email}</span>
+              </label>
+            ))
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onExport}
+            disabled={!canExport}
+            className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50"
+          >
+            Export {format.toUpperCase()}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-5 text-sm font-bold text-gray-400 hover:text-[#46464b]"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

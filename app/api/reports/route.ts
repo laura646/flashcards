@@ -108,6 +108,7 @@ export async function GET(req: NextRequest) {
       vocabStruggles: {},
       lessonFlashcards: [],
       vocabSrs: [],
+      notes: [],
     })
   }
 
@@ -251,6 +252,27 @@ export async function GET(req: NextRequest) {
       vocabSrs = (srsRows || []) as { user_email: string; word: string; box_level: number; repetitions: number }[]
     }
 
+    // 11. All teacher notes for this course's students — so a multi-student
+    //     export can include notes without an N+1 per-student fetch.
+    let notes: {
+      id: string
+      student_email: string
+      course_id: string
+      author_email: string
+      tag: string
+      text: string
+      created_at: string
+    }[] = []
+    if (studentEmails.length > 0) {
+      const { data: noteRows } = await supabase
+        .from('student_notes')
+        .select('id, student_email, course_id, author_email, tag, text, created_at')
+        .eq('course_id', courseId)
+        .in('student_email', studentEmails)
+        .order('created_at', { ascending: false })
+      notes = (noteRows || []) as typeof notes
+    }
+
     return NextResponse.json({
       courses: (courses || []) as Course[],
       course: course as Course,
@@ -263,6 +285,7 @@ export async function GET(req: NextRequest) {
       vocabStruggles,
       lessonFlashcards,
       vocabSrs,
+      notes,
     })
   } catch (err) {
     console.error('Reports GET error:', err)
