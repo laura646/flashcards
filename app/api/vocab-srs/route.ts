@@ -352,22 +352,38 @@ export async function POST(req: NextRequest) {
         if (error) throw error
       }
 
-      // Clean up any duplicate rows that accumulated before this fix.
-      // Keep the row with the most review progress (highest repetitions,
-      // then highest box_level as tiebreaker). Delete the rest.
+      // Build the set of valid word keys from enrolled courses
+      const validWordKeys = new Set<string>()
+      ;(flashcards || []).forEach((fc: { word: string }) => {
+        validWordKeys.add(fc.word.toLowerCase())
+      })
+
+      // Fetch all vocab_srs rows for this user
       const { data: allSrsWords } = await supabase
         .from('vocab_srs')
         .select('id, word, repetitions, box_level')
         .eq('user_email', email)
 
-      const wordGroups = new Map<string, { id: string; repetitions: number; box_level: number }[]>()
+      const idsToDelete: string[] = []
+
+      // Pass 1: remove never-reviewed words from courses the student isn't enrolled in.
+      // repetitions === 0 means no SRS progress — safe to delete.
       ;(allSrsWords || []).forEach((w: { id: string; word: string; repetitions: number; box_level: number }) => {
+        if (w.repetitions === 0 && !validWordKeys.has(w.word.toLowerCase())) {
+          idsToDelete.push(w.id)
+        }
+      })
+
+      // Pass 2: deduplicate remaining rows (same word text, keep most-reviewed).
+      const remaining = (allSrsWords || []).filter(
+        (w: { id: string }) => !idsToDelete.includes(w.id)
+      )
+      const wordGroups = new Map<string, { id: string; repetitions: number; box_level: number }[]>()
+      ;(remaining as { id: string; word: string; repetitions: number; box_level: number }[]).forEach((w) => {
         const key = w.word.toLowerCase()
         if (!wordGroups.has(key)) wordGroups.set(key, [])
         wordGroups.get(key)!.push(w)
       })
-
-      const idsToDelete: string[] = []
       wordGroups.forEach((rows) => {
         if (rows.length <= 1) return
         rows.sort((a, b) => b.repetitions - a.repetitions || b.box_level - a.box_level)
@@ -378,7 +394,7 @@ export async function POST(req: NextRequest) {
         await supabase.from('vocab_srs').delete().in('id', idsToDelete).eq('user_email', email)
       }
 
-      return NextResponse.json({ ok: true, added: newWords.length, deduped: idsToDelete.length })
+      return NextResponse.json({ ok: true, added: newWords.length, cleaned: idsToDelete.length })
     }
 
     // Review: run one SM-2 step from the student's grade.
