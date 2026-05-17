@@ -55,7 +55,14 @@ export default function VocabularyPage() {
       fetch('/api/vocab-srs?action=streak').then((r) => r.json()),
     ])
       .then(([lessonData, srsData, statsData, streakData]) => {
-        setWords(lessonData.flashcards || [])
+        const seen = new Set<string>()
+        const unique = (lessonData.flashcards || []).filter((w: VocabWord) => {
+          const key = w.word.toLowerCase()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        setWords(unique)
         const map = new Map<string, number>()
         ;(srsData.words || []).forEach((w: { word: string; box_level: number }) => {
           map.set(w.word.toLowerCase(), w.box_level)
