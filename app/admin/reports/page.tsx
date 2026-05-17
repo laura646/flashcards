@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useConfirm } from '@/components/ConfirmDialog'
@@ -392,6 +392,20 @@ export default function ReportsPage() {
     new Set(EXPORT_SECTIONS.map((s) => s.key))
   )
   const [exportFormat, setExportFormat] = useState<'pdf' | 'csv'>('pdf')
+  const [exporting, setExporting] = useState(false)
+
+  // When the branded export document mounts, print it, then restore the
+  // normal view once the print dialog closes.
+  useEffect(() => {
+    if (!exporting) return
+    const done = () => setExporting(false)
+    window.addEventListener('afterprint', done)
+    const t = setTimeout(() => window.print(), 200)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('afterprint', done)
+    }
+  }, [exporting])
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
 
@@ -657,10 +671,8 @@ export default function ReportsPage() {
     if (exportFormat === 'csv') {
       exportCsv()
     } else {
-      // PDF: branded multi-student print view lands in the next increment.
-      // For now, close the modal and use the browser print of the current view.
       setShowExportModal(false)
-      setTimeout(() => window.print(), 100)
+      setExporting(true)
     }
   }
 
@@ -753,8 +765,10 @@ export default function ReportsPage() {
   }, [data, lessonsInRange])
 
   // Per-exercise breakdown for the currently selected student
-  const studentDetail = useMemo(() => {
-    if (!data || !selectedStudentEmail) return null
+  function buildStudentDetail(
+    data: ReportData,
+    selectedStudentEmail: string
+  ): StudentDetailData | null {
     const student = data.students.find((s) => s.email === selectedStudentEmail)
     if (!student) return null
 
@@ -1027,7 +1041,13 @@ export default function ReportsPage() {
         words: vocabWords,
       },
     }
-  }, [data, selectedStudentEmail])
+  }
+
+  const studentDetail = useMemo(
+    () => (data && selectedStudentEmail ? buildStudentDetail(data, selectedStudentEmail) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, selectedStudentEmail]
+  )
 
   // ─────────── States ───────────
 
@@ -1041,6 +1061,24 @@ export default function ReportsPage() {
       <div className="p-8 text-sm text-gray-500">
         No courses assigned to you yet. Ask a superadmin to add you as a teacher of a course.
       </div>
+    )
+  }
+
+  // ─────────── Branded export document ───────────
+
+  if (exporting && data) {
+    const selected = data.students
+      .filter((s) => exportStudents.has(s.email))
+      .map((s) => buildStudentDetail(data, s.email))
+      .filter((d): d is StudentDetailData => d !== null)
+    return (
+      <ExportDocument
+        courseName={data.course?.name || '—'}
+        rangeLabel={days === 'all' ? 'All time' : `Last ${days} days`}
+        sections={exportSections}
+        students={selected}
+        notes={data.notes || []}
+      />
     )
   }
 
@@ -2183,6 +2221,315 @@ function ExportModal({
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─────────── Branded export document ───────────
+// One page per student. Only the selected sections render. EwL logo +
+// domain in a #00aff0-accented footer at the foot of each student page.
+
+function ExportSectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: '#00aff0' }}>
+      {children}
+    </h3>
+  )
+}
+
+function ExportDocument({
+  courseName,
+  rangeLabel,
+  sections,
+  students,
+  notes,
+}: {
+  courseName: string
+  rangeLabel: string
+  sections: Set<string>
+  students: StudentDetailData[]
+  notes: NoteRow[]
+}) {
+  const generated = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
+  if (students.length === 0) {
+    return (
+      <div className="p-10 text-sm text-gray-500">
+        No students selected for export.
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white text-[#46464b]" style={{ fontFamily: 'var(--font-lato), Lato, sans-serif' }}>
+      {students.map((d) => {
+        const studentNotes = notes.filter((n) => n.student_email === d.student.email)
+        const avgLatest = avgOrDash(
+          d.perExercise.map((e) => e.latest).filter((x): x is number => x != null)
+        )
+        const avgBest = avgOrDash(
+          d.perExercise.map((e) => e.best).filter((x): x is number => x != null)
+        )
+        const totalAttempts = d.perExercise.reduce((s, e) => s + e.attempts, 0)
+        return (
+          <div key={d.student.email} className="export-student-page px-8 pt-8 pb-4">
+            {/* Header */}
+            <div className="pb-3 mb-5 border-b-2" style={{ borderColor: '#00aff0' }}>
+              <p className="text-xl font-bold" style={{ color: '#416ebe' }}>
+                {courseName}
+              </p>
+              <p className="text-base font-bold text-[#46464b] mt-0.5">
+                {d.student.name || d.student.email}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Progress report · {rangeLabel} · Generated {generated}
+              </p>
+            </div>
+
+            {/* Summary */}
+            {sections.has('summary') && (
+              <div className="mb-6">
+                <ExportSectionTitle>Summary</ExportSectionTitle>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Completion', value: `${d.completionPct}%`, sub: `${d.attempted}/${d.assigned} exercises` },
+                    { label: 'Avg latest', value: avgLatest, sub: 'across exercises' },
+                    { label: 'Avg best', value: avgBest, sub: 'across exercises' },
+                    {
+                      label: 'Attendance',
+                      value: d.attendancePct != null ? `${d.attendancePct}%` : '—',
+                      sub: d.attendanceMarked > 0 ? `${d.attendanceMarked} marked` : 'none marked',
+                    },
+                    {
+                      label: 'Streak',
+                      value: d.streak > 0 ? `${d.streak} days` : '—',
+                      sub: d.streak > 0 ? 'active' : 'no active streak',
+                    },
+                    { label: 'Total attempts', value: String(totalAttempts), sub: 'all exercises' },
+                  ].map((c) => (
+                    <div key={c.label} className="border border-[#e6f0fa] rounded-lg p-3">
+                      <p className="text-[9px] font-bold text-gray-400 uppercase">{c.label}</p>
+                      <p className="text-xl font-bold mt-0.5" style={{ color: '#416ebe' }}>
+                        {c.value}
+                      </p>
+                      <p className="text-[9px] text-gray-400 mt-0.5">{c.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Skill & CEFR */}
+            {sections.has('skills') && (d.skillBreakdown.length > 0 || d.cefrBreakdown.length > 0) && (
+              <div className="mb-6 grid grid-cols-2 gap-4">
+                {d.skillBreakdown.length > 0 && (
+                  <div>
+                    <ExportSectionTitle>Skill breakdown</ExportSectionTitle>
+                    <div className="space-y-1.5">
+                      {d.skillBreakdown.map((s) => (
+                        <div key={s.skill}>
+                          <div className="flex justify-between text-[11px] mb-0.5">
+                            <span>{s.label}</span>
+                            <span className="text-gray-500">{s.avgPct}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${s.avgPct}%`, background: '#416ebe' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {d.cefrBreakdown.length > 0 && (
+                  <div>
+                    <ExportSectionTitle>CEFR performance</ExportSectionTitle>
+                    <div className="space-y-1.5">
+                      {d.cefrBreakdown.map((c) => (
+                        <div key={c.level}>
+                          <div className="flex justify-between text-[11px] mb-0.5">
+                            <span className="font-bold" style={{ color: '#416ebe' }}>{c.level}</span>
+                            <span className="text-gray-500">{c.avgPct}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${c.avgPct}%`, background: '#00aff0' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Score trend */}
+            {sections.has('trend') && d.trend.length > 1 && (
+              <div className="mb-6">
+                <ExportSectionTitle>Score trend</ExportSectionTitle>
+                <LineChart width={680} height={170} data={d.trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6f0fa" />
+                  <XAxis dataKey="date" tick={{ fontSize: 9 }} />
+                  <YAxis tick={{ fontSize: 9 }} domain={[0, 100]} />
+                  <Line type="monotone" dataKey="score" stroke="#416ebe" strokeWidth={2} dot={{ r: 2 }} isAnimationActive={false} />
+                </LineChart>
+              </div>
+            )}
+
+            {/* Vocabulary */}
+            {sections.has('vocab') && d.vocab.total > 0 && (
+              <div className="mb-6">
+                <ExportSectionTitle>Vocabulary</ExportSectionTitle>
+                <div className="grid grid-cols-4 gap-3 mb-3">
+                  {[
+                    { label: 'Total words', value: String(d.vocab.total) },
+                    { label: 'Mastered', value: `${d.vocab.masteredPct}%` },
+                    { label: 'Needs attention', value: d.vocab.needsAttention > 0 ? String(d.vocab.needsAttention) : '—' },
+                    { label: 'Course mastered', value: `${d.vocab.courseMastered}/${d.vocab.courseTotal}` },
+                  ].map((c) => (
+                    <div key={c.label} className="border border-[#e6f0fa] rounded-lg p-2.5">
+                      <p className="text-[9px] font-bold text-gray-400 uppercase">{c.label}</p>
+                      <p className="text-lg font-bold mt-0.5" style={{ color: '#416ebe' }}>{c.value}</p>
+                    </div>
+                  ))}
+                </div>
+                {d.vocab.byLesson.length > 0 && (
+                  <table className="w-full text-[11px] text-left border-collapse">
+                    <thead>
+                      <tr className="text-[9px] font-bold text-gray-500 uppercase">
+                        <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Lesson</th>
+                        <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Words</th>
+                        <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Started</th>
+                        <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Mastered</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.vocab.byLesson.map((l) => (
+                        <tr key={l.lessonId} className="border-b border-[#e6f0fa]">
+                          <td className="py-1.5 px-2">{l.lessonTitle || '(untitled)'}</td>
+                          <td className="py-1.5 px-2 text-gray-500">{l.totalWords}</td>
+                          <td className="py-1.5 px-2 text-gray-500">{l.started}/{l.totalWords}</td>
+                          <td className="py-1.5 px-2">{l.mastered}/{l.totalWords}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
+            {/* Tests */}
+            {sections.has('tests') && d.tests.length > 0 && (
+              <div className="mb-6">
+                <ExportSectionTitle>Tests</ExportSectionTitle>
+                <table className="w-full text-[11px] text-left border-collapse">
+                  <thead>
+                    <tr className="text-[9px] font-bold text-gray-500 uppercase">
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Test</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Type</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">First</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Latest</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Attempts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.tests.map((t) => (
+                      <tr key={t.id} className="border-b border-[#e6f0fa]">
+                        <td className="py-1.5 px-2 font-medium">{t.title || '(untitled)'}</td>
+                        <td className="py-1.5 px-2 text-gray-500">{TEST_TYPE_LABELS[t.test_type] || t.test_type}</td>
+                        <td className="py-1.5 px-2">{t.first != null ? `${t.first}%` : '—'}</td>
+                        <td className="py-1.5 px-2">{t.latest != null ? `${t.latest}%` : '—'}</td>
+                        <td className="py-1.5 px-2">{t.attempts}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Per-exercise scores */}
+            {sections.has('scores') && d.perExercise.length > 0 && (
+              <div className="mb-6">
+                <ExportSectionTitle>Per-exercise breakdown</ExportSectionTitle>
+                <table className="w-full text-[11px] text-left border-collapse">
+                  <thead>
+                    <tr className="text-[9px] font-bold text-gray-500 uppercase">
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Exercise</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Attempts</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Latest</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Best</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.perExercise.map((e) => (
+                      <tr key={e.id} className="border-b border-[#e6f0fa]">
+                        <td className="py-1.5 px-2 font-medium">{e.title || '(untitled)'}</td>
+                        <td className="py-1.5 px-2">{e.attempts}</td>
+                        <td className="py-1.5 px-2">{e.latest != null ? `${e.latest}%` : '—'}</td>
+                        <td className="py-1.5 px-2">{e.best != null ? `${e.best}%` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Attendance history */}
+            {sections.has('attendance') && d.attendanceRows.length > 0 && (
+              <div className="mb-6">
+                <ExportSectionTitle>Attendance history</ExportSectionTitle>
+                <table className="w-full text-[11px] text-left border-collapse">
+                  <thead>
+                    <tr className="text-[9px] font-bold text-gray-500 uppercase">
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Lesson</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Date</th>
+                      <th className="py-1.5 px-2 border-b border-[#e6f0fa]">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.attendanceRows.map((a) => (
+                      <tr key={a.lesson_id} className="border-b border-[#e6f0fa]">
+                        <td className="py-1.5 px-2">{a.lesson_title}</td>
+                        <td className="py-1.5 px-2 text-gray-500">
+                          {a.lesson_date ? new Date(a.lesson_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                        </td>
+                        <td className="py-1.5 px-2 capitalize">{a.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Teacher notes */}
+            {sections.has('notes') && studentNotes.length > 0 && (
+              <div className="mb-6">
+                <ExportSectionTitle>Teacher notes</ExportSectionTitle>
+                <div className="space-y-2">
+                  {studentNotes.map((n) => (
+                    <div key={n.id} className="border border-[#e6f0fa] rounded-lg p-2.5">
+                      <p className="text-[9px] text-gray-400 mb-1">
+                        {getTagLabel(n.tag)} ·{' '}
+                        {new Date(n.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                      <p className="text-[11px] whitespace-pre-wrap">{n.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Branded footer */}
+            <div className="flex items-center justify-between pt-3 mt-6 border-t" style={{ borderColor: '#00aff0' }}>
+              <span className="text-[10px] text-gray-400">englishwithlaura.com</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.svg" alt="English with Laura" style={{ height: 34, width: 34 }} />
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

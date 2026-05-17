@@ -63,4 +63,18 @@ body {
   thead {
     display: table-header-group;
   }
+  @page {
+    margin: 16mm 14mm;
+  }
+}
+
+/* Branded multi-student export document. Each student section starts on
+   a fresh page; the EwL logo sits in the bottom-right of every page. */
+.export-student-page {
+  break-after: page;
+  page-break-after: always;
+}
+.export-student-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
 }
