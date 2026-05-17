@@ -1,8 +1,8 @@
 'use client'
 
-import { Suspense, useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import VocabTrainer from '@/components/VocabTrainer'
 import AudioButton from '@/components/AudioButton'
 
@@ -20,54 +20,68 @@ interface VocabWord {
   }
 }
 
-type Mode = 'browse' | 'trainer'
 type ViewMode = 'all' | 'by-lesson'
+
+interface SrsStats {
+  total: number
+  due: number
+  review_due: number
+  new_words: number
+}
 
 const STAGE_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
 const STAGE_PILLS = ['', 'bg-red-100 text-red-500', 'bg-orange-100 text-orange-500', 'bg-yellow-100 text-yellow-600', 'bg-blue-100 text-blue-500', 'bg-green-100 text-green-600']
 
 export default function VocabularyPage() {
-  return (
-    <Suspense fallback={<main className="min-h-screen flex items-center justify-center"><div className="text-[#416ebe] text-sm">Loading vocabulary…</div></main>}>
-      <VocabularyInner />
-    </Suspense>
-  )
-}
-
-function VocabularyInner() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [words, setWords] = useState<VocabWord[]>([])
   const [srsMap, setSrsMap] = useState<Map<string, number>>(new Map())
+  const [stats, setStats] = useState<SrsStats | null>(null)
+  const [streak, setStreak] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [browseLoaded, setBrowseLoaded] = useState(false)
-  const [savedScroll, setSavedScroll] = useState(0)
+  const [showTrainer, setShowTrainer] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const savedScrollRef = useRef(0)
 
-  const [mode, setMode] = useState<Mode>(
-    searchParams.get('mode') === 'trainer' ? 'trainer' : 'browse'
-  )
-
-  const loadWords = () => {
+  const loadAll = () => {
     setLoading(true)
     Promise.all([
       fetch('/api/lessons?all_vocabulary=true').then((r) => r.json()),
       fetch('/api/vocab-srs?action=all').then((r) => r.json()),
+      fetch('/api/vocab-srs?action=stats').then((r) => r.json()),
+      fetch('/api/vocab-srs?action=streak').then((r) => r.json()),
     ])
-      .then(([lessonData, srsData]) => {
+      .then(([lessonData, srsData, statsData, streakData]) => {
         setWords(lessonData.flashcards || [])
         const map = new Map<string, number>()
         ;(srsData.words || []).forEach((w: { word: string; box_level: number }) => {
           map.set(w.word.toLowerCase(), w.box_level)
         })
         setSrsMap(map)
-        setBrowseLoaded(true)
+        if (statsData.stats) setStats(statsData.stats)
+        setStreak(streakData.streak || 0)
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }
+
+  const refreshStats = () => {
+    Promise.all([
+      fetch('/api/vocab-srs?action=stats').then((r) => r.json()),
+      fetch('/api/vocab-srs?action=streak').then((r) => r.json()),
+      fetch('/api/vocab-srs?action=all').then((r) => r.json()),
+    ]).then(([statsData, streakData, srsData]) => {
+      if (statsData.stats) setStats(statsData.stats)
+      setStreak(streakData.streak || 0)
+      const map = new Map<string, number>()
+      ;(srsData.words || []).forEach((w: { word: string; box_level: number }) => {
+        map.set(w.word.toLowerCase(), w.box_level)
+      })
+      setSrsMap(map)
+    }).catch(() => {})
   }
 
   useEffect(() => {
@@ -75,23 +89,23 @@ function VocabularyInner() {
       router.replace('/')
       return
     }
-    if (status === 'authenticated' && mode === 'browse') {
-      loadWords()
+    if (status === 'authenticated') {
+      loadAll()
     }
   }, [status, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const goToTrainer = () => {
-    setSavedScroll(window.scrollY)
-    setMode('trainer')
+  const openTrainer = () => {
+    savedScrollRef.current = window.scrollY
+    setShowTrainer(true)
   }
 
-  const goToBrowse = () => {
-    if (!browseLoaded) loadWords()
-    setMode('browse')
-    setTimeout(() => window.scrollTo({ top: savedScroll }), 0)
+  const closeTrainer = () => {
+    setShowTrainer(false)
+    refreshStats()
+    setTimeout(() => window.scrollTo({ top: savedScrollRef.current }), 0)
   }
 
-  if (status === 'loading') {
+  if (status === 'loading' || loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-[#416ebe] text-sm">Loading vocabulary…</div>
@@ -101,18 +115,10 @@ function VocabularyInner() {
 
   if (status === 'unauthenticated') return null
 
-  if (mode === 'trainer') {
+  if (showTrainer) {
     return (
       <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
-        <VocabTrainer onBack={goToBrowse} />
-      </main>
-    )
-  }
-
-  if (loading) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-[#416ebe] text-sm">Loading vocabulary…</div>
+        <VocabTrainer onBack={closeTrainer} />
       </main>
     )
   }
@@ -138,6 +144,17 @@ function VocabularyInner() {
     groupedByLesson[key].push(w)
   })
 
+  const reviewDue = stats?.review_due ?? 0
+  const newWords = stats?.new_words ?? 0
+
+  const practiceSubtext = () => {
+    if (!stats || stats.total === 0) return 'Spaced repetition — the right words at the right time'
+    if (reviewDue > 0 && newWords > 0) return `${reviewDue} due for review · ${newWords} new words`
+    if (reviewDue > 0) return `${reviewDue} word${reviewDue === 1 ? '' : 's'} due for review${streak > 0 ? ` · 🔥 ${streak}-day streak` : ''}`
+    if (newWords > 0) return `${newWords} new word${newWords === 1 ? '' : 's'} to learn`
+    return 'All caught up! Keep the streak going'
+  }
+
   return (
     <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
       {/* Header */}
@@ -154,7 +171,7 @@ function VocabularyInner() {
 
       {/* Practice button */}
       <button
-        onClick={goToTrainer}
+        onClick={openTrainer}
         className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white py-5 rounded-2xl text-sm font-bold hover:from-amber-500 hover:to-orange-600 transition-all shadow-sm mb-5"
       >
         <div className="flex items-center justify-center gap-3">
@@ -162,7 +179,7 @@ function VocabularyInner() {
           <div className="text-left">
             <div className="text-base">Practice with the Vocabulary Trainer</div>
             <div className="text-[11px] font-normal text-amber-50 mt-0.5">
-              Spaced repetition — the right words at the right time
+              {practiceSubtext()}
             </div>
           </div>
         </div>

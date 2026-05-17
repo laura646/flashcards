@@ -84,7 +84,7 @@ export default function VocabDueCard() {
   if (due === 0 && newWords > 0) {
     return (
       <button
-        onClick={() => router.push('/vocabulary?mode=trainer')}
+        onClick={() => router.push('/vocabulary')}
         className="w-full bg-white rounded-2xl border-2 border-[#cddcf0] p-5 mb-3 text-left hover:border-[#416ebe] transition-colors group"
       >
         <div className="flex items-center gap-4">
@@ -105,7 +105,7 @@ export default function VocabDueCard() {
   if (due === 0) {
     return (
       <button
-        onClick={() => router.push('/vocabulary?mode=trainer')}
+        onClick={() => router.push('/vocabulary')}
         className="w-full bg-white rounded-2xl border-2 border-[#cddcf0] p-5 mb-3 text-left hover:border-[#416ebe] transition-colors group"
       >
         <div className="flex items-center gap-4">
@@ -127,7 +127,7 @@ export default function VocabDueCard() {
   // Words due — prominent, action-oriented
   return (
     <button
-      onClick={() => router.push('/vocabulary?mode=trainer')}
+      onClick={() => router.push('/vocabulary')}
       className="w-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl shadow-sm p-5 mb-3 text-left transition-all hover:shadow-md group"
     >
       <div className="flex items-center gap-4">
