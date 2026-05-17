@@ -73,6 +73,7 @@ export default function VocabTrainer({ onBack }: Props) {
   // Pre-review modal
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [reviewWordCount, setReviewWordCount] = useState(15)
+  const [wordCountInput, setWordCountInput] = useState('15')
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('due')
   const [modalMode, setModalMode] = useState<ReviewMode>('flip')
   const [modalLoading, setModalLoading] = useState(false)
@@ -722,11 +723,22 @@ export default function VocabTrainer({ onBack }: Props) {
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">How many words?</label>
             <div className="flex items-center gap-3 mb-5">
               <input
-                type="number" min={5} max={100} step={5} value={reviewWordCount}
-                onChange={(e) => setReviewWordCount(Math.max(5, Math.min(100, Number(e.target.value))))}
-                className="w-24 text-sm text-center text-[#46464b] border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe]"
+                type="text"
+                inputMode="numeric"
+                value={wordCountInput}
+                onChange={(e) => setWordCountInput(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={() => {
+                  const n = parseInt(wordCountInput, 10)
+                  const clamped = isNaN(n) || n < 1 ? 15 : n
+                  setWordCountInput(String(clamped))
+                  setReviewWordCount(clamped)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                }}
+                className="w-20 text-sm text-center text-[#46464b] border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe]"
               />
-              <span className="text-xs text-gray-400">words (5–100)</span>
+              <span className="text-xs text-gray-400">words</span>
             </div>
 
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Which words?</label>
