@@ -189,6 +189,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ words: data || [] })
     }
 
+    if (action === 'easy') {
+      const { data, error } = await supabase
+        .from('vocab_srs')
+        .select('*')
+        .eq('user_email', email)
+        .gte('ease_factor', 2.5)
+        .gt('repetitions', 2)
+        .order('ease_factor', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      return NextResponse.json({ words: data || [] })
+    }
+
     if (action === 'all') {
       const { data, error } = await supabase
         .from('vocab_srs')
@@ -407,7 +420,7 @@ export async function POST(req: NextRequest) {
     // is intentionally NOT changed here, so sync keeps deduping against
     // the original spelling even after the student fixes the word.
     if (action === 'update') {
-      const { word_id, word, meaning, phonetic, example, notes, translation } = body
+      const { word_id, word, meaning, phonetic, example, notes, translation, image_url } = body
       if (!word_id) {
         return NextResponse.json({ error: 'Missing word_id' }, { status: 400 })
       }
@@ -423,6 +436,7 @@ export async function POST(req: NextRequest) {
       if (typeof example === 'string') patch.example = example
       if (typeof notes === 'string') patch.notes = notes
       if (translation !== undefined) patch.translation = translation || null
+      if (image_url !== undefined) patch.image_url = image_url || null
 
       if (Object.keys(patch).length === 0) {
         return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
