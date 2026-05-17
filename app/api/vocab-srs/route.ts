@@ -113,28 +113,28 @@ export async function GET(req: NextRequest) {
     }
 
     if (action === 'stats') {
-      // Get box distribution
       const { data, error } = await supabase
         .from('vocab_srs')
-        .select('box_level')
+        .select('box_level, repetitions, next_review_at')
         .eq('user_email', email)
 
       if (error) throw error
 
-      const stats = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, total: 0, due: 0 }
-      ;(data || []).forEach((w: { box_level: number }) => {
+      const nowIso = new Date().toISOString()
+      const stats = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, total: 0, due: 0, review_due: 0, new_words: 0 }
+      ;(data || []).forEach((w: { box_level: number; repetitions: number; next_review_at: string }) => {
         stats[w.box_level as keyof typeof stats] = ((stats[w.box_level as keyof typeof stats] as number) || 0) + 1
         stats.total++
+        if (w.next_review_at <= nowIso) {
+          if (w.repetitions > 0) {
+            stats.review_due++
+          } else {
+            stats.new_words++
+          }
+          stats.due++
+        }
       })
 
-      // Count due words
-      const { count } = await supabase
-        .from('vocab_srs')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_email', email)
-        .lte('next_review_at', new Date().toISOString())
-
-      stats.due = count || 0
       return NextResponse.json({ stats })
     }
 

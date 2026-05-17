@@ -20,7 +20,7 @@ type Grade = 'again' | 'hard' | 'good' | 'easy'
 
 interface Stats {
   1: number; 2: number; 3: number; 4: number; 5: number
-  total: number; due: number
+  total: number; due: number; review_due: number; new_words: number
 }
 
 interface SessionResults {
@@ -692,7 +692,7 @@ export default function VocabTrainer({ onBack }: Props) {
   }
 
   // ── HOME / DASHBOARD ──
-  const dueCount = stats?.due || dueWords.length
+  const dueCount = (stats?.review_due ?? 0) + (stats?.new_words ?? 0) || dueWords.length
 
   return (
     <>
@@ -781,20 +781,25 @@ export default function VocabTrainer({ onBack }: Props) {
 
         {/* Due words card */}
         <div className="bg-gradient-to-r from-[#416ebe] to-[#5a8fd4] rounded-2xl p-5 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-blue-100">Words due for review</p>
-              <p className="text-3xl font-bold mt-1">{dueCount}</p>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="bg-white/15 rounded-xl p-3">
+              <p className="text-[10px] text-blue-100 uppercase font-bold tracking-wide">Due for review</p>
+              <p className="text-3xl font-bold mt-1">{stats?.review_due ?? 0}</p>
+              <p className="text-[10px] text-blue-100 mt-0.5">already seen, time to repeat</p>
             </div>
-            <div className="text-4xl">📚</div>
+            <div className="bg-white/15 rounded-xl p-3">
+              <p className="text-[10px] text-blue-100 uppercase font-bold tracking-wide">New words</p>
+              <p className="text-3xl font-bold mt-1">{stats?.new_words ?? 0}</p>
+              <p className="text-[10px] text-blue-100 mt-0.5">waiting to be introduced</p>
+            </div>
           </div>
           {dueCount > 0 ? (
             <button onClick={openReviewModal}
-              className="w-full mt-4 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
+              className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
               🃏 Start Review
             </button>
           ) : (
-            <p className="text-xs text-blue-100 mt-3">All caught up! Come back later for more reviews.</p>
+            <p className="text-xs text-blue-100 text-center">All caught up! Come back later for more reviews.</p>
           )}
         </div>
 

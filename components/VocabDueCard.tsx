@@ -15,6 +15,8 @@ import { useRouter } from 'next/navigation'
 interface SrsStats {
   total: number
   due: number
+  review_due: number
+  new_words: number
 }
 
 export default function VocabDueCard() {
@@ -74,9 +76,32 @@ export default function VocabDueCard() {
   // No SRS data at all (sync found nothing / error) → don't clutter home
   if (!stats || stats.total === 0) return null
 
-  const due = stats.due
+  const due = stats.review_due ?? stats.due
 
-  // All caught up — gentle, encouraging, not a call to action
+  const newWords = stats.new_words ?? 0
+
+  // No reviews due but new words waiting — nudge them to learn new words
+  if (due === 0 && newWords > 0) {
+    return (
+      <button
+        onClick={() => router.push('/vocabulary?mode=trainer')}
+        className="w-full bg-white rounded-2xl border-2 border-[#cddcf0] p-5 mb-3 text-left hover:border-[#416ebe] transition-colors group"
+      >
+        <div className="flex items-center gap-4">
+          <div className="text-3xl">✨</div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe] transition-colors">
+              {newWords} new word{newWords === 1 ? '' : 's'} waiting
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">No reviews due — learn some new words today</p>
+          </div>
+          <span className="text-gray-300 group-hover:text-[#416ebe] transition-colors text-lg">→</span>
+        </div>
+      </button>
+    )
+  }
+
+  // Fully caught up — nothing due, nothing new
   if (due === 0) {
     return (
       <button
