@@ -414,6 +414,8 @@ function LessonsAdminPage() {
   const [cbTemplates, setCbTemplates] = useState<{ id: string; title: string; template_level: string | null; template_category: string | null; lesson_type: string; flashcard_count: number; exercise_count: number; block_counts: Record<string, number> }[]>([])
   const [cbLoading, setCbLoading] = useState(false)
   const [cbSelectedTemplate, setCbSelectedTemplate] = useState<string | null>(null)
+  const [cbFolders, setCbFolders] = useState<{ id: string; name: string; parent_id: string | null; template_count: number }[]>([])
+  const [cbFolderId, setCbFolderId] = useState<string>('')
   const [cbFlashcards, setCbFlashcards] = useState<Flashcard[]>([])
   const [cbExercises, setCbExercises] = useState<{ id: string; title: string; icon: string; exercise_type: string; subtitle: string; instructions: string; questions: unknown; order_index: number }[]>([])
   const [cbBlocks, setCbBlocks] = useState<{ id: string; block_type: string; title: string; content: unknown; order_index: number }[]>([])
@@ -795,12 +797,13 @@ function LessonsAdminPage() {
 
   // ── Content Bank Functions ──
 
-  const openContentBank = async () => {
-    setShowContentBank(true)
-    setCbSelectedTemplate(null)
+  const loadCbTemplates = async (folderId: string) => {
     setCbLoading(true)
     try {
-      const res = await fetch('/api/content-bank?action=list')
+      const url = folderId
+        ? `/api/content-bank?action=list&folder_id=${encodeURIComponent(folderId)}`
+        : '/api/content-bank?action=list'
+      const res = await fetch(url)
       if (!res.ok) throw new Error('Failed')
       const data = await res.json()
       setCbTemplates(data.templates || [])
@@ -808,6 +811,37 @@ function LessonsAdminPage() {
       showToast('Failed to load content bank')
     }
     setCbLoading(false)
+  }
+
+  const openContentBank = async () => {
+    setShowContentBank(true)
+    setCbSelectedTemplate(null)
+    setCbFolderId('')
+    // Load folders (non-blocking) so teachers can scope the template list
+    fetch('/api/content-bank?action=list-folders')
+      .then((r) => (r.ok ? r.json() : { folders: [] }))
+      .then((d) => setCbFolders(d.folders || []))
+      .catch(() => { /* folders are optional — list still works */ })
+    await loadCbTemplates('')
+  }
+
+  // Flatten the folder tree into indented <select> options.
+  const cbFolderOptions = (): { id: string; label: string }[] => {
+    const byParent = new Map<string | null, typeof cbFolders>()
+    cbFolders.forEach((f) => {
+      const k = f.parent_id
+      if (!byParent.has(k)) byParent.set(k, [])
+      byParent.get(k)!.push(f)
+    })
+    const out: { id: string; label: string }[] = []
+    const walk = (parent: string | null, depth: number) => {
+      ;(byParent.get(parent) || []).forEach((f) => {
+        out.push({ id: f.id, label: `${'  '.repeat(depth)}${f.name} (${f.template_count})` })
+        walk(f.id, depth + 1)
+      })
+    }
+    walk(null, 0)
+    return out
   }
 
   const openCbTemplate = async (templateId: string) => {
@@ -2965,6 +2999,21 @@ function LessonsAdminPage() {
 
               {/* Modal Body */}
               <div className="overflow-y-auto flex-1 px-6 py-4">
+                {!cbSelectedTemplate && cbFolders.length > 0 && (
+                  <div className="mb-4">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Folder</label>
+                    <select
+                      value={cbFolderId}
+                      onChange={(e) => { setCbFolderId(e.target.value); loadCbTemplates(e.target.value) }}
+                      className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                    >
+                      <option value="">All folders</option>
+                      {cbFolderOptions().map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {cbSelectedTemplate ? (
                   /* ── Template Detail / Cherry Pick ── */
                   cbDetailLoading ? (
@@ -3031,8 +3080,17 @@ function LessonsAdminPage() {
                     <p className="text-center text-gray-400 py-8">Loading templates...</p>
                   ) : cbTemplates.length === 0 ? (
                     <div className="text-center py-8">
-                      <p className="text-gray-400 mb-1">No templates in the Content Bank yet.</p>
-                      <p className="text-xs text-gray-300">Share a lesson as template to add it here.</p>
+                      {cbFolderId ? (
+                        <>
+                          <p className="text-gray-400 mb-1">No templates in this folder.</p>
+                          <p className="text-xs text-gray-300">Pick another folder or choose “All folders”.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-gray-400 mb-1">No templates in the Content Bank yet.</p>
+                          <p className="text-xs text-gray-300">Share a lesson as template to add it here.</p>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-2">
