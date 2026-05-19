@@ -197,6 +197,9 @@ export async function POST(req: NextRequest) {
     // ── Clone entire lesson into a course ──
     if (action === 'clone-lesson') {
       const { template_id, course_id } = body
+      // Batch import lets the teacher choose publish-now vs save-as-draft
+      // for the whole selection; default to draft if unspecified.
+      const cloneStatus = body.status === 'published' ? 'published' : 'draft'
       if (!template_id || !course_id) {
         return NextResponse.json({ error: 'Template ID and course ID required' }, { status: 400 })
       }
@@ -227,11 +230,11 @@ export async function POST(req: NextRequest) {
       const { data: newLesson, error: insertErr } = await supabase
         .from('lessons')
         .insert({
-          title: template.title + ' (from template)',
+          title: template.title,
           lesson_date: new Date().toISOString().split('T')[0],
           lesson_type: template.lesson_type || 'lesson',
           summary: template.summary,
-          status: 'draft',
+          status: cloneStatus,
           course_id: course_id,
         })
         .select('id')

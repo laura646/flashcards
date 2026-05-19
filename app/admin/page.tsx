@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES } from '@/lib/common-issues'
+import ContentBankImportModal from '@/components/ContentBankImportModal'
 
 // ── Interfaces ──
 
@@ -102,6 +103,7 @@ export default function AdminPage() {
   const [view, setView] = useState<View>(initialView)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
+  const [showLessonChooser, setShowLessonChooser] = useState(false)
 
   // My Courses state
   const [courses, setCourses] = useState<Course[]>([])
@@ -443,6 +445,23 @@ export default function AdminPage() {
     <main className="min-h-screen bg-[#f7fafd] px-4 py-6">
       <div className="max-w-5xl mx-auto">
 
+        {/* Add-a-lesson chooser / Content Bank import */}
+        {showLessonChooser && selectedCourse && (
+          <ContentBankImportModal
+            courseId={selectedCourse.id}
+            onClose={() => setShowLessonChooser(false)}
+            onCreateOwn={() => {
+              setShowLessonChooser(false)
+              router.push(`/admin/lessons?course_id=${selectedCourse.id}&course_name=${encodeURIComponent(selectedCourse.name)}`)
+            }}
+            onImported={(count) => {
+              setShowLessonChooser(false)
+              showToast(`${count} lesson${count === 1 ? '' : 's'} added`)
+              loadCourseDetail(selectedCourse.id)
+            }}
+          />
+        )}
+
         {/* Toast */}
         {toast && (
           <div className="fixed top-4 right-4 bg-[#416ebe] text-white text-sm px-4 py-2 rounded-xl shadow-lg z-50 animate-fade-in">
@@ -589,7 +608,7 @@ export default function AdminPage() {
                 <div className="px-6 py-4 border-b border-[#e6f0fa] flex items-center justify-between">
                   <h3 className="font-bold text-[#46464b]">Lessons</h3>
                   <button
-                    onClick={() => router.push(`/admin/lessons?course_id=${selectedCourse.id}&course_name=${encodeURIComponent(selectedCourse.name)}`)}
+                    onClick={() => setShowLessonChooser(true)}
                     className="text-xs font-bold text-[#416ebe] hover:underline"
                   >
                     + Create Lesson
