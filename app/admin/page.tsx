@@ -449,6 +449,7 @@ export default function AdminPage() {
         {showLessonChooser && selectedCourse && (
           <ContentBankImportModal
             courseId={selectedCourse.id}
+            existingTitles={courseLessons.map((l) => l.title)}
             onClose={() => setShowLessonChooser(false)}
             onCreateOwn={() => {
               setShowLessonChooser(false)

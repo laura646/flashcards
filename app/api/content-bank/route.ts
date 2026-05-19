@@ -197,9 +197,21 @@ export async function POST(req: NextRequest) {
     // ── Clone entire lesson into a course ──
     if (action === 'clone-lesson') {
       const { template_id, course_id } = body
-      // Batch import lets the teacher choose publish-now vs save-as-draft
-      // for the whole selection; default to draft if unspecified.
-      const cloneStatus = body.status === 'published' ? 'published' : 'draft'
+      // Batch import: teacher picks publish-now / save-as-draft / schedule
+      // for the whole selection. A scheduled lesson stays 'draft' + carries
+      // publish_at; the cron flips it to 'published' at that time (so it
+      // stays hidden from students until then).
+      const publishAt: string | null =
+        typeof body.publish_at === 'string' && body.publish_at ? body.publish_at : null
+      const cloneStatus = publishAt
+        ? 'draft'
+        : body.status === 'published'
+        ? 'published'
+        : 'draft'
+      const cloneDate =
+        typeof body.lesson_date === 'string' && body.lesson_date
+          ? body.lesson_date
+          : new Date().toISOString().split('T')[0]
       if (!template_id || !course_id) {
         return NextResponse.json({ error: 'Template ID and course ID required' }, { status: 400 })
       }
@@ -231,11 +243,12 @@ export async function POST(req: NextRequest) {
         .from('lessons')
         .insert({
           title: template.title,
-          lesson_date: new Date().toISOString().split('T')[0],
+          lesson_date: cloneDate,
           lesson_type: template.lesson_type || 'lesson',
           summary: template.summary,
           status: cloneStatus,
           course_id: course_id,
+          publish_at: publishAt,
         })
         .select('id')
         .single()

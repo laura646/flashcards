@@ -30,27 +30,104 @@ interface Template {
 
 interface Props {
   courseId: string
+  existingTitles: string[]
   onClose: () => void
   onCreateOwn: () => void
   onImported: (count: number) => void
 }
 
+const norm = (s: string) => s.trim().toLowerCase()
+
+// Common IANA zones for the scheduler picker. The teacher's detected
+// zone is always prepended so it's selectable even if not in this list.
+const COMMON_TZS = [
+  'UTC',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Europe/Moscow',
+  'Asia/Dubai',
+  'Asia/Tehran',
+  'Asia/Kolkata',
+  'Asia/Shanghai',
+  'Asia/Tokyo',
+  'Australia/Sydney',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Sao_Paulo',
+]
+
+// Offset (ms) of `tz` at the instant `date`.
+function tzOffsetMs(date: Date, tz: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  const map: Record<string, string> = {}
+  dtf.formatToParts(date).forEach((p) => {
+    if (p.type !== 'literal') map[p.type] = p.value
+  })
+  const asUtc = Date.UTC(
+    +map.year,
+    +map.month - 1,
+    +map.day,
+    +map.hour,
+    +map.minute,
+    +map.second
+  )
+  return asUtc - date.getTime()
+}
+
+// Convert a wall-clock date+time in `tz` to a UTC ISO instant.
+// Two-pass to stay correct across DST boundaries.
+function wallTimeToUtcIso(dateStr: string, timeStr: string, tz: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [hh, mm] = timeStr.split(':').map(Number)
+  const naive = Date.UTC(y, m - 1, d, hh, mm, 0)
+  let utc = naive
+  for (let i = 0; i < 2; i++) {
+    utc = naive - tzOffsetMs(new Date(utc), tz)
+  }
+  return new Date(utc).toISOString()
+}
+
 export default function ContentBankImportModal({
   courseId,
+  existingTitles,
   onClose,
   onCreateOwn,
   onImported,
 }: Props) {
-  const [step, setStep] = useState<'choose' | 'browse'>('choose')
+  const [step, setStep] = useState<'choose' | 'browse' | 'schedule'>('choose')
   const [folders, setFolders] = useState<Folder[]>([])
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [publishMode, setPublishMode] = useState<'draft' | 'published'>('draft')
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
+
+  // Scheduler form (step === 'schedule')
+  const detectedTz = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    } catch {
+      return 'UTC'
+    }
+  })()
+  const today = new Date().toISOString().split('T')[0]
+  const [schedDate, setSchedDate] = useState(today)
+  const [schedTime, setSchedTime] = useState('09:00')
+  const [schedTz, setSchedTz] = useState(detectedTz)
 
   const loadTemplates = useCallback(async (folderId: string) => {
     setLoading(true)
@@ -114,7 +191,11 @@ export default function ContentBankImportModal({
     walk(null, 0)
   }
 
-  const doImport = async () => {
+  const doImport = async (
+    status: 'draft' | 'published',
+    publishAtIso?: string,
+    lessonDate?: string
+  ) => {
     if (selected.size === 0) return
     setImporting(true)
     setError('')
@@ -128,7 +209,9 @@ export default function ContentBankImportModal({
             action: 'clone-lesson',
             template_id: id,
             course_id: courseId,
-            status: publishMode,
+            status,
+            ...(publishAtIso ? { publish_at: publishAtIso } : {}),
+            ...(lessonDate ? { lesson_date: lessonDate } : {}),
           }),
         })
         if (res.ok) ok += 1
@@ -143,6 +226,37 @@ export default function ContentBankImportModal({
     }
     onImported(ok)
   }
+
+  const confirmSchedule = () => {
+    if (!schedDate || !schedTime) {
+      setError('Pick a date and time to schedule.')
+      return
+    }
+    const iso = wallTimeToUtcIso(schedDate, schedTime, schedTz)
+    if (new Date(iso).getTime() <= Date.now()) {
+      setError('Scheduled time must be in the future.')
+      return
+    }
+    // Scheduled lessons import as draft + publish_at; cron publishes them
+    // at that time, and we date the lesson to its scheduled day.
+    doImport('draft', iso, schedDate)
+  }
+
+  // ── Clone / duplicate detection ──
+  const existingSet = new Set(existingTitles.map(norm))
+  const bankCount: Record<string, number> = {}
+  templates.forEach((t) => {
+    const k = norm(t.title)
+    bankCount[k] = (bankCount[k] || 0) + 1
+  })
+  const cloneInfo = (title: string): string | null => {
+    const k = norm(title)
+    if (existingSet.has(k)) return 'Already a lesson in this course — adding it will create a duplicate.'
+    if (bankCount[k] > 1) return 'This title appears more than once in the content bank — may be a duplicate.'
+    return null
+  }
+
+  const tzOptions = Array.from(new Set([detectedTz, ...COMMON_TZS]))
 
   return (
     <div
@@ -200,7 +314,7 @@ export default function ContentBankImportModal({
               </p>
             </button>
           </div>
-        ) : (
+        ) : step === 'browse' ? (
           <>
             {/* Step 2: browse */}
             <div className="px-6 py-3 border-b border-[#e6f0fa] shrink-0">
@@ -268,44 +382,64 @@ export default function ContentBankImportModal({
                     {visibleTemplates.map((t) => {
                       const isSel = selected.has(t.id)
                       const blocks = Object.values(t.block_counts || {}).reduce((a, b) => a + b, 0)
+                      const warn = cloneInfo(t.title)
                       return (
-                        <button
+                        <div
                           key={t.id}
-                          onClick={() => toggle(t.id)}
-                          className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 ${
+                          className={`rounded-xl border transition-all ${
                             isSel
                               ? 'border-[#416ebe] bg-[#f3f8ff]'
-                              : 'border-[#cddcf0] hover:border-[#416ebe]'
+                              : warn
+                              ? 'border-red-200'
+                              : 'border-[#cddcf0]'
                           }`}
                         >
-                          <span
-                            className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center text-[10px] shrink-0 ${
-                              isSel
-                                ? 'bg-[#416ebe] border-[#416ebe] text-white'
-                                : 'border-[#cddcf0] text-transparent'
-                            }`}
+                          <button
+                            onClick={() => toggle(t.id)}
+                            className="w-full text-left p-3 flex items-start gap-3"
                           >
-                            ✓
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block font-bold text-sm text-[#46464b]">{t.title}</span>
-                            <span className="flex flex-wrap gap-1.5 mt-1">
-                              {t.template_level && (
-                                <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-[10px] rounded-full">{t.template_level}</span>
-                              )}
-                              {t.template_category && (
-                                <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] rounded-full">{t.template_category}</span>
-                              )}
+                            <span
+                              className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center text-[10px] shrink-0 ${
+                                isSel
+                                  ? 'bg-[#416ebe] border-[#416ebe] text-white'
+                                  : 'border-[#cddcf0] text-transparent'
+                              }`}
+                            >
+                              ✓
                             </span>
-                            <span className="block text-[11px] text-gray-400 mt-1">
-                              {[
-                                t.flashcard_count > 0 ? `${t.flashcard_count} flashcards` : '',
-                                t.exercise_count > 0 ? `${t.exercise_count} exercises` : '',
-                                blocks > 0 ? `${blocks} blocks` : '',
-                              ].filter(Boolean).join(' · ') || 'Empty'}
+                            <span className="min-w-0">
+                              <span className="block font-bold text-sm text-[#46464b]">{t.title}</span>
+                              <span className="flex flex-wrap gap-1.5 mt-1">
+                                {t.template_level && (
+                                  <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-[10px] rounded-full">{t.template_level}</span>
+                                )}
+                                {t.template_category && (
+                                  <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-[10px] rounded-full">{t.template_category}</span>
+                                )}
+                              </span>
+                              <span className="block text-[11px] text-gray-400 mt-1">
+                                {[
+                                  t.flashcard_count > 0 ? `${t.flashcard_count} flashcards` : '',
+                                  t.exercise_count > 0 ? `${t.exercise_count} exercises` : '',
+                                  blocks > 0 ? `${blocks} blocks` : '',
+                                ].filter(Boolean).join(' · ') || 'Empty'}
+                              </span>
                             </span>
-                          </span>
-                        </button>
+                          </button>
+                          {warn && (
+                            <div className="px-3 pb-2.5 -mt-1 flex items-start gap-2">
+                              <p className="text-[11px] text-red-500 flex-1">⚠ {warn}</p>
+                              {isSel && (
+                                <button
+                                  onClick={() => toggle(t.id)}
+                                  className="text-[11px] font-bold text-red-500 hover:underline shrink-0"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
@@ -317,37 +451,96 @@ export default function ContentBankImportModal({
             <div className="px-6 py-4 border-t border-[#e6f0fa] shrink-0">
               {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-1">
-                  {(['draft', 'published'] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setPublishMode(m)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors border ${
-                        publishMode === m
-                          ? 'bg-[#416ebe] border-[#416ebe] text-white'
-                          : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'
-                      }`}
-                    >
-                      {m === 'draft' ? 'Save as draft' : 'Publish now'}
-                    </button>
-                  ))}
-                </div>
                 <span className="text-xs text-gray-400">
                   {selected.size} selected · dated today
                 </span>
-                <button
-                  onClick={doImport}
-                  disabled={selected.size === 0 || importing}
-                  className="ml-auto bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
-                >
-                  {importing
-                    ? 'Adding…'
-                    : `Add ${selected.size || ''} lesson${selected.size === 1 ? '' : 's'}`.trim()}
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => doImport('published')}
+                    disabled={selected.size === 0 || importing}
+                    className="bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {importing ? 'Adding…' : 'Publish now'}
+                  </button>
+                  <button
+                    onClick={() => doImport('draft')}
+                    disabled={selected.size === 0 || importing}
+                    className="bg-white border border-[#cddcf0] hover:border-[#416ebe] text-[#46464b] text-sm font-bold px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    Save as draft
+                  </button>
+                  <button
+                    onClick={() => { setError(''); setStep('schedule') }}
+                    disabled={selected.size === 0 || importing}
+                    className="bg-white border border-[#cddcf0] hover:border-[#416ebe] text-[#46464b] text-sm font-bold px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    Schedule…
+                  </button>
+                </div>
               </div>
             </div>
           </>
-        )}
+        ) : step === 'schedule' ? (
+          <div className="p-6 flex flex-col gap-4">
+            <p className="text-sm text-[#46464b]">
+              Schedule <span className="font-bold">{selected.size}</span> lesson
+              {selected.size === 1 ? '' : 's'} to publish automatically. They stay
+              hidden from students until the chosen time.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Date</label>
+                <input
+                  type="date"
+                  value={schedDate}
+                  min={today}
+                  onChange={(e) => setSchedDate(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Time</label>
+                <input
+                  type="time"
+                  value={schedTime}
+                  onChange={(e) => setSchedTime(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Timezone</label>
+                <select
+                  value={schedTz}
+                  onChange={(e) => setSchedTz(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                >
+                  {tzOptions.map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz === detectedTz ? `${tz} (yours)` : tz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={confirmSchedule}
+                disabled={importing}
+                className="bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors disabled:opacity-50"
+              >
+                {importing ? 'Scheduling…' : `Schedule ${selected.size} lesson${selected.size === 1 ? '' : 's'}`}
+              </button>
+              <button
+                onClick={() => { setError(''); setStep('browse') }}
+                disabled={importing}
+                className="text-sm font-bold text-gray-400 hover:text-[#46464b] px-3"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   )
