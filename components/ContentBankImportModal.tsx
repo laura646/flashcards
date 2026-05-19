@@ -487,6 +487,15 @@ export default function ContentBankImportModal({
               {selected.size === 1 ? '' : 's'} to publish automatically. They stay
               hidden from students until the chosen time.
             </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2">
+              <span className="text-amber-500 shrink-0">ⓘ</span>
+              <p className="text-[12px] text-amber-700 leading-relaxed">
+                Lessons go live at the next 15-minute mark after your chosen time
+                (e.g. a lesson set for 3:07 publishes at 3:15), not the exact
+                minute. Until then it stays a hidden draft — so set the time a
+                little earlier if it must be live by a specific moment.
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Date</label>
