@@ -352,6 +352,7 @@ function LessonsAdminPage() {
   // ── State ──
   const [view, setView] = useState<View>('list')
   const [lessons, setLessons] = useState<Lesson[]>([])
+  const [lessonSearch, setLessonSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -445,6 +446,16 @@ function LessonsAdminPage() {
   const [savingToBank, setSavingToBank] = useState(false)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
+
+  // Lesson-manager list search (title + summary)
+  const lessonQuery = lessonSearch.trim().toLowerCase()
+  const filteredLessons = lessonQuery
+    ? lessons.filter(
+        (l) =>
+          l.title.toLowerCase().includes(lessonQuery) ||
+          (l.summary || '').toLowerCase().includes(lessonQuery)
+      )
+    : lessons
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')
@@ -3161,10 +3172,35 @@ function LessonsAdminPage() {
 
             {/* Lessons Table */}
             <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-[#e6f0fa]">
-                <h2 className="font-bold text-[#46464b]">
-                  All Lessons <span className="text-xs font-normal text-gray-400">({lessons.length})</span>
+              <div className="px-6 py-4 border-b border-[#e6f0fa] flex items-center justify-between gap-4">
+                <h2 className="font-bold text-[#46464b] shrink-0">
+                  All Lessons{' '}
+                  <span className="text-xs font-normal text-gray-400">
+                    ({lessonQuery ? `${filteredLessons.length} of ${lessons.length}` : lessons.length})
+                  </span>
                 </h2>
+                {lessons.length > 0 && (
+                  <div className="relative w-full max-w-xs">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={lessonSearch}
+                      onChange={(e) => setLessonSearch(e.target.value)}
+                      placeholder="Search lessons…"
+                      className="w-full pl-9 pr-9 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                    />
+                    {lessonSearch && (
+                      <button
+                        onClick={() => setLessonSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                      >
+                        &#x2715;
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {lessons.length === 0 ? (
@@ -3178,9 +3214,19 @@ function LessonsAdminPage() {
                     + Create Lesson
                   </button>
                 </div>
+              ) : filteredLessons.length === 0 ? (
+                <div className="px-6 py-16 text-center">
+                  <p className="text-sm text-gray-400">No lessons match &ldquo;{lessonSearch}&rdquo;</p>
+                  <button
+                    onClick={() => setLessonSearch('')}
+                    className="mt-3 text-xs font-bold text-[#416ebe] hover:underline"
+                  >
+                    Clear search
+                  </button>
+                </div>
               ) : (
                 <div className="divide-y divide-[#e6f0fa]">
-                  {lessons.map((lesson) => (
+                  {filteredLessons.map((lesson) => (
                     <div
                       key={lesson.id}
                       className="px-6 py-4 flex items-center justify-between hover:bg-[#f7fafd] cursor-pointer transition-colors"
