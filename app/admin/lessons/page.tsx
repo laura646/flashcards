@@ -10,6 +10,7 @@ import TypeAnswerEditor from '@/components/TypeAnswerEditor'
 import UnjumbleEditor from '@/components/UnjumbleEditor'
 import OddOneOutEditor from '@/components/OddOneOutEditor'
 import GroupSortEditor from '@/components/GroupSortEditor'
+import ImagePickerModal from '@/components/ImagePickerModal'
 // Role-based admin check
 
 // ── Types ──
@@ -369,6 +370,7 @@ function LessonsAdminPage() {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
   const [editingAuthorName, setEditingAuthorName] = useState<string | null>(null)
   const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null)
+  const [imagePickerState, setImagePickerState] = useState<{ word: string; onPick: (url: string) => void } | null>(null)
   const [courseId, setCourseId] = useState<string | null>(urlCourseId)
   const [courseName, setCourseName] = useState<string>(urlCourseName)
   const [title, setTitle] = useState('')
@@ -1890,19 +1892,12 @@ function LessonsAdminPage() {
                   </label>
                   {fc.word && (
                     <button
-                      onClick={async () => {
-                        try {
-                          const res = await fetch(`/api/image-search?q=${encodeURIComponent(fc.word)}`)
-                          const data = await res.json()
-                          if (res.ok && data.images?.length > 0) {
-                            updateFlashcard(fcIdx, 'image_url', data.images[0].url)
-                          } else {
-                            showToast(data.error || 'No images found')
-                          }
-                        } catch {
-                          showToast('Failed to search images')
-                        }
-                      }}
+                      onClick={() =>
+                        setImagePickerState({
+                          word: fc.word,
+                          onPick: (url) => updateFlashcard(fcIdx, 'image_url', url),
+                        })
+                      }
                       className="px-3 py-2 border border-dashed border-[#cddcf0] rounded-lg text-xs text-gray-400 hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
                     >
                       🔍 Find image
@@ -3010,6 +3005,17 @@ function LessonsAdminPage() {
         )}
 
         {/* ══════════ CONTENT BANK MODAL ══════════ */}
+        {imagePickerState && (
+          <ImagePickerModal
+            word={imagePickerState.word}
+            onClose={() => setImagePickerState(null)}
+            onPick={(url) => {
+              imagePickerState.onPick(url)
+              setImagePickerState(null)
+            }}
+          />
+        )}
+
         {showContentBank && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
