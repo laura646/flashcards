@@ -328,6 +328,15 @@ const formatDate = (dateStr: string) => {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// Formats a full ISO timestamp like "Mar 12, 2025"
+const formatAddedDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return ''
+  }
+}
+
 // ══════════════════════════════════════════
 // MAIN COMPONENT
 // ══════════════════════════════════════════
@@ -358,6 +367,8 @@ function LessonsAdminPage() {
 
   // Editor state
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
+  const [editingAuthorName, setEditingAuthorName] = useState<string | null>(null)
+  const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null)
   const [courseId, setCourseId] = useState<string | null>(urlCourseId)
   const [courseName, setCourseName] = useState<string>(urlCourseName)
   const [title, setTitle] = useState('')
@@ -412,7 +423,8 @@ function LessonsAdminPage() {
 
   // Content Bank modal
   const [showContentBank, setShowContentBank] = useState(false)
-  const [cbTemplates, setCbTemplates] = useState<{ id: string; title: string; template_level: string | null; template_category: string | null; lesson_type: string; flashcard_count: number; exercise_count: number; block_counts: Record<string, number> }[]>([])
+  const [cbTemplates, setCbTemplates] = useState<{ id: string; title: string; template_level: string | null; template_category: string | null; lesson_type: string; flashcard_count: number; exercise_count: number; block_counts: Record<string, number>; created_at: string; author_email: string | null; author_name: string }[]>([])
+  const [cbAuthorFilter, setCbAuthorFilter] = useState<string>('')
   const [cbLoading, setCbLoading] = useState(false)
   const [cbSelectedTemplate, setCbSelectedTemplate] = useState<string | null>(null)
   const [cbFolders, setCbFolders] = useState<{ id: string; name: string; parent_id: string | null; template_count: number }[]>([])
@@ -723,6 +735,9 @@ function LessonsAdminPage() {
       if (!res.ok) throw new Error('Failed to fetch')
       const data = await res.json()
 
+      setEditingAuthorName(data.lesson?.author_name || null)
+      setEditingCreatedAt(data.lesson?.created_at || null)
+
       const items: ContentItem[] = []
       let orderIdx = 0
 
@@ -788,6 +803,8 @@ function LessonsAdminPage() {
 
   const startNewLesson = () => {
     setEditingLessonId(null)
+    setEditingAuthorName(null)
+    setEditingCreatedAt(null)
     setCourseId(urlCourseId)
     setTitle('')
     setLessonDate(new Date().toISOString().slice(0, 10))
@@ -828,6 +845,7 @@ function LessonsAdminPage() {
     setShowContentBank(true)
     setCbSelectedTemplate(null)
     setCbFolderId('')
+    setCbAuthorFilter('')
     // Load folders (non-blocking) so teachers can scope the template list
     fetch('/api/content-bank?action=list-folders')
       .then((r) => (r.ok ? r.json() : { folders: [] }))
@@ -3010,19 +3028,38 @@ function LessonsAdminPage() {
 
               {/* Modal Body */}
               <div className="overflow-y-auto flex-1 px-6 py-4">
-                {!cbSelectedTemplate && cbFolders.length > 0 && (
-                  <div className="mb-4">
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Folder</label>
-                    <select
-                      value={cbFolderId}
-                      onChange={(e) => { setCbFolderId(e.target.value); loadCbTemplates(e.target.value) }}
-                      className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
-                    >
-                      <option value="">All folders</option>
-                      {cbFolderOptions().map((o) => (
-                        <option key={o.id} value={o.id}>{o.label}</option>
-                      ))}
-                    </select>
+                {!cbSelectedTemplate && (cbFolders.length > 0 || cbTemplates.length > 0) && (
+                  <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {cbFolders.length > 0 && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Folder</label>
+                        <select
+                          value={cbFolderId}
+                          onChange={(e) => { setCbFolderId(e.target.value); loadCbTemplates(e.target.value) }}
+                          className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                        >
+                          <option value="">All folders</option>
+                          {cbFolderOptions().map((o) => (
+                            <option key={o.id} value={o.id}>{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {cbTemplates.length > 0 && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Author</label>
+                        <select
+                          value={cbAuthorFilter}
+                          onChange={(e) => setCbAuthorFilter(e.target.value)}
+                          className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                        >
+                          <option value="">All authors</option>
+                          {Array.from(new Set(cbTemplates.map((t) => t.author_name || 'Unknown'))).sort((a, b) => a.localeCompare(b)).map((a) => (
+                            <option key={a} value={a}>{a}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
                 {cbSelectedTemplate ? (
@@ -3031,6 +3068,18 @@ function LessonsAdminPage() {
                     <p className="text-center text-gray-400 py-8">Loading...</p>
                   ) : (
                     <div className="space-y-4">
+                      {(() => {
+                        const tpl = cbTemplates.find((t) => t.id === cbSelectedTemplate)
+                        if (!tpl) return null
+                        return (
+                          <div className="bg-[#f7fafd] border border-[#e6f0fa] rounded-lg px-3 py-2">
+                            <p className="text-sm font-bold text-[#46464b]">{tpl.title}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Created by {tpl.author_name || 'Unknown'} · Added {formatAddedDate(tpl.created_at)}
+                            </p>
+                          </div>
+                        )
+                      })()}
                       <p className="text-xs text-gray-400 mb-2">Select the items you want to copy into your lesson.</p>
 
                       {/* Flashcards */}
@@ -3087,50 +3136,76 @@ function LessonsAdminPage() {
                   )
                 ) : (
                   /* ── Template List ── */
-                  cbLoading ? (
-                    <p className="text-center text-gray-400 py-8">Loading templates...</p>
-                  ) : cbTemplates.length === 0 ? (
-                    <div className="text-center py-8">
-                      {cbFolderId ? (
-                        <>
-                          <p className="text-gray-400 mb-1">No templates in this folder.</p>
-                          <p className="text-xs text-gray-300">Pick another folder or choose “All folders”.</p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-gray-400 mb-1">No templates in the Content Bank yet.</p>
-                          <p className="text-xs text-gray-300">Share a lesson as template to add it here.</p>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {cbTemplates.map(t => (
-                        <button
-                          key={t.id}
-                          onClick={() => openCbTemplate(t.id)}
-                          className="w-full text-left p-4 rounded-xl border border-[#cddcf0] hover:border-[#416ebe] hover:shadow-sm transition-all"
-                        >
-                          <p className="font-bold text-sm text-[#46464b]">{t.title}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            {t.template_level && (
-                              <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full">{t.template_level}</span>
-                            )}
-                            {t.template_category && (
-                              <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full">{t.template_category}</span>
-                            )}
+                  (() => {
+                    const visible = cbTemplates.filter(
+                      (t) => !cbAuthorFilter || (t.author_name || 'Unknown') === cbAuthorFilter
+                    )
+                    if (cbLoading) {
+                      return <p className="text-center text-gray-400 py-8">Loading templates...</p>
+                    }
+                    if (visible.length === 0) {
+                      const filtered = !!cbFolderId || !!cbAuthorFilter
+                      return (
+                        <div className="text-center py-8">
+                          {filtered ? (
+                            <>
+                              <p className="text-gray-400 mb-1">No templates match the current filters.</p>
+                              <p className="text-xs text-gray-300">Try a different folder or author.</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-gray-400 mb-1">No templates in the Content Bank yet.</p>
+                              <p className="text-xs text-gray-300">Share a lesson as template to add it here.</p>
+                            </>
+                          )}
+                        </div>
+                      )
+                    }
+                    return (
+                      <div className="space-y-2">
+                        {visible.map((t) => (
+                          <div
+                            key={t.id}
+                            className="rounded-xl border border-[#cddcf0] hover:border-[#416ebe] hover:shadow-sm transition-all"
+                          >
+                            <button
+                              onClick={() => openCbTemplate(t.id)}
+                              className="w-full text-left p-4"
+                            >
+                              <p className="font-bold text-sm text-[#46464b]">{t.title}</p>
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                {t.template_level && (
+                                  <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full">{t.template_level}</span>
+                                )}
+                                {t.template_category && (
+                                  <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full">{t.template_category}</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {[
+                                  t.flashcard_count > 0 ? `${t.flashcard_count} flashcards` : '',
+                                  t.exercise_count > 0 ? `${t.exercise_count} exercises` : '',
+                                  Object.values(t.block_counts).reduce((a, b) => a + b, 0) > 0 ? `${Object.values(t.block_counts).reduce((a, b) => a + b, 0)} blocks` : '',
+                                ].filter(Boolean).join(' · ') || 'Empty'}
+                              </p>
+                            </button>
+                            <div className="px-4 pb-3 -mt-1 text-xs text-gray-400">
+                              Created by{' '}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setCbAuthorFilter(t.author_name || 'Unknown') }}
+                                className="hover:text-[#416ebe] hover:underline"
+                                title={`Show only ${t.author_name || 'Unknown'}'s templates`}
+                              >
+                                {t.author_name || 'Unknown'}
+                              </button>
+                              {' · Added '}
+                              {formatAddedDate(t.created_at)}
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {[
-                              t.flashcard_count > 0 ? `${t.flashcard_count} flashcards` : '',
-                              t.exercise_count > 0 ? `${t.exercise_count} exercises` : '',
-                              Object.values(t.block_counts).reduce((a, b) => a + b, 0) > 0 ? `${Object.values(t.block_counts).reduce((a, b) => a + b, 0)} blocks` : '',
-                            ].filter(Boolean).join(' · ') || 'Empty'}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  )
+                        ))}
+                      </div>
+                    )
+                  })()
                 )}
               </div>
 
@@ -3340,6 +3415,12 @@ function LessonsAdminPage() {
                     ? (editingLessonId ? 'Edit Template' : 'New Template')
                     : (editingLessonId ? 'Edit Lesson' : 'New Lesson')}
                 </h1>
+                {editingLessonId && (editingAuthorName || editingCreatedAt) && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Created by {editingAuthorName || 'Unknown'}
+                    {editingCreatedAt && ` · Added ${formatAddedDate(editingCreatedAt)}`}
+                  </p>
+                )}
               </div>
             </div>
 

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
       let query = supabase
         .from('lessons')
-        .select('id, title, lesson_date, lesson_type, summary, is_template, template_category, template_level, created_at, updated_at')
+        .select('id, title, lesson_date, lesson_type, summary, is_template, template_category, template_level, created_at, updated_at, created_by')
         .eq('is_template', true)
         .order('updated_at', { ascending: false })
 
@@ -66,12 +66,35 @@ export async function GET(req: NextRequest) {
         blockCounts[b.lesson_id][b.block_type] = (blockCounts[b.lesson_id][b.block_type] || 0) + 1
       }
 
-      const templatesWithCounts = (templates || []).map((t: { id: string }) => ({
-        ...t,
-        flashcard_count: fcCounts[t.id] || 0,
-        exercise_count: exCounts[t.id] || 0,
-        block_counts: blockCounts[t.id] || {},
-      }))
+      // Batch-resolve author display names from the users table.
+      const authorEmails = Array.from(
+        new Set(
+          (templates || [])
+            .map((t: { created_by: string | null }) => t.created_by)
+            .filter((e: string | null): e is string => !!e)
+        )
+      )
+      const authorNames: Record<string, string> = {}
+      if (authorEmails.length > 0) {
+        const { data: userRows } = await supabase
+          .from('users')
+          .select('email, name')
+          .in('email', authorEmails)
+        for (const u of (userRows || []) as { email: string; name: string | null }[]) {
+          if (u.name) authorNames[u.email] = u.name
+        }
+      }
+
+      const templatesWithCounts = (templates || []).map(
+        (t: { id: string; created_by: string | null }) => ({
+          ...t,
+          flashcard_count: fcCounts[t.id] || 0,
+          exercise_count: exCounts[t.id] || 0,
+          block_counts: blockCounts[t.id] || {},
+          author_email: t.created_by || null,
+          author_name: t.created_by ? authorNames[t.created_by] || 'Unknown' : 'Unknown',
+        })
+      )
 
       return NextResponse.json({ templates: templatesWithCounts })
     }
@@ -135,8 +158,20 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Template not found' }, { status: 404 })
       }
 
+      // Resolve author display name
+      let author_name = 'Unknown'
+      const tplCreator = (lessonRes.data as { created_by: string | null }).created_by
+      if (tplCreator) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('name')
+          .eq('email', tplCreator)
+          .maybeSingle()
+        if (userRow?.name) author_name = userRow.name
+      }
+
       return NextResponse.json({
-        template: lessonRes.data,
+        template: { ...lessonRes.data, author_email: tplCreator || null, author_name },
         flashcards: fcRes.data || [],
         exercises: exRes.data || [],
         blocks: blockRes.data || [],

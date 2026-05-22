@@ -20,6 +20,17 @@ interface Template {
   flashcard_count: number
   exercise_count: number
   block_counts: Record<string, number>
+  author_email: string | null
+  author_name: string
+}
+
+// Formats a full ISO timestamp like "Mar 12, 2025"
+const formatAddedDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return ''
+  }
 }
 
 interface Flashcard {
@@ -232,6 +243,8 @@ export default function ContentBankPage() {
   const [loading, setLoading] = useState(true)
   const [filterLevel, setFilterLevel] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
+  const [filterAuthor, setFilterAuthor] = useState('')
+  const [sortBy, setSortBy] = useState<'recent' | 'author'>('recent')
 
   // Folders
   const [folders, setFolders] = useState<Folder[]>([])
@@ -1473,25 +1486,58 @@ export default function ContentBankPage() {
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+                <select
+                  value={filterAuthor}
+                  onChange={e => setFilterAuthor(e.target.value)}
+                  className="px-3 py-2 border border-[#cddcf0] rounded-lg text-sm bg-white"
+                >
+                  <option value="">All Authors</option>
+                  {Array.from(new Set(templates.map((t) => t.author_name || 'Unknown'))).sort((a, b) => a.localeCompare(b)).map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as 'recent' | 'author')}
+                  className="px-3 py-2 border border-[#cddcf0] rounded-lg text-sm bg-white"
+                  title="Sort templates"
+                >
+                  <option value="recent">Most recent</option>
+                  <option value="author">Author A→Z</option>
+                </select>
               </div>
 
               {/* Templates grid */}
-              {loading ? (
-                <p className="text-center text-gray-400 py-12">Loading templates...</p>
-              ) : templates.length === 0 ? (
-                <div className="text-center py-16">
-                  <p className="text-gray-400 mb-2">
-                    {selectedFolderId ? 'No templates in this folder.' : 'No templates found.'}
-                  </p>
-                  <p className="text-xs text-gray-300">
-                    {selectedFolderId
-                      ? 'Open a template and click "Add to Folder" to organize it here.'
-                      : 'Create a template with the button above, or mark an existing lesson as "Share as Template" in the Lesson Manager.'}
-                  </p>
-                </div>
-              ) : (
+              {(() => {
+                const filtered = templates.filter(
+                  (t) => !filterAuthor || (t.author_name || 'Unknown') === filterAuthor
+                )
+                const visible = sortBy === 'author'
+                  ? [...filtered].sort((a, b) =>
+                      (a.author_name || 'Unknown').localeCompare(b.author_name || 'Unknown')
+                    )
+                  : filtered
+                if (loading) {
+                  return <p className="text-center text-gray-400 py-12">Loading templates...</p>
+                }
+                if (visible.length === 0) {
+                  const filtersActive = !!filterAuthor || !!selectedFolderId || !!filterLevel || !!filterCategory
+                  return (
+                    <div className="text-center py-16">
+                      <p className="text-gray-400 mb-2">
+                        {filtersActive ? 'No templates match the current filters.' : 'No templates found.'}
+                      </p>
+                      <p className="text-xs text-gray-300">
+                        {filtersActive
+                          ? 'Try clearing a filter to see more.'
+                          : 'Create a template with the button above, or mark an existing lesson as "Share as Template" in the Lesson Manager.'}
+                      </p>
+                    </div>
+                  )
+                }
+                return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {templates.map(t => (
+                  {visible.map(t => (
                     <div
                       key={t.id}
                       className="bg-white rounded-2xl border border-[#cddcf0] p-5 hover:shadow-md hover:border-[#416ebe] transition-all group relative"
@@ -1525,6 +1571,18 @@ export default function ContentBankPage() {
                           <p className="text-xs text-gray-500 mt-2 line-clamp-2">{t.summary}</p>
                         )}
                       </button>
+                      <p className="text-xs text-gray-400 mt-2">
+                        Created by{' '}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setFilterAuthor(t.author_name || 'Unknown') }}
+                          className="hover:text-[#416ebe] hover:underline"
+                          title={`Show only ${t.author_name || 'Unknown'}'s templates`}
+                        >
+                          {t.author_name || 'Unknown'}
+                        </button>
+                        {' · Added '}
+                        {formatAddedDate(t.created_at)}
+                      </p>
 
                       {/* Quick actions */}
                       <div className="absolute top-3 right-3 hidden group-hover:flex items-center gap-1">
@@ -1548,7 +1606,8 @@ export default function ContentBankPage() {
                     </div>
                   ))}
                 </div>
-              )}
+                )
+              })()}
             </div>
           </div>
         </div>

@@ -26,6 +26,18 @@ interface Template {
   flashcard_count: number
   exercise_count: number
   block_counts: Record<string, number>
+  created_at: string
+  author_email: string | null
+  author_name: string
+}
+
+// "Mar 12, 2025"
+const formatAddedDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return ''
+  }
 }
 
 interface Props {
@@ -112,6 +124,7 @@ export default function ContentBankImportModal({
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [authorFilter, setAuthorFilter] = useState<string>('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
@@ -169,9 +182,16 @@ export default function ContentBankImportModal({
   }
 
   const q = search.trim().toLowerCase()
-  const visibleTemplates = q
-    ? templates.filter((t) => t.title.toLowerCase().includes(q))
-    : templates
+  const visibleTemplates = templates.filter((t) => {
+    if (q && !t.title.toLowerCase().includes(q)) return false
+    if (authorFilter && (t.author_name || 'Unknown') !== authorFilter) return false
+    return true
+  })
+
+  // Distinct authors from currently-loaded templates, A→Z.
+  const authorOptions = Array.from(
+    new Set(templates.map((t) => t.author_name || 'Unknown'))
+  ).sort((a, b) => a.localeCompare(b))
 
   // Flatten folders into an indented list (parent_id hierarchy).
   const folderRows: { id: string; name: string; depth: number; count: number }[] = []
@@ -317,8 +337,8 @@ export default function ContentBankImportModal({
         ) : step === 'browse' ? (
           <>
             {/* Step 2: browse */}
-            <div className="px-6 py-3 border-b border-[#e6f0fa] shrink-0">
-              <div className="relative">
+            <div className="px-6 py-3 border-b border-[#e6f0fa] shrink-0 flex gap-2">
+              <div className="relative flex-1">
                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
                 </svg>
@@ -338,6 +358,16 @@ export default function ContentBankImportModal({
                   </button>
                 )}
               </div>
+              <select
+                value={authorFilter}
+                onChange={(e) => setAuthorFilter(e.target.value)}
+                className="px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white max-w-[180px]"
+              >
+                <option value="">All authors</option>
+                {authorOptions.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex flex-1 min-h-0">
@@ -426,6 +456,18 @@ export default function ContentBankImportModal({
                               </span>
                             </span>
                           </button>
+                          <div className="px-3 pb-2 -mt-1 text-[11px] text-gray-400">
+                            Created by{' '}
+                            <button
+                              onClick={() => setAuthorFilter(t.author_name || 'Unknown')}
+                              className="hover:text-[#416ebe] hover:underline"
+                              title={`Show only ${t.author_name || 'Unknown'}'s templates`}
+                            >
+                              {t.author_name || 'Unknown'}
+                            </button>
+                            {' · Added '}
+                            {formatAddedDate(t.created_at)}
+                          </div>
                           {warn && (
                             <div className="px-3 pb-2.5 -mt-1 flex items-start gap-2">
                               <p className="text-[11px] text-red-500 flex-1">⚠ {warn}</p>

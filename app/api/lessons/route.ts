@@ -71,8 +71,20 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
       }
 
+      // Resolve author display name for the editor header.
+      let author_name: string | null = null
+      const creator = lessonRes.data?.created_by
+      if (creator) {
+        const { data: u } = await supabase
+          .from('users')
+          .select('name')
+          .eq('email', creator)
+          .maybeSingle()
+        if (u?.name) author_name = u.name
+      }
+
       return NextResponse.json({
-        lesson: lessonRes.data,
+        lesson: { ...lessonRes.data, author_name },
         flashcards: flashcardsRes.data || [],
         exercises: exercisesRes.data || [],
         blocks: blocksRes.data || [],
