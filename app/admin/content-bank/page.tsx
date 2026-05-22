@@ -245,6 +245,7 @@ export default function ContentBankPage() {
   const [filterCategory, setFilterCategory] = useState('')
   const [filterAuthor, setFilterAuthor] = useState('')
   const [sortBy, setSortBy] = useState<'recent' | 'author'>('recent')
+  const [search, setSearch] = useState('')
 
   // Folders
   const [folders, setFolders] = useState<Folder[]>([])
@@ -1466,6 +1467,26 @@ export default function ContentBankPage() {
                     </button>
                   </div>
                 )}
+                <div className="relative flex-1 min-w-[220px] max-w-md">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search templates by title…"
+                    className="w-full pl-9 pr-9 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
                 <select
                   value={filterLevel}
                   onChange={e => setFilterLevel(e.target.value)}
@@ -1509,9 +1530,12 @@ export default function ContentBankPage() {
 
               {/* Templates grid */}
               {(() => {
-                const filtered = templates.filter(
-                  (t) => !filterAuthor || (t.author_name || 'Unknown') === filterAuthor
-                )
+                const q = search.trim().toLowerCase()
+                const filtered = templates.filter((t) => {
+                  if (q && !t.title.toLowerCase().includes(q)) return false
+                  if (filterAuthor && (t.author_name || 'Unknown') !== filterAuthor) return false
+                  return true
+                })
                 const visible = sortBy === 'author'
                   ? [...filtered].sort((a, b) =>
                       (a.author_name || 'Unknown').localeCompare(b.author_name || 'Unknown')
@@ -1521,7 +1545,7 @@ export default function ContentBankPage() {
                   return <p className="text-center text-gray-400 py-12">Loading templates...</p>
                 }
                 if (visible.length === 0) {
-                  const filtersActive = !!filterAuthor || !!selectedFolderId || !!filterLevel || !!filterCategory
+                  const filtersActive = !!filterAuthor || !!selectedFolderId || !!filterLevel || !!filterCategory || !!q
                   return (
                     <div className="text-center py-16">
                       <p className="text-gray-400 mb-2">
