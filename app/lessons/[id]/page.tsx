@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, use, lazy, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import AudioButton from '@/components/AudioButton'
+import AttachedExercisesRunner from '@/components/AttachedExercisesRunner'
+import type { AttachedExercise } from '@/lib/attached-exercise'
 
 // Lazy load exercise runners — only loaded when student opens an exercise
 const FlipMode = lazy(() => import('@/components/FlipMode'))
@@ -104,6 +106,12 @@ interface MistakesContent {
 interface VideoContent {
   youtube_url: string
   questions: { id: number; prompt: string; options: string[]; correctIndex: number }[]
+  exercises?: AttachedExercise[]
+}
+
+interface AudioContent {
+  audio_url: string
+  exercises?: AttachedExercise[]
 }
 
 interface ArticleContent {
@@ -142,9 +150,9 @@ interface PronunciationContent {
 
 interface ContentBlock {
   id: string
-  block_type: 'mistakes' | 'video' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation'
+  block_type: 'mistakes' | 'video' | 'audio' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation'
   title: string
-  content: MistakesContent | VideoContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent
+  content: MistakesContent | VideoContent | AudioContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent
   order_index: number
 }
 
@@ -167,6 +175,7 @@ type FlashcardMode = 'flip' | 'self-assess' | 'quiz'
 const BLOCK_META: Record<string, { icon: string; label: string }> = {
   mistakes: { icon: '❌', label: 'Common Mistakes' },
   video: { icon: '🎬', label: 'Watch & Learn' },
+  audio: { icon: '🎧', label: 'Listen & Understand' },
   article: { icon: '📄', label: 'Read & Understand' },
   dialogue: { icon: '💬', label: 'Conversation Practice' },
   grammar: { icon: '📐', label: 'Grammar Focus' },
@@ -1387,6 +1396,47 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             <div>
               <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension questions</h2>
               <InlineQuiz questions={content.questions} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
+            </div>
+          )}
+        </main>
+      )
+    }
+
+    // ── Audio Block ──
+    if (selectedBlock.block_type === 'audio') {
+      const content = selectedBlock.content as AudioContent
+
+      return (
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
+          <BackToLesson />
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-3xl">{meta.icon}</span>
+            <div>
+              <h1 className="text-xl font-bold text-[#416ebe]">
+                {selectedBlock.title || meta.label}
+              </h1>
+              <p className="text-xs text-gray-400">{lesson.title}</p>
+            </div>
+          </div>
+
+          {content.audio_url ? (
+            <div className="bg-white border border-[#cddcf0] rounded-2xl p-4 mb-6">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <audio controls src={content.audio_url} className="w-full" />
+            </div>
+          ) : (
+            <div className="bg-gray-100 rounded-2xl p-8 text-center mb-6">
+              <p className="text-sm text-gray-400">Audio not available</p>
+            </div>
+          )}
+
+          {content.exercises && content.exercises.length > 0 && (
+            <div>
+              <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension exercises</h2>
+              <AttachedExercisesRunner
+                exercises={content.exercises}
+                onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+              />
             </div>
           )}
         </main>

@@ -15,6 +15,10 @@ interface Props {
   // For Dictation it's just q.text; for cloze_listening it's the text
   // with the {{n}} blanks substituted with the correct words.
   getText: () => string
+  // Hide the AI-generate tab when the surrounding context doesn't have
+  // a sensible source text (e.g. an Audio content block that's just a
+  // podcast clip, not a sentence to read aloud). Default: AI shown.
+  allowAi?: boolean
 }
 
 function normalizeAudioUrl(raw: string): string {
@@ -36,7 +40,7 @@ function sourceLabel(url: string | undefined): string {
 
 type SourceTab = 'link' | 'upload' | 'ai'
 
-export default function AudioSourcePicker({ value, onChange, getText }: Props) {
+export default function AudioSourcePicker({ value, onChange, getText, allowAi = true }: Props) {
   const [tab, setTab] = useState<SourceTab>('link')
   const [busy, setBusy] = useState(false)
   const [linkDraft, setLinkDraft] = useState('')
@@ -120,7 +124,7 @@ export default function AudioSourcePicker({ value, onChange, getText }: Props) {
   return (
     <div>
       <div className="flex items-center gap-1 mb-2">
-        {(['link', 'upload', 'ai'] as const).map((t) => (
+        {(allowAi ? (['link', 'upload', 'ai'] as const) : (['link', 'upload'] as const)).map((t) => (
           <button
             key={t}
             onClick={() => { setTab(t); setError('') }}

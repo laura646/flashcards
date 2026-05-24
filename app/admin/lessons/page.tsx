@@ -15,6 +15,9 @@ import ErrorCorrectionEditor from '@/components/ErrorCorrectionEditor'
 import TextSequencingEditor from '@/components/TextSequencingEditor'
 import TrueFalseEditor from '@/components/TrueFalseEditor'
 import RankOrderEditor from '@/components/RankOrderEditor'
+import AudioSourcePicker from '@/components/AudioSourcePicker'
+import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
+import type { AttachedExercise } from '@/lib/attached-exercise'
 import GroupSortEditor from '@/components/GroupSortEditor'
 import ImagePickerModal from '@/components/ImagePickerModal'
 // Role-based admin check
@@ -169,6 +172,7 @@ const EXERCISE_TYPE_LABELS: Record<string, string> = {
 const BLOCK_TYPE_LABELS: Record<string, string> = {
   mistakes: 'Mistakes',
   video: 'Video',
+  audio: 'Audio',
   article: 'Article',
   dialogue: 'Dialogue',
   grammar: 'Grammar',
@@ -205,6 +209,14 @@ interface MCQuestion {
 interface VideoContent {
   youtube_url: string
   questions: MCQuestion[]
+  // Phase C will populate this for new content; legacy `questions` stays
+  // for backward compatibility.
+  exercises?: import('@/lib/attached-exercise').AttachedExercise[]
+}
+
+interface AudioContent {
+  audio_url: string
+  exercises: import('@/lib/attached-exercise').AttachedExercise[]
 }
 
 interface ArticleContent {
@@ -241,9 +253,9 @@ interface PronunciationContent {
   words: PronunciationWord[]
 }
 
-type BlockContent = MistakesContent | VideoContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent
+type BlockContent = MistakesContent | VideoContent | AudioContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent
 
-type BlockType = 'mistakes' | 'video' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation'
+type BlockType = 'mistakes' | 'video' | 'audio' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation'
 
 interface ContentBlock {
   id?: string
@@ -276,6 +288,7 @@ const BLOCK_CONFIG: Record<ContentItemType, { label: string; icon: string; color
   exercise: { label: 'Exercise', icon: '\uD83C\uDFAF', color: '#8b5cf6' },
   mistakes: { label: 'Error Corrections', icon: '\u2757', color: '#ef4444' },
   video: { label: 'Video', icon: '\uD83C\uDFAC', color: '#f59e0b' },
+  audio: { label: 'Audio', icon: '\uD83C\uDFA7', color: '#0ea5e9' },
   article: { label: 'Reading / Article', icon: '\uD83D\uDCF0', color: '#10b981' },
   dialogue: { label: 'AI Dialogue Practice', icon: '\uD83D\uDCAC', color: '#06b6d4' },
   grammar: { label: 'Grammar', icon: '\uD83D\uDCD6', color: '#8b5cf6' },
@@ -291,6 +304,8 @@ function createDefaultContent(type: BlockType): BlockContent {
       return { mistakes: [{ original: '', correction: '', explanation: '', practice: [] }] }
     case 'video':
       return { youtube_url: '', questions: [] }
+    case 'audio':
+      return { audio_url: '', exercises: [] }
     case 'article':
       return { text: '', source: '', questions: [] }
     case 'dialogue':
@@ -2620,6 +2635,52 @@ function LessonsAdminPage() {
     )
   }
 
+  // ── Audio Editor (new) ──
+
+  const renderAudioEditor = (itemIndex: number) => {
+    const block = contentItems[itemIndex].data as ContentBlock
+    const content = block.content as AudioContent
+
+    const updateAudioContent = (partial: Partial<AudioContent>) => {
+      updateContentItem(itemIndex, { ...block, content: { ...content, ...partial } })
+    }
+
+    return (
+      <div className="space-y-4">
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Block Title</label>
+          <input
+            type="text"
+            value={block.title}
+            onChange={(e) => updateContentItem(itemIndex, { ...block, title: e.target.value })}
+            placeholder="e.g. Listen: Podcast clip on travel"
+            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1.5">Audio</label>
+          <AudioSourcePicker
+            value={content.audio_url}
+            onChange={(url) => updateAudioContent({ audio_url: url })}
+            getText={() => ''}
+            allowAi={false}
+          />
+          <p className="text-[10px] text-gray-300 mt-1">
+            Paste a URL (Google Drive share links auto-converted) or upload an audio file (MP3, WAV, M4A, OGG — max 10 MB).
+          </p>
+        </div>
+
+        <div className="pt-2 border-t border-[#e6f0fa]">
+          <AttachedExercisesEditor
+            exercises={content.exercises || []}
+            onChange={(exercises: AttachedExercise[]) => updateAudioContent({ exercises })}
+          />
+        </div>
+      </div>
+    )
+  }
+
   // ── Article Editor ──
 
   const renderArticleEditor = (itemIndex: number) => {
@@ -2962,6 +3023,7 @@ function LessonsAdminPage() {
       case 'exercise': return renderExerciseEditor(index)
       case 'mistakes': return renderMistakesEditor(index)
       case 'video': return renderVideoEditor(index)
+      case 'audio': return renderAudioEditor(index)
       case 'article': return renderArticleEditor(index)
       case 'dialogue': return renderDialogueEditor(index)
       case 'grammar': return renderGrammarEditor(index)
