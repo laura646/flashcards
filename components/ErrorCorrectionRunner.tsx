@@ -288,26 +288,38 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
             const result = results[i]
             if (!result) return null
             const perfect = result.correctFixes === result.totalErrors && result.foundErrors === result.totalErrors
+            const falsePositives = result.words.filter((w) => w.highlighted && !w.isError).length
+            // "Truly perfect" = real errors handled AND no over-marking
+            const cleanPerfect = perfect && falsePositives === 0
 
             return (
               <div
                 key={q.id}
                 className={`bg-white rounded-xl border-2 p-4 ${
-                  perfect ? 'border-green-200' : 'border-red-200'
+                  cleanPerfect ? 'border-green-200' : 'border-red-200'
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <span className={`text-sm font-bold mt-0.5 ${perfect ? 'text-green-500' : 'text-red-400'}`}>
-                    {perfect ? '✓' : '✗'}
+                  <span className={`text-sm font-bold mt-0.5 ${cleanPerfect ? 'text-green-500' : 'text-red-400'}`}>
+                    {cleanPerfect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
                     <p className="text-xs text-gray-400 mb-1">Original (with errors):</p>
                     <p className="text-sm text-red-400 line-through">{q.incorrect}</p>
                     <p className="text-xs text-gray-400 mt-2 mb-1">Correct version:</p>
                     <p className="text-sm text-green-600 font-medium">{q.correct}</p>
-                    {!perfect && (
+                    {(!perfect || falsePositives > 0) && (
                       <p className="text-xs text-gray-400 mt-2">
                         Found {result.foundErrors}/{result.totalErrors} errors, fixed {result.correctFixes} correctly
+                        {falsePositives > 0 && (
+                          <>
+                            {' · '}
+                            <span className="text-orange-600">
+                              ⚠ also marked {falsePositives} word{falsePositives !== 1 ? 's' : ''} that
+                              {falsePositives === 1 ? ' was' : ' were'} already correct
+                            </span>
+                          </>
+                        )}
                       </p>
                     )}
                   </div>
@@ -448,24 +460,70 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
             }
 
             if (phase === 'feedback') {
-              let style = 'text-[#46464b]'
-              if (w.isError && w.highlighted && w.correction.trim().toLowerCase() === w.expectedCorrection.toLowerCase()) {
-                style = 'text-green-600 font-bold bg-green-50 px-1 rounded'
-              } else if (w.isError && w.highlighted) {
-                style = 'text-amber-600 font-bold bg-amber-50 px-1 rounded'
-              } else if (w.isError && !w.highlighted) {
-                style = 'text-red-500 font-bold bg-red-50 px-1 rounded underline'
-              } else if (!w.isError && w.highlighted) {
-                style = 'text-gray-400 line-through'
-              }
+              const fixedRight =
+                w.isError &&
+                w.highlighted &&
+                w.correction.trim().toLowerCase() === w.expectedCorrection.toLowerCase()
+              const triedButWrong = w.isError && w.highlighted && !fixedRight
+              const missed = w.isError && !w.highlighted
+              const falsePositive = !w.isError && w.highlighted
 
+              // Real error, fixed correctly
+              if (fixedRight) {
+                return (
+                  <span
+                    key={w.index}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-green-200 bg-green-50 text-green-700 font-bold text-base"
+                  >
+                    ✓ {w.correction}
+                  </span>
+                )
+              }
+              // Real error, attempted but wrong fix
+              if (triedButWrong) {
+                return (
+                  <span
+                    key={w.index}
+                    className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 font-bold text-base"
+                  >
+                    {w.correction || w.word}
+                    <span className="text-[10px] font-normal text-amber-600">
+                      should be {w.expectedCorrection}
+                    </span>
+                  </span>
+                )
+              }
+              // Real error, missed entirely
+              if (missed) {
+                return (
+                  <span
+                    key={w.index}
+                    className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded border border-red-200 bg-red-50 text-red-600 font-bold text-base"
+                  >
+                    {w.word}
+                    <span className="text-[10px] font-normal text-red-500">
+                      → {w.expectedCorrection}
+                    </span>
+                  </span>
+                )
+              }
+              // False positive — flagged a word that was actually correct
+              if (falsePositive) {
+                return (
+                  <span
+                    key={w.index}
+                    className="inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded border border-orange-200 bg-orange-50 text-orange-700 text-base"
+                    title="This word was already correct"
+                  >
+                    <span className="line-through">{w.word}</span>
+                    <span className="text-[10px] font-bold">⚠ already correct</span>
+                  </span>
+                )
+              }
+              // Plain word — not an error, not flagged
               return (
-                <span key={w.index} className={`inline-block px-1 py-0.5 text-base ${style}`}>
-                  {phase === 'feedback' && w.isError && w.highlighted && w.correction
-                    ? w.correction
-                    : phase === 'feedback' && w.isError && !w.highlighted
-                    ? `${w.word} → ${w.expectedCorrection}`
-                    : w.word}
+                <span key={w.index} className="inline-block px-1 py-0.5 text-base text-[#46464b]">
+                  {w.word}
                 </span>
               )
             }
@@ -485,20 +543,32 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
             {(() => {
               const r = results[currentIndex]!
               const perfect = r.correctFixes === r.totalErrors && r.foundErrors === r.totalErrors
-              return perfect ? (
-                <p className="text-sm text-green-600 font-bold text-center animate-pulse">
-                  Perfect! All errors found and corrected!
-                </p>
-              ) : (
+              // Words the student flagged that weren't actually errors.
+              const falsePositives = r.words.filter((w) => w.highlighted && !w.isError).length
+              return (
                 <div className="text-sm text-center space-y-1">
-                  <p className="text-gray-500">
-                    Found {r.foundErrors} of {r.totalErrors} error{r.totalErrors !== 1 ? 's' : ''}
-                  </p>
-                  <p className="text-gray-500">
-                    Correctly fixed: {r.correctFixes}
-                  </p>
+                  {perfect && falsePositives === 0 ? (
+                    <p className="text-green-600 font-bold animate-pulse">
+                      Perfect! All errors found and corrected!
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-gray-500">
+                        Found {r.foundErrors} of {r.totalErrors} error
+                        {r.totalErrors !== 1 ? 's' : ''}
+                      </p>
+                      <p className="text-gray-500">Correctly fixed: {r.correctFixes}</p>
+                    </>
+                  )}
+                  {falsePositives > 0 && (
+                    <p className="text-orange-600 text-xs font-medium">
+                      ⚠ Also marked {falsePositives} word{falsePositives !== 1 ? 's' : ''} that
+                      {falsePositives === 1 ? ' was' : ' were'} already correct.
+                    </p>
+                  )}
                   <p className="text-xs text-gray-400 mt-2">
-                    Correct version: <span className="text-green-600 font-medium">{current.correct}</span>
+                    Correct version:{' '}
+                    <span className="text-green-600 font-medium">{current.correct}</span>
                   </p>
                 </div>
               )
