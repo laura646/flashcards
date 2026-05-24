@@ -350,7 +350,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
           <div className="flex gap-3">
             <button
               onClick={() => playAudio(false)}
-              disabled={isPlaying || isSubmitted}
+              disabled={isPlaying}
               className="flex items-center gap-2 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               {isPlaying ? (
@@ -363,7 +363,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
             </button>
             <button
               onClick={() => playAudio(true)}
-              disabled={isPlaying || isSubmitted}
+              disabled={isPlaying}
               className="flex items-center gap-2 bg-[#e6f0fa] hover:bg-[#cddcf0] text-[#416ebe] font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               <span className="text-lg">🐢</span> Slow

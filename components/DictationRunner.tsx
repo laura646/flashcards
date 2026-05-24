@@ -53,9 +53,11 @@ function computeDiff(typed: string, expected: string): DiffSegment[] {
 }
 
 function isExactMatch(typed: string, expected: string): boolean {
-  // Normalize: lowercase, collapse whitespace, strip trailing punctuation differences
+  // Normalize: lowercase, strip common punctuation, collapse whitespace.
+  // Mirrors TypeAnswerRunner's stripPunctuation so the two graded
+  // text-input types judge answers the same way.
   const normalize = (s: string) =>
-    s.trim().toLowerCase().replace(/\s+/g, ' ')
+    s.replace(/[.,!?;:'"()\-—–…]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
   return normalize(typed) === normalize(expected)
 }
 
@@ -325,7 +327,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
           <div className="flex gap-3">
             <button
               onClick={() => playAudio(false)}
-              disabled={isPlaying || feedback !== null}
+              disabled={isPlaying}
               className="flex items-center gap-2 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               {isPlaying ? (
@@ -338,7 +340,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
             </button>
             <button
               onClick={() => playAudio(true)}
-              disabled={isPlaying || feedback !== null}
+              disabled={isPlaying}
               className="flex items-center gap-2 bg-[#e6f0fa] hover:bg-[#cddcf0] text-[#416ebe] font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               <span className="text-lg">🐢</span> Slow

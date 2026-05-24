@@ -35,19 +35,73 @@ type QuestionResult = {
   words: WordState[]
 }
 
+// LCS-based diff: only the incorrect-sentence positions that are NOT part
+// of the longest common subsequence with the correct sentence count as
+// errors. This means inserting/deleting a single word in the correction
+// no longer cascades into "every subsequent word is wrong".
 function findErrors(incorrect: string, correct: string): Map<number, string> {
-  const incWords = incorrect.trim().split(/\s+/)
-  const corWords = correct.trim().split(/\s+/)
-  const errors = new Map<number, string>()
+  const inc = incorrect.trim().split(/\s+/)
+  const cor = correct.trim().split(/\s+/)
+  const n = inc.length
+  const m = cor.length
 
-  // Simple word-by-word comparison
-  const maxLen = Math.max(incWords.length, corWords.length)
-  for (let i = 0; i < maxLen; i++) {
-    const inc = incWords[i] || ''
-    const cor = corWords[i] || ''
-    if (inc.toLowerCase() !== cor.toLowerCase()) {
-      errors.set(i, cor)
+  // LCS length DP (case-insensitive)
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0))
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (inc[i - 1].toLowerCase() === cor[j - 1].toLowerCase()) {
+        dp[i][j] = dp[i - 1][j - 1] + 1
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+      }
     }
+  }
+
+  // Backtrack to find which inc positions are part of the LCS, and the
+  // cor position each maps to.
+  const matched = new Set<number>()
+  const matchToJ = new Map<number, number>()
+  let i = n
+  let j = m
+  while (i > 0 && j > 0) {
+    if (inc[i - 1].toLowerCase() === cor[j - 1].toLowerCase()) {
+      matched.add(i - 1)
+      matchToJ.set(i - 1, j - 1)
+      i--
+      j--
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      i--
+    } else {
+      j--
+    }
+  }
+
+  // For each unmatched inc position, pick a suggested replacement from the
+  // cor words that sit between its surrounding matched anchors.
+  const errors = new Map<number, string>()
+  for (let k = 0; k < n; k++) {
+    if (matched.has(k)) continue
+    let prevJ = -1
+    for (let p = k - 1; p >= 0; p--) {
+      if (matched.has(p)) { prevJ = matchToJ.get(p)!; break }
+    }
+    let nextJ = m
+    for (let p = k + 1; p < n; p++) {
+      if (matched.has(p)) { nextJ = matchToJ.get(p)!; break }
+    }
+    const startJ = prevJ + 1
+    const endJ = nextJ
+    if (startJ < endJ) {
+      // Distribute by position within the unmatched stretch in inc.
+      let stretchStart = k
+      while (stretchStart > 0 && !matched.has(stretchStart - 1)) stretchStart--
+      const offset = k - stretchStart
+      const corPick = Math.min(startJ + offset, endJ - 1)
+      errors.set(k, cor[corPick])
+    }
+    // else: no corresponding cor word for this position. The UI can't
+    // represent "delete this word", so we skip — better than asking the
+    // student to perform an impossible correction.
   }
   return errors
 }
@@ -170,11 +224,18 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
 
     const allDone = latestResults.every((r) => r !== null)
     if (allDone) {
-      const score = latestResults.filter(
-        (r) => r && r.correctFixes === r.totalErrors && r.foundErrors === r.totalErrors
-      ).length
+      // Per-error scoring: one point for each correctly-fixed error, out
+      // of the total errors across all sentences. A sentence with 2 of 3
+      // errors fixed is worth 2 — used to be worth 0.
+      let score = 0
+      let total = 0
+      for (const r of latestResults) {
+        if (!r) continue
+        score += r.correctFixes
+        total += r.totalErrors
+      }
       setFinished(true)
-      onComplete(score, exercise.questions.length)
+      onComplete(score, total)
       return
     }
 
@@ -196,10 +257,17 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
 
   // ---------- FINISHED ----------
   if (finished) {
+    let totalErrors = 0
+    let totalCorrect = 0
+    for (const r of results) {
+      if (!r) continue
+      totalErrors += r.totalErrors
+      totalCorrect += r.correctFixes
+    }
     const perfectCount = results.filter(
       (r) => r && r.correctFixes === r.totalErrors && r.foundErrors === r.totalErrors
     ).length
-    const pct = Math.round((perfectCount / exercise.questions.length) * 100)
+    const pct = totalErrors > 0 ? Math.round((totalCorrect / totalErrors) * 100) : 0
 
     return (
       <div className="flex flex-col gap-4">
@@ -211,7 +279,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            {perfectCount}/{exercise.questions.length} sentences fully corrected ({pct}%)
+            {totalCorrect}/{totalErrors} errors fixed ({pct}%) · {perfectCount}/{exercise.questions.length} sentences fully corrected
           </p>
         </div>
 

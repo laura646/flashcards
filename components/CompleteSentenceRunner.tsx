@@ -127,21 +127,29 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
     setSubmitted(newSubmitted)
   }
 
+  // Per-blank scoring: a 3-blank sentence with 2 right is worth 2/3, not 0/1.
+  const computeScore = () => {
+    let score = 0
+    let total = 0
+    exercise.questions.forEach((q, i) => {
+      Object.keys(q.blanks).forEach((blankId) => {
+        total++
+        if (placements[i][blankId]?.toLowerCase() === q.blanks[blankId].toLowerCase()) {
+          score++
+        }
+      })
+    })
+    return { score, total }
+  }
+
   const handleNext = () => {
     if (currentIndex + 1 < exercise.questions.length) {
       setCurrentIndex(currentIndex + 1)
       setSelectedWord(null)
     } else {
-      // Calculate score
-      let score = 0
-      exercise.questions.forEach((q, i) => {
-        const allCorrect = Object.keys(q.blanks).every(
-          (blankId) => placements[i][blankId]?.toLowerCase() === q.blanks[blankId].toLowerCase()
-        )
-        if (allCorrect) score++
-      })
+      const { score, total } = computeScore()
       setFinished(true)
-      onComplete(score, exercise.questions.length)
+      onComplete(score, total)
     }
   }
 
@@ -149,14 +157,8 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
 
   // Summary screen
   if (finished) {
-    let score = 0
-    exercise.questions.forEach((q, i) => {
-      const allCorrect = Object.keys(q.blanks).every(
-        (blankId) => placements[i][blankId]?.toLowerCase() === q.blanks[blankId].toLowerCase()
-      )
-      if (allCorrect) score++
-    })
-    const pct = Math.round((score / exercise.questions.length) * 100)
+    const { score, total } = computeScore()
+    const pct = total > 0 ? Math.round((score / total) * 100) : 0
 
     return (
       <div className="flex flex-col gap-4">
@@ -168,7 +170,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            You scored {score}/{exercise.questions.length} ({pct}%)
+            You scored {score}/{total} blanks ({pct}%)
           </p>
         </div>
 
