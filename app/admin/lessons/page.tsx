@@ -11,6 +11,7 @@ import UnjumbleEditor from '@/components/UnjumbleEditor'
 import OddOneOutEditor from '@/components/OddOneOutEditor'
 import HangmanEditor from '@/components/HangmanEditor'
 import DictationEditor from '@/components/DictationEditor'
+import ErrorCorrectionEditor from '@/components/ErrorCorrectionEditor'
 import GroupSortEditor from '@/components/GroupSortEditor'
 import ImagePickerModal from '@/components/ImagePickerModal'
 // Role-based admin check
@@ -2311,7 +2312,13 @@ function LessonsAdminPage() {
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}
             onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
           />
-        ) : ['true_or_false', 'complete_sentence', 'error_correction', 'rank_order', 'text_sequencing', 'cloze_listening'].includes(exercise.exercise_type) ? (
+        ) : exercise.exercise_type === 'error_correction' ? (
+          // Visual error-correction editor (incorrect/correct/hint per sentence + live diff + AI auto-correct)
+          <ErrorCorrectionEditor
+            questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+            onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+          />
+        ) : ['true_or_false', 'complete_sentence', 'rank_order', 'text_sequencing', 'cloze_listening'].includes(exercise.exercise_type) ? (
           // For new exercise types, show a JSON data editor
           <div>
             <div className="flex items-center justify-between mb-2">
