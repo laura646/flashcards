@@ -99,11 +99,13 @@ const SKILL_OPTIONS = [
 
 const CEFR_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
 
+// fill_blank and transform were removed from the picker \u2014 fill_blank was
+// effectively MCQ-with-a-blank (use multiple_choice instead) and transform
+// was MCQ-with-a-transformation-prompt (use multiple_choice). Existing
+// exercises of those types continue to render via the default runner.
 const EXERCISE_TYPES = [
   { value: 'multiple_choice', label: 'Multiple Choice', icon: '\uD83C\uDFAF' },
-  { value: 'fill_blank', label: 'Fill in the Blank', icon: '\u270D\uFE0F' },
   { value: 'match_halves', label: 'Match Halves', icon: '\uD83E\uDDE9' },
-  { value: 'transform', label: 'Transform', icon: '\uD83D\uDD04' },
   { value: 'true_or_false', label: 'True or False', icon: '\u2705' },
   { value: 'hangman', label: 'Hangman', icon: '\uD83C\uDFAE' },
   { value: 'type_answer', label: 'Type the Answer', icon: '\u2328\uFE0F' },

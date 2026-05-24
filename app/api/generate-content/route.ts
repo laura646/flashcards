@@ -15,23 +15,17 @@ The document contains one or more exercises. For EACH exercise found, pick the b
 
 EXERCISE TYPES AND THEIR JSON FORMATS:
 
-1. "multiple_choice" — choose the correct answer from options
+1. "multiple_choice" — choose the correct answer from options. Also use this for any sentence with a blank that has a fixed set of options.
    {"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}
 
-2. "fill_blank" — type the missing word/phrase (prompt uses ___ for the blank)
-   {"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}
-
-3. "match_halves" — match keywords/beginnings with definitions/endings (drag-and-drop matching)
+2. "match_halves" — match keywords/beginnings with definitions/endings (drag-and-drop matching)
    {"id": 1, "left": "to create", "right": "chairs"}
 
-4. "anagram" — unscramble letters to form a word, or rearrange words to form a sentence
+3. "anagram" — unscramble letters to form a word, or rearrange words to form a sentence
    For single words: {"id": 1, "word": "SCHOOL", "clue": "A place where children learn"}
    For sentences: {"id": 1, "word": "She is going to the market", "clue": "Rearrange the words"}
 
-5. "transform" — change sentences (e.g., positive→negative, active→passive)
-   {"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": "", "explanation": "Why this transformation is correct (1 short sentence)."}
-
-6. "true_or_false" — decide if a statement is true or false
+4. "true_or_false" — decide if a statement is true or false
    {"id": 1, "statement": "The past tense of go is goed.", "isTrue": false, "explanation": "The correct past tense is 'went'."}
 
 7. "hangman" — guess letters to reveal a word given a clue
@@ -75,12 +69,12 @@ TYPE SELECTION PRIORITY (IMPORTANT — avoid overusing type_answer):
 - "correct the mistakes/errors" → error_correction (student finds and fixes errors in sentences)
 - "find the errors" → error_correction
 - "listen and write/type" → dictation
-- "write the nationality/word" → fill_blank (provide options) or type_answer (only if very short 1-word answers)
-- "make positive/negative" → transform
-- "fill in the gaps/blanks" → fill_blank or complete_sentence
+- "write the nationality/word" → multiple_choice (provide options) or type_answer (only if very short 1-word answers)
+- "make positive/negative" → multiple_choice (offer the transformed sentences as options)
+- "fill in the gaps/blanks" → multiple_choice (with options) or complete_sentence (drag from word bank)
 - "match the beginnings with endings" → match_halves
 - "put the words in order" → anagram
-- Conversations with blanks → complete_sentence (preferred) or fill_blank
+- Conversations with blanks → complete_sentence (preferred) or multiple_choice
 - Categorization/sorting → group_sort
 - True/false statements → true_or_false
 - Vocabulary guessing with clues → hangman
@@ -89,7 +83,7 @@ TYPE SELECTION PRIORITY (IMPORTANT — avoid overusing type_answer):
 - Vocabulary unscramble / word puzzles → anagram
 - "listen and fill in the gaps/blanks" → cloze_listening
 
-AVOID type_answer unless the exercise genuinely requires free-text typing with no options. Prefer multiple_choice, fill_blank, or transform when the original exercise has clear correct answers that can be presented as options. Students learn better with interactive formats than open-text typing.
+AVOID type_answer unless the exercise genuinely requires free-text typing with no options. Prefer multiple_choice when the original exercise has clear correct answers that can be presented as options. Students learn better with interactive formats than open-text typing.
 
 - Include the answer key data (correctIndex, answer, isTrue, etc.) based on the document's answer key
 - Each exercise should have 4-10 questions typically
@@ -229,9 +223,7 @@ ${summary}`
 Choose the BEST exercise type for the content. Available types:
 
 CLASSIC TYPES (use standard questions array):
-- "multiple_choice" — choose the correct answer from options
-- "fill_blank" — type the correct word/phrase
-- "transform" — change sentences (e.g., positive to negative)
+- "multiple_choice" — choose the correct answer from options. Also use this for sentences with a blank that have a fixed set of options, and for transformation exercises where you offer the transformed sentences as options.
 
 NEW INTERACTIVE TYPES (each has its own data format):
 - "anagram" — unscramble letters (single word) or rearrange words (sentence)
@@ -246,7 +238,7 @@ ${preferredType ? `IMPORTANT: The teacher wants exercise type "${preferredType}"
 
 Return ONLY a valid JSON object. The format depends on the exercise type:
 
-FOR "multiple_choice", "fill_blank", "transform":
+FOR "multiple_choice":
 {
   "title": "Exercise title",
   "subtitle": "Brief description",
@@ -390,15 +382,11 @@ TARGET FORMAT for "${newType}":
 
 ${({
   multiple_choice: `"questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}]
-- Each question needs a prompt, 3-4 options with one correct answer, and the correctIndex pointing to the right one. Include an optional "explanation" field that briefly justifies the correct answer — shown to the student after they check.`,
-  fill_blank: `"questions": [{"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}]
-- Each question has a sentence with ___ for the blank, plus options. Include an optional "explanation" that briefly justifies the correct answer.`,
+- Each question needs a prompt, 3-4 options with one correct answer, and the correctIndex pointing to the right one. Include an optional "explanation" field that briefly justifies the correct answer — shown to the student after they check. Use this type also for sentences with a blank (prompt contains ___ and options are the candidate fills), and for transformation drills (prompt is the instruction, options are the candidate transformed sentences).`,
   match_halves: `"questions": [{"id": 1, "left": "to create", "right": "chairs"}, {"id": 2, "left": "it looks", "right": "colorful"}]
 - Each pair has a "left" (keyword/beginning) and "right" (definition/ending). Students drag left tiles to match right definitions.`,
   anagram: `"questions": [{"id": 1, "word": "She is going to the market", "clue": "Rearrange the words"}]
 - For single words, use just the word (letters get scrambled). For sentences, use the full sentence (words get scrambled). Clue is optional.`,
-  transform: `"questions": [{"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": "", "explanation": "Why this transformation is correct (1 short sentence)."}]
-- prompt includes the transformation instruction, options are possible transformations. Include an optional "explanation" that briefly justifies the correct transformation.`,
   true_or_false: `"questions": [{"id": 1, "statement": "The past tense of go is goed.", "isTrue": false, "explanation": "The correct past tense is 'went'."}]
 - Each question has a statement, isTrue boolean, and explanation.`,
   hangman: `"questions": [{"id": 1, "word": "VOCABULARY", "clue": "A collection of words known to a person"}]
@@ -424,7 +412,7 @@ ${({
 RULES:
 - Keep the same educational content and learning objective
 - Adapt the questions naturally to the new format
-- For multiple_choice/fill_blank: generate plausible wrong options (distractors)
+- For multiple_choice: generate plausible wrong options (distractors)
 - For type_answer: extract the key answer from existing options
 - For true_or_false: convert questions into true/false statements
 - For hangman: pick key vocabulary words from the exercise

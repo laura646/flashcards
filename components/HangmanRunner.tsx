@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface HangmanQuestion {
   id: number
@@ -21,38 +21,94 @@ interface Props {
 const MAX_WRONG = 6
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
 
-function HangmanSVG({ wrongCount }: { wrongCount: number }) {
-  return (
-    <svg viewBox="0 0 200 220" className="w-full max-w-[200px] mx-auto">
-      {/* Gallows */}
-      <line x1="20" y1="210" x2="180" y2="210" stroke="#cddcf0" strokeWidth="4" strokeLinecap="round" />
-      <line x1="60" y1="210" x2="60" y2="20" stroke="#cddcf0" strokeWidth="4" strokeLinecap="round" />
-      <line x1="60" y1="20" x2="130" y2="20" stroke="#cddcf0" strokeWidth="4" strokeLinecap="round" />
-      <line x1="130" y1="20" x2="130" y2="50" stroke="#cddcf0" strokeWidth="4" strokeLinecap="round" />
+// The "interesting twist" on classic Hangman: a flower that wilts.
+// Each wrong guess removes one of six petals (in a balanced alternating
+// order so the loss looks dramatic, not just clockwise), the centre face
+// gets sadder, and on six wrongs the flower droops and sheds a tear. On
+// solve, the remaining petals stay and the face beams. Friendly visual
+// that fits an English-learning app — no gallows.
+function FlowerSVG({ wrongCount, won }: { wrongCount: number; won: boolean }) {
+  const lost = wrongCount >= MAX_WRONG
+  // Petal disappearance order: alternating opposite sides for visual balance.
+  // Index i = the wrongCount value at which petal i first hides.
+  const petalThresholds = [1, 4, 2, 5, 3, 6]
+  // Six petal angles around the centre (0° = top, then clockwise).
+  const angles = [0, 60, 120, 180, 240, 300]
 
-      {/* Head */}
-      {wrongCount >= 1 && (
-        <circle cx="130" cy="65" r="15" stroke="#416ebe" strokeWidth="3" fill="none" />
+  return (
+    <svg viewBox="0 0 200 220" className="w-full max-w-[180px] mx-auto">
+      {/* Stem */}
+      <line
+        x1="100"
+        y1="140"
+        x2="100"
+        y2="200"
+        stroke="#86c47a"
+        strokeWidth="4"
+        strokeLinecap="round"
+        transform={lost ? 'rotate(-12 100 200)' : undefined}
+      />
+      {/* Leaf */}
+      <ellipse
+        cx="118"
+        cy="175"
+        rx="14"
+        ry="6"
+        fill="#86c47a"
+        transform={`rotate(25 118 175)${lost ? ' translate(-6 0)' : ''}`}
+      />
+
+      {/* Petals — translated to centre, rotated outward */}
+      <g transform={`translate(100 110)${lost ? ' rotate(-12)' : ''}`}>
+        {angles.map(
+          (angle, i) =>
+            wrongCount < petalThresholds[i] && (
+              <g key={i} transform={`rotate(${angle})`}>
+                <ellipse cx="0" cy="-32" rx="13" ry="22" fill="#416ebe" opacity="0.85" />
+              </g>
+            )
+        )}
+      </g>
+
+      {/* Centre disc */}
+      <g transform={lost ? 'rotate(-12 100 110)' : undefined}>
+        <circle cx="100" cy="110" r="17" fill="#FFCC00" stroke="#e6b400" strokeWidth="1.5" />
+        {/* Eyes (closed half-moons when lost, dots otherwise) */}
+        {lost ? (
+          <>
+            <path d="M 90 108 Q 93 111 96 108" stroke="#46464b" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+            <path d="M 104 108 Q 107 111 110 108" stroke="#46464b" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+          </>
+        ) : (
+          <>
+            <circle cx="93" cy="107" r="2" fill="#46464b" />
+            <circle cx="107" cy="107" r="2" fill="#46464b" />
+          </>
+        )}
+        {/* Mouth — smiles, then flattens, then frowns; grins when won */}
+        {won ? (
+          <path d="M 90 116 Q 100 125 110 116" stroke="#46464b" strokeWidth="2" fill="none" strokeLinecap="round" />
+        ) : lost ? (
+          <path d="M 90 120 Q 100 112 110 120" stroke="#46464b" strokeWidth="2" fill="none" strokeLinecap="round" />
+        ) : wrongCount >= 4 ? (
+          <line x1="92" y1="118" x2="108" y2="118" stroke="#46464b" strokeWidth="2" strokeLinecap="round" />
+        ) : (
+          <path d="M 92 115 Q 100 121 108 115" stroke="#46464b" strokeWidth="2" fill="none" strokeLinecap="round" />
+        )}
+      </g>
+
+      {/* Tear on loss */}
+      {lost && (
+        <path d="M 89 114 Q 87 121 90 123 Q 93 121 91 114 Z" fill="#5a8fd4" />
       )}
-      {/* Body */}
-      {wrongCount >= 2 && (
-        <line x1="130" y1="80" x2="130" y2="140" stroke="#416ebe" strokeWidth="3" strokeLinecap="round" />
-      )}
-      {/* Left arm */}
-      {wrongCount >= 3 && (
-        <line x1="130" y1="95" x2="100" y2="120" stroke="#416ebe" strokeWidth="3" strokeLinecap="round" />
-      )}
-      {/* Right arm */}
-      {wrongCount >= 4 && (
-        <line x1="130" y1="95" x2="160" y2="120" stroke="#416ebe" strokeWidth="3" strokeLinecap="round" />
-      )}
-      {/* Left leg */}
-      {wrongCount >= 5 && (
-        <line x1="130" y1="140" x2="105" y2="175" stroke="#416ebe" strokeWidth="3" strokeLinecap="round" />
-      )}
-      {/* Right leg */}
-      {wrongCount >= 6 && (
-        <line x1="130" y1="140" x2="155" y2="175" stroke="#416ebe" strokeWidth="3" strokeLinecap="round" />
+
+      {/* Sparkles on win */}
+      {won && (
+        <g fill="#FFCC00" stroke="#e6b400" strokeWidth="1">
+          <path d="M 50 60 l 3 -10 l 3 10 l 10 3 l -10 3 l -3 10 l -3 -10 l -10 -3 z" />
+          <path d="M 155 80 l 2 -7 l 2 7 l 7 2 l -7 2 l -2 7 l -2 -7 l -7 -2 z" />
+          <path d="M 160 145 l 2 -6 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 z" />
+        </g>
       )}
     </svg>
   )
@@ -91,6 +147,27 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
       setRoundOver(true)
     }
   }
+
+  // Physical-keyboard input: A–Z keys also guess letters. Touch-friendly
+  // grid below still works on every device.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isRoundDone) return
+      // Ignore when typing in an input/textarea elsewhere on the page.
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const k = e.key.toUpperCase()
+      if (k.length === 1 && k >= 'A' && k <= 'Z') {
+        handleGuess(k)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // handleGuess closes over guessedLetters/uniqueLetters/isRoundDone, so
+    // re-bind when any of those change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRoundDone, guessedLetters, currentIndex])
 
   const handleNext = () => {
     setResults([...results, won])
@@ -227,12 +304,12 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
         </p>
         <p className="text-sm text-[#46464b] mb-4 leading-relaxed">{current.clue}</p>
 
-        {/* Hangman drawing */}
-        <HangmanSVG wrongCount={wrongCount} />
+        {/* Wilting-flower visual (replaces classic gallows) */}
+        <FlowerSVG wrongCount={wrongCount} won={won} />
 
-        {/* Wrong guesses counter */}
+        {/* Petals remaining */}
         <p className="text-xs text-center text-gray-400 mt-2 mb-3">
-          Wrong guesses: {wrongCount} / {MAX_WRONG}
+          {MAX_WRONG - wrongCount} petal{MAX_WRONG - wrongCount === 1 ? '' : 's'} left
         </p>
 
         {/* Word display */}
