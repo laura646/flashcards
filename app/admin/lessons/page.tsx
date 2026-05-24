@@ -13,6 +13,8 @@ import HangmanEditor from '@/components/HangmanEditor'
 import DictationEditor from '@/components/DictationEditor'
 import ErrorCorrectionEditor from '@/components/ErrorCorrectionEditor'
 import TextSequencingEditor from '@/components/TextSequencingEditor'
+import TrueFalseEditor from '@/components/TrueFalseEditor'
+import RankOrderEditor from '@/components/RankOrderEditor'
 import GroupSortEditor from '@/components/GroupSortEditor'
 import ImagePickerModal from '@/components/ImagePickerModal'
 // Role-based admin check
@@ -2325,7 +2327,19 @@ function LessonsAdminPage() {
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}
             onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
           />
-        ) : ['true_or_false', 'complete_sentence', 'rank_order', 'cloze_listening'].includes(exercise.exercise_type) ? (
+        ) : exercise.exercise_type === 'true_or_false' ? (
+          // Visual True/False editor
+          <TrueFalseEditor
+            questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+            onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+          />
+        ) : exercise.exercise_type === 'rank_order' ? (
+          // Visual Rank Order editor
+          <RankOrderEditor
+            questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+            onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+          />
+        ) : ['complete_sentence'].includes(exercise.exercise_type) ? (
           // For new exercise types, show a JSON data editor
           <div>
             <div className="flex items-center justify-between mb-2">

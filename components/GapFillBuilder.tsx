@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import AudioSourcePicker from './AudioSourcePicker'
 
 interface GapQuestion {
   id: number
@@ -370,18 +371,22 @@ export default function GapFillBuilder({ questions, onChange, mode }: Props) {
         </div>
       )}
 
-      {/* Audio URL (cloze_listening only) */}
+      {/* Audio source (cloze_listening only) — link / upload / AI-generate-and-cache */}
       {mode === 'cloze_listening' && gappedIndices.size > 0 && (
         <div>
-          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
-            Audio URL (optional — TTS auto-generated if empty)
+          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1.5">
+            Audio
           </label>
-          <input
-            type="text"
+          <AudioSourcePicker
             value={audioUrl}
-            onChange={(e) => setAudioUrl(e.target.value)}
-            placeholder="https://..."
-            className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe] transition-colors"
+            onChange={(url) => setAudioUrl(url)}
+            // For TTS we generate audio of the full sentence with the
+            // blanks substituted — that's what the student hears in the
+            // runner. Falls back to the raw text if no preview yet.
+            getText={() => {
+              if (!preview) return ''
+              return preview.text.replace(/\{\{(\d+)\}\}/g, (_, n: string) => preview.blanks[n] || '')
+            }}
           />
         </div>
       )}
