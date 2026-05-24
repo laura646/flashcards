@@ -308,6 +308,47 @@ function createDefaultExercise(orderIndex: number): Exercise {
   }
 }
 
+// Empty question seed for each exercise type, so changing the type in
+// the picker resets the JSON editor to the right schema (matching what
+// the runner expects). Without this, a new exercise defaulted to MCQ
+// keeps its MCQ-shaped questions even after the teacher picks Hangman /
+// Dictation / etc., and the runner can't render it.
+function defaultDataForType(type: string): { questions: unknown[]; groupData?: unknown } {
+  const newId = () => crypto.randomUUID()
+  switch (type) {
+    case 'multiple_choice':
+    case 'multiple-choice':
+      return { questions: [{ id: newId(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '' }] }
+    case 'match_halves':
+      return { questions: [{ id: newId(), left: '', right: '' }] }
+    case 'true_or_false':
+      return { questions: [{ id: newId(), statement: '', isTrue: true, explanation: '' }] }
+    case 'hangman':
+    case 'anagram':
+      return { questions: [{ id: newId(), word: '', clue: '' }] }
+    case 'type_answer':
+      return { questions: [{ id: newId(), prompt: '', answer: '', hint: '' }] }
+    case 'complete_sentence':
+      return { questions: [{ id: newId(), text: '', blanks: {}, wordBank: [] }] }
+    case 'group_sort':
+      return { questions: [], groupData: { groups: [{ name: '', items: [] }] } }
+    case 'dictation':
+      return { questions: [{ id: newId(), text: '', audio_url: '', speed: 'normal' }] }
+    case 'error_correction':
+      return { questions: [{ id: newId(), incorrect: '', correct: '', hints: '' }] }
+    case 'rank_order':
+      return { questions: [{ id: newId(), criterion: '', items: ['', '', ''] }] }
+    case 'text_sequencing':
+      return { questions: [{ id: newId(), segments: ['', '', ''], level: 'sentence' }] }
+    case 'cloze_listening':
+      return { questions: [{ id: newId(), text: '', blanks: {}, audio_url: '' }] }
+    case 'odd_one_out':
+      return { questions: [{ id: newId(), items: ['', '', '', ''], oddIndex: 0, explanation: '' }] }
+    default:
+      return { questions: [{ id: newId(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '' }] }
+  }
+}
+
 function createMCQuestion(): MCQuestion {
   return { id: crypto.randomUUID(), prompt: '', options: ['', '', '', ''], correctIndex: 0 }
 }
@@ -2064,7 +2105,16 @@ function LessonsAdminPage() {
                 if (hasRealContent) {
                   setPendingConversion({ itemIndex, newType })
                 } else {
-                  updateField('exercise_type', newType)
+                  // No real content yet — reset the questions/groupData to
+                  // the new type's empty schema so the editor (and runner)
+                  // see the right shape immediately.
+                  const seed = defaultDataForType(newType)
+                  updateContentItem(itemIndex, {
+                    ...exercise,
+                    exercise_type: newType,
+                    questions: seed.questions,
+                    groupData: seed.groupData,
+                  })
                 }
               }}
               className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white disabled:opacity-50"
