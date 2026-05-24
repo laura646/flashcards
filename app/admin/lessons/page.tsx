@@ -111,7 +111,9 @@ const EXERCISE_TYPES = [
   { value: 'true_or_false', label: 'True or False', icon: '\u2705' },
   { value: 'hangman', label: 'Hangman', icon: '\uD83C\uDFAE' },
   { value: 'type_answer', label: 'Type the Answer', icon: '\u2328\uFE0F' },
-  { value: 'complete_sentence', label: 'Complete the Sentence', icon: '\uD83D\uDCDD' },
+  // complete_sentence was removed from the picker \u2014 existing exercises
+  // keep rendering via the gap-fill builder + CompleteSentenceRunner.
+  // Use multiple_choice for blanks-with-options going forward.
   { value: 'group_sort', label: 'Group Sort', icon: '\uD83D\uDDC2\uFE0F' },
   { value: 'dictation', label: 'Dictation', icon: '\uD83C\uDFA7' },
   { value: 'error_correction', label: 'Error Correction', icon: '\uD83D\uDD0D' },

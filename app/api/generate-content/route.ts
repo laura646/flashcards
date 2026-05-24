@@ -34,28 +34,25 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
 8. "type_answer" — type the correct answer freely
    {"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went", "hint": ""}
 
-9. "complete_sentence" — drag words into blanks in a text
-   {"id": 1, "text": "I {{1}} to the store and {{2}} some milk.", "blanks": {"1": "went", "2": "bought"}, "wordBank": ["went", "bought", "gone", "buyed"]}
-
-10. "group_sort" — sort items into correct category groups
+9. "group_sort" — sort items into correct category groups
     (uses groupData instead of questions)
     "groupData": {"groups": [{"name": "Category A", "items": ["item1", "item2"]}, {"name": "Category B", "items": ["item3", "item4"]}]}
 
-11. "dictation" — listen and type what you hear
+10. "dictation" — listen and type what you hear
    {"id": 1, "text": "She went to school yesterday.", "audio_url": "", "speed": "normal"}
 
-12. "error_correction" — find and correct errors in sentences
+11. "error_correction" — find and correct errors in sentences
    {"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday.", "hints": "Check the verb tense."}
 
-13. "rank_order" — rank items according to a criterion (e.g. smallest to largest, earliest to latest)
+12. "rank_order" — rank items according to a criterion (e.g. smallest to largest, earliest to latest)
    {"id": 1, "criterion": "Rank from smallest to largest", "items": ["ant", "cat", "elephant", "whale"]}
    Items must be in the CORRECT order. The app shuffles them.
 
-14. "text_sequencing" — arrange sentences or paragraphs in the correct order
+13. "text_sequencing" — arrange sentences or paragraphs in the correct order
    {"id": 1, "segments": ["First, preheat the oven.", "Then, mix the ingredients.", "Next, pour into the pan.", "Finally, bake for 30 minutes."], "level": "sentence"}
    Segments must be in the CORRECT order. level is "sentence" or "paragraph". The app shuffles them.
 
-15. "cloze_listening" — listen to audio and fill in missing words
+14. "cloze_listening" — listen to audio and fill in missing words
    {"id": 1, "text": "The {{1}} sat on the {{2}}.", "blanks": {"1": "cat", "2": "mat"}, "audio_url": ""}
    text has {{n}} placeholders, blanks maps numbers to correct words. audio_url is optional (TTS auto-generated if empty). No word bank — student types freely.
 
@@ -71,10 +68,10 @@ TYPE SELECTION PRIORITY (IMPORTANT — avoid overusing type_answer):
 - "listen and write/type" → dictation
 - "write the nationality/word" → multiple_choice (provide options) or type_answer (only if very short 1-word answers)
 - "make positive/negative" → multiple_choice (offer the transformed sentences as options)
-- "fill in the gaps/blanks" → multiple_choice (with options) or complete_sentence (drag from word bank)
+- "fill in the gaps/blanks" → multiple_choice (with options)
 - "match the beginnings with endings" → match_halves
 - "put the words in order" → anagram
-- Conversations with blanks → complete_sentence (preferred) or multiple_choice
+- Conversations with blanks → multiple_choice
 - Categorization/sorting → group_sort
 - True/false statements → true_or_false
 - Vocabulary guessing with clues → hangman
@@ -231,7 +228,6 @@ NEW INTERACTIVE TYPES (each has its own data format):
 - "true_or_false" — student decides if a statement is true or false
 - "hangman" — student guesses letters to reveal a word, given a clue
 - "type_answer" — student types the correct answer (no options given)
-- "complete_sentence" — drag-and-drop words into blanks in a text
 - "group_sort" — drag-and-drop items into correct category groups
 
 ${preferredType ? `IMPORTANT: The teacher wants exercise type "${preferredType}". Generate content for that type specifically.` : 'Choose the type that best matches the content.'}
@@ -276,16 +272,6 @@ FOR "type_answer":
   "instructions": "Type the correct answer for each question.",
   "exercise_type": "type_answer",
   "questions": [{"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went", "hint": "optional hint"}]
-}
-
-FOR "complete_sentence":
-{
-  "title": "Exercise title",
-  "subtitle": "Brief description",
-  "icon": "📝",
-  "instructions": "Drag the correct words into the blanks.",
-  "exercise_type": "complete_sentence",
-  "questions": [{"id": 1, "text": "I {{1}} to the store and {{2}} some milk.", "blanks": {"1": "went", "2": "bought"}, "wordBank": ["went", "bought", "gone", "buyed"]}]
 }
 
 FOR "group_sort":
@@ -393,9 +379,7 @@ ${({
 - Each question has a word (UPPERCASE) and a clue.`,
   type_answer: `"questions": [{"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went", "hint": ""}]
 - Each question has a prompt and the expected typed answer.`,
-  complete_sentence: `"questions": [{"id": 1, "text": "I {{1}} to the store and {{2}} some milk.", "blanks": {"1": "went", "2": "bought"}, "wordBank": ["went", "bought", "gone", "buyed"]}]
-- text has {{n}} placeholders, blanks maps numbers to correct words, wordBank has all options including distractors.`,
-  group_sort: `Use "groupData" instead of "questions": {"groups": [{"name": "Category A", "items": ["item1", "item2"]}, {"name": "Category B", "items": ["item3", "item4"]}]}
+  group_sort:`Use "groupData" instead of "questions": {"groups": [{"name": "Category A", "items": ["item1", "item2"]}, {"name": "Category B", "items": ["item3", "item4"]}]}
 - Set questions to an empty array []. Group related items from the original exercise into meaningful categories.`,
   dictation: `"questions": [{"id": 1, "text": "She went to school yesterday.", "audio_url": "", "speed": "normal"}]
 - Each question has the correct text the student must type after listening. audio_url is optional (TTS is auto-generated if empty).`,
