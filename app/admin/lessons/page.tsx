@@ -2004,75 +2004,8 @@ function LessonsAdminPage() {
 
     return (
       <div className="space-y-4">
-        {/* AI Generation */}
-        <div className="bg-[#f7fafd] rounded-xl p-4 border border-[#e6f0fa]">
-          <p className="text-xs font-bold text-gray-500 mb-2">AI Generation</p>
-
-          {/* Preferred type selector */}
-          <div className="mb-3">
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">AI should generate</label>
-            <select
-              value={preferredExType}
-              onChange={(e) => setPreferredExType(e.target.value)}
-              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white"
-            >
-              <option value="">Let AI decide the best type</option>
-              {EXERCISE_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* From text */}
-          <div className="mb-3">
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">From Text</label>
-            <textarea
-              value={exerciseTextInput}
-              onChange={(e) => setExerciseTextInput(e.target.value)}
-              placeholder="Paste text content here (lesson notes, vocabulary list, grammar rules...)"
-              className="w-full h-20 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] transition-colors mb-2"
-            />
-            <button
-              onClick={() => generateExerciseFromText(exerciseTextInput, itemIndex, preferredExType || undefined)}
-              disabled={generatingExercise || !exerciseTextInput.trim()}
-              className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50"
-            >
-              {generatingExercise ? (
-                <span className="flex items-center gap-2">
-                  <span className="inline-block w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Generating...
-                </span>
-              ) : 'Generate from Text'}
-            </button>
-          </div>
-
-          {/* From screenshot */}
-          <div>
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">From Screenshot</label>
-            <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-[#cddcf0] rounded-xl cursor-pointer hover:border-[#416ebe] transition-colors mb-3">
-              <div className="text-center">
-                <p className="text-xs text-gray-400">Click to upload screenshot</p>
-                <p className="text-[10px] text-gray-300">PNG, JPG</p>
-              </div>
-              <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
-            </label>
-            {uploadedImages.length > 0 && (
-              <div className="space-y-2 mb-3">
-                {uploadedImages.map((img, imgIdx) => (
-                  <div key={imgIdx} className="flex items-center gap-3 p-2 bg-white rounded-lg border border-[#e6f0fa]">
-                    <img src={img.preview} alt={`Upload ${imgIdx + 1}`} className="w-12 h-12 object-cover rounded" />
-                    <p className="text-xs text-gray-500 flex-1 truncate">{img.file.name}</p>
-                    <button onClick={() => generateExerciseFromImage(imgIdx, itemIndex, preferredExType || undefined)} disabled={generatingExercise}
-                      className="px-3 py-1 bg-[#416ebe] text-white text-[10px] font-bold rounded-lg hover:bg-[#3560b0] disabled:opacity-50">
-                      {generatingExercise ? 'Generating...' : 'Generate'}
-                    </button>
-                    <button onClick={() => removeUploadedImage(imgIdx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        {/* AI Generation block removed from the manual editor — AI generation
+            is available as its own path via + Add Exercise → Generate with AI. */}
 
         {/* Preview button */}
         <button
