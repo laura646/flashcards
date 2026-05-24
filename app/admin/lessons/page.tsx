@@ -2073,6 +2073,16 @@ function LessonsAdminPage() {
               {EXERCISE_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.icon} {t.label}</option>
               ))}
+              {/* Legacy-only fallback: if this exercise was saved as a now-
+                  deprecated type (fill_blank or transform), show that value
+                  here so the dropdown displays correctly. The teacher can
+                  still re-pick a current type to migrate it. */}
+              {exercise.exercise_type &&
+                !EXERCISE_TYPES.some((t) => t.value === exercise.exercise_type) && (
+                  <option value={exercise.exercise_type}>
+                    {EXERCISE_TYPE_LABELS[exercise.exercise_type] || exercise.exercise_type} (legacy — pick a new type)
+                  </option>
+                )}
             </select>
             {convertingExType && (
               <p className="text-[10px] text-[#416ebe] mt-1 flex items-center gap-1">
