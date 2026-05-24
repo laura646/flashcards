@@ -12,6 +12,7 @@ import OddOneOutEditor from '@/components/OddOneOutEditor'
 import HangmanEditor from '@/components/HangmanEditor'
 import DictationEditor from '@/components/DictationEditor'
 import ErrorCorrectionEditor from '@/components/ErrorCorrectionEditor'
+import TextSequencingEditor from '@/components/TextSequencingEditor'
 import GroupSortEditor from '@/components/GroupSortEditor'
 import ImagePickerModal from '@/components/ImagePickerModal'
 // Role-based admin check
@@ -2318,7 +2319,13 @@ function LessonsAdminPage() {
             questions={Array.isArray(exercise.questions) ? exercise.questions : []}
             onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
           />
-        ) : ['true_or_false', 'complete_sentence', 'rank_order', 'text_sequencing', 'cloze_listening'].includes(exercise.exercise_type) ? (
+        ) : exercise.exercise_type === 'text_sequencing' ? (
+          // Visual text-sequencing editor (LingQ-style paragraph reordering)
+          <TextSequencingEditor
+            questions={Array.isArray(exercise.questions) ? exercise.questions : []}
+            onChange={(questions) => updateContentItem(itemIndex, { ...exercise, questions })}
+          />
+        ) : ['true_or_false', 'complete_sentence', 'rank_order', 'cloze_listening'].includes(exercise.exercise_type) ? (
           // For new exercise types, show a JSON data editor
           <div>
             <div className="flex items-center justify-between mb-2">
