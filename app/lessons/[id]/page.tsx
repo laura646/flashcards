@@ -1081,7 +1081,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       runnerContent = <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     } else {
       // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
-      runnerContent = <ExerciseRunner exercise={{ id: 0, title: selectedExercise.title, subtitle: selectedExercise.subtitle, icon: selectedExercise.icon, instructions: selectedExercise.instructions, questions: selectedExercise.questions }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
+      runnerContent = <ExerciseRunner exercise={{ id: 0, title: selectedExercise.title, subtitle: selectedExercise.subtitle, icon: selectedExercise.icon, instructions: selectedExercise.instructions, questions: selectedExercise.questions, test_type: selectedExercise.test_type }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
     }
     } // end of if (!runnerContent) — skip the runner-selection chain when
       // the test-lock branch above already produced runnerContent

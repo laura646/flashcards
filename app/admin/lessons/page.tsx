@@ -54,6 +54,7 @@ interface ExerciseQuestion {
   // Student sees checkboxes; all-or-nothing scoring against this set.
   correctIndices?: number[]
   hint: string
+  explanation?: string
 }
 
 interface Exercise {
@@ -2354,6 +2355,19 @@ function LessonsAdminPage() {
                   <input type="text" value={q.hint} onChange={(e) => updateQuestion(qIdx, 'hint', e.target.value)}
                     placeholder="Optional hint..."
                     className="w-full px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
+                    Explanation
+                    <span className="ml-1 text-gray-300 normal-case font-normal">(shown after the student answers)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={(q as { explanation?: string }).explanation || ''}
+                    onChange={(e) => updateQuestion(qIdx, 'explanation' as keyof typeof q, e.target.value)}
+                    placeholder="Why the correct answer is correct..."
+                    className="w-full px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
+                  />
                 </div>
               </div>
               )

@@ -16,10 +16,10 @@ The document contains one or more exercises. For EACH exercise found, pick the b
 EXERCISE TYPES AND THEIR JSON FORMATS:
 
 1. "multiple_choice" — choose the correct answer from options
-   {"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": ""}
+   {"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}
 
 2. "fill_blank" — type the missing word/phrase (prompt uses ___ for the blank)
-   {"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": ""}
+   {"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}
 
 3. "match_halves" — match keywords/beginnings with definitions/endings (drag-and-drop matching)
    {"id": 1, "left": "to create", "right": "chairs"}
@@ -29,7 +29,7 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
    For sentences: {"id": 1, "word": "She is going to the market", "clue": "Rearrange the words"}
 
 5. "transform" — change sentences (e.g., positive→negative, active→passive)
-   {"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": ""}
+   {"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": "", "explanation": "Why this transformation is correct (1 short sentence)."}
 
 6. "true_or_false" — decide if a statement is true or false
    {"id": 1, "statement": "The past tense of go is goed.", "isTrue": false, "explanation": "The correct past tense is 'went'."}
@@ -253,7 +253,7 @@ FOR "multiple_choice", "fill_blank", "transform":
   "icon": "relevant emoji",
   "instructions": "Clear instructions",
   "exercise_type": "the_type",
-  "questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c"], "correctIndex": 0, "hint": "optional"}]
+  "questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c"], "correctIndex": 0, "hint": "optional", "explanation": "Why the correct answer is correct (1 short sentence — optional but strongly preferred)."}]
 }
 
 FOR "true_or_false":
@@ -389,16 +389,16 @@ ${exercise.groupData ? `- Group data: ${JSON.stringify(exercise.groupData)}` : '
 TARGET FORMAT for "${newType}":
 
 ${({
-  multiple_choice: `"questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": ""}]
-- Each question needs a prompt, 3-4 options with one correct answer, and the correctIndex pointing to the right one.`,
-  fill_blank: `"questions": [{"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": ""}]
-- Each question has a sentence with ___ for the blank, plus options.`,
+  multiple_choice: `"questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}]
+- Each question needs a prompt, 3-4 options with one correct answer, and the correctIndex pointing to the right one. Include an optional "explanation" field that briefly justifies the correct answer — shown to the student after they check.`,
+  fill_blank: `"questions": [{"id": 1, "prompt": "She ___ to school every day.", "options": ["goes", "go", "going", "gone"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}]
+- Each question has a sentence with ___ for the blank, plus options. Include an optional "explanation" that briefly justifies the correct answer.`,
   match_halves: `"questions": [{"id": 1, "left": "to create", "right": "chairs"}, {"id": 2, "left": "it looks", "right": "colorful"}]
 - Each pair has a "left" (keyword/beginning) and "right" (definition/ending). Students drag left tiles to match right definitions.`,
   anagram: `"questions": [{"id": 1, "word": "She is going to the market", "clue": "Rearrange the words"}]
 - For single words, use just the word (letters get scrambled). For sentences, use the full sentence (words get scrambled). Clue is optional.`,
-  transform: `"questions": [{"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": ""}]
-- prompt includes the transformation instruction, options are possible transformations.`,
+  transform: `"questions": [{"id": 1, "prompt": "Make negative: She likes coffee.", "options": ["She doesn't like coffee.", "She not likes coffee.", "She don't like coffee."], "correctIndex": 0, "hint": "", "explanation": "Why this transformation is correct (1 short sentence)."}]
+- prompt includes the transformation instruction, options are possible transformations. Include an optional "explanation" that briefly justifies the correct transformation.`,
   true_or_false: `"questions": [{"id": 1, "statement": "The past tense of go is goed.", "isTrue": false, "explanation": "The correct past tense is 'went'."}]
 - Each question has a statement, isTrue boolean, and explanation.`,
   hangman: `"questions": [{"id": 1, "word": "VOCABULARY", "clue": "A collection of words known to a person"}]

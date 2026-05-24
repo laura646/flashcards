@@ -36,14 +36,25 @@ const isQuestionCorrect = (q: ExerciseQuestion, ans: AnswerValue): boolean => {
 }
 
 export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) {
+  // Test exercises (test_type set on the lesson_exercises row) keep the
+  // original batch-then-review flow — no feedback during the run, only
+  // the summary at the end. Practice exercises get instant per-question
+  // feedback, which is the new default.
+  const isTestMode = !!exercise.test_type
+
   const [answers, setAnswers] = useState<AnswerValue[]>(
     new Array(exercise.questions.length).fill(null)
   )
   const [currentIndex, setCurrentIndex] = useState(0)
   const [submitted, setSubmitted] = useState(false)
+  const [checked, setChecked] = useState<Set<number>>(new Set())
 
   const current = exercise.questions[currentIndex]
   const allAnswered = answers.every((a, i) => isQuestionAnswered(exercise.questions[i], a))
+  const allChecked = checked.size === exercise.questions.length
+  const showFeedback = !isTestMode && checked.has(currentIndex)
+  const currentCorrect = showFeedback && isQuestionCorrect(current, answers[currentIndex])
+  const isLastQuestion = currentIndex === exercise.questions.length - 1
   const progress =
     (answers.filter((a, i) => isQuestionAnswered(exercise.questions[i], a)).length /
       exercise.questions.length) *
@@ -51,6 +62,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
 
   const selectAnswer = (optionIndex: number) => {
     if (submitted) return
+    if (showFeedback) return // locked once feedback is shown in practice mode
     const newAnswers = [...answers]
 
     if (isMultiSelect(current)) {
@@ -67,6 +79,33 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
     }
 
     setAnswers(newAnswers)
+
+    // Practice mode + single-select: auto-reveal feedback on click. For
+    // multi-select the student needs a "Check" button (see render below)
+    // so they can pick multiple options before locking the answer.
+    if (!isTestMode && !isMultiSelect(current)) {
+      setChecked((prev) => {
+        const next = new Set(prev)
+        next.add(currentIndex)
+        return next
+      })
+    }
+  }
+
+  const checkCurrent = () => {
+    if (isTestMode || showFeedback) return
+    if (!isQuestionAnswered(current, answers[currentIndex])) return
+    setChecked((prev) => {
+      const next = new Set(prev)
+      next.add(currentIndex)
+      return next
+    })
+  }
+
+  const finishPractice = () => {
+    // Practice-mode equivalent of test-mode handleSubmit: report score
+    // and transition to the summary screen.
+    handleSubmit()
   }
 
   const goNext = () => {
@@ -169,6 +208,11 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
                         </span>
                       </p>
                     )}
+                    {q.explanation && (
+                      <p className="text-xs text-gray-500 mt-1.5 italic leading-relaxed">
+                        {q.explanation}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -248,15 +292,32 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
       <div className="flex flex-col gap-2">
         {current.options.map((option, i) => {
           const selected = isOptionSelected(i)
+          const isCorrectOption = currentMulti
+            ? (current.correctIndices || []).includes(i)
+            : i === current.correctIndex
+
+          // After feedback is shown (practice mode), recolour each option:
+          // correct answers go green; the student's wrong picks go red.
+          let stateClass: string
+          if (showFeedback) {
+            if (isCorrectOption) {
+              stateClass = 'border-green-400 bg-green-50 text-green-700'
+            } else if (selected) {
+              stateClass = 'border-red-400 bg-red-50 text-red-500'
+            } else {
+              stateClass = 'border-[#cddcf0] bg-white text-gray-400'
+            }
+          } else {
+            stateClass = selected
+              ? 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
+              : 'border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] bg-white'
+          }
           return (
             <button
               key={i}
               onClick={() => selectAnswer(i)}
-              className={`w-full text-left border-2 rounded-xl py-3 px-4 text-sm font-bold transition-all flex items-center gap-3 ${
-                selected
-                  ? 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
-                  : 'border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] bg-white'
-              }`}
+              disabled={showFeedback}
+              className={`w-full text-left border-2 rounded-xl py-3 px-4 text-sm font-bold transition-all flex items-center gap-3 disabled:cursor-default ${stateClass}`}
             >
               {/* Radio-style or checkbox-style indicator */}
               <span
@@ -281,6 +342,34 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
         })}
       </div>
 
+      {/* Practice-mode feedback panel (shown once the student has checked) */}
+      {showFeedback && (
+        <div
+          className={`rounded-xl border-2 p-3 ${
+            currentCorrect ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+          }`}
+        >
+          <p
+            className={`text-sm font-bold ${
+              currentCorrect ? 'text-green-600' : 'text-red-500'
+            }`}
+          >
+            {currentCorrect ? '✓ Correct!' : '✗ Not quite.'}
+          </p>
+          {!currentCorrect && (
+            <p className="text-xs text-gray-600 mt-1">
+              Correct answer:{' '}
+              <span className="font-bold text-[#46464b]">{renderCorrectAnswer(current)}</span>
+            </p>
+          )}
+          {current.explanation && (
+            <p className="text-xs text-[#46464b] mt-2 leading-relaxed">
+              {current.explanation}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Question navigation dots */}
       <div className="flex justify-center gap-1 py-2">
         {exercise.questions.map((q, i) => (
@@ -300,36 +389,80 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
         ))}
       </div>
 
-      {/* Navigation */}
-      <div className="flex gap-3">
-        <button
-          onClick={goPrev}
-          disabled={currentIndex === 0}
-          className="flex-1 border-2 border-[#cddcf0] text-[#46464b] font-bold py-3 rounded-xl text-sm transition-colors hover:border-[#416ebe] disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          ← Previous
-        </button>
-        {currentIndex < exercise.questions.length - 1 ? (
+      {/* Navigation — differs between practice and test mode */}
+      {isTestMode ? (
+        <>
+          <div className="flex gap-3">
+            <button
+              onClick={goPrev}
+              disabled={currentIndex === 0}
+              className="flex-1 border-2 border-[#cddcf0] text-[#46464b] font-bold py-3 rounded-xl text-sm transition-colors hover:border-[#416ebe] disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              ← Previous
+            </button>
+            {!isLastQuestion ? (
+              <button
+                onClick={goNext}
+                className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={!allAnswered}
+                className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit answers
+              </button>
+            )}
+          </div>
+          {!allAnswered && isLastQuestion && (
+            <p className="text-xs text-gray-400 text-center">
+              Answer all questions to submit
+            </p>
+          )}
+        </>
+      ) : (
+        <div className="flex gap-3">
           <button
-            onClick={goNext}
-            className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+            onClick={goPrev}
+            disabled={currentIndex === 0}
+            className="flex-1 border-2 border-[#cddcf0] text-[#46464b] font-bold py-3 rounded-xl text-sm transition-colors hover:border-[#416ebe] disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            Next →
+            ← Previous
           </button>
-        ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={!allAnswered}
-            className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Submit answers
-          </button>
-        )}
-      </div>
-      {!allAnswered && currentIndex === exercise.questions.length - 1 && (
-        <p className="text-xs text-gray-400 text-center">
-          Answer all questions to submit
-        </p>
+          {!showFeedback ? (
+            currentMulti ? (
+              <button
+                onClick={checkCurrent}
+                disabled={!isQuestionAnswered(current, answers[currentIndex])}
+                className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Check
+              </button>
+            ) : (
+              <span className="flex-1 text-xs text-gray-400 text-center self-center">
+                Choose an answer to see feedback
+              </span>
+            )
+          ) : isLastQuestion ? (
+            <button
+              onClick={finishPractice}
+              disabled={!allChecked}
+              className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Finish
+            </button>
+          ) : (
+            <button
+              onClick={goNext}
+              className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+            >
+              Next →
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

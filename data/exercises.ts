@@ -8,6 +8,9 @@ export interface ExerciseQuestion {
   // When this field is present, correctIndex is ignored.
   correctIndices?: number[]
   hint?: string
+  // Optional teacher-authored explanation shown after the student
+  // checks their answer (practice mode) and in the review summary.
+  explanation?: string
 }
 
 export interface Exercise {
@@ -17,6 +20,11 @@ export interface Exercise {
   icon: string
   instructions: string
   questions: ExerciseQuestion[]
+  // When set (e.g. 'review' / 'mid_course' / 'end_of_course'), the
+  // runner switches to test mode: no per-question feedback during the
+  // run, full review only after Submit. Practice exercises (test_type
+  // null/undefined) get instant feedback by default.
+  test_type?: string | null
 }
 
 export const exercises: Exercise[] = [
