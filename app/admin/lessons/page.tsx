@@ -306,10 +306,19 @@ function createDefaultExercise(orderIndex: number): Exercise {
     subtitle: '',
     icon: '',
     instructions: '',
-    exercise_type: 'multiple-choice',
+    exercise_type: 'multiple_choice',
     questions: [{ id: crypto.randomUUID(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '' }],
     order_index: orderIndex,
   }
+}
+
+// Normalize legacy dashed type names to the canonical underscore form
+// used throughout the rest of the app, so loaded exercises stop showing
+// as "legacy" in the picker. Saving the lesson afterward persists the
+// canonical value back to the DB.
+function normalizeExerciseType(t: string | null | undefined): string {
+  if (t === 'multiple-choice') return 'multiple_choice'
+  return t || ''
 }
 
 // Empty question seed for each exercise type, so changing the type in
@@ -815,7 +824,7 @@ function LessonsAdminPage() {
         subtitle: ex.subtitle || '',
         icon: ex.icon || '',
         instructions: ex.instructions || '',
-        exercise_type: ex.exercise_type,
+        exercise_type: normalizeExerciseType(ex.exercise_type),
         questions: ex.exercise_type === 'group_sort' ? [] : (ex.questions || []),
         groupData: ex.exercise_type === 'group_sort' ? (ex.questions || ex.groupData) : ex.groupData,
         order_index: ex.order_index,
