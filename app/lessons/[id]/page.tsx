@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import AudioButton from '@/components/AudioButton'
 import AttachedExercisesRunner from '@/components/AttachedExercisesRunner'
 import type { AttachedExercise } from '@/lib/attached-exercise'
+import { legacyMcqToAttached } from '@/lib/attached-exercise'
 
 // Lazy load exercise runners — only loaded when student opens an exercise
 const FlipMode = lazy(() => import('@/components/FlipMode'))
@@ -118,6 +119,7 @@ interface ArticleContent {
   text: string
   source?: string
   questions: { id: number; prompt: string; options: string[]; correctIndex: number }[]
+  exercises?: AttachedExercise[]
 }
 
 interface DialogueContent {
@@ -1392,12 +1394,22 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           )}
 
-          {content.questions && content.questions.length > 0 && (
-            <div>
-              <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension questions</h2>
-              <InlineQuiz questions={content.questions} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
-            </div>
-          )}
+          {(() => {
+            const effective: AttachedExercise[] =
+              content.exercises && content.exercises.length > 0
+                ? content.exercises
+                : legacyMcqToAttached(content.questions)
+            if (effective.length === 0) return null
+            return (
+              <div>
+                <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension exercises</h2>
+                <AttachedExercisesRunner
+                  exercises={effective}
+                  onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+                />
+              </div>
+            )
+          })()}
         </main>
       )
     }
@@ -1471,12 +1483,22 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             )}
           </div>
 
-          {content.questions && content.questions.length > 0 && (
-            <div>
-              <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension questions</h2>
-              <InlineQuiz questions={content.questions} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
-            </div>
-          )}
+          {(() => {
+            const effective: AttachedExercise[] =
+              content.exercises && content.exercises.length > 0
+                ? content.exercises
+                : legacyMcqToAttached(content.questions)
+            if (effective.length === 0) return null
+            return (
+              <div>
+                <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension exercises</h2>
+                <AttachedExercisesRunner
+                  exercises={effective}
+                  onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+                />
+              </div>
+            )
+          })()}
         </main>
       )
     }

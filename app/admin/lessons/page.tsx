@@ -18,6 +18,7 @@ import RankOrderEditor from '@/components/RankOrderEditor'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import type { AttachedExercise } from '@/lib/attached-exercise'
+import { legacyMcqToAttached } from '@/lib/attached-exercise'
 import GroupSortEditor from '@/components/GroupSortEditor'
 import ImagePickerModal from '@/components/ImagePickerModal'
 // Role-based admin check
@@ -223,6 +224,9 @@ interface ArticleContent {
   text: string
   source: string
   questions: MCQuestion[]
+  // Phase C addition: same shape as Video / Audio. Legacy `questions`
+  // is migrated on first save by the editor.
+  exercises?: import('@/lib/attached-exercise').AttachedExercise[]
 }
 
 interface DialogueContent {
@@ -2568,19 +2572,14 @@ function LessonsAdminPage() {
       updateContentItem(itemIndex, { ...block, content: { ...content, ...partial } })
     }
 
-    const addQuestion = () => {
-      updateVideoContent({ questions: [...content.questions, createMCQuestion()] })
-    }
-
-    const updateQuestion = (qIdx: number, field: string, value: string | number | string[]) => {
-      const questions = [...content.questions]
-      questions[qIdx] = { ...questions[qIdx], [field]: value }
-      updateVideoContent({ questions })
-    }
-
-    const removeQuestion = (qIdx: number) => {
-      updateVideoContent({ questions: content.questions.filter((_, i) => i !== qIdx) })
-    }
+    // Effective follow-up exercises: prefer the new shape; if the block
+    // only has the legacy MCQ-only `questions` array, migrate on the fly.
+    // First save through the new editor persists `exercises` and clears
+    // the legacy field so the migration completes.
+    const effectiveExercises: AttachedExercise[] =
+      content.exercises && content.exercises.length > 0
+        ? content.exercises
+        : legacyMcqToAttached(content.questions)
 
     return (
       <div className="space-y-4">
@@ -2602,35 +2601,12 @@ function LessonsAdminPage() {
           })()}
         </div>
 
-        {/* Follow-up Questions */}
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-bold text-gray-500">{content.questions.length} follow-up question{content.questions.length !== 1 ? 's' : ''}</p>
-          <button onClick={addQuestion} className="text-xs text-[#416ebe] font-bold hover:underline">+ Add Question</button>
+        <div className="pt-2 border-t border-[#e6f0fa]">
+          <AttachedExercisesEditor
+            exercises={effectiveExercises}
+            onChange={(exercises) => updateVideoContent({ exercises, questions: [] })}
+          />
         </div>
-
-        {content.questions.map((q, qIdx) => (
-          <div key={q.id || qIdx} className="bg-[#f7fafd] rounded-xl p-4 border border-[#e6f0fa]">
-            <div className="flex items-start justify-between mb-3">
-              <span className="text-xs font-bold text-[#416ebe]">Q{qIdx + 1}</span>
-              <button onClick={() => removeQuestion(qIdx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
-            </div>
-            <div className="mb-3">
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Prompt</label>
-              <input type="text" value={q.prompt} onChange={(e) => updateQuestion(qIdx, 'prompt', e.target.value)}
-                className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-            </div>
-            {q.options.map((opt, oIdx) => (
-              <div key={oIdx} className="flex items-center gap-2 mb-1">
-                <input type="radio" name={`vq-${itemIndex}-${qIdx}`} checked={q.correctIndex === oIdx}
-                  onChange={() => updateQuestion(qIdx, 'correctIndex', oIdx)} className="accent-[#416ebe]" />
-                <input type="text" value={opt}
-                  onChange={(e) => { const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; updateQuestion(qIdx, 'options', newOpts) }}
-                  placeholder={`Option ${oIdx + 1}`}
-                  className="flex-1 px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-              </div>
-            ))}
-          </div>
-        ))}
       </div>
     )
   }
@@ -2691,19 +2667,10 @@ function LessonsAdminPage() {
       updateContentItem(itemIndex, { ...block, content: { ...content, ...partial } })
     }
 
-    const addQuestion = () => {
-      updateArticleContent({ questions: [...content.questions, createMCQuestion()] })
-    }
-
-    const updateQuestion = (qIdx: number, field: string, value: string | number | string[]) => {
-      const questions = [...content.questions]
-      questions[qIdx] = { ...questions[qIdx], [field]: value }
-      updateArticleContent({ questions })
-    }
-
-    const removeQuestion = (qIdx: number) => {
-      updateArticleContent({ questions: content.questions.filter((_, i) => i !== qIdx) })
-    }
+    const effectiveExercises: AttachedExercise[] =
+      content.exercises && content.exercises.length > 0
+        ? content.exercises
+        : legacyMcqToAttached(content.questions)
 
     return (
       <div className="space-y-4">
@@ -2726,35 +2693,12 @@ function LessonsAdminPage() {
             className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
         </div>
 
-        {/* Comprehension Questions */}
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-bold text-gray-500">{content.questions.length} comprehension question{content.questions.length !== 1 ? 's' : ''}</p>
-          <button onClick={addQuestion} className="text-xs text-[#416ebe] font-bold hover:underline">+ Add Question</button>
+        <div className="pt-2 border-t border-[#e6f0fa]">
+          <AttachedExercisesEditor
+            exercises={effectiveExercises}
+            onChange={(exercises) => updateArticleContent({ exercises, questions: [] })}
+          />
         </div>
-
-        {content.questions.map((q, qIdx) => (
-          <div key={q.id || qIdx} className="bg-[#f7fafd] rounded-xl p-4 border border-[#e6f0fa]">
-            <div className="flex items-start justify-between mb-3">
-              <span className="text-xs font-bold text-[#416ebe]">Q{qIdx + 1}</span>
-              <button onClick={() => removeQuestion(qIdx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
-            </div>
-            <div className="mb-3">
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Prompt</label>
-              <input type="text" value={q.prompt} onChange={(e) => updateQuestion(qIdx, 'prompt', e.target.value)}
-                className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-            </div>
-            {q.options.map((opt, oIdx) => (
-              <div key={oIdx} className="flex items-center gap-2 mb-1">
-                <input type="radio" name={`aq-${itemIndex}-${qIdx}`} checked={q.correctIndex === oIdx}
-                  onChange={() => updateQuestion(qIdx, 'correctIndex', oIdx)} className="accent-[#416ebe]" />
-                <input type="text" value={opt}
-                  onChange={(e) => { const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; updateQuestion(qIdx, 'options', newOpts) }}
-                  placeholder={`Option ${oIdx + 1}`}
-                  className="flex-1 px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-              </div>
-            ))}
-          </div>
-        ))}
       </div>
     )
   }
