@@ -85,7 +85,7 @@ export default function HelpPage() {
           <WhatsNewSection />
 
           <footer className="pt-8 border-t border-[#e6f0fa] text-[11px] text-gray-400">
-            Docs current to v1.1.x. Last updated automatically with each release.
+            Docs current to v1.1.3. Last updated automatically with each release.
           </footer>
         </div>
       </div>
@@ -271,13 +271,29 @@ function LessonsSection() {
       </p>
 
       <Subhead>Exercise types</Subhead>
+      <p className="text-xs text-gray-500 mb-1">
+        Every type has a visual editor — no JSON needed. Most types support instant per-question
+        feedback during practice, and most editors have a 🪄 AI assist where it applies.
+      </p>
       <ul className="list-disc pl-5 space-y-1 text-xs">
-        <li><span className="font-bold">Multiple Choice</span> — single answer or &quot;select all that apply&quot; (multi-correct mode)</li>
-        <li><span className="font-bold">Type the Answer</span> — open-text with optional synonym alternatives</li>
-        <li><span className="font-bold">Group Sort</span> — drag items into category buckets, with optional images</li>
-        <li><span className="font-bold">Complete the Sentence</span> — fill in gaps with a word bank</li>
-        <li><span className="font-bold">True or False</span>, <span className="font-bold">Hangman</span>, <span className="font-bold">Error Correction</span>, <span className="font-bold">Rank Order</span>, <span className="font-bold">Text Sequencing</span>, <span className="font-bold">Unjumble</span>, <span className="font-bold">Cloze Listening</span>, <span className="font-bold">Match Halves</span>, <span className="font-bold">Odd One Out</span>, <span className="font-bold">Dictation</span></li>
+        <li><span className="font-bold">Multiple Choice</span> — single answer or &quot;select all that apply&quot;. Instant feedback + optional explanation per question.</li>
+        <li><span className="font-bold">Type the Answer</span> — open-text with optional synonym alternatives. Punctuation-tolerant.</li>
+        <li><span className="font-bold">Match Halves</span> — drag keywords to definitions, both sides support images.</li>
+        <li><span className="font-bold">True or False</span> — statement + optional explanation shown after answering.</li>
+        <li><span className="font-bold">Hangman</span> — wilting-flower visual; tap or keyboard input; optional clue.</li>
+        <li><span className="font-bold">Group Sort</span> — drag items into category buckets, with optional images.</li>
+        <li><span className="font-bold">Dictation</span> — three audio sources: link / upload / 🪄 AI generate (cached).</li>
+        <li><span className="font-bold">Error Correction</span> — incorrect/correct/hint per sentence, live diff preview while authoring, 🪄 Auto-correct button, partial credit per fixed error.</li>
+        <li><span className="font-bold">Rank Order</span> — criterion + ordered items, drag to reorder, 👁 preview shuffle.</li>
+        <li><span className="font-bold">Text Sequencing</span> — LingQ-style paragraph reordering, 📋 Paste a passage to auto-split.</li>
+        <li><span className="font-bold">Unjumble</span> — letters of a word or words of a sentence; tap or drag.</li>
+        <li><span className="font-bold">Cloze Listening</span> — gap-fill with audio (same 3-source picker as Dictation).</li>
+        <li><span className="font-bold">Odd One Out</span> — pick the item that doesn&apos;t fit + optional explanation.</li>
       </ul>
+      <p className="text-[11px] text-gray-400 mt-1">
+        Removed in v1.1.3: Fill in the Blank, Transform, Complete the Sentence (overlapped with
+        the above). Existing exercises of those types keep working.
+      </p>
 
       <Subhead>Tagging exercises</Subhead>
       <p>Every exercise can be tagged with:</p>
@@ -299,8 +315,23 @@ function LessonsSection() {
         </div>
       </Mockup>
 
+      <Subhead>Media content blocks (Audio / Video / Reading)</Subhead>
+      <p className="text-xs">
+        Add a media block from <span className="font-mono">+ Add Content Block</span>. All three
+        support a list of <span className="font-bold">follow-up exercises</span> for comprehension —
+        attach any mix of <span className="font-bold">Multiple Choice</span>,{' '}
+        <span className="font-bold">True/False</span>, <span className="font-bold">Type the Answer</span>,{' '}
+        <span className="font-bold">Group Sort</span>, <span className="font-bold">Rank Order</span>, or{' '}
+        <span className="font-bold">Unjumble</span>. Drag the ☰ handles to reorder.
+      </p>
+      <ul className="list-disc pl-5 space-y-1 text-xs mt-1">
+        <li><span className="font-bold">🎧 Audio</span> — paste a URL (Google Drive share links auto-converted) or upload an MP3/WAV/M4A/OGG file (max 10 MB).</li>
+        <li><span className="font-bold">🎬 Video</span> — paste a YouTube URL.</li>
+        <li><span className="font-bold">📰 Reading</span> — paste article text + optional source attribution.</li>
+      </ul>
+
       <Subhead>AI generation</Subhead>
-      <p>The flashcard editor has a &quot;Generate with AI&quot; button — paste your class summary and Claude drafts a set of flashcards. You can edit any of them before saving.</p>
+      <p>The flashcard editor has a &quot;Generate with AI&quot; button — paste your class summary and Claude drafts a set of flashcards. The exercise editor offers AI generation as its own path via <span className="font-mono">+ Add Exercise → Generate with AI</span> (paste text or upload a screenshot of a textbook page).</p>
     </Section>
   )
 }
@@ -496,8 +527,39 @@ function ContentBankSection() {
     <Section id="content-bank" icon="🗃️" title="Content Bank">
       <p>
         <Link href="/admin/content-bank" className="text-[#416ebe] hover:underline">Content Bank</Link> is
-        a library of reusable exercise content. Save a question set once, drop it into multiple
-        lessons. Useful when you teach the same grammar topic across several courses.
+        a shared library of reusable lesson templates. Save a lesson once, drop it into multiple
+        courses. Useful when you teach the same grammar topic across several courses.
+      </p>
+
+      <Subhead>Browsing</Subhead>
+      <ul className="list-disc pl-5 space-y-1 text-xs">
+        <li><span className="font-bold">🔍 Title search</span> — type-ahead match on lesson titles.</li>
+        <li><span className="font-bold">Author dropdown</span> — show only templates by a specific trainer.</li>
+        <li><span className="font-bold">Folders</span> on the left, plus Level / Category / Sort (most recent or Author A→Z) controls.</li>
+        <li>Each card shows <span className="font-mono">Created by … · Added {`<date>`}</span>. Click the author name to filter to that trainer.</li>
+      </ul>
+
+      <Subhead>Bulk import to a course</Subhead>
+      <p className="text-xs">
+        From a course page click <span className="font-mono">+ Create Lesson → From Content Bank</span>{' '}
+        to open a picker. Choose a folder, search by title, multi-select lessons, then commit with
+        one of three actions:
+      </p>
+      <ul className="list-disc pl-5 space-y-1 text-xs mt-1">
+        <li><span className="font-bold">Publish now</span> — visible to students immediately.</li>
+        <li><span className="font-bold">Save as draft</span> — hidden until you publish.</li>
+        <li><span className="font-bold">Schedule…</span> — pick a date + time + timezone. Lessons stay draft until the chosen moment, then auto-publish (within ~15 min of the time you set).</li>
+      </ul>
+      <Tip>
+        A red <span className="font-bold">⚠ already in this course</span> warning appears next to
+        any selected lesson whose title already exists in the course, so you can decide whether to
+        proceed or remove it.
+      </Tip>
+
+      <Subhead>Adding to the bank</Subhead>
+      <p className="text-xs">
+        In any lesson editor, toggle <span className="font-mono">Share as Template</span> and pick a
+        Level + Category. The lesson appears in the Content Bank under your name.
       </p>
     </Section>
   )
@@ -546,7 +608,72 @@ function FaqsSection() {
 
 function WhatsNewSection() {
   return (
-    <Section id="whats-new" icon="✨" title="What's new in v1.1.x">
+    <Section id="whats-new" icon="✨" title="What's new">
+      <Subhead>Latest — v1.1.3</Subhead>
+      <ul className="list-disc pl-5 space-y-1.5">
+        <li>
+          <span className="font-bold">🎧 New Audio content block</span> — paste a link, upload a file,
+          or use a Google Drive share URL. Same place as Video and Reading.
+        </li>
+        <li>
+          <span className="font-bold">📚 Audio / Video / Reading all support 6 follow-up exercise types</span> —
+          Multiple Choice, True/False, Type the Answer, Group Sort, Rank Order, Unjumble. Drag to
+          reorder. Existing video/reading blocks keep working; they pick up the new powers the next
+          time you edit them.
+        </li>
+        <li>
+          <span className="font-bold">📝 Every exercise type now has a visual editor — no more JSON.</span>{' '}
+          Hangman, Dictation, Error Correction, Text Sequencing, True/False, Rank Order, and Cloze
+          Listening all got proper teacher-friendly editors.
+        </li>
+        <li>
+          <span className="font-bold">💡 Instant feedback during practice</span> — Multiple Choice and
+          Fill-blank now show a green/red explanation right after the student answers (instead of waiting
+          for the end). Add an optional <span className="font-mono">Explanation</span> per question so
+          students see <em>why</em> the correct answer is correct. Tests (with a test_type set) keep
+          the original &quot;no feedback until end&quot; behaviour.
+        </li>
+        <li>
+          <span className="font-bold">🎙 Dictation got three audio sources</span> — Link (Google Drive
+          auto-converted), Upload, or 🪄 AI generate. AI audio caches once — students don&apos;t
+          re-generate on each play.
+        </li>
+        <li>
+          <span className="font-bold">✏️ Error Correction is smarter</span> — live diff preview while
+          you author, 🪄 Auto-correct button, partial credit (2 of 3 errors = 2/3, not 0), and false
+          positives are surfaced to students (&quot;⚠ already correct&quot;).
+        </li>
+        <li>
+          <span className="font-bold">🌸 Hangman got a friendlier look</span> — wilting flower instead
+          of a hanging stick figure (sad face when out, sparkles on win). Keyboard input alongside the
+          tap grid.
+        </li>
+        <li>
+          <span className="font-bold">🖼 Better image search for flashcards</span> — Pexels + Pixabay,
+          a real thumbnail grid, refine-search box, and an Illustrations tab.
+        </li>
+        <li>
+          <span className="font-bold">📦 Content Bank upgrades</span> — title search, author dropdown,
+          author + date shown on every template, and bulk import from a course page (pick multiple
+          lessons, publish-now / save-as-draft / schedule).
+        </li>
+        <li>
+          <span className="font-bold">📊 Reports got a Vocabulary section</span> per student (mastery
+          stages, per-lesson breakdown). New <span className="font-bold">Export modal</span> — choose
+          sections + students and produce a branded PDF or CSV.
+        </li>
+        <li>
+          <span className="font-bold">🔍 Search where it matters</span> — Lesson Manager and the
+          Reports overview are now searchable.
+        </li>
+        <li>
+          <span className="font-bold">🧹 Removed from the picker</span> — Fill in the Blank, Transform,
+          and Complete the Sentence (they overlapped with Multiple Choice / Type the Answer). Existing
+          exercises keep working; just no new ones.
+        </li>
+      </ul>
+
+      <Subhead>Earlier — v1.1.x</Subhead>
       <ul className="list-disc pl-5 space-y-1.5">
         <li><span className="font-bold">Persistent sidebar nav</span> on every admin page (with mobile hamburger menu)</li>
         <li><span className="font-bold">Deep routes</span> for /admin/courses and /admin/students</li>
