@@ -28,6 +28,7 @@ interface CourseDetail {
   created_at: string
   course_type: string | null
   level: string | null
+  telegram_chat_id: string | null
 }
 
 interface CourseStudent {
@@ -113,7 +114,7 @@ export default function AdminPage() {
   const [courseStudents, setCourseStudents] = useState<CourseStudent[]>([])
   const [courseLessons, setCourseLessons] = useState<CourseLesson[]>([])
   const [editingCourse, setEditingCourse] = useState(false)
-  const [courseForm, setCourseForm] = useState({ name: '', description: '', level: '', course_type: '' })
+  const [courseForm, setCourseForm] = useState({ name: '', description: '', level: '', course_type: '', telegram_chat_id: '' })
   const [courseTab, setCourseTab] = useState<'lessons' | 'students' | 'info'>('lessons')
 
   // My Students state
@@ -182,6 +183,7 @@ export default function AdminPage() {
         description: data.course?.description || '',
         level: data.course?.level || '',
         course_type: data.course?.course_type || '',
+        telegram_chat_id: data.course?.telegram_chat_id || '',
       })
       setView('course-detail')
     } catch { /* */ }
@@ -280,6 +282,7 @@ export default function AdminPage() {
           description: courseForm.description,
           level: courseForm.level || null,
           course_type: courseForm.course_type || null,
+          telegram_chat_id: courseForm.telegram_chat_id.trim() || null,
         }),
       })
       setSelectedCourse({ ...selectedCourse, ...courseForm })
@@ -761,6 +764,19 @@ export default function AdminPage() {
                         </select>
                       </div>
                     </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 mb-1 block">Telegram chat ID</label>
+                      <input
+                        type="text"
+                        value={courseForm.telegram_chat_id}
+                        onChange={e => setCourseForm({ ...courseForm, telegram_chat_id: e.target.value })}
+                        placeholder="e.g. -1001234567890"
+                        className="w-full text-sm border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe] font-mono"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1 leading-snug">
+                        Add <span className="font-mono">@English_with_Laura_Bot</span> to your group, then type <span className="font-mono">/chatid</span> in the group — the bot will reply with the ID. Paste it here. Leave blank to disable notifications for this course.
+                      </p>
+                    </div>
                     <div className="flex gap-2 pt-2">
                       <button
                         onClick={saveCourseInfo}
@@ -805,13 +821,39 @@ export default function AdminPage() {
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Created</p>
                         <p className="text-sm text-[#46464b]">{formatDate(selectedCourse.created_at)}</p>
                       </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Telegram chat ID</p>
+                        <p className="text-sm font-mono text-[#46464b]">{selectedCourse.telegram_chat_id || '—'}</p>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => setEditingCourse(true)}
-                      className="mt-4 px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
-                    >
-                      Edit Course Info
-                    </button>
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => setEditingCourse(true)}
+                        className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
+                      >
+                        Edit Course Info
+                      </button>
+                      {selectedCourse.telegram_chat_id && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch('/api/admin', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'telegram-test', course_id: selectedCourse.id }),
+                              })
+                              const data = await res.json()
+                              showToast(data.ok ? 'Test message sent to Telegram' : (data.error || 'Failed to send'))
+                            } catch {
+                              showToast('Failed to send test message')
+                            }
+                          }}
+                          className="px-4 py-2 bg-white border border-[#cddcf0] text-[#416ebe] text-xs font-bold rounded-lg hover:bg-[#f5f8fc] transition-colors"
+                        >
+                          Send test message
+                        </button>
+                      )}
+                    </div>
                   </>
                 )}
               </div>

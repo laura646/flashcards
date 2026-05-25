@@ -487,8 +487,39 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Update course info (teachers can edit) ──
+    if (action === 'telegram-test') {
+      const { course_id } = body
+      if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+
+      const courseIds = await getTeacherCourseIds(email, role as 'teacher')
+      if (!courseIds.includes(course_id)) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+
+      const { data: c } = await supabase
+        .from('courses')
+        .select('name, telegram_chat_id')
+        .eq('id', course_id)
+        .single()
+
+      if (!c?.telegram_chat_id) {
+        return NextResponse.json({ error: 'No Telegram chat ID set for this course.' }, { status: 400 })
+      }
+
+      const { sendTelegram } = await import('@/lib/telegram')
+      const ok = await sendTelegram(
+        c.telegram_chat_id,
+        `✅ Test message from English with Laura\n\nThe notification bot is connected for "${c.name}". Lesson-publish notifications will appear here.`
+      )
+
+      if (!ok) {
+        return NextResponse.json({ error: 'Telegram send failed. Check the chat ID and that the bot is in the group.' }, { status: 500 })
+      }
+      return NextResponse.json({ ok: true })
+    }
+
     if (action === 'update-course') {
-      const { course_id, name, description, level, course_type } = body
+      const { course_id, name, description, level, course_type, telegram_chat_id } = body
       if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
 
       // Verify teacher has access to this course
@@ -502,6 +533,11 @@ export async function POST(req: NextRequest) {
       if (description !== undefined) updateData.description = description
       if (level !== undefined) updateData.level = level
       if (course_type !== undefined) updateData.course_type = course_type
+      if (telegram_chat_id !== undefined) {
+        // Allow blank to clear; trim and accept the bare ID (e.g. -1001234567890)
+        const trimmed = typeof telegram_chat_id === 'string' ? telegram_chat_id.trim() : ''
+        updateData.telegram_chat_id = trimmed || null
+      }
 
       if (Object.keys(updateData).length === 0) {
         return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
