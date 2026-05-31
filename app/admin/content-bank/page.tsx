@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import ExercisePreview from '@/components/ExercisePreview'
+import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
 
 // ── Types ──
 
@@ -378,6 +379,18 @@ export default function ContentBankPage() {
 
   // ── Exercise edit/delete ──
   const saveExercise = async (ex: Exercise) => {
+    // Validate MCQ-shaped questions before saving (block on blank options /
+    // unset correct answer / fewer than 2 options).
+    if (ex.exercise_type === 'multiple_choice' && Array.isArray(ex.questions)) {
+      const issues: string[] = []
+      ;(ex.questions as Array<{ prompt?: string; options?: string[]; correctIndex?: number; correctIndices?: number[] }>).forEach((q, qi) => {
+        issues.push(...validateMcqQuestion(q, `Q${qi + 1}`))
+      })
+      if (issues.length > 0) {
+        showToast(issues[0])
+        return
+      }
+    }
     setSavingExercise(true)
     try {
       const res = await fetch('/api/content-bank', {
@@ -1220,36 +1233,17 @@ export default function ContentBankPage() {
                                           />
                                         </div>
                                         {q.options && (
-                                          <div className="ml-7 space-y-1">
-                                            {q.options.map((opt: string, oi: number) => (
-                                              <div key={oi} className="flex items-center gap-2">
-                                                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[8px] ${oi === q.correctIndex ? 'border-green-500 bg-green-50 text-green-600' : 'border-gray-300'}`}>
-                                                  {oi === q.correctIndex ? '✓' : ''}
-                                                </span>
-                                                <input
-                                                  type="text"
-                                                  value={opt}
-                                                  onChange={(e) => {
-                                                    const updated = [...questions]
-                                                    const newOpts = [...(updated[qi].options || [])]
-                                                    newOpts[oi] = e.target.value
-                                                    updated[qi] = { ...updated[qi], options: newOpts }
-                                                    setEditingExercise({ ...editEx, questions: updated })
-                                                  }}
-                                                  className="flex-1 px-2 py-1 border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe] text-xs"
-                                                />
-                                                <button
-                                                  onClick={() => {
-                                                    const updated = [...questions]
-                                                    updated[qi] = { ...updated[qi], correctIndex: oi }
-                                                    setEditingExercise({ ...editEx, questions: updated })
-                                                  }}
-                                                  className={`text-[10px] px-1.5 py-0.5 rounded ${oi === q.correctIndex ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400 hover:bg-green-50 hover:text-green-500'}`}
-                                                >
-                                                  correct
-                                                </button>
-                                              </div>
-                                            ))}
+                                          <div className="ml-7">
+                                            <McqOptionsList
+                                              options={q.options}
+                                              correctIndex={typeof q.correctIndex === 'number' ? q.correctIndex : -1}
+                                              radioName={`cb-mcq-${qi}`}
+                                              onChange={({ options, correctIndex }) => {
+                                                const updated = [...questions]
+                                                updated[qi] = { ...updated[qi], options, correctIndex }
+                                                setEditingExercise({ ...editEx, questions: updated })
+                                              }}
+                                            />
                                           </div>
                                         )}
                                         {q.answer !== undefined && (

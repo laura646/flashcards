@@ -6,6 +6,7 @@ import TypeAnswerEditor from './TypeAnswerEditor'
 import GroupSortEditor from './GroupSortEditor'
 import RankOrderEditor from './RankOrderEditor'
 import UnjumbleEditor from './UnjumbleEditor'
+import McqOptionsList from './McqOptionsList'
 import {
   AttachedExercise,
   AttachedExerciseType,
@@ -242,8 +243,8 @@ function InlineMcqEditor({
         {
           id: crypto.randomUUID(),
           prompt: '',
-          options: ['', '', '', ''],
-          correctIndex: 0,
+          options: ['', ''],
+          correctIndex: -1,
           hint: '',
           explanation: '',
         },
@@ -279,30 +280,12 @@ function InlineMcqEditor({
             placeholder="Question prompt"
             className="w-full px-2 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe]"
           />
-          <div className="space-y-1">
-            {q.options.map((opt, oi) => (
-              <div key={oi} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name={`mcq-correct-${q.id}`}
-                  checked={q.correctIndex === oi}
-                  onChange={() => update(qi, { correctIndex: oi })}
-                  className="accent-[#416ebe]"
-                />
-                <input
-                  type="text"
-                  value={opt}
-                  onChange={(e) => {
-                    const opts = [...q.options]
-                    opts[oi] = e.target.value
-                    update(qi, { options: opts })
-                  }}
-                  placeholder={`Option ${oi + 1}`}
-                  className="flex-1 px-2 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe]"
-                />
-              </div>
-            ))}
-          </div>
+          <McqOptionsList
+            options={q.options}
+            correctIndex={q.correctIndex}
+            radioName={`mcq-correct-${q.id}`}
+            onChange={({ options, correctIndex }) => update(qi, { options, correctIndex })}
+          />
           <div className="grid grid-cols-2 gap-2">
             <input
               type="text"

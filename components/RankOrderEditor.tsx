@@ -81,9 +81,14 @@ function RankOrderRow({
     next[idx] = text
     setItems(next)
   }
-  const addItem = () => setItems([...q.items, ''])
+  const RANK_MIN = 3
+  const RANK_MAX = 6
+  const addItem = () => {
+    if (q.items.length >= RANK_MAX) return
+    setItems([...q.items, ''])
+  }
   const removeItem = (idx: number) => {
-    if (q.items.length <= 2) return // need at least 2 to rank
+    if (q.items.length <= RANK_MIN) return // need at least 3 to rank meaningfully
     setItems(q.items.filter((_, i) => i !== idx))
   }
   const moveItem = (from: number, to: number) => {
@@ -219,9 +224,9 @@ function RankOrderRow({
                     </button>
                     <button
                       onClick={() => removeItem(itIdx)}
-                      disabled={q.items.length <= 2}
+                      disabled={q.items.length <= RANK_MIN}
                       className="text-gray-300 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed text-sm w-6 h-6 rounded hover:bg-red-50"
-                      title={q.items.length <= 2 ? 'Need at least 2 items to rank' : 'Remove this item'}
+                      title={q.items.length <= RANK_MIN ? `Need at least ${RANK_MIN} items to rank` : 'Remove this item'}
                     >
                       ✕
                     </button>
@@ -229,12 +234,14 @@ function RankOrderRow({
                 </div>
               )
             })}
-            <button
-              onClick={addItem}
-              className="w-full text-[11px] font-bold text-[#416ebe] hover:text-[#3560b0] py-1.5 border border-dashed border-[#cddcf0] hover:border-[#416ebe] rounded-lg transition-colors"
-            >
-              + Add item
-            </button>
+            {q.items.length < RANK_MAX && (
+              <button
+                onClick={addItem}
+                className="w-full text-[11px] font-bold text-[#416ebe] hover:text-[#3560b0] py-1.5 border border-dashed border-[#cddcf0] hover:border-[#416ebe] rounded-lg transition-colors"
+              >
+                + Add item
+              </button>
+            )}
           </div>
         )}
       </div>

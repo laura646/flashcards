@@ -47,7 +47,7 @@ export function newAttachedExercise(type: AttachedExerciseType): AttachedExercis
       return {
         id,
         type,
-        questions: [{ id: crypto.randomUUID(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '', explanation: '' }],
+        questions: [{ id: crypto.randomUUID(), prompt: '', options: ['', ''], correctIndex: -1, hint: '', explanation: '' }],
       }
     case 'true_or_false':
       return {

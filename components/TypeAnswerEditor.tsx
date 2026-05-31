@@ -152,12 +152,14 @@ export default function TypeAnswerEditor({ questions, onChange }: Props) {
                 </button>
               </div>
             ))}
-            <button
-              onClick={() => addAlternative(i)}
-              className="text-xs text-[#416ebe] font-bold hover:underline mt-1"
-            >
-              + Add alternative
-            </button>
+            {(q.alternatives || []).length < 6 && (
+              <button
+                onClick={() => addAlternative(i)}
+                className="text-xs text-[#416ebe] font-bold hover:underline mt-1"
+              >
+                + Add alternative
+              </button>
+            )}
             <p className="text-[10px] text-gray-300 mt-1">Students can type any of these and get it right (useful for synonyms)</p>
           </div>
 

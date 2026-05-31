@@ -15,6 +15,7 @@ import ErrorCorrectionEditor from '@/components/ErrorCorrectionEditor'
 import TextSequencingEditor from '@/components/TextSequencingEditor'
 import TrueFalseEditor from '@/components/TrueFalseEditor'
 import RankOrderEditor from '@/components/RankOrderEditor'
+import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import type { AttachedExercise } from '@/lib/attached-exercise'
@@ -330,7 +331,7 @@ function createDefaultExercise(orderIndex: number): Exercise {
     icon: '',
     instructions: '',
     exercise_type: 'multiple_choice',
-    questions: [{ id: crypto.randomUUID(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '' }],
+    questions: [{ id: crypto.randomUUID(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }],
     order_index: orderIndex,
   }
 }
@@ -354,7 +355,7 @@ function defaultDataForType(type: string): { questions: unknown[]; groupData?: u
   switch (type) {
     case 'multiple_choice':
     case 'multiple-choice':
-      return { questions: [{ id: newId(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '' }] }
+      return { questions: [{ id: newId(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }] }
     case 'match_halves':
       return { questions: [{ id: newId(), left: '', right: '' }] }
     case 'true_or_false':
@@ -381,12 +382,12 @@ function defaultDataForType(type: string): { questions: unknown[]; groupData?: u
     case 'odd_one_out':
       return { questions: [{ id: newId(), items: ['', '', '', ''], oddIndex: 0, explanation: '' }] }
     default:
-      return { questions: [{ id: newId(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '' }] }
+      return { questions: [{ id: newId(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }] }
   }
 }
 
 function createMCQuestion(): MCQuestion {
-  return { id: crypto.randomUUID(), prompt: '', options: ['', '', '', ''], correctIndex: 0 }
+  return { id: crypto.randomUUID(), prompt: '', options: ['', ''], correctIndex: -1 }
 }
 
 // ── Helpers ──
@@ -1716,6 +1717,46 @@ function LessonsAdminPage() {
       showToast('Please set a lesson date')
       return
     }
+    // MCQ validation across the whole lesson: standalone Exercise blocks,
+    // Mistakes practice questions, Grammar block questions, and attached
+    // multiple_choice follow-up exercises on Audio / Video / Article.
+    const mcqIssues: string[] = []
+    contentItems.forEach((item, idx) => {
+      const label = `Block ${idx + 1}`
+      if (item.type === 'exercise') {
+        const ex = item.data as Exercise
+        if (ex.exercise_type === 'multiple_choice' && Array.isArray(ex.questions)) {
+          ;(ex.questions as Array<{ options?: string[]; correctIndex?: number; correctIndices?: number[] }>).forEach((q, qi) => {
+            mcqIssues.push(...validateMcqQuestion(q, `${label} Q${qi + 1}`))
+          })
+        }
+      } else if (item.type === 'mistakes') {
+        const content = (item.data as ContentBlock).content as MistakesContent
+        content.mistakes?.forEach((m, mi) => {
+          m.practice?.forEach((p, pi) => {
+            mcqIssues.push(...validateMcqQuestion(p, `${label} Mistake ${mi + 1} Practice ${pi + 1}`))
+          })
+        })
+      } else if (item.type === 'grammar') {
+        const content = (item.data as ContentBlock).content as GrammarContent
+        content.exercises?.forEach((q, qi) => {
+          mcqIssues.push(...validateMcqQuestion(q, `${label} Grammar Q${qi + 1}`))
+        })
+      } else if (item.type === 'audio' || item.type === 'video' || item.type === 'article') {
+        const content = (item.data as ContentBlock).content as { exercises?: AttachedExercise[] }
+        content.exercises?.forEach((ax, axi) => {
+          if (ax.type === 'multiple_choice' && Array.isArray(ax.questions)) {
+            ;(ax.questions as Array<{ options?: string[]; correctIndex?: number; correctIndices?: number[] }>).forEach((q, qi) => {
+              mcqIssues.push(...validateMcqQuestion(q, `${label} Follow-up ${axi + 1} Q${qi + 1}`))
+            })
+          }
+        })
+      }
+    })
+    if (mcqIssues.length > 0) {
+      showToast(mcqIssues[0])
+      return
+    }
     // In content bank mode, require category and level
     if (contentBankMode && isTemplate) {
       if (!templateCategory) {
@@ -2010,7 +2051,7 @@ function LessonsAdminPage() {
     const addQuestion = () => {
       updateContentItem(itemIndex, {
         ...exercise,
-        questions: [...exercise.questions, { id: crypto.randomUUID(), prompt: '', options: ['', '', '', ''], correctIndex: 0, hint: '' }],
+        questions: [...exercise.questions, { id: crypto.randomUUID(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }],
       })
     }
 
@@ -2397,25 +2438,27 @@ function LessonsAdminPage() {
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">
                     Options {isMulti && <span className="text-[#416ebe]">(tick all correct answers — student picks them all)</span>}
                   </label>
-                  {q.options.map((opt: string, oIdx: number) => (
-                    <div key={oIdx} className="flex items-center gap-2 mb-1">
-                      <input
-                        type={isMulti ? 'checkbox' : 'radio'}
-                        name={`correct-${itemIndex}-${qIdx}`}
-                        checked={isMulti ? selected.includes(oIdx) : q.correctIndex === oIdx}
-                        onChange={() => toggleOption(oIdx)}
-                        className="accent-[#416ebe]"
-                      />
-                      <input type="text" value={opt}
-                        onChange={(e) => {
-                          const newOpts = [...q.options]
-                          newOpts[oIdx] = e.target.value
-                          updateQuestion(qIdx, 'options', newOpts)
-                        }}
-                        placeholder={`Option ${oIdx + 1}`}
-                        className="flex-1 px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-                    </div>
-                  ))}
+                  {isMulti ? (
+                    <McqOptionsList
+                      multi
+                      options={q.options}
+                      correctIndices={q.correctIndices || []}
+                      onChange={({ options, correctIndices }) => {
+                        updateQuestion(qIdx, 'options', options)
+                        updateQuestion(qIdx, 'correctIndices', correctIndices)
+                      }}
+                    />
+                  ) : (
+                    <McqOptionsList
+                      options={q.options}
+                      correctIndex={q.correctIndex}
+                      radioName={`correct-${itemIndex}-${qIdx}`}
+                      onChange={({ options, correctIndex }) => {
+                        updateQuestion(qIdx, 'options', options)
+                        updateQuestion(qIdx, 'correctIndex', correctIndex)
+                      }}
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Hint</label>
@@ -2472,7 +2515,7 @@ function LessonsAdminPage() {
 
     const addPractice = (mIdx: number) => {
       const updated = [...mistakes]
-      updated[mIdx] = { ...updated[mIdx], practice: [...updated[mIdx].practice, { prompt: '', options: ['', '', '', ''], correctIndex: 0 }] }
+      updated[mIdx] = { ...updated[mIdx], practice: [...updated[mIdx].practice, { prompt: '', options: ['', ''], correctIndex: -1 }] }
       updateBlock({ mistakes: updated })
     }
 
@@ -2540,16 +2583,15 @@ function LessonsAdminPage() {
                 <input type="text" value={p.prompt} onChange={(e) => updatePractice(mIdx, pIdx, 'prompt', e.target.value)}
                   placeholder="Question prompt..."
                   className="w-full px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors mb-2" />
-                {p.options.map((opt, oIdx) => (
-                  <div key={oIdx} className="flex items-center gap-2 mb-1">
-                    <input type="radio" name={`mp-${itemIndex}-${mIdx}-${pIdx}`} checked={p.correctIndex === oIdx}
-                      onChange={() => updatePractice(mIdx, pIdx, 'correctIndex', oIdx)} className="accent-[#416ebe]" />
-                    <input type="text" value={opt}
-                      onChange={(e) => { const newOpts = [...p.options]; newOpts[oIdx] = e.target.value; updatePractice(mIdx, pIdx, 'options', newOpts) }}
-                      placeholder={`Option ${oIdx + 1}`}
-                      className="flex-1 px-3 py-1 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-                  </div>
-                ))}
+                <McqOptionsList
+                  options={p.options}
+                  correctIndex={p.correctIndex}
+                  radioName={`mp-${itemIndex}-${mIdx}-${pIdx}`}
+                  onChange={({ options, correctIndex }) => {
+                    updatePractice(mIdx, pIdx, 'options', options)
+                    updatePractice(mIdx, pIdx, 'correctIndex', correctIndex)
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -2835,16 +2877,15 @@ function LessonsAdminPage() {
               <input type="text" value={q.prompt} onChange={(e) => updateExercise(qIdx, 'prompt', e.target.value)}
                 className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
             </div>
-            {q.options.map((opt, oIdx) => (
-              <div key={oIdx} className="flex items-center gap-2 mb-1">
-                <input type="radio" name={`gq-${itemIndex}-${qIdx}`} checked={q.correctIndex === oIdx}
-                  onChange={() => updateExercise(qIdx, 'correctIndex', oIdx)} className="accent-[#416ebe]" />
-                <input type="text" value={opt}
-                  onChange={(e) => { const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; updateExercise(qIdx, 'options', newOpts) }}
-                  placeholder={`Option ${oIdx + 1}`}
-                  className="flex-1 px-3 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-              </div>
-            ))}
+            <McqOptionsList
+              options={q.options}
+              correctIndex={q.correctIndex}
+              radioName={`gq-${itemIndex}-${qIdx}`}
+              onChange={({ options, correctIndex }) => {
+                updateExercise(qIdx, 'options', options)
+                updateExercise(qIdx, 'correctIndex', correctIndex)
+              }}
+            />
           </div>
         ))}
       </div>
