@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { createClient } from '@supabase/supabase-js'
 import { rateLimit } from '@/lib/rate-limit'
+import { ttsToBuffer } from '@/lib/tts'
 
 // Two modes:
 //   1. UPLOAD — body: { fileData (base64), fileType, fileName? }
@@ -96,33 +97,10 @@ export async function POST(req: Request) {
         )
       }
 
-      const apiKey = process.env.ELEVENLABS_API_KEY
-      if (!apiKey) {
-        return NextResponse.json({ error: 'TTS not configured' }, { status: 500 })
+      const audioBuf = await ttsToBuffer(text)
+      if (!audioBuf) {
+        return NextResponse.json({ error: 'TTS generation failed (no provider configured?)' }, { status: 500 })
       }
-
-      const res = await fetch(
-        'https://api.elevenlabs.io/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL',
-        {
-          method: 'POST',
-          headers: {
-            Accept: 'audio/mpeg',
-            'Content-Type': 'application/json',
-            'xi-api-key': apiKey,
-          },
-          body: JSON.stringify({
-            text,
-            model_id: 'eleven_multilingual_v2',
-            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-          }),
-        }
-      )
-
-      if (!res.ok) {
-        return NextResponse.json({ error: 'TTS generation failed' }, { status: res.status })
-      }
-
-      const audioBuf = Buffer.from(await res.arrayBuffer())
       const url = await storeAudio(audioBuf, 'audio/mpeg')
       if (!url) return NextResponse.json({ error: 'Failed to save audio' }, { status: 500 })
       return NextResponse.json({ url })
