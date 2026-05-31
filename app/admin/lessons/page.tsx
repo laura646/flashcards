@@ -301,6 +301,38 @@ const BLOCK_CONFIG: Record<ContentItemType, { label: string; icon: string; color
   pronunciation: { label: 'Pronunciation', icon: '\uD83D\uDD0A', color: '#ec4899' },
 }
 
+// ── Reading AI form options ──
+const READING_TYPES = [
+  'Story', 'Article', 'News article', 'Opinion piece', 'Blog post',
+  'Email', 'Letter', 'Dialogue', 'Interview', 'Review', 'Diary entry',
+  'Recipe / instructions',
+]
+const READING_STYLES = [
+  'Formal', 'Casual', 'Journalistic', 'Literary', 'Persuasive',
+  'Humorous', 'Dramatic', 'Technical',
+]
+const READING_LENGTHS = [
+  { value: '150', label: '~1 min (150 words)' },
+  { value: '300', label: '~2 min (300 words)' },
+  { value: '500', label: '~3 min (500 words)' },
+  { value: '750', label: '~5 min (750 words)' },
+  { value: '1500', label: '~10 min (1500 words)' },
+]
+const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+const READING_POVS = [
+  { value: '1st', label: 'First person ("I…")' },
+  { value: '3rd', label: 'Third person ("He / she / they…")' },
+  { value: 'mixed', label: 'Mixed' },
+]
+const SUGGEST_EX_TYPES = [
+  { value: 'multiple_choice', label: 'Multiple Choice' },
+  { value: 'true_or_false', label: 'True or False' },
+  { value: 'type_answer', label: 'Type the Answer' },
+  { value: 'group_sort', label: 'Group Sort' },
+  { value: 'rank_order', label: 'Rank Order' },
+  { value: 'anagram', label: 'Unjumble' },
+]
+
 // Sub-type dropdowns shown in the "Generate with AI" form per block type.
 // Empty value = "Let AI decide" (default). "__other__" reveals a free-text
 // input so teachers can describe an off-list focus.
@@ -511,6 +543,31 @@ function LessonsAdminPage() {
   const [blockCreationText, setBlockCreationText] = useState('')
   const [blockCreationFiles, setBlockCreationFiles] = useState<File[]>([])
   const [blockCreationGenerating, setBlockCreationGenerating] = useState(false)
+  // ── Reading AI rich form (Article block only) ──
+  const [readingMode, setReadingMode] = useState<'source' | 'scratch'>('scratch')
+  const [readingLevel, setReadingLevel] = useState('')          // CEFR override; empty = course default
+  const [readingLength, setReadingLength] = useState('400')     // words
+  const [readingStyle, setReadingStyle] = useState('')
+  const [readingStyleOther, setReadingStyleOther] = useState('')
+  const [readingType, setReadingType] = useState('')            // story / article / dialogue …
+  const [readingPlot, setReadingPlot] = useState('')
+  const [readingVocab, setReadingVocab] = useState('')          // comma-separated string
+  const [readingPov, setReadingPov] = useState('')
+  const [readingCharacters, setReadingCharacters] = useState('')
+  const [readingGrammar, setReadingGrammar] = useState('')
+  const [readingSourceUrl, setReadingSourceUrl] = useState('')
+  const [courseLevelCache, setCourseLevelCache] = useState<string | null>(null)
+  // Vocab picker modal state
+  const [vocabPickerOpen, setVocabPickerOpen] = useState(false)
+  const [vocabPickerLoading, setVocabPickerLoading] = useState(false)
+  const [vocabPickerData, setVocabPickerData] = useState<{ lesson_id: string; lesson_title: string; lesson_date: string; words: string[] }[]>([])
+  const [vocabPickerSelected, setVocabPickerSelected] = useState<Set<string>>(new Set())
+  const [vocabPickerSearch, setVocabPickerSearch] = useState('')
+  // Suggest-exercises-from-reading modal state (per article block)
+  const [suggestExForBlockIdx, setSuggestExForBlockIdx] = useState<number | null>(null)
+  const [suggestExTypes, setSuggestExTypes] = useState<string[]>(['multiple_choice'])
+  const [suggestExCount, setSuggestExCount] = useState(5)
+  const [suggestExGenerating, setSuggestExGenerating] = useState(false)
   const [aiExFiles, setAiExFiles] = useState<File[]>([])
   const [aiExTextInput, setAiExTextInput] = useState('')
   const [aiExPreferredType, setAiExPreferredType] = useState('')
@@ -1211,6 +1268,185 @@ function LessonsAdminPage() {
     setBlockCreationOtherText('')
     setBlockCreationText('')
     setBlockCreationFiles([])
+  }
+
+  // Fetch the course's CEFR level once (used as default in the Reading form).
+  const ensureCourseLevel = useCallback(async () => {
+    if (courseLevelCache !== null || !courseId) return
+    try {
+      const res = await fetch(`/api/admin?action=course-detail&course_id=${courseId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setCourseLevelCache(data.course?.level || '')
+      }
+    } catch { /* ignore */ }
+  }, [courseLevelCache, courseId])
+
+  // Open vocab picker and lazy-load course vocabulary.
+  const openVocabPicker = async () => {
+    setVocabPickerOpen(true)
+    setVocabPickerSelected(new Set())
+    setVocabPickerSearch('')
+    if (vocabPickerData.length > 0) return // already loaded
+    if (!courseId) {
+      showToast('Save the lesson to a course first to pull course vocabulary')
+      return
+    }
+    setVocabPickerLoading(true)
+    try {
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'course-vocabulary', course_id: courseId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const lessons = data.lessons || []
+        setVocabPickerData(lessons)
+        // Pre-check this lesson's flashcards if present.
+        const preselect = new Set<string>()
+        const myFlashcards = (contentItems.find((i) => i.type === 'flashcards')?.data as Flashcard[] | undefined) || []
+        myFlashcards.forEach((fc) => fc.word && preselect.add(fc.word.trim()))
+        setVocabPickerSelected(preselect)
+      } else {
+        showToast(data.error || 'Failed to load vocabulary')
+      }
+    } catch {
+      showToast('Failed to load vocabulary')
+    }
+    setVocabPickerLoading(false)
+  }
+
+  const applyVocabPicker = () => {
+    const picked = Array.from(vocabPickerSelected)
+    if (picked.length === 0) {
+      setVocabPickerOpen(false)
+      return
+    }
+    // Merge picked words with anything already in the vocab textbox.
+    const existing = readingVocab.split(',').map((w) => w.trim()).filter(Boolean)
+    const merged = Array.from(new Set([...existing, ...picked]))
+    setReadingVocab(merged.join(', '))
+    setVocabPickerOpen(false)
+  }
+
+  // Reading AI: generate a new Article block from the rich form inputs.
+  const generateReadingWithAI = async () => {
+    setBlockCreationGenerating(true)
+    try {
+      // Resolve image (single, optional) — first file from blockCreationFiles.
+      let source_image: string | undefined
+      let source_image_type: string | undefined
+      if (blockCreationFiles.length > 0 && readingMode === 'source') {
+        const f = blockCreationFiles[0]
+        source_image = await fileToBase64(f)
+        source_image_type = f.type || 'image/png'
+      }
+      const effectiveLevel = readingLevel || courseLevelCache || ''
+      const effectiveStyle = readingStyle === '__other__' ? readingStyleOther.trim() : readingStyle
+      const vocabulary = readingVocab.split(',').map((w) => w.trim()).filter(Boolean)
+      const payload: Record<string, unknown> = {
+        action: 'generate-reading',
+        mode: readingMode,
+        level: effectiveLevel || undefined,
+        length_words: Number(readingLength) || undefined,
+        style: effectiveStyle || undefined,
+      }
+      if (readingMode === 'source') {
+        payload.source_text = blockCreationText.trim() || undefined
+        payload.source_url = readingSourceUrl.trim() || undefined
+        payload.source_image = source_image
+        payload.source_image_type = source_image_type
+        const hasAny = payload.source_text || payload.source_url || payload.source_image
+        if (!hasAny) {
+          showToast('Provide source text, URL, or an image')
+          setBlockCreationGenerating(false)
+          return
+        }
+      } else {
+        payload.reading_type = readingType || undefined
+        payload.plot = readingPlot.trim() || undefined
+        payload.vocabulary = vocabulary.length > 0 ? vocabulary : undefined
+        payload.narrator_pov = readingPov || undefined
+        payload.characters = readingCharacters.trim() || undefined
+        payload.grammar_focus = readingGrammar.trim() || undefined
+      }
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to generate reading')
+        setBlockCreationGenerating(false)
+        return
+      }
+      const newIndex = contentItems.length
+      const block: ContentBlock = {
+        block_type: 'article',
+        title: data.title || 'Reading',
+        content: data.content as BlockContent,
+        order_index: newIndex,
+      }
+      setContentItems((prev) => [
+        ...prev,
+        { type: 'article' as ContentItemType, data: block, collapsed: false, order_index: newIndex },
+      ])
+      showToast(`Added AI-generated reading: ${block.title}`)
+      cancelBlockCreation()
+    } catch {
+      showToast('Failed to generate reading')
+    }
+    setBlockCreationGenerating(false)
+  }
+
+  // Suggest follow-up exercises for an existing Article block from its text.
+  const suggestExercisesForBlock = async () => {
+    if (suggestExForBlockIdx === null) return
+    const item = contentItems[suggestExForBlockIdx]
+    if (!item || item.type !== 'article') return
+    const block = item.data as ContentBlock
+    const content = block.content as ArticleContent
+    if (!content.text || !content.text.trim()) {
+      showToast('Add reading text first')
+      return
+    }
+    if (suggestExTypes.length === 0) {
+      showToast('Pick at least one exercise type')
+      return
+    }
+    setSuggestExGenerating(true)
+    try {
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'suggest-exercises-from-reading',
+          article_text: content.text,
+          exercise_types: suggestExTypes,
+          count_per_type: suggestExCount,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to generate exercises')
+        setSuggestExGenerating(false)
+        return
+      }
+      const newExercises = (data.exercises || []) as AttachedExercise[]
+      const existing = content.exercises || legacyMcqToAttached(content.questions)
+      const merged = [...existing, ...newExercises]
+      updateContentItem(suggestExForBlockIdx, {
+        ...block,
+        content: { ...content, exercises: merged, questions: [] },
+      })
+      showToast(`Added ${newExercises.length} AI-suggested exercise${newExercises.length !== 1 ? 's' : ''}`)
+      setSuggestExForBlockIdx(null)
+    } catch {
+      showToast('Failed to generate exercises')
+    }
+    setSuggestExGenerating(false)
   }
 
   const generateBlockWithAI = async () => {
@@ -2863,6 +3099,21 @@ function LessonsAdminPage() {
         </div>
 
         <div className="pt-2 border-t border-[#e6f0fa]">
+          <div className="flex items-center justify-between mb-2">
+            <div /> {/* spacer: AttachedExercisesEditor has its own heading */}
+            <button
+              onClick={() => {
+                setSuggestExForBlockIdx(itemIndex)
+                setSuggestExTypes(['multiple_choice'])
+                setSuggestExCount(5)
+              }}
+              disabled={!content.text || !content.text.trim()}
+              title={!content.text || !content.text.trim() ? 'Add reading text first' : 'Use AI to suggest comprehension exercises from this reading'}
+              className="text-[10px] font-bold text-[#416ebe] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ✨ Suggest exercises with AI
+            </button>
+          </div>
           <AttachedExercisesEditor
             exercises={effectiveExercises}
             onChange={(exercises) => updateArticleContent({ exercises, questions: [] })}
@@ -4272,7 +4523,10 @@ function LessonsAdminPage() {
                       <p className="text-xs text-gray-400 mb-5">How would you like to create this block?</p>
                       <div className="grid grid-cols-2 gap-3">
                         <button
-                          onClick={() => setBlockCreationMode('ai')}
+                          onClick={() => {
+                            setBlockCreationMode('ai')
+                            if (blockCreationType === 'article') ensureCourseLevel()
+                          }}
                           className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-[#cddcf0] hover:border-[#416ebe] hover:bg-[#f7fafd] transition-all group"
                         >
                           <span className="text-3xl">{'✨'}</span>
@@ -4286,6 +4540,250 @@ function LessonsAdminPage() {
                           <span className="text-3xl">{'✍️'}</span>
                           <span className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe]">Create Manually</span>
                           <span className="text-[10px] text-gray-400 text-center">Build the block yourself from scratch</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : blockCreationType === 'article' ? (
+                    /* ── Rich Reading AI form (Article block only) ── */
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setBlockCreationMode('choosing')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors">{'←'} Back</button>
+                          <h3 className="text-sm font-bold text-[#46464b]">Generate Reading with AI</h3>
+                        </div>
+                        <button onClick={cancelBlockCreation} className="text-xs text-gray-400 hover:text-red-400 transition-colors">{'✕'}</button>
+                      </div>
+
+                      {/* Mode tabs */}
+                      <div className="flex gap-2 mb-4 border-b border-[#e6f0fa]">
+                        <button
+                          onClick={() => setReadingMode('source')}
+                          className={`px-4 py-2 text-xs font-bold border-b-2 -mb-px transition-colors ${readingMode === 'source' ? 'border-[#416ebe] text-[#416ebe]' : 'border-transparent text-gray-400 hover:text-[#416ebe]'}`}
+                        >
+                          📎 Use a source
+                        </button>
+                        <button
+                          onClick={() => setReadingMode('scratch')}
+                          className={`px-4 py-2 text-xs font-bold border-b-2 -mb-px transition-colors ${readingMode === 'scratch' ? 'border-[#416ebe] text-[#416ebe]' : 'border-transparent text-gray-400 hover:text-[#416ebe]'}`}
+                        >
+                          ✨ Create from scratch
+                        </button>
+                      </div>
+
+                      {readingMode === 'source' && (
+                        <>
+                          {/* URL */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">URL (optional)</label>
+                            <input
+                              type="url"
+                              value={readingSourceUrl}
+                              onChange={(e) => setReadingSourceUrl(e.target.value)}
+                              placeholder="https://example.com/article"
+                              disabled={blockCreationGenerating}
+                              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                            />
+                            <p className="text-[10px] text-gray-300 mt-1">Web page, Google Doc, or news article. Paywalled / JS-heavy sites may fail.</p>
+                          </div>
+                          {/* Image upload */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Image (optional)</label>
+                            <label className={`flex items-center justify-center w-full h-20 border-2 border-dashed border-[#cddcf0] rounded-xl cursor-pointer hover:border-[#416ebe] hover:bg-[#f7fafd] ${blockCreationGenerating ? 'opacity-50 pointer-events-none' : ''}`}>
+                              <p className="text-xs text-gray-400">Click to upload JPEG or PNG (screenshot of text)</p>
+                              <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png"
+                                className="hidden"
+                                disabled={blockCreationGenerating}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0]
+                                  if (f) setBlockCreationFiles([f])
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+                            {blockCreationFiles.length > 0 && (
+                              <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 bg-[#f7fafd] rounded-lg px-3 py-1.5">
+                                <span className="flex-1 truncate">{blockCreationFiles[0].name}</span>
+                                <button onClick={() => setBlockCreationFiles([])} className="text-gray-300 hover:text-red-400">{'✕'}</button>
+                              </div>
+                            )}
+                          </div>
+                          {/* Paste text */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Paste raw text (optional)</label>
+                            <textarea
+                              value={blockCreationText}
+                              onChange={(e) => setBlockCreationText(e.target.value)}
+                              placeholder="Paste the article or text content..."
+                              className="w-full h-24 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                              disabled={blockCreationGenerating}
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-400 mb-3">
+                            <span className="font-bold">Tweak the source:</span> the AI will adapt to the level / length / style below.
+                          </p>
+                        </>
+                      )}
+
+                      {readingMode === 'scratch' && (
+                        <>
+                          {/* Type */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Type</label>
+                            <select
+                              value={readingType}
+                              onChange={(e) => setReadingType(e.target.value)}
+                              disabled={blockCreationGenerating}
+                              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                            >
+                              <option value="">Let AI decide</option>
+                              {READING_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </div>
+                          {/* Plot */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Topic / plot (optional)</label>
+                            <input
+                              type="text"
+                              value={readingPlot}
+                              onChange={(e) => setReadingPlot(e.target.value)}
+                              placeholder="e.g. An article about global warming"
+                              disabled={blockCreationGenerating}
+                              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                            />
+                          </div>
+                          {/* POV */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Point of view (optional)</label>
+                            <select
+                              value={readingPov}
+                              onChange={(e) => setReadingPov(e.target.value)}
+                              disabled={blockCreationGenerating}
+                              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                            >
+                              <option value="">Let AI decide</option>
+                              {READING_POVS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                            </select>
+                          </div>
+                          {/* Characters */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Characters / setting details (optional)</label>
+                            <textarea
+                              value={readingCharacters}
+                              onChange={(e) => setReadingCharacters(e.target.value)}
+                              placeholder="Names, professions, places, time period…"
+                              className="w-full h-16 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                              disabled={blockCreationGenerating}
+                            />
+                          </div>
+                          {/* Grammar focus */}
+                          <div className="mb-3">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Grammar focus / avoid (optional)</label>
+                            <input
+                              type="text"
+                              value={readingGrammar}
+                              onChange={(e) => setReadingGrammar(e.target.value)}
+                              placeholder="e.g. Use present simple + continuous, avoid past perfect"
+                              disabled={blockCreationGenerating}
+                              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                            />
+                          </div>
+                          {/* Vocabulary */}
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[10px] font-bold text-gray-400 uppercase">Vocabulary to include (optional)</label>
+                              <button
+                                onClick={openVocabPicker}
+                                disabled={!courseId || blockCreationGenerating}
+                                title={!courseId ? 'Save the lesson to a course first' : ''}
+                                className="text-[10px] font-bold text-[#416ebe] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                + Pick from course vocabulary
+                              </button>
+                            </div>
+                            <textarea
+                              value={readingVocab}
+                              onChange={(e) => setReadingVocab(e.target.value)}
+                              placeholder="Comma-separated: airport, boarding pass, gate, terminal…"
+                              className="w-full h-16 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                              disabled={blockCreationGenerating}
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Common: Level / Length / Style */}
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Level</label>
+                          <select
+                            value={readingLevel}
+                            onChange={(e) => setReadingLevel(e.target.value)}
+                            disabled={blockCreationGenerating}
+                            className="w-full px-2 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                          >
+                            <option value="">{courseLevelCache ? `Course default (${courseLevelCache})` : 'Course default'}</option>
+                            {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Length</label>
+                          <select
+                            value={readingLength}
+                            onChange={(e) => setReadingLength(e.target.value)}
+                            disabled={blockCreationGenerating}
+                            className="w-full px-2 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                          >
+                            {READING_LENGTHS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Style</label>
+                          <select
+                            value={readingStyle}
+                            onChange={(e) => setReadingStyle(e.target.value)}
+                            disabled={blockCreationGenerating}
+                            className="w-full px-2 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                          >
+                            <option value="">Let AI decide</option>
+                            {READING_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                            <option value="__other__">Other (describe below)</option>
+                          </select>
+                        </div>
+                      </div>
+                      {readingStyle === '__other__' && (
+                        <input
+                          type="text"
+                          value={readingStyleOther}
+                          onChange={(e) => setReadingStyleOther(e.target.value)}
+                          placeholder="Describe the style (e.g., 'noir detective')"
+                          disabled={blockCreationGenerating}
+                          className="w-full mb-3 px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                        />
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={generateReadingWithAI}
+                          disabled={blockCreationGenerating}
+                          className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {blockCreationGenerating ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                              Generating reading…
+                            </span>
+                          ) : (
+                            <>{'✨'} Generate Reading</>
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelBlockCreation}
+                          disabled={blockCreationGenerating}
+                          className="px-5 py-3 border border-[#cddcf0] text-gray-500 font-bold rounded-xl text-sm hover:border-[#416ebe] transition-colors disabled:opacity-50"
+                        >
+                          Cancel
                         </button>
                       </div>
                     </div>
@@ -4742,6 +5240,133 @@ function LessonsAdminPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* ── Vocab Picker Modal (course-wide flashcards) ── */}
+        {vocabPickerOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+              <div className="px-6 py-4 border-b border-[#e6f0fa] flex items-center justify-between">
+                <h3 className="text-sm font-bold text-[#46464b]">Pick from course vocabulary</h3>
+                <button onClick={() => setVocabPickerOpen(false)} className="text-gray-400 hover:text-red-400">{'✕'}</button>
+              </div>
+              <div className="px-6 py-3 border-b border-[#e6f0fa]">
+                <input
+                  type="text"
+                  value={vocabPickerSearch}
+                  onChange={(e) => setVocabPickerSearch(e.target.value)}
+                  placeholder="Search words…"
+                  className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]"
+                />
+                <p className="text-[10px] text-gray-400 mt-1.5">
+                  {vocabPickerSelected.size} word{vocabPickerSelected.size !== 1 ? 's' : ''} selected • this lesson&apos;s flashcards are pre-checked
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-3">
+                {vocabPickerLoading ? (
+                  <p className="text-xs text-gray-400 text-center py-8">Loading course vocabulary…</p>
+                ) : vocabPickerData.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-8">No vocabulary found in this course yet.</p>
+                ) : (
+                  vocabPickerData.map((lesson) => {
+                    const filtered = vocabPickerSearch.trim()
+                      ? lesson.words.filter((w) => w.toLowerCase().includes(vocabPickerSearch.toLowerCase()))
+                      : lesson.words
+                    if (filtered.length === 0) return null
+                    return (
+                      <div key={lesson.lesson_id} className="mb-4">
+                        <p className="text-[10px] font-bold text-[#416ebe] uppercase tracking-wider mb-2">
+                          {lesson.lesson_title || '(untitled)'} {lesson.lesson_date && <span className="text-gray-300 font-normal">— {lesson.lesson_date}</span>}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {filtered.map((w) => {
+                            const checked = vocabPickerSelected.has(w)
+                            return (
+                              <button
+                                key={w}
+                                onClick={() => {
+                                  setVocabPickerSelected((prev) => {
+                                    const next = new Set(prev)
+                                    if (next.has(w)) next.delete(w)
+                                    else next.add(w)
+                                    return next
+                                  })
+                                }}
+                                className={`text-xs px-3 py-1 rounded-full border transition-colors ${checked ? 'bg-[#416ebe] text-white border-[#416ebe]' : 'bg-white text-[#46464b] border-[#cddcf0] hover:border-[#416ebe]'}`}
+                              >
+                                {w}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+              <div className="px-6 py-3 border-t border-[#e6f0fa] flex justify-end gap-2">
+                <button onClick={() => setVocabPickerOpen(false)} className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600">Cancel</button>
+                <button
+                  onClick={applyVocabPicker}
+                  className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
+                >
+                  Add {vocabPickerSelected.size} word{vocabPickerSelected.size !== 1 ? 's' : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Suggest Exercises Modal (per article block) ── */}
+        {suggestExForBlockIdx !== null && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="px-6 py-4 border-b border-[#e6f0fa] flex items-center justify-between">
+                <h3 className="text-sm font-bold text-[#46464b]">Suggest exercises with AI</h3>
+                <button onClick={() => setSuggestExForBlockIdx(null)} className="text-gray-400 hover:text-red-400">{'✕'}</button>
+              </div>
+              <div className="px-6 py-4">
+                <p className="text-xs text-gray-400 mb-3">Pick exercise types — AI will draft one of each from the reading text.</p>
+                <div className="space-y-1.5 mb-4">
+                  {SUGGEST_EX_TYPES.map((t) => (
+                    <label key={t.value} className="flex items-center gap-2 text-sm text-[#46464b] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={suggestExTypes.includes(t.value)}
+                        onChange={(e) => {
+                          setSuggestExTypes((prev) =>
+                            e.target.checked ? [...prev, t.value] : prev.filter((x) => x !== t.value),
+                          )
+                        }}
+                        className="accent-[#416ebe]"
+                      />
+                      {t.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mb-4">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Questions per type</label>
+                  <select
+                    value={suggestExCount}
+                    onChange={(e) => setSuggestExCount(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                  >
+                    {[3, 5, 8, 10].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setSuggestExForBlockIdx(null)} disabled={suggestExGenerating} className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600 disabled:opacity-50">Cancel</button>
+                  <button
+                    onClick={suggestExercisesForBlock}
+                    disabled={suggestExGenerating || suggestExTypes.length === 0}
+                    className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50"
+                  >
+                    {suggestExGenerating ? 'Generating…' : `✨ Generate ${suggestExTypes.length} exercise${suggestExTypes.length !== 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </main>

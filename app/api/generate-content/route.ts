@@ -438,6 +438,275 @@ For all other types, set groupData to null.`
       }
     }
 
+    // ── Generate a Reading (Article) block with AI — rich form path.
+    // Supports two modes:
+    //   "source": teacher provided text / image / URL; AI rewrites/adapts
+    //   "scratch": teacher provided structured form inputs; AI creates from scratch
+    // Returns { title, content: { text, source } } for direct insertion
+    // into a new Article ContentBlock.
+    if (action === 'generate-reading') {
+      const {
+        mode,                       // 'source' | 'scratch'
+        // common
+        level,                      // CEFR (A1..C2) — defaults to course level
+        length_words,               // number — target word count
+        style,                      // free-text or dropdown value
+        // source mode
+        source_text,                // pasted raw text
+        source_url,                 // URL to fetch
+        source_image,               // base64 image
+        source_image_type,          // 'image/png' etc.
+        // scratch mode
+        reading_type,               // 'story' | 'article' | 'news' etc.
+        plot,                       // free-text
+        vocabulary,                 // string[] — must-use words
+        narrator_pov,               // '1st' | '3rd' | 'mixed'
+        characters,                 // free-text — character names, setting
+        grammar_focus,              // free-text
+      } = body as Record<string, unknown>
+
+      const m = (mode as string) || 'scratch'
+      if (m !== 'source' && m !== 'scratch') {
+        return NextResponse.json({ error: 'mode must be "source" or "scratch"' }, { status: 400 })
+      }
+
+      // If source mode and source_url provided, fetch the URL server-side
+      // (best effort — strip HTML tags). Fall back with a clear error.
+      let fetchedSourceText = ''
+      if (m === 'source' && source_url && typeof source_url === 'string' && source_url.trim()) {
+        try {
+          const res = await fetch(source_url.trim(), { headers: { 'User-Agent': 'Mozilla/5.0 EwL-FlashcardsBot' } })
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          const html = await res.text()
+          // Strip <script> and <style> blocks, then strip all tags
+          const stripped = html
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+          fetchedSourceText = stripped.slice(0, 12000) // cap at ~3k tokens
+        } catch (err) {
+          return NextResponse.json({ error: `Could not fetch URL — ${err instanceof Error ? err.message : 'unknown error'}. Paste the text instead.` }, { status: 400 })
+        }
+      }
+
+      const effectiveSource = [source_text, fetchedSourceText].filter(Boolean).join('\n\n').trim()
+
+      const levelLine = level ? `Target CEFR level: ${level}.` : ''
+      const lengthLine = length_words ? `Target length: about ${length_words} words.` : 'Target length: about 400 words.'
+      const styleLine = style ? `Style / tone: ${style}.` : ''
+
+      let prompt = ''
+      if (m === 'source') {
+        prompt = `You are an expert ESL teaching assistant. Rewrite or adapt the source material below into a single piece of reading content for a lesson.
+
+${levelLine}
+${lengthLine}
+${styleLine}
+
+Rules:
+- Keep the topic and key facts faithful to the source.
+- Adapt vocabulary and grammar complexity to the CEFR level above.
+- Plain prose only — no markdown headers, no bullet lists in the body.
+- Output a short, descriptive title.
+
+Return ONLY valid JSON (no markdown, no explanation):
+{"title": "Short descriptive title", "content": {"text": "The adapted reading body…", "source": "Made-up or paraphrased source name, or 'Adapted'"}}
+
+Source material:
+${effectiveSource || '(see attached image)'}`
+      } else {
+        const vocabLine = Array.isArray(vocabulary) && vocabulary.length > 0
+          ? `Must include these vocabulary words naturally (do not force any that don't fit): ${(vocabulary as string[]).slice(0, 30).join(', ')}.`
+          : ''
+        const typeLine = reading_type ? `Format: ${reading_type}.` : 'Format: pick whatever fits best.'
+        const plotLine = plot ? `Topic / plot: ${plot}.` : ''
+        const povLine = narrator_pov ? `Point of view: ${narrator_pov === '1st' ? 'first person' : narrator_pov === '3rd' ? 'third person' : 'mixed'}.` : ''
+        const charLine = characters ? `Characters / setting details: ${characters}.` : ''
+        const grammarLine = grammar_focus ? `Grammar focus: ${grammar_focus}.` : ''
+
+        prompt = `You are an expert ESL teaching assistant. Write a single piece of reading content for a lesson, from scratch.
+
+${typeLine}
+${levelLine}
+${lengthLine}
+${styleLine}
+${plotLine}
+${vocabLine}
+${povLine}
+${charLine}
+${grammarLine}
+
+Rules:
+- Plain prose only — no markdown headers, no bullet lists in the body.
+- Stay strictly within the CEFR level for vocabulary and structure.
+- If vocabulary words were provided, use as many as fit naturally — do not force ones that don't fit.
+- Output a short, descriptive title.
+
+Return ONLY valid JSON (no markdown, no explanation):
+{"title": "Short descriptive title", "content": {"text": "The reading body…", "source": "Original"}}`
+      }
+
+      const contentParts: Anthropic.Messages.ContentBlockParam[] = []
+      if (m === 'source' && source_image && typeof source_image === 'string') {
+        contentParts.push({
+          type: 'image',
+          source: { type: 'base64', media_type: (source_image_type as 'image/png' | 'image/jpeg') || 'image/png', data: source_image },
+        })
+      }
+      contentParts.push({ type: 'text', text: prompt })
+
+      const message = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: contentParts }],
+      })
+      const textContent = message.content.find((c) => c.type === 'text')
+      if (!textContent || textContent.type !== 'text') {
+        return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+      }
+      let parsed: { title?: string; content?: { text?: string; source?: string } } | null = null
+      try { parsed = JSON.parse(textContent.text) } catch {
+        const m2 = textContent.text.match(/\{[\s\S]*\}/)
+        if (m2) { try { parsed = JSON.parse(m2[0]) } catch { parsed = null } }
+      }
+      if (!parsed || !parsed.content) {
+        return NextResponse.json({ error: 'Failed to parse AI response', raw: textContent.text }, { status: 500 })
+      }
+      return NextResponse.json({
+        title: parsed.title || 'Reading',
+        content: { text: parsed.content.text || '', source: parsed.content.source || '', questions: [], exercises: [] },
+      })
+    }
+
+    // ── List vocabulary words across all lessons in a course, for the
+    // "Pick from course vocabulary" picker modal in the Reading AI form.
+    if (action === 'course-vocabulary') {
+      const { course_id } = body as { course_id?: string }
+      if (!course_id) {
+        return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+      }
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      )
+      const { data: lessons } = await supabase
+        .from('lessons')
+        .select('id, title, lesson_date')
+        .eq('course_id', course_id)
+        .order('lesson_date', { ascending: false })
+      if (!lessons || lessons.length === 0) {
+        return NextResponse.json({ lessons: [] })
+      }
+      const lessonIds = lessons.map((l: { id: string }) => l.id)
+      const { data: cards } = await supabase
+        .from('flashcards')
+        .select('lesson_id, word')
+        .in('lesson_id', lessonIds)
+        .order('order_index', { ascending: true })
+      const byLesson: Record<string, string[]> = {}
+      ;(cards || []).forEach((c: { lesson_id: string; word: string }) => {
+        if (!byLesson[c.lesson_id]) byLesson[c.lesson_id] = []
+        if (c.word && c.word.trim()) byLesson[c.lesson_id].push(c.word.trim())
+      })
+      const result = lessons
+        .map((l: { id: string; title: string; lesson_date: string }) => ({
+          lesson_id: l.id,
+          lesson_title: l.title,
+          lesson_date: l.lesson_date,
+          words: byLesson[l.id] || [],
+        }))
+        .filter((l) => l.words.length > 0)
+      return NextResponse.json({ lessons: result })
+    }
+
+    // ── Suggest follow-up exercises (AttachedExercise[]) from an existing
+    // article body. Used by the "Suggest exercises with AI" button on
+    // the Reading block editor.
+    if (action === 'suggest-exercises-from-reading') {
+      const { article_text, exercise_types, count_per_type } = body as {
+        article_text?: string
+        exercise_types?: string[]
+        count_per_type?: number
+      }
+      if (!article_text || !article_text.trim()) {
+        return NextResponse.json({ error: 'article_text required' }, { status: 400 })
+      }
+      const types = (exercise_types && exercise_types.length > 0
+        ? exercise_types
+        : ['multiple_choice']
+      ).filter((t) =>
+        ['multiple_choice', 'true_or_false', 'type_answer', 'group_sort', 'rank_order', 'anagram'].includes(t),
+      )
+      const N = Math.max(3, Math.min(10, Number(count_per_type) || 5))
+
+      const SHAPES: Record<string, string> = {
+        multiple_choice: `{"type":"multiple_choice","questions":[{"id":"u1","prompt":"…","options":["a","b","c","d"],"correctIndex":0,"hint":"","explanation":"Short reason."}]}`,
+        true_or_false: `{"type":"true_or_false","questions":[{"id":"u1","statement":"…","isTrue":true,"explanation":"Short reason."}]}`,
+        type_answer: `{"type":"type_answer","questions":[{"id":"u1","prompt":"…","answer":"…","hint":""}]}`,
+        group_sort: `{"type":"group_sort","groupData":{"groups":[{"name":"Category A","items":["…","…"]},{"name":"Category B","items":["…","…"]}]}}`,
+        rank_order: `{"type":"rank_order","questions":[{"id":"u1","criterion":"…","items":["first","second","third","fourth"]}]}`,
+        anagram: `{"type":"anagram","questions":[{"id":"u1","word":"…","clue":"…"}]}`,
+      }
+      const shapesList = types.map((t) => `- ${t}: ${SHAPES[t]}`).join('\n')
+
+      const prompt = `You are an expert ESL teaching assistant. Read the article below and produce comprehension / vocabulary follow-up exercises tied to its content.
+
+Generate ${types.length === 1 ? '1 exercise' : `${types.length} exercises (one of each requested type)`}. Each exercise should have ${N} questions (or items, in the case of group_sort / rank_order).
+
+Requested exercise types (one of each):
+${types.join(', ')}
+
+Per-type JSON shape (each exercise object will be added to a top-level "exercises" array):
+${shapesList}
+
+Rules:
+- All questions must be directly answerable from the article — no outside knowledge.
+- For multiple_choice: 3-4 options, ONE correctIndex, options should be plausible distractors based on the article.
+- For true_or_false: mix true and false statements roughly evenly.
+- For type_answer: keep answers short (1-3 words), case-insensitive.
+- For group_sort: 2-3 groups with 3-4 items each, all drawn from the article.
+- For rank_order: items must be in the CORRECT order (the runner shuffles).
+- For anagram: pick salient single words from the article.
+
+Article:
+${article_text}
+
+Return ONLY valid JSON (no markdown, no explanation):
+{"exercises": [...]}`
+
+      const message = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const textContent = message.content.find((c) => c.type === 'text')
+      if (!textContent || textContent.type !== 'text') {
+        return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+      }
+      let parsed: { exercises?: unknown[] } | null = null
+      try { parsed = JSON.parse(textContent.text) } catch {
+        const m2 = textContent.text.match(/\{[\s\S]*\}/)
+        if (m2) { try { parsed = JSON.parse(m2[0]) } catch { parsed = null } }
+      }
+      if (!parsed || !Array.isArray(parsed.exercises)) {
+        return NextResponse.json({ error: 'Failed to parse AI response', raw: textContent.text }, { status: 500 })
+      }
+      // Stamp ids the runner expects + an id per question.
+      const exercises = parsed.exercises.map((ex) => {
+        const e = ex as { type?: string; questions?: unknown[]; groupData?: unknown }
+        const id = `ai-${Math.random().toString(36).slice(2, 9)}`
+        const questions = Array.isArray(e.questions)
+          ? e.questions.map((q, i) => ({ ...(q as object), id: (q as { id?: string }).id || `q-${id}-${i + 1}` }))
+          : undefined
+        return { id, type: e.type, questions, groupData: e.groupData }
+      })
+      return NextResponse.json({ exercises })
+    }
+
     // ── Generate a content block (Mistakes / Article / Grammar / Dialogue /
     // Writing / Pronunciation) with AI. Returns a `content` object whose
     // shape matches the corresponding BlockContent interface in the
