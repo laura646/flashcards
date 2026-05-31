@@ -301,6 +301,27 @@ const BLOCK_CONFIG: Record<ContentItemType, { label: string; icon: string; color
   pronunciation: { label: 'Pronunciation', icon: '\uD83D\uDD0A', color: '#ec4899' },
 }
 
+// Sub-type dropdowns shown in the "Generate with AI" form per block type.
+// Empty value = "Let AI decide" (default). "__other__" reveals a free-text
+// input so teachers can describe an off-list focus.
+const BLOCK_SUBTYPES: Record<string, string[]> = {
+  mistakes: ['Grammar mistakes', 'Vocabulary mistakes', 'Spelling mistakes', 'Mixed'],
+  article: ['News article', 'Story / narrative', 'Opinion piece', 'Informational / explainer', 'Email or letter'],
+  grammar: [
+    'Tenses (past / present / future)',
+    'Articles (a / an / the)',
+    'Prepositions',
+    'Conditionals',
+    'Modal verbs',
+    'Reported speech',
+    'Passive voice',
+    'Question formation',
+  ],
+  dialogue: ['Casual conversation', 'Business / formal', 'Service (restaurant, hotel, shop)', 'Phone call', 'Job interview', 'Negotiation'],
+  writing: ['Email (formal)', 'Email (informal)', 'Opinion essay', 'Story / narrative', 'Description', 'Review', 'Report', 'Letter'],
+  pronunciation: ['Minimal pairs (ship / sheep)', 'Vowel sounds', 'Consonant clusters', 'Word stress', 'Sentence stress + intonation'],
+}
+
 // ── Helper: create default content for each block type ──
 
 function createDefaultContent(type: BlockType): BlockContent {
@@ -482,6 +503,14 @@ function LessonsAdminPage() {
 
   // Exercise creation mode: 'choosing' shows the AI vs Manual choice, 'ai' shows the AI generation panel
   const [exerciseCreationMode, setExerciseCreationMode] = useState<null | 'choosing' | 'ai'>(null)
+  // Block creation modal — opens when teacher picks an AI-eligible block type.
+  const [blockCreationType, setBlockCreationType] = useState<BlockType | null>(null)
+  const [blockCreationMode, setBlockCreationMode] = useState<null | 'choosing' | 'ai'>(null)
+  const [blockCreationSubtype, setBlockCreationSubtype] = useState('')
+  const [blockCreationOtherText, setBlockCreationOtherText] = useState('')
+  const [blockCreationText, setBlockCreationText] = useState('')
+  const [blockCreationFiles, setBlockCreationFiles] = useState<File[]>([])
+  const [blockCreationGenerating, setBlockCreationGenerating] = useState(false)
   const [aiExFiles, setAiExFiles] = useState<File[]>([])
   const [aiExTextInput, setAiExTextInput] = useState('')
   const [aiExPreferredType, setAiExPreferredType] = useState('')
@@ -1113,6 +1142,10 @@ function LessonsAdminPage() {
 
   // ── Content Item Management ──
 
+  // Block types that get an AI / Manual choice modal before being added.
+  // Audio + Video stay manual-only since AI can't pick a real file / URL.
+  const AI_ELIGIBLE_BLOCKS: BlockType[] = ['mistakes', 'article', 'grammar', 'dialogue', 'writing', 'pronunciation']
+
   const addContentItem = (type: ContentItemType) => {
     setShowAddMenu(false)
     const newIndex = contentItems.length
@@ -1132,6 +1165,15 @@ function LessonsAdminPage() {
       // Show AI vs Manual choice instead of immediately creating
       setExerciseCreationMode('choosing')
       return
+    } else if (AI_ELIGIBLE_BLOCKS.includes(type as BlockType)) {
+      // Open the dual-choice modal for AI-eligible block types.
+      setBlockCreationType(type as BlockType)
+      setBlockCreationMode('choosing')
+      setBlockCreationSubtype('')
+      setBlockCreationOtherText('')
+      setBlockCreationText('')
+      setBlockCreationFiles([])
+      return
     } else {
       const blockType = type as BlockType
       const block: ContentBlock = {
@@ -1145,6 +1187,91 @@ function LessonsAdminPage() {
         { type: blockType, data: block, collapsed: false, order_index: newIndex },
       ])
     }
+  }
+
+  const addManualBlock = (blockType: BlockType) => {
+    const newIndex = contentItems.length
+    const block: ContentBlock = {
+      block_type: blockType,
+      title: '',
+      content: createDefaultContent(blockType),
+      order_index: newIndex,
+    }
+    setContentItems((prev) => [
+      ...prev,
+      { type: blockType, data: block, collapsed: false, order_index: newIndex },
+    ])
+    cancelBlockCreation()
+  }
+
+  const cancelBlockCreation = () => {
+    setBlockCreationType(null)
+    setBlockCreationMode(null)
+    setBlockCreationSubtype('')
+    setBlockCreationOtherText('')
+    setBlockCreationText('')
+    setBlockCreationFiles([])
+  }
+
+  const generateBlockWithAI = async () => {
+    if (!blockCreationType) return
+    if (blockCreationFiles.length === 0 && !blockCreationText.trim()) {
+      showToast('Please upload files or paste text content')
+      return
+    }
+    setBlockCreationGenerating(true)
+    try {
+      const files = await Promise.all(
+        blockCreationFiles.map(async (file) => {
+          const base64 = await fileToBase64(file)
+          const ext = file.name.split('.').pop()?.toLowerCase() || ''
+          const typeMap: Record<string, string> = {
+            pdf: 'application/pdf',
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+          }
+          return { data: base64, type: file.type || typeMap[ext] || 'application/octet-stream' }
+        })
+      )
+      const finalSubtype =
+        blockCreationSubtype === '__other__'
+          ? blockCreationOtherText.trim()
+          : blockCreationSubtype
+
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate-block',
+          block_type: blockCreationType,
+          subtype: finalSubtype || undefined,
+          text: blockCreationText.trim() || undefined,
+          files: files.length > 0 ? files : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to generate block')
+        setBlockCreationGenerating(false)
+        return
+      }
+      const newIndex = contentItems.length
+      const block: ContentBlock = {
+        block_type: blockCreationType,
+        title: data.title || '',
+        content: (data.content || createDefaultContent(blockCreationType)) as BlockContent,
+        order_index: newIndex,
+      }
+      setContentItems((prev) => [
+        ...prev,
+        { type: blockCreationType, data: block, collapsed: false, order_index: newIndex },
+      ])
+      showToast(`Added AI-generated ${blockCreationType} block: ${block.title || '(untitled)'}`)
+      cancelBlockCreation()
+    } catch {
+      showToast('Failed to generate block')
+    }
+    setBlockCreationGenerating(false)
   }
 
   const removeContentItem = (index: number) => {
@@ -4119,6 +4246,150 @@ function LessonsAdminPage() {
                         <button
                           onClick={cancelExerciseCreation}
                           disabled={aiExGenerating}
+                          className="px-5 py-3 border border-[#cddcf0] text-gray-500 font-bold rounded-xl text-sm hover:border-[#416ebe] transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Block Creation Mode Panel — opens when teacher picks an
+                  AI-eligible block type (Mistakes / Article / Grammar /
+                  Dialogue / Writing / Pronunciation). */}
+              {blockCreationType && blockCreationMode && (
+                <div className="bg-white rounded-2xl border-2 border-[#416ebe] shadow-lg overflow-hidden">
+                  {blockCreationMode === 'choosing' ? (
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-bold text-[#46464b]">
+                          Add {BLOCK_CONFIG[blockCreationType]?.label || blockCreationType} Block
+                        </h3>
+                        <button onClick={cancelBlockCreation} className="text-xs text-gray-400 hover:text-red-400 transition-colors">{'✕'}</button>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-5">How would you like to create this block?</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setBlockCreationMode('ai')}
+                          className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-[#cddcf0] hover:border-[#416ebe] hover:bg-[#f7fafd] transition-all group"
+                        >
+                          <span className="text-3xl">{'✨'}</span>
+                          <span className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe]">Generate with AI</span>
+                          <span className="text-[10px] text-gray-400 text-center">Upload a file or paste text and AI will create the block</span>
+                        </button>
+                        <button
+                          onClick={() => addManualBlock(blockCreationType)}
+                          className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-[#cddcf0] hover:border-[#416ebe] hover:bg-[#f7fafd] transition-all group"
+                        >
+                          <span className="text-3xl">{'✍️'}</span>
+                          <span className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe]">Create Manually</span>
+                          <span className="text-[10px] text-gray-400 text-center">Build the block yourself from scratch</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setBlockCreationMode('choosing')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors">{'←'} Back</button>
+                          <h3 className="text-sm font-bold text-[#46464b]">
+                            Generate {BLOCK_CONFIG[blockCreationType]?.label || blockCreationType} with AI
+                          </h3>
+                        </div>
+                        <button onClick={cancelBlockCreation} className="text-xs text-gray-400 hover:text-red-400 transition-colors">{'✕'}</button>
+                      </div>
+
+                      {/* Sub-type dropdown */}
+                      <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Focus</label>
+                        <select
+                          value={blockCreationSubtype}
+                          onChange={(e) => setBlockCreationSubtype(e.target.value)}
+                          disabled={blockCreationGenerating}
+                          className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors bg-white disabled:opacity-50"
+                        >
+                          <option value="">Let AI decide</option>
+                          {(BLOCK_SUBTYPES[blockCreationType] || []).map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                          <option value="__other__">Other (describe below)</option>
+                        </select>
+                        {blockCreationSubtype === '__other__' && (
+                          <input
+                            type="text"
+                            value={blockCreationOtherText}
+                            onChange={(e) => setBlockCreationOtherText(e.target.value)}
+                            placeholder="Describe the focus (e.g., phrasal verbs with 'get')"
+                            disabled={blockCreationGenerating}
+                            className="mt-2 w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors disabled:opacity-50"
+                          />
+                        )}
+                      </div>
+
+                      {/* File upload */}
+                      <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Upload files (optional)</label>
+                        <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-[#cddcf0] rounded-xl cursor-pointer hover:border-[#416ebe] hover:bg-[#f7fafd] transition-colors ${blockCreationGenerating ? 'opacity-50 pointer-events-none' : ''}`}>
+                          <p className="text-xs text-gray-400">Click to upload JPEG or PNG</p>
+                          <p className="text-[10px] text-gray-300 mt-1">For PDF/DOCX, paste the text below instead</p>
+                          <input
+                            type="file"
+                            accept=".jpg,.jpeg,.png"
+                            multiple
+                            className="hidden"
+                            disabled={blockCreationGenerating}
+                            onChange={(e) => {
+                              const newFiles = Array.from(e.target.files || [])
+                              if (newFiles.length > 0) setBlockCreationFiles((prev) => [...prev, ...newFiles])
+                              e.target.value = ''
+                            }}
+                          />
+                        </label>
+                        {blockCreationFiles.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {blockCreationFiles.map((f, i) => (
+                              <div key={i} className="flex items-center gap-2 text-xs text-gray-500 bg-[#f7fafd] rounded-lg px-3 py-1.5">
+                                <span className="flex-1 truncate">{f.name}</span>
+                                <button onClick={() => setBlockCreationFiles((prev) => prev.filter((_, idx) => idx !== i))} className="text-gray-300 hover:text-red-400">{'✕'}</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Text input */}
+                      <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Paste text content (optional)</label>
+                        <textarea
+                          value={blockCreationText}
+                          onChange={(e) => setBlockCreationText(e.target.value)}
+                          placeholder={`Paste source material, lesson notes, or context for the ${blockCreationType} block...`}
+                          className="w-full h-28 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] transition-colors"
+                          disabled={blockCreationGenerating}
+                        />
+                      </div>
+
+                      {/* Generate button */}
+                      <div className="flex gap-3">
+                        <button
+                          onClick={generateBlockWithAI}
+                          disabled={blockCreationGenerating || (blockCreationFiles.length === 0 && !blockCreationText.trim())}
+                          className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {blockCreationGenerating ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                              Generating...
+                            </span>
+                          ) : (
+                            <>{'✨'} Generate Block</>
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelBlockCreation}
+                          disabled={blockCreationGenerating}
                           className="px-5 py-3 border border-[#cddcf0] text-gray-500 font-bold rounded-xl text-sm hover:border-[#416ebe] transition-colors disabled:opacity-50"
                         >
                           Cancel

@@ -438,6 +438,175 @@ For all other types, set groupData to null.`
       }
     }
 
+    // ── Generate a content block (Mistakes / Article / Grammar / Dialogue /
+    // Writing / Pronunciation) with AI. Returns a `content` object whose
+    // shape matches the corresponding BlockContent interface in the
+    // lesson editor, so the caller can drop it straight into a new block.
+    if (action === 'generate-block') {
+      const { block_type, subtype, text: inputText, files } = body as {
+        block_type: string
+        subtype?: string
+        text?: string
+        files?: { data: string; type: string }[]
+      }
+      const ALLOWED = ['mistakes', 'article', 'grammar', 'dialogue', 'writing', 'pronunciation']
+      if (!block_type || !ALLOWED.includes(block_type)) {
+        return NextResponse.json({ error: 'Unsupported block type for AI generation' }, { status: 400 })
+      }
+      const hasFiles = Array.isArray(files) && files.length > 0
+      if (!hasFiles && !(inputText && inputText.trim())) {
+        return NextResponse.json({ error: 'Provide text or upload at least one file' }, { status: 400 })
+      }
+
+      // Per-block JSON shape + per-block instructions. The shapes mirror
+      // the BlockContent interfaces in app/admin/lessons/page.tsx.
+      const BLOCK_SPECS: Record<string, { shape: string; rules: string }> = {
+        mistakes: {
+          shape: `{
+  "title": "Block title (short)",
+  "mistakes": [
+    {
+      "original": "The incorrect sentence the student would say or write.",
+      "correction": "The corrected version.",
+      "explanation": "Short explanation — 1-2 sentences.",
+      "practice": [
+        {"prompt": "Practice prompt with ___ for the blank.", "options": ["a", "b", "c"], "correctIndex": 0}
+      ]
+    }
+  ]
+}`,
+          rules: `Generate 4–6 mistake entries. Each one MUST include 1 practice question (MCQ with 2-4 options, correctIndex pointing to the right one). Keep options short and realistic ESL-learner distractors.`,
+        },
+        article: {
+          shape: `{
+  "title": "Block title (short, descriptive)",
+  "content": {
+    "text": "The full article body. 200-400 words. Plain prose. No markdown.",
+    "source": "Made up source name or 'Original' if none",
+    "questions": [],
+    "exercises": []
+  }
+}`,
+          rules: `Generate the article text only. Leave questions and exercises as empty arrays — the teacher adds comprehension exercises afterwards. Make the text engaging and self-contained.`,
+        },
+        grammar: {
+          shape: `{
+  "title": "Block title (short, names the grammar point)",
+  "content": {
+    "explanation": "Clear explanation of the grammar point. 100-200 words. Use plain text — no markdown headers.",
+    "examples": ["Example sentence 1.", "Example sentence 2.", "Example sentence 3.", "Example sentence 4."],
+    "exercises": [
+      {"id": "g1", "prompt": "Practice prompt (use ___ for blanks).", "options": ["a", "b", "c", "d"], "correctIndex": 0}
+    ]
+  }
+}`,
+          rules: `Generate explanation + 3-5 example sentences + 4-6 practice MCQ exercises. Practice options should be plausible distractors a learner might pick.`,
+        },
+        dialogue: {
+          shape: `{
+  "title": "Block title (short, names the scenario)",
+  "content": {
+    "scenario": "Describe the situation the AI should role-play with the student. 2-4 sentences. Include who they are, the setting, and the goal.",
+    "target_words": ["word1", "word2", "word3", "word4", "word5"],
+    "starter_message": "The opening line the AI says to start the conversation."
+  }
+}`,
+          rules: `Generate scenario + 5-10 target vocabulary words for the student to use + a natural opening line.`,
+        },
+        writing: {
+          shape: `{
+  "title": "Block title (short, names the writing task)",
+  "content": {
+    "prompt": "The writing prompt the student responds to. 1-2 sentences.",
+    "guidelines": "Specific guidelines: tone, structure, what to include. 2-4 sentences.",
+    "word_limit": 150
+  }
+}`,
+          rules: `Generate a realistic writing task. Word limit: 100-300 depending on complexity. Guidelines should be actionable.`,
+        },
+        pronunciation: {
+          shape: `{
+  "title": "Block title (short, names the sound or pattern)",
+  "content": {
+    "words": [
+      {"word": "example", "phonetic": "ig-ZAM-pul", "tips": "Tip for pronouncing this word — what to watch out for. 1 sentence."}
+    ]
+  }
+}`,
+          rules: `Generate 6-10 target words. Phonetic uses simple syllable-stress notation (CAPS for stressed syllable), NOT IPA. Tips should be student-friendly and concrete.`,
+        },
+      }
+
+      const spec = BLOCK_SPECS[block_type]
+      const subtypeLine = subtype
+        ? `The teacher wants this block focused on: "${subtype}". Generate content specifically for that topic.`
+        : 'The teacher hasn\'t specified a focus — pick the best angle from the source material.'
+
+      const prompt = `You are an expert ESL teaching assistant. Generate a single "${block_type}" content block for a lesson.
+
+${subtypeLine}
+
+${hasFiles ? '' : `Source material from the teacher:\n${inputText}\n\n`}Block-specific rules:
+${spec.rules}
+
+Return ONLY a valid JSON object (no markdown, no explanation), in this exact shape:
+${spec.shape}`
+
+      const contentParts: Anthropic.Messages.ContentBlockParam[] = []
+      if (hasFiles) {
+        for (const f of files!) {
+          if (f.type.startsWith('image/')) {
+            contentParts.push({
+              type: 'image',
+              source: { type: 'base64', media_type: f.type as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp', data: f.data },
+            })
+          } else {
+            // For non-image files (pdf, docx) we'd need server-side parsing;
+            // for now the teacher can paste content as text. Skip silently.
+          }
+        }
+      }
+      contentParts.push({ type: 'text', text: prompt })
+
+      const message = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: contentParts }],
+      })
+      const textContent = message.content.find((c) => c.type === 'text')
+      if (!textContent || textContent.type !== 'text') {
+        return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+      }
+
+      const rawText = textContent.text
+      let parsed: { title?: string; content?: unknown; mistakes?: unknown } | null = null
+      try {
+        parsed = JSON.parse(rawText)
+      } catch {
+        const m = rawText.match(/\{[\s\S]*\}/)
+        if (m) {
+          try { parsed = JSON.parse(m[0]) } catch { parsed = null }
+        }
+      }
+      if (!parsed) {
+        return NextResponse.json({ error: 'Failed to parse AI response', raw: rawText }, { status: 500 })
+      }
+
+      // Mistakes uses a flat shape (top-level "mistakes" array); the
+      // others wrap the block content in "content". Normalize both into
+      // { title, content } where content matches BlockContent shape.
+      let title = parsed.title || ''
+      let content: unknown
+      if (block_type === 'mistakes') {
+        content = { mistakes: parsed.mistakes || [] }
+      } else {
+        content = parsed.content || {}
+      }
+      if (!title) title = block_type.charAt(0).toUpperCase() + block_type.slice(1)
+
+      return NextResponse.json({ block_type, title, content })
+    }
+
     // Generate multiple exercises from a Google Doc containing exercises/worksheets
     if (action === 'generate-exercises-from-doc') {
       const { url } = body
