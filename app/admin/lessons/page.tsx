@@ -89,6 +89,7 @@ interface Exercise {
   skills?: string[]             // Phase C: multi-select skill tags
   cefr_level?: string | null    // Phase C: A1 / A2 / B1 / B2 / C1 / C2
   test_type?: string | null     // null = regular practice; or review / mid_course / end_of_course
+  published?: boolean           // Issue #6: per-block publish toggle
 }
 
 // Optional test-type tag for the reports "Tests" section
@@ -282,6 +283,7 @@ interface ContentBlock {
   content: BlockContent
   order_index: number
   collapsed?: boolean
+  published?: boolean           // Issue #6: per-block publish toggle
 }
 
 // Unified content item: can be flashcards, exercise, or a content block
@@ -575,6 +577,12 @@ function LessonsAdminPage() {
   const [readingGrammar, setReadingGrammar] = useState('')
   const [readingSourceUrl, setReadingSourceUrl] = useState('')
   const [courseLevelCache, setCourseLevelCache] = useState<string | null>(null)
+  // Issue #6: per-block publish state. Tracks the current lesson's
+  // status so we can default new blocks to draft when added inside an
+  // already-published lesson. flashcardsPublished is a single boolean
+  // because flashcards are treated as one block per lesson.
+  const [currentLessonStatus, setCurrentLessonStatus] = useState<'draft' | 'published'>('draft')
+  const [flashcardsPublished, setFlashcardsPublished] = useState(true)
   // Vocab picker modal state
   const [vocabPickerOpen, setVocabPickerOpen] = useState(false)
   const [vocabPickerLoading, setVocabPickerLoading] = useState(false)
@@ -921,6 +929,7 @@ function LessonsAdminPage() {
     setIsTemplate(lesson.is_template || false)
     setTemplateCategory(lesson.template_category || '')
     setTemplateLevel(lesson.template_level || '')
+    setCurrentLessonStatus(lesson.status === 'published' ? 'published' : 'draft')
     setUploadedImages([])
     setGoogleDocUrl('')
     setImportResult(null)
@@ -936,6 +945,7 @@ function LessonsAdminPage() {
 
       setEditingAuthorName(data.lesson?.author_name || null)
       setEditingCreatedAt(data.lesson?.created_at || null)
+      setFlashcardsPublished(data.lesson?.flashcards_published !== false)
 
       const items: ContentItem[] = []
       let orderIdx = 0
@@ -974,6 +984,7 @@ function LessonsAdminPage() {
         skills: ex.skills || [],
         cefr_level: ex.cefr_level || null,
         test_type: ex.test_type || null,
+        published: ex.published !== false,
       }))
       exercises.forEach((ex) => {
         items.push({ type: 'exercise', data: ex, collapsed: true, order_index: orderIdx++ })
@@ -987,6 +998,7 @@ function LessonsAdminPage() {
         title: b.title || '',
         content: b.content,
         order_index: b.order_index,
+        published: b.published !== false,
       }))
       blocks.forEach((block) => {
         items.push({ type: block.block_type, data: block, collapsed: true, order_index: orderIdx++ })
@@ -1013,6 +1025,8 @@ function LessonsAdminPage() {
     setIsTemplate(contentBankMode ? true : false)
     setTemplateCategory('')
     setTemplateLevel('')
+    setCurrentLessonStatus('draft')
+    setFlashcardsPublished(true)
     setUploadedImages([])
     setGoogleDocUrl('')
     setImportResult(null)
@@ -1233,6 +1247,36 @@ function LessonsAdminPage() {
   // Audio + Video stay manual-only since AI can't pick a real file / URL.
   const AI_ELIGIBLE_BLOCKS: BlockType[] = ['mistakes', 'article', 'grammar', 'dialogue', 'writing', 'pronunciation']
 
+  // Issue #6: new blocks added INTO an already-published lesson default
+  // to draft (hidden), so the teacher can finish building them privately.
+  // New blocks in a draft lesson default to published (they'll flip
+  // visible when the lesson itself publishes).
+  const defaultPublishedForNewBlock = () => currentLessonStatus !== 'published'
+
+  const togglePublished = (index: number) => {
+    setContentItems((prev) => {
+      const next = [...prev]
+      const item = next[index]
+      if (item.type === 'flashcards') {
+        // Toggled separately via flashcardsPublished state.
+        return prev
+      } else if (item.type === 'exercise') {
+        const ex = item.data as Exercise
+        next[index] = { ...item, data: { ...ex, published: ex.published === false ? true : false } }
+      } else {
+        const block = item.data as ContentBlock
+        next[index] = { ...item, data: { ...block, published: block.published === false ? true : false } }
+      }
+      return next
+    })
+  }
+
+  const isItemPublished = (item: ContentItem): boolean => {
+    if (item.type === 'flashcards') return flashcardsPublished
+    if (item.type === 'exercise') return (item.data as Exercise).published !== false
+    return (item.data as ContentBlock).published !== false
+  }
+
   const addContentItem = (type: ContentItemType) => {
     setShowAddMenu(false)
     const newIndex = contentItems.length
@@ -1268,6 +1312,7 @@ function LessonsAdminPage() {
         title: '',
         content: createDefaultContent(blockType),
         order_index: newIndex,
+        published: defaultPublishedForNewBlock(),
       }
       setContentItems((prev) => [
         ...prev,
@@ -1283,6 +1328,7 @@ function LessonsAdminPage() {
       title: '',
       content: createDefaultContent(blockType),
       order_index: newIndex,
+      published: defaultPublishedForNewBlock(),
     }
     setContentItems((prev) => [
       ...prev,
@@ -1432,6 +1478,7 @@ function LessonsAdminPage() {
         title: data.title || 'Reading',
         content: data.content as BlockContent,
         order_index: newIndex,
+        published: defaultPublishedForNewBlock(),
       }
       setContentItems((prev) => [
         ...prev,
@@ -1530,6 +1577,7 @@ function LessonsAdminPage() {
         title: data.title || 'Grammar',
         content: data.content as BlockContent,
         order_index: newIndex,
+        published: defaultPublishedForNewBlock(),
       }
       setContentItems((prev) => [
         ...prev,
@@ -1592,6 +1640,7 @@ function LessonsAdminPage() {
         title: data.title || '',
         content: (data.content || createDefaultContent(blockCreationType)) as BlockContent,
         order_index: newIndex,
+        published: defaultPublishedForNewBlock(),
       }
       setContentItems((prev) => [
         ...prev,
@@ -1783,9 +1832,11 @@ function LessonsAdminPage() {
 
   const addManualExercise = () => {
     const newIndex = contentItems.length
+    const ex = createDefaultExercise(newIndex)
+    ex.published = defaultPublishedForNewBlock()
     setContentItems((prev) => [
       ...prev,
-      { type: 'exercise', data: createDefaultExercise(newIndex), collapsed: false, order_index: newIndex },
+      { type: 'exercise', data: ex, collapsed: false, order_index: newIndex },
     ])
     setExerciseCreationMode(null)
   }
@@ -1855,6 +1906,7 @@ function LessonsAdminPage() {
               questions: data.exercise.questions || [],
               groupData: data.exercise.groupData || undefined,
               order_index: newIndex,
+              published: defaultPublishedForNewBlock(),
             }
             setContentItems((prev) => [
               ...prev,
@@ -1890,7 +1942,7 @@ function LessonsAdminPage() {
             let idx = contentItems.length
             const newItems = exercises.map((exercise) => ({
               type: 'exercise' as ContentItemType,
-              data: { ...exercise, order_index: idx } as Exercise,
+              data: { ...exercise, order_index: idx, published: defaultPublishedForNewBlock() } as Exercise,
               collapsed: false,
               order_index: idx++,
             }))
@@ -1925,6 +1977,7 @@ function LessonsAdminPage() {
             questions: data.exercise.questions || [],
             groupData: data.exercise.groupData || undefined,
             order_index: newIndex,
+            published: defaultPublishedForNewBlock(),
           }
           setContentItems((prev) => [
             ...prev,
@@ -2246,8 +2299,8 @@ function LessonsAdminPage() {
       // Extract flashcards, exercises, and blocks from content items
       let flashcardItems: Flashcard[] = []
       let flashcardsGlobalOrder = 0
-      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null; test_type?: string | null }[] = []
-      const blockItems: { block_type: string; title: string; content: unknown; order_index: number }[] = []
+      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null; test_type?: string | null; published: boolean }[] = []
+      const blockItems: { block_type: string; title: string; content: unknown; order_index: number; published: boolean }[] = []
 
       contentItems.forEach((item, idx) => {
         if (item.type === 'flashcards') {
@@ -2270,6 +2323,7 @@ function LessonsAdminPage() {
             skills: ex.skills && ex.skills.length > 0 ? ex.skills : null,
             cefr_level: ex.cefr_level || null,
             test_type: ex.test_type || null,
+            published: ex.published !== false,
           })
         } else {
           const b = item.data as ContentBlock
@@ -2278,6 +2332,7 @@ function LessonsAdminPage() {
             title: b.title,
             content: b.content,
             order_index: idx,
+            published: b.published !== false,
           })
         }
       })
@@ -2307,6 +2362,7 @@ function LessonsAdminPage() {
           })),
           exercises: exerciseItems,
           blocks: blockItems,
+          flashcards_published: flashcardsPublished,
         }),
       })
 
@@ -5251,8 +5307,9 @@ function LessonsAdminPage() {
                 <div className="space-y-3">
                   {contentItems.map((item, index) => {
                     const config = BLOCK_CONFIG[item.type]
+                    const published = isItemPublished(item)
                     return (
-                      <div key={index} className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden">
+                      <div key={index} className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-opacity ${published ? 'border-[#cddcf0]' : 'border-dashed border-gray-300 opacity-60'}`}>
                         {/* Block Header */}
                         <div
                           className="px-5 py-4 flex items-center justify-between cursor-pointer hover:bg-[#f7fafd] transition-colors"
@@ -5265,11 +5322,34 @@ function LessonsAdminPage() {
                                 <span className="text-xs font-bold uppercase tracking-wider" style={{ color: config.color }}>
                                   {config.label}
                                 </span>
+                                {!published && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+                                    Hidden
+                                  </span>
+                                )}
                               </div>
                               <p className="text-xs text-gray-400 truncate">{getBlockSummary(item)}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (item.type === 'flashcards') setFlashcardsPublished((v) => !v)
+                                else togglePublished(index)
+                              }}
+                              className={`p-1.5 text-xs transition-colors ${published ? 'text-[#416ebe] hover:text-[#3560b0]' : 'text-gray-300 hover:text-[#416ebe]'}`}
+                              title={published ? 'Visible to students — click to hide' : 'Hidden from students — click to show'}
+                              aria-label={published ? 'Hide from students' : 'Show to students'}
+                            >
+                              {published ? (
+                                /* eye open */
+                                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
+                              ) : (
+                                /* eye slashed */
+                                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" /><path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" /></svg>
+                              )}
+                            </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); moveItem(index, 'up') }}
                               disabled={index === 0}

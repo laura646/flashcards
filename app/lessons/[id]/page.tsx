@@ -579,22 +579,34 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         .then((data) => {
           setLesson(data.lesson)
           setLessonType(data.lesson?.lesson_type || 'lesson')
+          // Issue #6: hide unpublished blocks/exercises from students.
+          // `flashcards_published === false` hides the whole vocab block.
+          // For exercises and blocks, filter out rows where published === false.
+          const flashcardsHidden = data.lesson?.flashcards_published === false
           setFlashcards(
-            (data.flashcards || []).map((f: Flashcard & { order_index: number }, i: number) => ({
-              ...f,
-              id: f.id || i + 1,
-            }))
+            flashcardsHidden
+              ? []
+              : (data.flashcards || []).map((f: Flashcard & { order_index: number }, i: number) => ({
+                  ...f,
+                  id: f.id || i + 1,
+                }))
           )
-          setExercises((data.exercises || []).map((ex: LessonExercise) => ({
-            ...ex,
-            // For group_sort, the questions column stores groupData
-            groupData: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.groupData,
-            test_type: ex.test_type || null,
-          })))
+          setExercises(
+            (data.exercises || [])
+              .filter((ex: LessonExercise & { published?: boolean }) => ex.published !== false)
+              .map((ex: LessonExercise) => ({
+                ...ex,
+                // For group_sort, the questions column stores groupData
+                groupData: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.groupData,
+                test_type: ex.test_type || null,
+              }))
+          )
           setBlocks(
-            (data.blocks || []).sort(
-              (a: ContentBlock, b: ContentBlock) => a.order_index - b.order_index
-            )
+            (data.blocks || [])
+              .filter((b: ContentBlock & { published?: boolean }) => b.published !== false)
+              .sort(
+                (a: ContentBlock, b: ContentBlock) => a.order_index - b.order_index
+              )
           )
           setLoading(false)
         })

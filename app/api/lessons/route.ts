@@ -83,11 +83,23 @@ export async function GET(req: NextRequest) {
         if (u?.name) author_name = u.name
       }
 
+      // Issue #6: students never see unpublished content even if they
+      // poke at the API. Staff see everything so they can manage in the
+      // editor.
+      const flashcardsBlockHidden = lessonRes.data?.flashcards_published === false
+      const safeExercises = isStaff
+        ? exercisesRes.data || []
+        : (exercisesRes.data || []).filter((ex: { published?: boolean }) => ex.published !== false)
+      const safeBlocks = isStaff
+        ? blocksRes.data || []
+        : (blocksRes.data || []).filter((b: { published?: boolean }) => b.published !== false)
+      const safeFlashcards = !isStaff && flashcardsBlockHidden ? [] : flashcardsRes.data || []
+
       return NextResponse.json({
         lesson: { ...lessonRes.data, author_name },
-        flashcards: flashcardsRes.data || [],
-        exercises: exercisesRes.data || [],
-        blocks: blocksRes.data || [],
+        flashcards: safeFlashcards,
+        exercises: safeExercises,
+        blocks: safeBlocks,
       })
     }
 
@@ -294,6 +306,7 @@ export async function POST(req: NextRequest) {
       flashcards,
       exercises,
       blocks,
+      flashcards_published,
     } = body
 
     if (!title?.trim()) {
@@ -336,6 +349,7 @@ export async function POST(req: NextRequest) {
           template_category: template_category || null,
           template_level: template_level || null,
           course_id: course_id || null,
+          flashcards_published: flashcards_published !== false,
           updated_at: new Date().toISOString(),
         })
         .eq('id', lessonId)
@@ -354,6 +368,7 @@ export async function POST(req: NextRequest) {
           template_category: template_category || null,
           template_level: template_level || null,
           course_id: course_id || null,
+          flashcards_published: flashcards_published !== false,
           created_by: user.email,
         })
         .select('id')
@@ -382,7 +397,7 @@ export async function POST(req: NextRequest) {
     // Save exercises
     await supabase.from('lesson_exercises').delete().eq('lesson_id', lessonId)
     if (exercises && exercises.length > 0) {
-      const exRows = exercises.map((ex: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null; test_type?: string | null }) => ({
+      const exRows = exercises.map((ex: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null; test_type?: string | null; published?: boolean }) => ({
         lesson_id: lessonId,
         title: ex.title,
         subtitle: ex.subtitle,
@@ -397,6 +412,7 @@ export async function POST(req: NextRequest) {
         skills: ex.skills && ex.skills.length > 0 ? ex.skills : null,
         cefr_level: ex.cefr_level || null,
         test_type: ex.test_type || null,
+        published: ex.published !== false,
       }))
       const { error: exError } = await supabase.from('lesson_exercises').insert(exRows)
       if (exError) throw exError
@@ -405,12 +421,13 @@ export async function POST(req: NextRequest) {
     // Save content blocks
     await supabase.from('lesson_blocks').delete().eq('lesson_id', lessonId)
     if (blocks && blocks.length > 0) {
-      const blockRows = blocks.map((b: { block_type: string; title: string; content: unknown; order_index: number }) => ({
+      const blockRows = blocks.map((b: { block_type: string; title: string; content: unknown; order_index: number; published?: boolean }) => ({
         lesson_id: lessonId,
         block_type: b.block_type,
         title: b.title,
         content: b.content,
         order_index: b.order_index,
+        published: b.published !== false,
       }))
       const { error: blockError } = await supabase.from('lesson_blocks').insert(blockRows)
       if (blockError) throw blockError
