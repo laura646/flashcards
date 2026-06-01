@@ -581,6 +581,130 @@ Return ONLY valid JSON (no markdown, no explanation):
       })
     }
 
+    // ── Generate a Grammar block with AI — rich form path.
+    // Returns { title, content: { explanation, examples, example_highlights,
+    // target_structure, practice_exercises (AttachedExercise[]), pitfalls } }
+    // ready to drop into a Grammar ContentBlock.
+    if (action === 'generate-grammar') {
+      const {
+        topic,                  // required: the grammar point
+        level,                  // CEFR
+        known_grammar,          // free-text — what students already know
+        num_exercises,          // 3 | 5 | 8 | 10
+        exercise_types,         // string[] subset of MCQ/TF/Type/Error
+        vocabulary,             // string[]
+        explanation_length,     // 'Short' | 'Medium' | 'Long'
+        include_pitfalls,       // boolean
+      } = body as Record<string, unknown>
+
+      if (!topic || typeof topic !== 'string' || !topic.trim()) {
+        return NextResponse.json({ error: 'Grammar topic is required' }, { status: 400 })
+      }
+      const levelLine = level ? `Target CEFR level: ${level}.` : ''
+      const knownLine = known_grammar && typeof known_grammar === 'string' && known_grammar.trim()
+        ? `Students already know: ${(known_grammar as string).trim()}. Don't re-explain it; build on it.`
+        : ''
+      const vocabList = Array.isArray(vocabulary) ? (vocabulary as string[]).filter((v) => v && v.trim()) : []
+      const vocabLine = vocabList.length > 0
+        ? `Use these vocabulary words naturally in the example sentences where they fit — do not force any: ${vocabList.slice(0, 30).join(', ')}.`
+        : ''
+      const nEx = [3, 5, 8, 10].includes(Number(num_exercises)) ? Number(num_exercises) : 5
+      const ALLOWED_EX = ['multiple_choice', 'true_or_false', 'type_answer', 'error_correction']
+      const reqTypes = Array.isArray(exercise_types)
+        ? (exercise_types as string[]).filter((t) => ALLOWED_EX.includes(t))
+        : ['multiple_choice']
+      const types = reqTypes.length > 0 ? reqTypes : ['multiple_choice']
+      const expLen = explanation_length === 'Short' ? '60-100 words' : explanation_length === 'Long' ? '200-300 words' : '100-200 words'
+      const pitfallsLine = include_pitfalls
+        ? 'Include a "pitfalls" array of 3-5 common mistakes a learner at this level makes with this structure. Each entry: { "mistake": "what they say wrong", "correct": "the fix", "tip": "1-sentence why" }.'
+        : 'Set "pitfalls" to an empty array.'
+
+      const EX_SHAPES: Record<string, string> = {
+        multiple_choice: `{"id":"e1","type":"multiple_choice","questions":[{"id":"q1","prompt":"…use ___ here","options":["a","b","c","d"],"correctIndex":0,"hint":"","explanation":"Why a is correct (1 sentence)."}]}`,
+        true_or_false: `{"id":"e1","type":"true_or_false","questions":[{"id":"q1","statement":"…","isTrue":true,"explanation":"…"}]}`,
+        type_answer: `{"id":"e1","type":"type_answer","questions":[{"id":"q1","prompt":"…","answer":"…","hint":""}]}`,
+        error_correction: `{"id":"e1","type":"error_correction","questions":[{"id":"q1","incorrect":"He go to school.","correct":"He goes to school.","hints":"Third-person -s"}]}`,
+      }
+      const shapesList = types.map((t) => `- ${t}: ${EX_SHAPES[t]}`).join('\n')
+
+      const prompt = `You are an expert ESL teaching assistant. Generate a complete Grammar lesson block.
+
+Topic: ${topic}
+${levelLine}
+${knownLine}
+Explanation length: ${expLen}.
+${vocabLine}
+${pitfallsLine}
+
+Practice exercises:
+- Generate ${types.length} exercise${types.length === 1 ? '' : 's'} — one of each requested type below.
+- Each exercise should contain ${nEx} questions.
+- Drill the target grammar topic specifically.
+
+Requested exercise types (one of each, per the shapes below):
+${shapesList}
+
+Also:
+- "target_structure" = the specific phrase / word(s) being taught (e.g., "these / those", "third-person -s"). The student runner will highlight this in examples.
+- "example_highlights" = parallel to "examples"; for each example, the substring to highlight (a substring of that example). If no clean highlight, use "".
+- Provide 4-6 short example sentences. Each example should be self-contained and clearly demonstrate the target structure.
+
+Return ONLY valid JSON (no markdown, no explanation):
+{
+  "title": "Short title naming the grammar point",
+  "content": {
+    "explanation": "Plain-text explanation in the target length.",
+    "examples": ["…", "…", "…", "…"],
+    "example_highlights": ["…", "…", "…", "…"],
+    "target_structure": "the phrase to highlight",
+    "practice_exercises": [ /* one per requested type, see shapes */ ],
+    "pitfalls": [ /* per the rule above */ ]
+  }
+}`
+
+      const message = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const textContent = message.content.find((c) => c.type === 'text')
+      if (!textContent || textContent.type !== 'text') {
+        return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+      }
+      let parsed: { title?: string; content?: Record<string, unknown> } | null = null
+      try { parsed = JSON.parse(textContent.text) } catch {
+        const m = textContent.text.match(/\{[\s\S]*\}/)
+        if (m) { try { parsed = JSON.parse(m[0]) } catch { parsed = null } }
+      }
+      if (!parsed || !parsed.content) {
+        return NextResponse.json({ error: 'Failed to parse AI response', raw: textContent.text }, { status: 500 })
+      }
+      // Stamp ids on practice exercises + their questions so runners that
+      // key on id don't collide.
+      const c = parsed.content
+      const pe = Array.isArray(c.practice_exercises) ? c.practice_exercises : []
+      const stamped = pe.map((ex) => {
+        const e = ex as { type?: string; questions?: unknown[]; groupData?: unknown }
+        const id = `ai-${Math.random().toString(36).slice(2, 9)}`
+        const questions = Array.isArray(e.questions)
+          ? e.questions.map((q, i) => ({ ...(q as object), id: (q as { id?: string }).id || `q-${id}-${i + 1}` }))
+          : undefined
+        return { id, type: e.type, questions, groupData: e.groupData }
+      })
+      return NextResponse.json({
+        title: parsed.title || 'Grammar',
+        content: {
+          explanation: String(c.explanation || ''),
+          examples: Array.isArray(c.examples) ? c.examples : [],
+          example_highlights: Array.isArray(c.example_highlights) ? c.example_highlights : [],
+          target_structure: String(c.target_structure || ''),
+          practice_exercises: stamped,
+          pitfalls: Array.isArray(c.pitfalls) ? c.pitfalls : [],
+          exercises: [], // legacy MCQ field — empty for new generations
+        },
+      })
+    }
+
     // ── List vocabulary words across all lessons in a course, for the
     // "Pick from course vocabulary" picker modal in the Reading AI form.
     if (action === 'course-vocabulary') {

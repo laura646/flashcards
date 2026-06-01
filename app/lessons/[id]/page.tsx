@@ -128,10 +128,16 @@ interface DialogueContent {
   starter_message: string
 }
 
+interface GrammarPitfall { mistake: string; correct: string; tip: string }
 interface GrammarContent {
   explanation: string
   examples: string[]
   exercises: { id: number; prompt: string; options: string[]; correctIndex: number }[]
+  // Phase R-3 additions — all optional for backward compat.
+  target_structure?: string
+  example_highlights?: string[]
+  practice_exercises?: import('@/lib/attached-exercise').AttachedExercise[]
+  pitfalls?: GrammarPitfall[]
 }
 
 interface WritingContent {
@@ -1555,32 +1561,77 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </p>
           </div>
 
-          {/* Examples */}
+          {/* Examples — with target structure highlight + Listen audio */}
           {content.examples && content.examples.length > 0 && (
             <div className="bg-[#e6f0fa] rounded-2xl p-5 mb-4">
               <h2 className="text-xs font-bold text-[#416ebe] uppercase tracking-wider mb-3">
                 Examples
               </h2>
               <ul className="space-y-2">
-                {content.examples.map((ex, i) => (
-                  <li
-                    key={i}
-                    className="text-sm text-[#46464b] bg-white rounded-lg px-3 py-2 border border-[#cddcf0]"
-                  >
-                    {ex}
+                {content.examples.map((ex, i) => {
+                  // Highlight: prefer per-example highlight; fall back to target_structure global; else none.
+                  const hl = (content.example_highlights && content.example_highlights[i]) || content.target_structure || ''
+                  let body: React.ReactNode = ex
+                  if (hl && ex.toLowerCase().includes(hl.toLowerCase())) {
+                    const idx = ex.toLowerCase().indexOf(hl.toLowerCase())
+                    body = (
+                      <>
+                        {ex.slice(0, idx)}
+                        <strong className="text-[#416ebe]">{ex.slice(idx, idx + hl.length)}</strong>
+                        {ex.slice(idx + hl.length)}
+                      </>
+                    )
+                  }
+                  return (
+                    <li
+                      key={i}
+                      className="flex items-center gap-2 text-sm text-[#46464b] bg-white rounded-lg px-3 py-2 border border-[#cddcf0]"
+                    >
+                      <span className="flex-1">{body}</span>
+                      <AudioButton text={ex} />
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Common pitfalls — opt-in section from AI generation */}
+          {content.pitfalls && content.pitfalls.length > 0 && (
+            <div className="bg-red-50 border border-red-100 rounded-2xl p-5 mb-4">
+              <h2 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-3">
+                Watch out for
+              </h2>
+              <ul className="space-y-3">
+                {content.pitfalls.map((p, i) => (
+                  <li key={i} className="text-sm text-[#46464b]">
+                    <div>
+                      <span className="text-red-400 line-through mr-1">{p.mistake}</span>
+                      <span className="mx-1 text-gray-300">→</span>
+                      <span className="text-green-600 font-medium">{p.correct}</span>
+                    </div>
+                    {p.tip && <p className="text-[11px] text-gray-500 mt-0.5">{p.tip}</p>}
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {/* Practice exercises */}
-          {content.exercises && content.exercises.length > 0 && (
+          {/* Practice exercises — prefer new multi-type field; fall back to legacy MCQ */}
+          {content.practice_exercises && content.practice_exercises.length > 0 ? (
+            <div>
+              <h2 className="text-sm font-bold text-[#416ebe] mb-3">Practice</h2>
+              <AttachedExercisesRunner
+                exercises={content.practice_exercises}
+                onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+              />
+            </div>
+          ) : content.exercises && content.exercises.length > 0 ? (
             <div>
               <h2 className="text-sm font-bold text-[#416ebe] mb-3">Practice</h2>
               <InlineQuiz questions={content.exercises} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
             </div>
-          )}
+          ) : null}
         </main>
       )
     }

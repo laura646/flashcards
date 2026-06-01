@@ -16,6 +16,7 @@ import TextSequencingEditor from '@/components/TextSequencingEditor'
 import TrueFalseEditor from '@/components/TrueFalseEditor'
 import RankOrderEditor from '@/components/RankOrderEditor'
 import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
+import AudioButton from '@/components/AudioButton'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import type { AttachedExercise } from '@/lib/attached-exercise'
@@ -236,10 +237,20 @@ interface DialogueContent {
   starter_message: string
 }
 
+interface GrammarPitfall {
+  mistake: string
+  correct: string
+  tip: string
+}
 interface GrammarContent {
   explanation: string
   examples: string[]
-  exercises: MCQuestion[]
+  exercises: MCQuestion[]                              // legacy MCQ-only
+  // Phase R-3 additions — all optional for backward compat.
+  target_structure?: string                            // phrase to highlight in examples
+  example_highlights?: string[]                        // parallel to examples
+  practice_exercises?: import('@/lib/attached-exercise').AttachedExercise[]
+  pitfalls?: GrammarPitfall[]
 }
 
 interface WritingContent {
@@ -323,6 +334,12 @@ const READING_POVS = [
   { value: '1st', label: 'First person ("I…")' },
   { value: '3rd', label: 'Third person ("He / she / they…")' },
   { value: 'mixed', label: 'Mixed' },
+]
+const GRAMMAR_EX_TYPES = [
+  { value: 'multiple_choice', label: 'Multiple Choice' },
+  { value: 'true_or_false', label: 'True or False' },
+  { value: 'type_answer', label: 'Type the Answer' },
+  { value: 'error_correction', label: 'Error Correction' },
 ]
 const SUGGEST_EX_TYPES = [
   { value: 'multiple_choice', label: 'Multiple Choice' },
@@ -563,6 +580,18 @@ function LessonsAdminPage() {
   const [vocabPickerData, setVocabPickerData] = useState<{ lesson_id: string; lesson_title: string; lesson_date: string; words: string[] }[]>([])
   const [vocabPickerSelected, setVocabPickerSelected] = useState<Set<string>>(new Set())
   const [vocabPickerSearch, setVocabPickerSearch] = useState('')
+  // ── Grammar AI rich form (Grammar block only) ──
+  const [grammarTopic, setGrammarTopic] = useState('')
+  const [grammarKnown, setGrammarKnown] = useState('')
+  const [grammarNumExercises, setGrammarNumExercises] = useState(5)
+  const [grammarExerciseTypes, setGrammarExerciseTypes] = useState<string[]>(['multiple_choice'])
+  const [grammarVocab, setGrammarVocab] = useState('')
+  const [grammarExpLength, setGrammarExpLength] = useState<'Short' | 'Medium' | 'Long'>('Medium')
+  const [grammarIncludePitfalls, setGrammarIncludePitfalls] = useState(true)
+  const [grammarLevel, setGrammarLevel] = useState('')
+  // Track which vocab textbox the picker should populate when opened
+  // ('reading' or 'grammar'). Defaults to 'reading' for back-compat.
+  const [vocabPickerTarget, setVocabPickerTarget] = useState<'reading' | 'grammar'>('reading')
   // Suggest-exercises-from-reading modal state (per article block)
   const [suggestExForBlockIdx, setSuggestExForBlockIdx] = useState<number | null>(null)
   const [suggestExTypes, setSuggestExTypes] = useState<string[]>(['multiple_choice'])
@@ -1323,10 +1352,16 @@ function LessonsAdminPage() {
       setVocabPickerOpen(false)
       return
     }
-    // Merge picked words with anything already in the vocab textbox.
-    const existing = readingVocab.split(',').map((w) => w.trim()).filter(Boolean)
-    const merged = Array.from(new Set([...existing, ...picked]))
-    setReadingVocab(merged.join(', '))
+    // Merge picked words with whatever the active target textbox already has.
+    if (vocabPickerTarget === 'grammar') {
+      const existing = grammarVocab.split(',').map((w) => w.trim()).filter(Boolean)
+      const merged = Array.from(new Set([...existing, ...picked]))
+      setGrammarVocab(merged.join(', '))
+    } else {
+      const existing = readingVocab.split(',').map((w) => w.trim()).filter(Boolean)
+      const merged = Array.from(new Set([...existing, ...picked]))
+      setReadingVocab(merged.join(', '))
+    }
     setVocabPickerOpen(false)
   }
 
@@ -1447,6 +1482,56 @@ function LessonsAdminPage() {
       showToast('Failed to generate exercises')
     }
     setSuggestExGenerating(false)
+  }
+
+  // Grammar AI: generate a new Grammar block from the rich form inputs.
+  const generateGrammarWithAI = async () => {
+    if (!grammarTopic.trim()) {
+      showToast('Grammar topic is required')
+      return
+    }
+    setBlockCreationGenerating(true)
+    try {
+      const effectiveLevel = grammarLevel || courseLevelCache || ''
+      const vocab = grammarVocab.split(',').map((w) => w.trim()).filter(Boolean)
+      const res = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate-grammar',
+          topic: grammarTopic.trim(),
+          level: effectiveLevel || undefined,
+          known_grammar: grammarKnown.trim() || undefined,
+          num_exercises: grammarNumExercises,
+          exercise_types: grammarExerciseTypes,
+          vocabulary: vocab.length > 0 ? vocab : undefined,
+          explanation_length: grammarExpLength,
+          include_pitfalls: grammarIncludePitfalls,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Failed to generate grammar block')
+        setBlockCreationGenerating(false)
+        return
+      }
+      const newIndex = contentItems.length
+      const block: ContentBlock = {
+        block_type: 'grammar',
+        title: data.title || 'Grammar',
+        content: data.content as BlockContent,
+        order_index: newIndex,
+      }
+      setContentItems((prev) => [
+        ...prev,
+        { type: 'grammar' as ContentItemType, data: block, collapsed: false, order_index: newIndex },
+      ])
+      showToast(`Added AI-generated grammar: ${block.title}`)
+      cancelBlockCreation()
+    } catch {
+      showToast('Failed to generate grammar block')
+    }
+    setBlockCreationGenerating(false)
   }
 
   const generateBlockWithAI = async () => {
@@ -3234,38 +3319,122 @@ function LessonsAdminPage() {
             <input type="text" value={ex} onChange={(e) => updateExample(idx, e.target.value)}
               placeholder="e.g. I walked to school yesterday."
               className="flex-1 px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
+            {ex.trim() && <AudioButton text={ex} />}
             <button onClick={() => removeExample(idx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
           </div>
         ))}
 
-        {/* Practice Exercises */}
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-bold text-gray-500">{content.exercises.length} practice exercise{content.exercises.length !== 1 ? 's' : ''}</p>
-          <button onClick={addExercise} className="text-xs text-[#416ebe] font-bold hover:underline">+ Add Exercise</button>
+        {/* Target structure (Phase R-3): the phrase that gets bolded in
+            example sentences on the student side. */}
+        <div>
+          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Target structure to highlight (optional)</label>
+          <input
+            type="text"
+            value={content.target_structure || ''}
+            onChange={(e) => updateGrammarContent({ target_structure: e.target.value })}
+            placeholder="e.g. these / those"
+            className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
+          />
+          <p className="text-[10px] text-gray-300 mt-1">Bolded in examples when shown to students.</p>
         </div>
 
-        {content.exercises.map((q, qIdx) => (
-          <div key={q.id || qIdx} className="bg-[#f7fafd] rounded-xl p-4 border border-[#e6f0fa]">
-            <div className="flex items-start justify-between mb-3">
-              <span className="text-xs font-bold text-[#416ebe]">Q{qIdx + 1}</span>
-              <button onClick={() => removeExercise(qIdx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
+        {/* Pitfalls (Phase R-3): displays in a "Watch out for" panel. */}
+        {(content.pitfalls && content.pitfalls.length > 0) && (
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Common pitfalls</p>
+            <div className="space-y-2">
+              {content.pitfalls.map((p, i) => (
+                <div key={i} className="bg-red-50 border border-red-100 rounded-lg p-3">
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <input
+                      type="text"
+                      value={p.mistake}
+                      onChange={(e) => {
+                        const next = [...(content.pitfalls || [])]
+                        next[i] = { ...next[i], mistake: e.target.value }
+                        updateGrammarContent({ pitfalls: next })
+                      }}
+                      placeholder="What students say wrong"
+                      className="px-2 py-1.5 text-xs text-red-500 border border-red-200 rounded focus:outline-none focus:border-red-400"
+                    />
+                    <input
+                      type="text"
+                      value={p.correct}
+                      onChange={(e) => {
+                        const next = [...(content.pitfalls || [])]
+                        next[i] = { ...next[i], correct: e.target.value }
+                        updateGrammarContent({ pitfalls: next })
+                      }}
+                      placeholder="The correct form"
+                      className="px-2 py-1.5 text-xs text-green-600 border border-green-200 rounded focus:outline-none focus:border-green-400"
+                    />
+                    <input
+                      type="text"
+                      value={p.tip}
+                      onChange={(e) => {
+                        const next = [...(content.pitfalls || [])]
+                        next[i] = { ...next[i], tip: e.target.value }
+                        updateGrammarContent({ pitfalls: next })
+                      }}
+                      placeholder="1-sentence tip / why"
+                      className="px-2 py-1.5 text-xs text-gray-500 border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe]"
+                    />
+                  </div>
+                  <div className="flex justify-end mt-1">
+                    <button
+                      onClick={() => updateGrammarContent({ pitfalls: (content.pitfalls || []).filter((_, j) => j !== i) })}
+                      className="text-[10px] text-gray-300 hover:text-red-400"
+                    >
+                      ✕ Remove pitfall
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="mb-3">
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Prompt</label>
-              <input type="text" value={q.prompt} onChange={(e) => updateExercise(qIdx, 'prompt', e.target.value)}
-                className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
-            </div>
-            <McqOptionsList
-              options={q.options}
-              correctIndex={q.correctIndex}
-              radioName={`gq-${itemIndex}-${qIdx}`}
-              onChange={({ options, correctIndex }) => {
-                updateExercise(qIdx, 'options', options)
-                updateExercise(qIdx, 'correctIndex', correctIndex)
-              }}
+          </div>
+        )}
+
+        {/* Practice Exercises */}
+        {content.practice_exercises && content.practice_exercises.length > 0 ? (
+          // Phase R-3: AI-generated grammar blocks use the multi-type
+          // AttachedExercise[] shape. Reuse the same editor used by
+          // Audio / Video / Article follow-ups.
+          <div className="pt-2 border-t border-[#e6f0fa]">
+            <AttachedExercisesEditor
+              exercises={content.practice_exercises}
+              onChange={(practice_exercises) => updateGrammarContent({ practice_exercises })}
             />
           </div>
-        ))}
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-gray-500">{content.exercises.length} practice exercise{content.exercises.length !== 1 ? 's' : ''}</p>
+              <button onClick={addExercise} className="text-xs text-[#416ebe] font-bold hover:underline">+ Add Exercise</button>
+            </div>
+            {content.exercises.map((q, qIdx) => (
+              <div key={q.id || qIdx} className="bg-[#f7fafd] rounded-xl p-4 border border-[#e6f0fa]">
+                <div className="flex items-start justify-between mb-3">
+                  <span className="text-xs font-bold text-[#416ebe]">Q{qIdx + 1}</span>
+                  <button onClick={() => removeExercise(qIdx)} className="text-xs text-gray-300 hover:text-red-400">&#x2715;</button>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Prompt</label>
+                  <input type="text" value={q.prompt} onChange={(e) => updateExercise(qIdx, 'prompt', e.target.value)}
+                    className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors" />
+                </div>
+                <McqOptionsList
+                  options={q.options}
+                  correctIndex={q.correctIndex}
+                  radioName={`gq-${itemIndex}-${qIdx}`}
+                  onChange={({ options, correctIndex }) => {
+                    updateExercise(qIdx, 'options', options)
+                    updateExercise(qIdx, 'correctIndex', correctIndex)
+                  }}
+                />
+              </div>
+            ))}
+          </>
+        )}
       </div>
     )
   }
@@ -4525,7 +4694,7 @@ function LessonsAdminPage() {
                         <button
                           onClick={() => {
                             setBlockCreationMode('ai')
-                            if (blockCreationType === 'article') ensureCourseLevel()
+                            if (blockCreationType === 'article' || blockCreationType === 'grammar') ensureCourseLevel()
                           }}
                           className="flex flex-col items-center gap-3 p-5 rounded-xl border-2 border-[#cddcf0] hover:border-[#416ebe] hover:bg-[#f7fafd] transition-all group"
                         >
@@ -4540,6 +4709,158 @@ function LessonsAdminPage() {
                           <span className="text-3xl">{'✍️'}</span>
                           <span className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe]">Create Manually</span>
                           <span className="text-[10px] text-gray-400 text-center">Build the block yourself from scratch</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : blockCreationType === 'grammar' ? (
+                    /* ── Rich Grammar AI form ── */
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setBlockCreationMode('choosing')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors">{'←'} Back</button>
+                          <h3 className="text-sm font-bold text-[#46464b]">Generate Grammar with AI</h3>
+                        </div>
+                        <button onClick={cancelBlockCreation} className="text-xs text-gray-400 hover:text-red-400 transition-colors">{'✕'}</button>
+                      </div>
+
+                      {/* Topic */}
+                      <div className="mb-3">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Grammar topic <span className="text-red-400">*</span></label>
+                        <input
+                          type="text"
+                          value={grammarTopic}
+                          onChange={(e) => setGrammarTopic(e.target.value)}
+                          placeholder="e.g. this / that / these / those"
+                          disabled={blockCreationGenerating}
+                          className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                        />
+                      </div>
+                      {/* Already-known grammar */}
+                      <div className="mb-3">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Already-known grammar (optional)</label>
+                        <input
+                          type="text"
+                          value={grammarKnown}
+                          onChange={(e) => setGrammarKnown(e.target.value)}
+                          placeholder="e.g. Students know present simple + continuous"
+                          disabled={blockCreationGenerating}
+                          className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                        />
+                      </div>
+                      {/* Vocab */}
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase">Target vocabulary (optional) — used in examples</label>
+                          <button
+                            onClick={() => { setVocabPickerTarget('grammar'); openVocabPicker() }}
+                            disabled={!courseId || blockCreationGenerating}
+                            title={!courseId ? 'Save the lesson to a course first' : ''}
+                            className="text-[10px] font-bold text-[#416ebe] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            + Pick from course vocabulary
+                          </button>
+                        </div>
+                        <textarea
+                          value={grammarVocab}
+                          onChange={(e) => setGrammarVocab(e.target.value)}
+                          placeholder="Comma-separated"
+                          className="w-full h-16 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] disabled:opacity-50"
+                          disabled={blockCreationGenerating}
+                        />
+                      </div>
+                      {/* Practice exercise types */}
+                      <div className="mb-3">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Practice exercise types</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {GRAMMAR_EX_TYPES.map((t) => (
+                            <label key={t.value} className="flex items-center gap-2 text-xs text-[#46464b] cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={grammarExerciseTypes.includes(t.value)}
+                                onChange={(e) => {
+                                  setGrammarExerciseTypes((prev) =>
+                                    e.target.checked ? [...prev, t.value] : prev.filter((x) => x !== t.value),
+                                  )
+                                }}
+                                className="accent-[#416ebe]"
+                              />
+                              {t.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Level / Num / Length row */}
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Level</label>
+                          <select
+                            value={grammarLevel}
+                            onChange={(e) => setGrammarLevel(e.target.value)}
+                            disabled={blockCreationGenerating}
+                            className="w-full px-2 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                          >
+                            <option value="">{courseLevelCache ? `Course default (${courseLevelCache})` : 'Course default'}</option>
+                            {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1"># Questions / type</label>
+                          <select
+                            value={grammarNumExercises}
+                            onChange={(e) => setGrammarNumExercises(Number(e.target.value))}
+                            disabled={blockCreationGenerating}
+                            className="w-full px-2 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                          >
+                            {[3, 5, 8, 10].map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Explanation</label>
+                          <select
+                            value={grammarExpLength}
+                            onChange={(e) => setGrammarExpLength(e.target.value as 'Short' | 'Medium' | 'Long')}
+                            disabled={blockCreationGenerating}
+                            className="w-full px-2 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white disabled:opacity-50"
+                          >
+                            <option value="Short">Short</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Long">Long</option>
+                          </select>
+                        </div>
+                      </div>
+                      {/* Pitfalls toggle */}
+                      <label className="flex items-center gap-2 text-xs text-[#46464b] mb-4 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={grammarIncludePitfalls}
+                          onChange={(e) => setGrammarIncludePitfalls(e.target.checked)}
+                          disabled={blockCreationGenerating}
+                          className="accent-[#416ebe]"
+                        />
+                        Include &quot;Common pitfalls&quot; section
+                      </label>
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={generateGrammarWithAI}
+                          disabled={blockCreationGenerating || !grammarTopic.trim() || grammarExerciseTypes.length === 0}
+                          className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {blockCreationGenerating ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                              Generating grammar…
+                            </span>
+                          ) : (
+                            <>{'✨'} Generate Grammar</>
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelBlockCreation}
+                          disabled={blockCreationGenerating}
+                          className="px-5 py-3 border border-[#cddcf0] text-gray-500 font-bold rounded-xl text-sm hover:border-[#416ebe] transition-colors disabled:opacity-50"
+                        >
+                          Cancel
                         </button>
                       </div>
                     </div>
@@ -4694,7 +5015,7 @@ function LessonsAdminPage() {
                             <div className="flex items-center justify-between mb-1">
                               <label className="block text-[10px] font-bold text-gray-400 uppercase">Vocabulary to include (optional)</label>
                               <button
-                                onClick={openVocabPicker}
+                                onClick={() => { setVocabPickerTarget('reading'); openVocabPicker() }}
                                 disabled={!courseId || blockCreationGenerating}
                                 title={!courseId ? 'Save the lesson to a course first' : ''}
                                 className="text-[10px] font-bold text-[#416ebe] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
