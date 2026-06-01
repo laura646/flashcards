@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit } from '@/lib/rate-limit'
+import { SONNET_MODEL, HAIKU_MODEL } from '@/lib/ai-models'
 
 // Allow large request bodies (base64 images can be several MB)
 export const maxDuration = 60 // seconds (for Vercel serverless timeout)
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
       }
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{
           role: 'user',
@@ -310,7 +311,7 @@ Return ONLY valid JSON, no markdown, no explanation.`
       }
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: contentParts }]
       })
@@ -352,7 +353,7 @@ Return ONLY valid JSON, no markdown, no explanation.`
       }
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{
           role: 'user',
@@ -559,7 +560,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       contentParts.push({ type: 'text', text: prompt })
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: SONNET_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: contentParts }],
       })
@@ -663,7 +664,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 }`
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: SONNET_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       })
@@ -803,7 +804,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 {"exercises": [...]}`
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       })
@@ -962,7 +963,7 @@ ${spec.shape}`
       contentParts.push({ type: 'text', text: prompt })
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: contentParts }],
       })
@@ -1037,7 +1038,7 @@ ${spec.shape}`
       }
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 8192,
         messages: [{ role: 'user', content: EXERCISE_GEN_PROMPT + docText }]
       })
@@ -1127,7 +1128,7 @@ ${spec.shape}`
       }
 
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 8192,
         messages: [{ role: 'user', content: messageContent }]
       })
@@ -1184,7 +1185,7 @@ ${spec.shape}`
 
       // Send to Claude to generate all four: title, flashcards, summary, and mistakes
       const message = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: HAIKU_MODEL,
         max_tokens: 8192,
         messages: [{
           role: 'user',
