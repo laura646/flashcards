@@ -1299,7 +1299,9 @@ function LessonsAdminPage() {
     setBlockCreationFiles([])
   }
 
-  // Fetch the course's CEFR level once (used as default in the Reading form).
+  // Fetch the course's CEFR level once (used as default in the Reading
+  // form + auto-passed to every AI generation action server-side so
+  // generated content is leveled).
   const ensureCourseLevel = useCallback(async () => {
     if (courseLevelCache !== null || !courseId) return
     try {
@@ -1310,6 +1312,12 @@ function LessonsAdminPage() {
       }
     } catch { /* ignore */ }
   }, [courseLevelCache, courseId])
+
+  // Eagerly load the course CEFR level as soon as we know the course,
+  // so it's already in the cache by the time any AI generation fires.
+  useEffect(() => {
+    if (courseId) ensureCourseLevel()
+  }, [courseId, ensureCourseLevel])
 
   // Open vocab picker and lazy-load course vocabulary.
   const openVocabPicker = async () => {
@@ -1568,6 +1576,7 @@ function LessonsAdminPage() {
           subtype: finalSubtype || undefined,
           text: blockCreationText.trim() || undefined,
           files: files.length > 0 ? files : undefined,
+          level: courseLevelCache || undefined,
         }),
       })
       const data = await res.json()
@@ -1639,7 +1648,7 @@ function LessonsAdminPage() {
       const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate-flashcards', summary: summary.trim() }),
+        body: JSON.stringify({ action: 'generate-flashcards', summary: summary.trim(), level: courseLevelCache || undefined }),
       })
       if (!res.ok) throw new Error('Generation failed')
       const data = await res.json()
@@ -1704,6 +1713,7 @@ function LessonsAdminPage() {
           image: img.base64,
           imageType: img.type,
           preferredType: preferredType || undefined,
+          level: courseLevelCache || undefined,
         }),
       })
       if (!res.ok) throw new Error('Generation failed')
@@ -1731,6 +1741,7 @@ function LessonsAdminPage() {
           action: 'generate-exercises',
           text: text.trim(),
           preferredType: preferredType || undefined,
+          level: courseLevelCache || undefined,
         }),
       })
       if (!res.ok) throw new Error('Generation failed')
@@ -1817,6 +1828,7 @@ function LessonsAdminPage() {
               image: files[0].data,
               imageType: files[0].type,
               preferredType: aiExPreferredType || undefined,
+              level: courseLevelCache || undefined,
             }),
           })
           const data = await res.json()
@@ -1848,7 +1860,7 @@ function LessonsAdminPage() {
           const res = await fetch('/api/generate-content', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'generate-exercises-from-upload', files }),
+            body: JSON.stringify({ action: 'generate-exercises-from-upload', files, level: courseLevelCache || undefined }),
           })
           const data = await res.json()
           if (!res.ok) {
@@ -1890,6 +1902,7 @@ function LessonsAdminPage() {
             action: 'generate-exercises',
             text: aiExTextInput.trim(),
             preferredType: aiExPreferredType || undefined,
+            level: courseLevelCache || undefined,
           }),
         })
         if (!res.ok) throw new Error('Generation failed')
@@ -1934,7 +1947,7 @@ function LessonsAdminPage() {
       const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'import-google-doc', url: googleDocUrl.trim() }),
+        body: JSON.stringify({ action: 'import-google-doc', url: googleDocUrl.trim(), level: courseLevelCache || undefined }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -2035,7 +2048,7 @@ function LessonsAdminPage() {
       const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate-exercises-from-doc', url: exerciseDocUrl.trim() }),
+        body: JSON.stringify({ action: 'generate-exercises-from-doc', url: exerciseDocUrl.trim(), level: courseLevelCache || undefined }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -2095,6 +2108,7 @@ function LessonsAdminPage() {
         body: JSON.stringify({
           action: 'generate-exercises-from-upload',
           files,
+          level: courseLevelCache || undefined,
         }),
       })
       const data = await res.json()

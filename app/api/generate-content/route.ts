@@ -151,10 +151,13 @@ export async function POST(req: NextRequest) {
   try {
     // Generate flashcards from class summary text
     if (action === 'generate-flashcards') {
-      const { summary } = body
+      const { summary, level } = body
       if (!summary) {
         return NextResponse.json({ error: 'Summary text required' }, { status: 400 })
       }
+      const levelLine = level
+        ? `Target CEFR level: ${level}. Definitions, example sentences, and notes must use vocabulary and grammar appropriate for a learner at this level — simpler words and shorter sentences for A1-A2, more nuanced phrasing for B2-C1.`
+        : ''
 
       const message = await client.messages.create({
         model: HAIKU_MODEL,
@@ -162,6 +165,8 @@ export async function POST(req: NextRequest) {
         messages: [{
           role: 'user',
           content: `You are an English language teaching assistant. Analyze this class summary and:
+
+${levelLine}
 
 1. **Suggest a lesson title** — a short, descriptive title for this lesson (e.g., "Travel Vocabulary & Airport Conversations", "Business Email Writing"). Keep it concise but informative.
 
@@ -212,12 +217,17 @@ ${summary}`
 
     // Generate exercises from screenshot image or text
     if (action === 'generate-exercises') {
-      const { image, imageType, text: inputText, preferredType } = body
+      const { image, imageType, text: inputText, preferredType, level } = body
       if (!image && !inputText) {
         return NextResponse.json({ error: 'Image or text content required' }, { status: 400 })
       }
+      const levelLine = level
+        ? `Target CEFR level: ${level}. Question prompts, options, hints, and explanations must use vocabulary and grammar appropriate for a learner at this level.`
+        : ''
 
       const exerciseTypeGuide = `
+${levelLine}
+
 Choose the BEST exercise type for the content. Available types:
 
 CLASSIC TYPES (use standard questions array):
@@ -837,11 +847,12 @@ Return ONLY valid JSON (no markdown, no explanation):
     // shape matches the corresponding BlockContent interface in the
     // lesson editor, so the caller can drop it straight into a new block.
     if (action === 'generate-block') {
-      const { block_type, subtype, text: inputText, files } = body as {
+      const { block_type, subtype, text: inputText, files, level } = body as {
         block_type: string
         subtype?: string
         text?: string
         files?: { data: string; type: string }[]
+        level?: string
       }
       const ALLOWED = ['mistakes', 'article', 'grammar', 'dialogue', 'writing', 'pronunciation']
       if (!block_type || !ALLOWED.includes(block_type)) {
@@ -935,10 +946,14 @@ Return ONLY valid JSON (no markdown, no explanation):
       const subtypeLine = subtype
         ? `The teacher wants this block focused on: "${subtype}". Generate content specifically for that topic.`
         : 'The teacher hasn\'t specified a focus — pick the best angle from the source material.'
+      const levelLine = level
+        ? `Target CEFR level: ${level}. Every piece of content (titles, examples, explanations, sentences, options) must use vocabulary and grammar appropriate for a learner at this level — simpler words and shorter sentences for A1-A2, more nuanced phrasing for B2-C1.`
+        : ''
 
       const prompt = `You are an expert ESL teaching assistant. Generate a single "${block_type}" content block for a lesson.
 
 ${subtypeLine}
+${levelLine}
 
 ${hasFiles ? '' : `Source material from the teacher:\n${inputText}\n\n`}Block-specific rules:
 ${spec.rules}
@@ -1003,10 +1018,13 @@ ${spec.shape}`
 
     // Generate multiple exercises from a Google Doc containing exercises/worksheets
     if (action === 'generate-exercises-from-doc') {
-      const { url } = body
+      const { url, level } = body
       if (!url) {
         return NextResponse.json({ error: 'Google Doc URL required' }, { status: 400 })
       }
+      const levelLine = level
+        ? `Target CEFR level: ${level}. Question prompts, options, hints, and explanations must use vocabulary and grammar appropriate for a learner at this level.\n\n`
+        : ''
 
       const docIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
       if (!docIdMatch) {
@@ -1040,7 +1058,7 @@ ${spec.shape}`
       const message = await client.messages.create({
         model: HAIKU_MODEL,
         max_tokens: 8192,
-        messages: [{ role: 'user', content: EXERCISE_GEN_PROMPT + docText }]
+        messages: [{ role: 'user', content: levelLine + EXERCISE_GEN_PROMPT + docText }]
       })
 
       const textContent = message.content.find(c => c.type === 'text')
@@ -1059,6 +1077,10 @@ ${spec.shape}`
     if (action === 'generate-exercises-from-upload') {
       // Support both legacy single-file format and new multi-file format
       const files: { data: string; type: string }[] = body.files || (body.fileData ? [{ data: body.fileData, type: body.fileType }] : [])
+      const level = body.level as string | undefined
+      const levelLine = level
+        ? `Target CEFR level: ${level}. Question prompts, options, hints, and explanations must use vocabulary and grammar appropriate for a learner at this level.\n\n`
+        : ''
       if (files.length === 0) {
         return NextResponse.json({ error: 'File data required' }, { status: 400 })
       }
@@ -1122,9 +1144,9 @@ ${spec.shape}`
 
       if (imageBlocks.length > 0) {
         messageContent.push(...imageBlocks)
-        messageContent.push({ type: 'text', text: EXERCISE_GEN_PROMPT + (hasDocuments && docText ? '\n\nAdditionally, here is text extracted from uploaded documents:\n\n' + docText : '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.') })
+        messageContent.push({ type: 'text', text: levelLine + EXERCISE_GEN_PROMPT + (hasDocuments && docText ? '\n\nAdditionally, here is text extracted from uploaded documents:\n\n' + docText : '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.') })
       } else {
-        messageContent.push({ type: 'text', text: EXERCISE_GEN_PROMPT + docText })
+        messageContent.push({ type: 'text', text: levelLine + EXERCISE_GEN_PROMPT + docText })
       }
 
       const message = await client.messages.create({
@@ -1147,10 +1169,13 @@ ${spec.shape}`
 
     // Import from Google Doc: fetch content, generate flashcards + summary + mistakes
     if (action === 'import-google-doc') {
-      const { url } = body
+      const { url, level } = body
       if (!url) {
         return NextResponse.json({ error: 'Google Doc URL required' }, { status: 400 })
       }
+      const levelLine = level
+        ? `Target CEFR level: ${level}. All generated content — flashcard meanings, examples, notes, summary, mistake explanations — must use vocabulary and grammar appropriate for a learner at this level.\n\n`
+        : ''
 
       // Extract document ID from various Google Docs URL formats
       const docIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
@@ -1189,7 +1214,7 @@ ${spec.shape}`
         max_tokens: 8192,
         messages: [{
           role: 'user',
-          content: `You are an expert English language teaching assistant. Analyze this class document and generate four things:
+          content: `${levelLine}You are an expert English language teaching assistant. Analyze this class document and generate four things:
 
 1. **TITLE**: Suggest a concise, descriptive lesson title (e.g., "Travel Vocabulary & Airport Conversations", "Business Email Writing"). Keep it short but informative.
 
