@@ -1644,11 +1644,15 @@ function LessonsAdminPage() {
       return
     }
     setGeneratingFlashcards(true)
+    // Guarantee the course CEFR level is in cache before we send the
+    // request — the useEffect can race the click on fast users.
+    await ensureCourseLevel()
+    const levelToUse = courseLevelCache || ''
     try {
       const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate-flashcards', summary: summary.trim(), level: courseLevelCache || undefined }),
+        body: JSON.stringify({ action: 'generate-flashcards', summary: summary.trim(), level: levelToUse || undefined }),
       })
       if (!res.ok) throw new Error('Generation failed')
       const data = await res.json()
@@ -1668,7 +1672,8 @@ function LessonsAdminPage() {
       if (!title.trim() && data.suggestedTitle) {
         setTitle(data.suggestedTitle)
       }
-      showToast(`Generated ${generated.length} flashcards${data.suggestedTitle && !title.trim() ? ' + suggested title' : ''}`)
+      const levelTag = levelToUse ? ` at ${levelToUse}` : ' (no course level set)'
+      showToast(`Generated ${generated.length} flashcards${levelTag}${data.suggestedTitle && !title.trim() ? ' + suggested title' : ''}`)
     } catch {
       showToast('Failed to generate flashcards')
     }
