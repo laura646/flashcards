@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit } from '@/lib/rate-limit'
 import { SONNET_MODEL, HAIKU_MODEL } from '@/lib/ai-models'
+import { levelInstruction } from '@/lib/level-mapping'
 
 // Allow large request bodies (base64 images can be several MB)
 export const maxDuration = 60 // seconds (for Vercel serverless timeout)
@@ -155,9 +156,7 @@ export async function POST(req: NextRequest) {
       if (!summary) {
         return NextResponse.json({ error: 'Summary text required' }, { status: 400 })
       }
-      const levelLine = level
-        ? `Target CEFR level: ${level}. Definitions, example sentences, and notes must use vocabulary and grammar appropriate for a learner at this level — simpler words and shorter sentences for A1-A2, more nuanced phrasing for B2-C1.`
-        : ''
+      const levelLine = levelInstruction(level)
 
       const message = await client.messages.create({
         model: HAIKU_MODEL,
@@ -221,9 +220,7 @@ ${summary}`
       if (!image && !inputText) {
         return NextResponse.json({ error: 'Image or text content required' }, { status: 400 })
       }
-      const levelLine = level
-        ? `Target CEFR level: ${level}. Question prompts, options, hints, and explanations must use vocabulary and grammar appropriate for a learner at this level.`
-        : ''
+      const levelLine = levelInstruction(level)
 
       const exerciseTypeGuide = `
 ${levelLine}
@@ -505,7 +502,7 @@ For all other types, set groupData to null.`
 
       const effectiveSource = [source_text, fetchedSourceText].filter(Boolean).join('\n\n').trim()
 
-      const levelLine = level ? `Target CEFR level: ${level}.` : ''
+      const levelLine = levelInstruction(level)
       const lengthLine = length_words ? `Target length: about ${length_words} words.` : 'Target length: about 400 words.'
       const styleLine = style ? `Style / tone: ${style}.` : ''
 
@@ -611,7 +608,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       if (!topic || typeof topic !== 'string' || !topic.trim()) {
         return NextResponse.json({ error: 'Grammar topic is required' }, { status: 400 })
       }
-      const levelLine = level ? `Target CEFR level: ${level}.` : ''
+      const levelLine = levelInstruction(level)
       const knownLine = known_grammar && typeof known_grammar === 'string' && known_grammar.trim()
         ? `Students already know: ${(known_grammar as string).trim()}. Don't re-explain it; build on it.`
         : ''
@@ -946,9 +943,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       const subtypeLine = subtype
         ? `The teacher wants this block focused on: "${subtype}". Generate content specifically for that topic.`
         : 'The teacher hasn\'t specified a focus — pick the best angle from the source material.'
-      const levelLine = level
-        ? `Target CEFR level: ${level}. Every piece of content (titles, examples, explanations, sentences, options) must use vocabulary and grammar appropriate for a learner at this level — simpler words and shorter sentences for A1-A2, more nuanced phrasing for B2-C1.`
-        : ''
+      const levelLine = levelInstruction(level)
 
       const prompt = `You are an expert ESL teaching assistant. Generate a single "${block_type}" content block for a lesson.
 
@@ -1022,9 +1017,7 @@ ${spec.shape}`
       if (!url) {
         return NextResponse.json({ error: 'Google Doc URL required' }, { status: 400 })
       }
-      const levelLine = level
-        ? `Target CEFR level: ${level}. Question prompts, options, hints, and explanations must use vocabulary and grammar appropriate for a learner at this level.\n\n`
-        : ''
+      const levelLine = levelInstruction(level) ? levelInstruction(level) + '\n\n' : ''
 
       const docIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
       if (!docIdMatch) {
@@ -1078,9 +1071,7 @@ ${spec.shape}`
       // Support both legacy single-file format and new multi-file format
       const files: { data: string; type: string }[] = body.files || (body.fileData ? [{ data: body.fileData, type: body.fileType }] : [])
       const level = body.level as string | undefined
-      const levelLine = level
-        ? `Target CEFR level: ${level}. Question prompts, options, hints, and explanations must use vocabulary and grammar appropriate for a learner at this level.\n\n`
-        : ''
+      const levelLine = levelInstruction(level) ? levelInstruction(level) + '\n\n' : ''
       if (files.length === 0) {
         return NextResponse.json({ error: 'File data required' }, { status: 400 })
       }
@@ -1173,9 +1164,7 @@ ${spec.shape}`
       if (!url) {
         return NextResponse.json({ error: 'Google Doc URL required' }, { status: 400 })
       }
-      const levelLine = level
-        ? `Target CEFR level: ${level}. All generated content — flashcard meanings, examples, notes, summary, mistake explanations — must use vocabulary and grammar appropriate for a learner at this level.\n\n`
-        : ''
+      const levelLine = levelInstruction(level) ? levelInstruction(level) + '\n\n' : ''
 
       // Extract document ID from various Google Docs URL formats
       const docIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)

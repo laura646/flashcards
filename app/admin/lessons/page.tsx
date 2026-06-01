@@ -17,6 +17,7 @@ import TrueFalseEditor from '@/components/TrueFalseEditor'
 import RankOrderEditor from '@/components/RankOrderEditor'
 import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
 import AudioButton from '@/components/AudioButton'
+import { normalizeCefr } from '@/lib/level-mapping'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import type { AttachedExercise } from '@/lib/attached-exercise'
@@ -1672,7 +1673,8 @@ function LessonsAdminPage() {
       if (!title.trim() && data.suggestedTitle) {
         setTitle(data.suggestedTitle)
       }
-      const levelTag = levelToUse ? ` at ${levelToUse}` : ' (no course level set)'
+      const cefr = normalizeCefr(levelToUse)
+      const levelTag = cefr ? ` at ${cefr}` : levelToUse ? ` (unrecognised level "${levelToUse}")` : ' (no course level set)'
       showToast(`Generated ${generated.length} flashcards${levelTag}${data.suggestedTitle && !title.trim() ? ' + suggested title' : ''}`)
     } catch {
       showToast('Failed to generate flashcards')
