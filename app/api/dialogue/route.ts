@@ -349,6 +349,15 @@ panel is shown to the student separately, so don't repeat them inside reply.`
       }
     }
 
+    // Guardrail: if every parse path left us with no actual reply text,
+    // substitute a friendly retry message rather than saving an empty
+    // assistant bubble that the student can't interact with.
+    if (!aiMessage || !aiMessage.trim()) {
+      console.error('Dialogue: empty AI reply, rawText was:', rawText.slice(0, 500))
+      aiMessage = "Sorry, I didn't catch that — could you say it again?"
+      corrections = []
+    }
+
     await Promise.all([
       supabase.from('dialogue_messages').insert({
         block_id: blockId,

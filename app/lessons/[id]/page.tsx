@@ -674,7 +674,7 @@ function DialogueChat({
 
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto space-y-3 pb-3">
-        {messages.map((msg, i) => (
+        {messages.filter((m) => m.content && m.content.trim()).map((msg, i) => (
           <div key={i}>
             <div
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
