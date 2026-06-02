@@ -125,6 +125,9 @@ export default function SuperadminPage() {
 
   // Course info editing
   const [editingCourseInfo, setEditingCourseInfo] = useState(false)
+  const [editingInviteCode, setEditingInviteCode] = useState(false)
+  const [inviteCodeDraft, setInviteCodeDraft] = useState('')
+  const [savingInviteCode, setSavingInviteCode] = useState(false)
   const [courseInfoForm, setCourseInfoForm] = useState({
     level: '' as string,
     telegram_link: '',
@@ -552,6 +555,38 @@ export default function SuperadminPage() {
       showToast('Student enrolled!')
       await loadCourses()
     } catch { showToast('Failed to enroll') }
+  }
+
+  // ── Save custom invite code ──
+  const saveInviteCode = async () => {
+    if (!selectedCourse) return
+    const codeRaw = inviteCodeDraft.trim()
+    if (!/^[A-Za-z0-9]{3,20}$/.test(codeRaw)) {
+      showToast('Code must be 3-20 letters or digits — no spaces or symbols.')
+      return
+    }
+    setSavingInviteCode(true)
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update-course', course_id: selectedCourse.id, invite_code: codeRaw }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast(data.error || 'Failed to save invite code')
+        setSavingInviteCode(false)
+        return
+      }
+      const normalized = codeRaw.toUpperCase()
+      setSelectedCourse({ ...selectedCourse, invite_code: normalized })
+      setEditingInviteCode(false)
+      showToast('Invite code saved!')
+      await loadCourses()
+    } catch {
+      showToast('Failed to save invite code')
+    }
+    setSavingInviteCode(false)
   }
 
   // ── Regenerate invite code ──
@@ -1304,7 +1339,49 @@ export default function SuperadminPage() {
               <input readOnly value={`https://flashcards-app-navy.vercel.app/join/${selectedCourse.invite_code}`} className="flex-1 bg-white border border-[#cddcf0] rounded-lg px-3 py-2 text-xs text-[#46464b]" />
               <button onClick={copyInviteLink} className="bg-[#416ebe] text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-[#3560b0]">Copy</button>
             </div>
-            <button onClick={regenerateInvite} className="text-xs text-gray-400 hover:text-[#416ebe] mt-2">Regenerate code</button>
+            {editingInviteCode ? (
+              <div className="mt-3">
+                <p className="text-[11px] font-bold text-gray-500 mb-1">Custom invite code (3-20 letters or digits)</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={inviteCodeDraft}
+                    onChange={(e) => setInviteCodeDraft(e.target.value)}
+                    placeholder="e.g. TRAVEL24"
+                    maxLength={20}
+                    autoFocus
+                    disabled={savingInviteCode}
+                    className="flex-1 bg-white border border-[#cddcf0] rounded-lg px-3 py-2 text-sm font-mono uppercase focus:outline-none focus:border-[#416ebe]"
+                  />
+                  <button
+                    onClick={saveInviteCode}
+                    disabled={savingInviteCode || !inviteCodeDraft.trim()}
+                    className="bg-[#416ebe] text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-[#3560b0] disabled:opacity-50"
+                  >
+                    {savingInviteCode ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => { setEditingInviteCode(false); setInviteCodeDraft('') }}
+                    disabled={savingInviteCode}
+                    className="text-xs text-gray-400 hover:text-gray-600 px-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Stored UPPERCASE. Students typing any case will match. Doesn&apos;t affect anyone already enrolled.</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => { setInviteCodeDraft(selectedCourse.invite_code || ''); setEditingInviteCode(true) }}
+                  className="text-xs text-[#416ebe] hover:underline font-bold"
+                >
+                  ✎ Edit code
+                </button>
+                <span className="text-xs text-gray-300">·</span>
+                <button onClick={regenerateInvite} className="text-xs text-gray-400 hover:text-[#416ebe]">Regenerate code</button>
+              </div>
+            )}
           </div>
 
           {detailLoading ? <div className="text-center py-8 text-sm text-gray-400">Loading...</div> : (
