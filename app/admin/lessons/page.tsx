@@ -17,6 +17,7 @@ import TrueFalseEditor from '@/components/TrueFalseEditor'
 import RankOrderEditor from '@/components/RankOrderEditor'
 import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
 import AudioButton from '@/components/AudioButton'
+import DialogueSessionReview from '@/components/DialogueSessionReview'
 import { normalizeCefr } from '@/lib/level-mapping'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
@@ -601,6 +602,23 @@ function LessonsAdminPage() {
   // Track which vocab textbox the picker should populate when opened
   // ('reading' or 'grammar'). Defaults to 'reading' for back-compat.
   const [vocabPickerTarget, setVocabPickerTarget] = useState<'reading' | 'grammar'>('reading')
+  // Tier 3 / Speak-to-AI — View student chats modal state.
+  const [viewChatsBlock, setViewChatsBlock] = useState<null | { id: string; targetWords: string[] }>(null)
+  const [chatAttempts, setChatAttempts] = useState<{ email: string; name: string; turns: number; words_used: string[]; last_at: string; reviewed: boolean }[]>([])
+  const [chatAttemptsLoading, setChatAttemptsLoading] = useState(false)
+  const [expandedStudent, setExpandedStudent] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!viewChatsBlock) return
+    setChatAttemptsLoading(true)
+    setExpandedStudent(null)
+    fetch(`/api/dialogue?action=list-attempts&blockId=${encodeURIComponent(viewChatsBlock.id)}`)
+      .then((r) => r.json())
+      .then((d) => setChatAttempts(Array.isArray(d.attempts) ? d.attempts : []))
+      .catch(() => setChatAttempts([]))
+      .finally(() => setChatAttemptsLoading(false))
+  }, [viewChatsBlock])
+
   // Suggest-exercises-from-reading modal state (per article block)
   const [suggestExForBlockIdx, setSuggestExForBlockIdx] = useState<number | null>(null)
   const [suggestExTypes, setSuggestExTypes] = useState<string[]>(['multiple_choice'])
@@ -3329,6 +3347,18 @@ function LessonsAdminPage() {
             placeholder="The first message the AI will say... e.g. Welcome! Have you been here before?"
             className="w-full h-20 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg p-3 resize-none focus:outline-none focus:border-[#416ebe] transition-colors" />
         </div>
+        {/* Tier 3: View student chats — only available once the block has a DB id. */}
+        {block.id && (
+          <div className="pt-2 border-t border-[#e6f0fa]">
+            <button
+              onClick={() => setViewChatsBlock({ id: block.id!, targetWords: content.target_words || [] })}
+              className="text-[11px] font-bold text-[#416ebe] hover:underline"
+              title="See every student's dialogue session for this block"
+            >
+              📊 View student chats
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -5662,6 +5692,61 @@ function LessonsAdminPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* ── View Student Chats Modal (per dialogue block, Tier 3) ── */}
+        {viewChatsBlock && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+              <div className="px-6 py-4 border-b border-[#e6f0fa] flex items-center justify-between">
+                <h3 className="text-sm font-bold text-[#46464b]">Student dialogue sessions</h3>
+                <button onClick={() => { setViewChatsBlock(null); setExpandedStudent(null) }} className="text-gray-400 hover:text-red-400">✕</button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-3">
+                {chatAttemptsLoading ? (
+                  <p className="text-xs text-gray-400 text-center py-8">Loading sessions…</p>
+                ) : chatAttempts.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-8">No students have started this dialogue yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {chatAttempts.map((a) => (
+                      <li key={a.email} className="bg-[#f7fafd] border border-[#e6f0fa] rounded-xl overflow-hidden">
+                        <button
+                          onClick={() => setExpandedStudent((cur) => (cur === a.email ? null : a.email))}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#e6f0fa] transition-colors text-left"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-[#46464b] truncate">{a.name || a.email}</p>
+                            <p className="text-[10px] text-gray-400 truncate">
+                              {a.turns} turn{a.turns !== 1 ? 's' : ''} ·{' '}
+                              {a.words_used.length} word{a.words_used.length !== 1 ? 's' : ''} used ·{' '}
+                              last activity {a.last_at?.slice(0, 10) || '—'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            {a.reviewed && (
+                              <span className="text-[10px] font-bold text-green-700 bg-green-100 border border-green-300 px-2 py-0.5 rounded-full">✓ Reviewed</span>
+                            )}
+                            <span className="text-gray-300 text-xs">{expandedStudent === a.email ? '▼' : '▶'}</span>
+                          </div>
+                        </button>
+                        {expandedStudent === a.email && (
+                          <div className="bg-white p-4 border-t border-[#e6f0fa]">
+                            <DialogueSessionReview
+                              blockId={viewChatsBlock.id}
+                              studentEmail={a.email}
+                              studentName={a.name}
+                              targetWords={viewChatsBlock.targetWords}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* ── Vocab Picker Modal (course-wide flashcards) ── */}

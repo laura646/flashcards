@@ -343,6 +343,17 @@ function DialogueChat({
   // TTS, so existing chat history doesn't blast 10 messages on load.
   const autoPlayedRef = useRef<Set<number>>(new Set())
 
+  // End-of-session report state (Tier 3).
+  const [finishing, setFinishing] = useState(false)
+  const [report, setReport] = useState<null | {
+    total_target_words: number
+    used_words: string[]
+    top_corrections: { original: string; correct: string; why?: string }[]
+    encouragement: string
+    next_practice: string
+  }>(null)
+  const blockCompleteFiredRef = useRef(false)
+
   const targetWords = content.target_words || []
 
   useEffect(() => {
@@ -558,9 +569,45 @@ function DialogueChat({
   useEffect(() => {
     if (targetWords.length > 0 && usedCount === targetWords.length && !allWordsUsedFired.current) {
       allWordsUsedFired.current = true
+      blockCompleteFiredRef.current = true
       onAllWordsUsed?.()
     }
   }, [usedCount, targetWords.length, onAllWordsUsed])
+
+  // Tier 3: end the session, ask the API for a recap, show it as a modal,
+  // and mark the block complete (even if not every target word was used).
+  const finishSession = async () => {
+    if (finishing || messages.length === 0) return
+    setFinishing(true)
+    try {
+      const res = await fetch('/api/dialogue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'finish', blockId: block.id, targetWords }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        // No-op — keep the chat open if generation fails.
+        setFinishing(false)
+        return
+      }
+      setReport({
+        total_target_words: targetWords.length,
+        used_words: Array.isArray(data.used_words) ? data.used_words : [],
+        top_corrections: Array.isArray(data.top_corrections) ? data.top_corrections : [],
+        encouragement: data.encouragement || '',
+        next_practice: data.next_practice || '',
+      })
+      // Mark the block complete on explicit finish — even with incomplete word coverage.
+      if (!blockCompleteFiredRef.current) {
+        blockCompleteFiredRef.current = true
+        onAllWordsUsed?.()
+      }
+    } catch {
+      // swallow — modal won't open
+    }
+    setFinishing(false)
+  }
 
   if (loadingHistory) {
     return (
@@ -572,10 +619,22 @@ function DialogueChat({
 
   return (
     <div className="flex flex-col h-[calc(100vh-14rem)]">
-      {/* Scenario */}
-      <div className="bg-[#e6f0fa] rounded-xl p-3 mb-3">
-        <p className="text-xs text-[#416ebe] font-bold mb-1">Scenario</p>
-        <p className="text-sm text-[#46464b]">{content.scenario}</p>
+      {/* Scenario + Finish session button */}
+      <div className="bg-[#e6f0fa] rounded-xl p-3 mb-3 flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-[#416ebe] font-bold mb-1">Scenario</p>
+          <p className="text-sm text-[#46464b]">{content.scenario}</p>
+        </div>
+        {messages.length > 0 && (
+          <button
+            onClick={finishSession}
+            disabled={finishing}
+            className="shrink-0 text-[11px] font-bold text-[#416ebe] hover:text-[#3560b0] disabled:opacity-50 underline"
+            title="End session and see a quick recap"
+          >
+            {finishing ? 'Wrapping up…' : 'Finish session ▸'}
+          </button>
+        )}
       </div>
 
       {/* Target words pills */}
@@ -730,6 +789,75 @@ function DialogueChat({
           Send
         </button>
       </div>
+
+      {/* ── End-of-session report modal (Tier 3) ── */}
+      {report && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="px-6 py-5 border-b border-[#e6f0fa]">
+              <p className="text-[11px] font-bold text-[#416ebe] uppercase tracking-wider">Session report</p>
+              <h3 className="text-base font-bold text-[#46464b] mt-1">{studentName ? `Great work, ${studentName}!` : 'Great work!'}</h3>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              {/* Words used */}
+              {report.total_target_words > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                    Words used <span className="text-[#416ebe]">{report.used_words.length} / {report.total_target_words}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {targetWords.map((w) => {
+                      const used = report.used_words.some((u) => u.toLowerCase() === w.toLowerCase())
+                      return (
+                        <span key={w} className={`text-xs px-2.5 py-1 rounded-full font-medium ${used ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}>
+                          {used && '✓ '}{w}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Top corrections */}
+              {report.top_corrections.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Watch out for</p>
+                  <ul className="space-y-2">
+                    {report.top_corrections.map((c, i) => (
+                      <li key={i} className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <div className="text-sm">
+                          <span className="text-red-500 line-through mr-1">{c.original}</span>
+                          <span className="text-gray-400 mx-1">→</span>
+                          <span className="text-green-700 font-medium ml-1">{c.correct}</span>
+                        </div>
+                        {c.why && <p className="text-[11px] text-amber-700 mt-1">{c.why}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {/* Encouragement */}
+              {report.encouragement && (
+                <p className="text-sm text-[#46464b] bg-[#e6f0fa] rounded-lg px-3 py-2 italic">{report.encouragement}</p>
+              )}
+              {/* Next practice */}
+              {report.next_practice && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">For next time</p>
+                  <p className="text-sm text-[#46464b]">{report.next_practice}</p>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-[#e6f0fa] flex justify-end">
+              <button
+                onClick={() => setReport(null)}
+                className="bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold px-5 py-2.5 rounded-xl"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
