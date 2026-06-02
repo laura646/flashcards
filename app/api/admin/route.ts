@@ -519,7 +519,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'update-course') {
-      const { course_id, name, description, level, course_type, telegram_chat_id } = body
+      const { course_id, name, description, level, course_type, telegram_chat_id, invite_code } = body
       if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
 
       // Verify teacher has access to this course
@@ -537,6 +537,28 @@ export async function POST(req: NextRequest) {
         // Allow blank to clear; trim and accept the bare ID (e.g. -1001234567890)
         const trimmed = typeof telegram_chat_id === 'string' ? telegram_chat_id.trim() : ''
         updateData.telegram_chat_id = trimmed || null
+      }
+      if (invite_code !== undefined) {
+        // Validate: 3-20 chars, letters + digits only. Stored in uppercase
+        // so case-insensitive uniqueness is enforced by the lookup; students
+        // joining always uppercase before comparing.
+        const raw = typeof invite_code === 'string' ? invite_code.trim() : ''
+        if (!/^[A-Za-z0-9]{3,20}$/.test(raw)) {
+          return NextResponse.json({ error: 'Invite code must be 3-20 letters or digits — no spaces or symbols.' }, { status: 400 })
+        }
+        const normalized = raw.toUpperCase()
+        // Uniqueness: any OTHER course with this code (case-insensitive
+        // via the uppercase storage)?
+        const { data: clash } = await supabase
+          .from('courses')
+          .select('id')
+          .eq('invite_code', normalized)
+          .neq('id', course_id)
+          .maybeSingle()
+        if (clash) {
+          return NextResponse.json({ error: 'That invite code is already used by another course. Pick a different one.' }, { status: 409 })
+        }
+        updateData.invite_code = normalized
       }
 
       if (Object.keys(updateData).length === 0) {

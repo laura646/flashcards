@@ -114,7 +114,7 @@ export default function AdminPage() {
   const [courseStudents, setCourseStudents] = useState<CourseStudent[]>([])
   const [courseLessons, setCourseLessons] = useState<CourseLesson[]>([])
   const [editingCourse, setEditingCourse] = useState(false)
-  const [courseForm, setCourseForm] = useState({ name: '', description: '', level: '', course_type: '', telegram_chat_id: '' })
+  const [courseForm, setCourseForm] = useState({ name: '', description: '', level: '', course_type: '', telegram_chat_id: '', invite_code: '' })
   const [courseTab, setCourseTab] = useState<'lessons' | 'students' | 'info'>('lessons')
 
   // My Students state
@@ -184,6 +184,7 @@ export default function AdminPage() {
         level: data.course?.level || '',
         course_type: data.course?.course_type || '',
         telegram_chat_id: data.course?.telegram_chat_id || '',
+        invite_code: data.course?.invite_code || '',
       })
       setView('course-detail')
     } catch { /* */ }
@@ -271,8 +272,15 @@ export default function AdminPage() {
 
   const saveCourseInfo = async () => {
     if (!selectedCourse) return
+    // Client-side guard: matches the server regex so we fail fast with a
+    // useful message instead of a generic toast.
+    const codeRaw = courseForm.invite_code.trim()
+    if (codeRaw && !/^[A-Za-z0-9]{3,20}$/.test(codeRaw)) {
+      showToast('Invite code must be 3-20 letters or digits — no spaces or symbols.')
+      return
+    }
     try {
-      await fetch('/api/admin', {
+      const res = await fetch('/api/admin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -283,9 +291,16 @@ export default function AdminPage() {
           level: courseForm.level || null,
           course_type: courseForm.course_type || null,
           telegram_chat_id: courseForm.telegram_chat_id.trim() || null,
+          invite_code: codeRaw || undefined,
         }),
       })
-      setSelectedCourse({ ...selectedCourse, ...courseForm })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast(data.error || 'Failed to update course')
+        return
+      }
+      const normalizedCode = codeRaw ? codeRaw.toUpperCase() : selectedCourse.invite_code
+      setSelectedCourse({ ...selectedCourse, ...courseForm, invite_code: normalizedCode })
       setEditingCourse(false)
       showToast('Course updated')
       loadCourses()
@@ -763,6 +778,20 @@ export default function AdminPage() {
                           {COURSE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 mb-1 block">Invite code</label>
+                      <input
+                        type="text"
+                        value={courseForm.invite_code}
+                        onChange={e => setCourseForm({ ...courseForm, invite_code: e.target.value })}
+                        placeholder="e.g. TRAVEL24"
+                        maxLength={20}
+                        className="w-full text-sm border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe] font-mono uppercase"
+                      />
+                      <p className="text-[11px] text-gray-400 mt-1 leading-snug">
+                        3-20 letters or digits, no spaces or symbols. Saved in UPPERCASE — students can enter it in any case. Changing the code doesn&apos;t affect students who&apos;ve already joined.
+                      </p>
                     </div>
                     <div>
                       <label className="text-xs font-bold text-gray-400 mb-1 block">Telegram chat ID</label>
