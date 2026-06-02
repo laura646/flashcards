@@ -436,7 +436,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, lessonId })
   } catch (err) {
     console.error('Lesson save error:', err)
-    return NextResponse.json({ error: 'Failed to save lesson' }, { status: 500 })
+    // Surface the underlying DB error so missing-column / constraint
+    // failures are diagnosable from the browser instead of the catch-all
+    // 'Failed to save lesson' message.
+    const detail = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: 'Failed to save lesson', detail }, { status: 500 })
   }
 }
 
