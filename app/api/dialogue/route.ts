@@ -10,7 +10,12 @@ import { detectUsedTargets } from '@/lib/word-detection'
 import { getAccessibleCourseIds } from '@/lib/roles'
 
 const MAX_MESSAGE_LENGTH = 2000 // characters
-const MAX_SCENARIO_LENGTH = 200 // tightened — scenarios are short topic descriptions
+// Raised from 200 → 800 so AI-generated multi-sentence scenarios pass through.
+// Prompt-injection defence does NOT come from the length cap — it comes from
+// the strict ASCII whitelist in sanitizeScenario() plus the <scenario_topic>
+// tag wrapping + system-prompt instructions. The length cap is just a UX /
+// truncation safety net.
+const MAX_SCENARIO_LENGTH = 800
 
 // Strict whitelist for scenario text. Only allow letters, numbers, spaces and basic
 // punctuation. Strips all control chars, unicode escapes, and special tokens that
@@ -233,9 +238,9 @@ Return ONLY valid JSON in this exact shape (no markdown):
     return NextResponse.json({ error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)` }, { status: 400 })
   }
 
-  if (scenario && typeof scenario === 'string' && scenario.length > MAX_SCENARIO_LENGTH) {
-    return NextResponse.json({ error: 'Invalid scenario' }, { status: 400 })
-  }
+  // Note: we do NOT reject long scenarios here. sanitizeScenario() trims
+  // to MAX_SCENARIO_LENGTH internally, so a long scenario just loses its
+  // tail — it shouldn't block the conversation outright.
 
   const client = new Anthropic({ apiKey })
 
