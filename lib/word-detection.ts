@@ -135,34 +135,56 @@ function tokenize(message: string): string[] {
 }
 
 /**
- * Strip common English suffixes back to a candidate stem. Returns the
- * original token unchanged if no suffix applies. This is heuristic and
- * intentionally lenient (gives the student the benefit of the doubt).
+ * All plausible lemmas for a token. Catches:
+ *   - Direct match ("run")
+ *   - IRREGULAR_FORMS lookup ("ran" → "run")
+ *   - Regular suffix strip ("runs" → "run")
+ *   - Doubled-consonant -ing/-ed forms ("stopping" → "stop", "stopped" → "stop")
+ *   - Y/I transformation ("tried" → "try", "carried" → "carry")
+ *
+ * Returns a small set of candidate lemmas; the caller checks all of them
+ * against the target.
  */
-function stripSuffix(token: string): string {
+function lemmaCandidates(token: string): Set<string> {
+  const out = new Set<string>([token])
+  const lemma = IRREGULAR_FORMS[token]
+  if (lemma) out.add(lemma)
+
   for (const suf of SUFFIXES) {
     if (token.length > suf.length + 2 && token.endsWith(suf)) {
-      return token.slice(0, -suf.length)
+      const stem = token.slice(0, -suf.length)
+      out.add(stem)
+      // Doubled-consonant: "stopp" → also try "stop" (drop one of the last two
+      // if they're the same consonant).
+      if (stem.length >= 2 && stem[stem.length - 1] === stem[stem.length - 2]) {
+        out.add(stem.slice(0, -1))
+      }
+      // Silent-e verbs: "filed" / "baking" / "saved" → original ended in "e".
+      // Adding stem+"e" catches that. file → filed strips "ed" → "fil" → "file".
+      if (suf === 'ed' || suf === 'ing' || suf === 'd') out.add(stem + 'e')
+      // Y → I transformations:
+      //   - "ied" / "ies" suffixes imply the original ended in "y":
+      //     "carried" → strip "ied" → "carr" → also try "carry".
+      //     "studies" → strip "ies" → "stud"  → also try "study".
+      //   - Stem ending in "i" (after stripping "ed" or "s") may map back to "y":
+      //     "tried" → strip "ed" → "trie" handled above; this also covers cases
+      //     like "happier" if we add "er" later.
+      if (suf === 'ied' || suf === 'ies') out.add(stem + 'y')
+      if (stem.endsWith('i')) out.add(stem.slice(0, -1) + 'y')
+      if (stem.endsWith('ie')) out.add(stem.slice(0, -2) + 'y')
+      // Don't strip more than one suffix — break to avoid over-stripping.
+      break
     }
   }
-  return token
+  return out
 }
 
 /**
  * Does the given token credit the given target (single word, lowercase)?
- * Tries direct match → lemma map → regular-suffix stripping.
  */
 function tokenMatchesTarget(token: string, target: string): boolean {
   if (token === target) return true
-  // Inflected → lemma lookup.
-  const lemma = IRREGULAR_FORMS[token]
-  if (lemma && lemma === target) return true
-  // Regular suffix stripping.
-  const stem = stripSuffix(token)
-  if (stem === target) return true
-  // Also allow target-with-suffix in case the target itself is the inflected form (rare but cheap).
-  if (target === stripSuffix(token)) return true
-  return false
+  return lemmaCandidates(token).has(target)
 }
 
 /**
@@ -179,8 +201,23 @@ export function detectUsedTargets(message: string, targetWords: string[]): strin
     const t = (raw || '').trim().toLowerCase()
     if (!t) continue
     if (t.includes(' ')) {
-      // Multi-word phrase: substring match on the full lowercase message.
-      if (lowerMessage.includes(t)) used.add(raw)
+      // Multi-word phrase: try literal substring first (catches it when
+      // the student typed the exact phrase); then scan token windows so
+      // inflected forms of any word in the phrase still credit. E.g.
+      // target "look after" → "I looked after my sister" credits via
+      // the windowed match (looked → look, after → after).
+      if (lowerMessage.includes(t)) { used.add(raw); continue }
+      const phraseTokens = t.split(/\s+/).filter(Boolean)
+      const n = phraseTokens.length
+      let matched = false
+      for (let i = 0; i + n <= tokens.length && !matched; i++) {
+        let all = true
+        for (let j = 0; j < n; j++) {
+          if (!tokenMatchesTarget(tokens[i + j], phraseTokens[j])) { all = false; break }
+        }
+        if (all) matched = true
+      }
+      if (matched) used.add(raw)
       continue
     }
     // Single word: scan tokens.

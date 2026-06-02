@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import AudioButton from '@/components/AudioButton'
 import AttachedExercisesRunner from '@/components/AttachedExercisesRunner'
+import { detectUsedTargets } from '@/lib/word-detection'
 import type { AttachedExercise } from '@/lib/attached-exercise'
 import { legacyMcqToAttached } from '@/lib/attached-exercise'
 
@@ -352,14 +353,12 @@ function DialogueChat({
           setMessages(data.messages)
           // Treat all loaded history as already-played so we don't auto-play it.
           for (let i = 0; i < data.messages.length; i++) autoPlayedRef.current.add(i)
-          // Scan existing messages for used target words.
+          // Scan existing messages for used target words (lemma-aware
+          // so historical "ran" credits "run" on reload too).
           const used = new Set<string>()
           data.messages.forEach((m: ChatMessage) => {
-            targetWords.forEach((w) => {
-              if (m.content.toLowerCase().includes(w.toLowerCase())) {
-                used.add(w.toLowerCase())
-              }
-            })
+            if (m.role !== 'user') return // only the student's turns count
+            detectUsedTargets(m.content, targetWords).forEach((w) => used.add(w.toLowerCase()))
           })
           setWordsUsed(used)
         } else if (content.starter_message) {
@@ -416,25 +415,35 @@ function DialogueChat({
 
   // ── Mic recording ──
   const startRecording = async () => {
-    setMicError(null)
+    setMicError(null) // clear any stale error from a previous attempt
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       recordStreamRef.current = stream
+      // Use the recorder's reported mimeType so Safari (which produces
+      // audio/mp4) doesn't get its blob mislabelled as audio/webm and
+      // confuse Whisper.
       const mr = new MediaRecorder(stream)
       audioChunksRef.current = []
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       mr.onstop = async () => {
-        // Release the mic.
         recordStreamRef.current?.getTracks().forEach((t) => t.stop())
         recordStreamRef.current = null
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const mimeType = mr.mimeType || 'audio/webm'
+        const blob = new Blob(audioChunksRef.current, { type: mimeType })
         audioChunksRef.current = []
         if (blob.size === 0) { setRecording(false); return }
         setRecording(false)
         setTranscribing(true)
         try {
           const fd = new FormData()
-          fd.append('audio', blob, 'recording.webm')
+          // Pick a sensible filename extension matching the codec so
+          // Whisper can identify it on the server side.
+          const ext = mimeType.includes('mp4') ? 'm4a'
+            : mimeType.includes('mpeg') ? 'mp3'
+            : mimeType.includes('wav') ? 'wav'
+            : mimeType.includes('ogg') ? 'ogg'
+            : 'webm'
+          fd.append('audio', blob, `recording.${ext}`)
           const res = await fetch('/api/speech-to-text', { method: 'POST', body: fd })
           const data = await res.json()
           if (res.ok && typeof data.text === 'string') {
@@ -500,13 +509,13 @@ function DialogueChat({
     setInput('')
     setSending(true)
 
-    // Check for newly used words
+    // Optimistic detection using the same lemma-aware logic the server
+    // runs — so the UI doesn't briefly disagree with the server's
+    // verdict. detectUsedTargets returns the SUBSET of targetWords (in
+    // their original casing) that were used.
     const newUsed = new Set(wordsUsed)
-    targetWords.forEach((w) => {
-      if (text.toLowerCase().includes(w.toLowerCase())) {
-        newUsed.add(w.toLowerCase())
-      }
-    })
+    const clientDetected = detectUsedTargets(text, targetWords)
+    clientDetected.forEach((w) => newUsed.add(w.toLowerCase()))
     setWordsUsed(newUsed)
 
     try {
