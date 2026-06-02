@@ -303,6 +303,11 @@ function InlineQuiz({
 
 // ── Dialogue Chat Component ──
 
+interface Correction { original: string; correct: string; why?: string }
+interface DialogueChatMessage extends ChatMessage {
+  corrections?: Correction[]
+}
+
 function DialogueChat({
   block,
   studentEmail,
@@ -315,13 +320,27 @@ function DialogueChat({
   onAllWordsUsed?: () => void
 }) {
   const content = block.content as DialogueContent
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<DialogueChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [wordsUsed, setWordsUsed] = useState<Set<string>>(new Set())
   const allWordsUsedFired = useRef(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // ── Mic / Whisper state ──
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [micError, setMicError] = useState<string | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  const recordPressStartRef = useRef<number>(0)
+  const pressStartedRecordingRef = useRef<boolean>(false)
+  const recordStreamRef = useRef<MediaStream | null>(null)
+
+  // Track which assistant message indices have already auto-played their
+  // TTS, so existing chat history doesn't blast 10 messages on load.
+  const autoPlayedRef = useRef<Set<number>>(new Set())
 
   const targetWords = content.target_words || []
 
@@ -331,7 +350,9 @@ function DialogueChat({
       .then((data) => {
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages)
-          // Scan existing messages for used target words
+          // Treat all loaded history as already-played so we don't auto-play it.
+          for (let i = 0; i < data.messages.length; i++) autoPlayedRef.current.add(i)
+          // Scan existing messages for used target words.
           const used = new Set<string>()
           data.messages.forEach((m: ChatMessage) => {
             targetWords.forEach((w) => {
@@ -343,12 +364,14 @@ function DialogueChat({
           setWordsUsed(used)
         } else if (content.starter_message) {
           setMessages([{ role: 'assistant', content: content.starter_message }])
+          autoPlayedRef.current.add(0) // don't auto-play starter — already on screen
         }
         setLoadingHistory(false)
       })
       .catch(() => {
         if (content.starter_message) {
           setMessages([{ role: 'assistant', content: content.starter_message }])
+          autoPlayedRef.current.add(0)
         }
         setLoadingHistory(false)
       })
@@ -359,11 +382,119 @@ function DialogueChat({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Auto-play any NEW assistant message that arrives (skips history).
+  useEffect(() => {
+    if (loadingHistory) return
+    const lastIdx = messages.length - 1
+    if (lastIdx < 0) return
+    const last = messages[lastIdx]
+    if (last.role !== 'assistant') return
+    if (autoPlayedRef.current.has(lastIdx)) return
+    autoPlayedRef.current.add(lastIdx)
+    playMessageAudio(last.content)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, loadingHistory])
+
+  const playMessageAudio = async (text: string) => {
+    try {
+      const res = await fetch('/api/audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: 'echo' }),
+      })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.onended = () => URL.revokeObjectURL(url)
+      // Browser autoplay policies require user activation. The first
+      // message playback might be blocked silently — that's fine; the
+      // student can click the 🔊 button on the message to replay.
+      audio.play().catch(() => { URL.revokeObjectURL(url) })
+    } catch { /* ignore */ }
+  }
+
+  // ── Mic recording ──
+  const startRecording = async () => {
+    setMicError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordStreamRef.current = stream
+      const mr = new MediaRecorder(stream)
+      audioChunksRef.current = []
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        // Release the mic.
+        recordStreamRef.current?.getTracks().forEach((t) => t.stop())
+        recordStreamRef.current = null
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        audioChunksRef.current = []
+        if (blob.size === 0) { setRecording(false); return }
+        setRecording(false)
+        setTranscribing(true)
+        try {
+          const fd = new FormData()
+          fd.append('audio', blob, 'recording.webm')
+          const res = await fetch('/api/speech-to-text', { method: 'POST', body: fd })
+          const data = await res.json()
+          if (res.ok && typeof data.text === 'string') {
+            setInput((prev) => (prev ? prev + ' ' + data.text : data.text))
+          } else {
+            setMicError(data.error || 'Could not transcribe')
+          }
+        } catch {
+          setMicError('Could not transcribe')
+        }
+        setTranscribing(false)
+      }
+      mediaRecorderRef.current = mr
+      mr.start()
+      setRecording(true)
+    } catch {
+      setMicError('Microphone permission denied or unavailable')
+      setRecording(false)
+    }
+  }
+
+  const stopRecording = () => {
+    const mr = mediaRecorderRef.current
+    if (mr && mr.state !== 'inactive') {
+      try { mr.stop() } catch { /* ignore */ }
+    }
+  }
+
+  // Dual-mode mic button — tap toggles, hold-and-release is push-to-talk.
+  const handleMicPointerDown = () => {
+    recordPressStartRef.current = Date.now()
+    if (!recording) {
+      pressStartedRecordingRef.current = true
+      startRecording()
+    } else {
+      // Already recording: this is the second tap that will stop on up.
+      pressStartedRecordingRef.current = false
+    }
+  }
+  const handleMicPointerUp = () => {
+    const held = Date.now() - recordPressStartRef.current
+    if (pressStartedRecordingRef.current) {
+      // Started in this press cycle.
+      if (held >= 300) {
+        // Push-to-talk: stop on release.
+        stopRecording()
+      }
+      // Else: tap. Leave recording — next tap will stop.
+      pressStartedRecordingRef.current = false
+    } else if (recording) {
+      // Second-tap stop.
+      stopRecording()
+    }
+  }
+
   const sendMessage = async () => {
     const text = input.trim()
     if (!text || sending) return
 
-    const userMsg: ChatMessage = { role: 'user', content: text }
+    const userMsg: DialogueChatMessage = { role: 'user', content: text }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInput('')
@@ -391,9 +522,12 @@ function DialogueChat({
         }),
       })
       const data = await res.json()
-      setMessages([...newMessages, { role: 'assistant', content: data.message }])
+      setMessages([...newMessages, {
+        role: 'assistant',
+        content: data.message,
+        corrections: Array.isArray(data.corrections) ? data.corrections : [],
+      }])
       if (data.wordsUsed) {
-        // Use newUsed (which includes client-detected words) instead of stale wordsUsed
         const merged = new Set(newUsed)
         data.wordsUsed.forEach((w: string) => merged.add(w.toLowerCase()))
         setWordsUsed(merged)
@@ -473,19 +607,45 @@ function DialogueChat({
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto space-y-3 pb-3">
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          <div key={i}>
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-[#416ebe] text-white rounded-br-md'
-                  : 'bg-white border-2 border-[#cddcf0] text-[#46464b] rounded-bl-md'
-              }`}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {msg.content}
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  msg.role === 'user'
+                    ? 'bg-[#416ebe] text-white rounded-br-md'
+                    : 'bg-white border-2 border-[#cddcf0] text-[#46464b] rounded-bl-md'
+                }`}
+              >
+                <div>{msg.content}</div>
+                {msg.role === 'assistant' && (
+                  <button
+                    onClick={() => playMessageAudio(msg.content)}
+                    title="Listen"
+                    className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-[#416ebe] hover:text-[#3560b0] font-bold"
+                  >
+                    🔊 Listen
+                  </button>
+                )}
+              </div>
             </div>
+            {/* Corrections panel — only on assistant turns that have any */}
+            {msg.role === 'assistant' && (msg as DialogueChatMessage).corrections && (msg as DialogueChatMessage).corrections!.length > 0 && (
+              <div className="mt-1.5 ml-1 max-w-[80%] bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Watch out for</p>
+                <ul className="space-y-1">
+                  {(msg as DialogueChatMessage).corrections!.map((c, ci) => (
+                    <li key={ci} className="text-xs">
+                      <span className="text-red-500 line-through mr-1">{c.original}</span>
+                      <span className="text-gray-400 mx-0.5">→</span>
+                      <span className="text-green-700 font-medium ml-1">{c.correct}</span>
+                      {c.why && <p className="text-[11px] text-amber-700 mt-0.5">{c.why}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ))}
         {sending && (
@@ -502,8 +662,43 @@ function DialogueChat({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Mic error toast */}
+      {micError && (
+        <div className="mb-2 text-[11px] text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+          {micError}
+        </div>
+      )}
+
       {/* Input */}
       <div className="flex gap-2 pt-3 border-t border-gray-100">
+        <button
+          onPointerDown={handleMicPointerDown}
+          onPointerUp={handleMicPointerUp}
+          onPointerLeave={handleMicPointerUp}
+          disabled={sending || transcribing}
+          title={recording ? 'Tap to stop · or release if holding' : 'Tap to speak · or hold push-to-talk'}
+          aria-label="Microphone"
+          className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+            recording
+              ? 'bg-red-500 text-white animate-pulse'
+              : transcribing
+                ? 'bg-gray-200 text-gray-400'
+                : 'bg-[#e6f0fa] text-[#416ebe] hover:bg-[#cddcf0]'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+        >
+          {transcribing ? (
+            <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+          ) : (
+            // Microphone glyph
+            <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4z" />
+              <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 11-9 0v-.357z" />
+            </svg>
+          )}
+        </button>
         <input
           type="text"
           value={input}
@@ -514,13 +709,13 @@ function DialogueChat({
               sendMessage()
             }
           }}
-          placeholder="Type your message..."
+          placeholder={recording ? 'Recording — tap mic again to stop…' : transcribing ? 'Transcribing…' : 'Type or speak your message…'}
           className="flex-1 border-2 border-[#cddcf0] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#416ebe] transition-colors"
-          disabled={sending}
+          disabled={sending || transcribing}
         />
         <button
           onClick={sendMessage}
-          disabled={!input.trim() || sending}
+          disabled={!input.trim() || sending || transcribing}
           className="bg-[#416ebe] hover:bg-[#3560b0] text-white px-5 py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Send

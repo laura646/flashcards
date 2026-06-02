@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { text } = await req.json()
+    const { text, voice } = await req.json()
     if (!text) {
       return NextResponse.json({ error: 'Text is required' }, { status: 400 })
     }
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = getSupabase()
-    const cacheKey = await ttsCacheKey(text)
+    const cacheKey = await ttsCacheKey(text, voice)
     const cachePath = `${CACHE_PREFIX}/${cacheKey}.mp3`
 
     // 1. Try the cache first.
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Cache miss — generate, store, return.
-    const audio = await ttsToBuffer(text)
+    const audio = await ttsToBuffer(text, { voice })
     if (!audio) {
       return NextResponse.json({ error: 'TTS failed' }, { status: 502 })
     }
