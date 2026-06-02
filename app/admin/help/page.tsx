@@ -85,7 +85,7 @@ export default function HelpPage() {
           <WhatsNewSection />
 
           <footer className="pt-8 border-t border-[#e6f0fa] text-[11px] text-gray-400">
-            Docs current to v1.1.3. Last updated automatically with each release.
+            Docs current to v1.2.0. Last updated automatically with each release.
           </footer>
         </div>
       </div>
@@ -609,7 +609,105 @@ function FaqsSection() {
 function WhatsNewSection() {
   return (
     <Section id="whats-new" icon="✨" title="What's new">
-      <Subhead>Latest — v1.1.3</Subhead>
+      <Subhead>Latest — v1.2.0</Subhead>
+      <ul className="list-disc pl-5 space-y-2">
+        <li>
+          <span className="font-bold">🎙 Speak to AI — voice in / voice out.</span> The Dialogue
+          block now has a real microphone. Students tap to record (or hold for push-to-talk), get
+          their speech transcribed by Whisper, edit before sending, then hear AI replies played
+          aloud in a warm conversational voice. Per-message 🔊 Listen button for replay.
+        </li>
+        <li>
+          <span className="font-bold">🪞 Live correction panel in dialogue.</span> When a student
+          makes a grammar or vocabulary mistake, an amber &quot;Watch out for&quot; box appears below
+          the AI reply showing <span className="text-red-500 line-through">what they said</span> →{' '}
+          <span className="text-green-700">the correction</span> + a 1-sentence why. Easier for
+          students to actually internalise corrections than embedded ones.
+        </li>
+        <li>
+          <span className="font-bold">📋 Finish session report (student-side)</span> + view student
+          chats (teacher-side). New &quot;Finish session ▸&quot; button on every dialogue. Opens a
+          recap modal: target-words used, top 2-3 corrections, encouragement, &quot;for next time&quot;
+          suggestion. On the lesson editor, dialogue blocks gain a 📊 View student chats button —
+          modal with every student attempt, transcript, corrections list, and a Mark reviewed toggle.
+        </li>
+        <li>
+          <span className="font-bold">🧠 Lemma-aware word detection.</span> Dialogue used to do
+          substring matching — &quot;I ran yesterday&quot; didn&apos;t credit target word &quot;run&quot;.
+          Now: ~150 common irregular verb forms + doubled-consonant (stopping → stop), Y/I
+          (carried → carry), silent-e (filed → file), and multi-word phrase inflection
+          (looked after → look after) all credited.
+        </li>
+        <li>
+          <span className="font-bold">📖 AI Reading — rich form.</span> The Reading (Article) block
+          gets a brand-new 2-tab Generate-with-AI flow: <em>Use a source</em> (paste a URL, upload
+          an image, or paste raw text — AI rewrites at your target level / length / style) or{' '}
+          <em>Create from scratch</em> (type, topic, narrator POV, characters, grammar focus, vocab
+          + a course-wide vocabulary picker). After it generates: <em>Suggest exercises with AI</em>
+          button on the block → pick types → AI drafts comprehension exercises straight from the text.
+        </li>
+        <li>
+          <span className="font-bold">📐 AI Grammar — rich form.</span> Same treatment for Grammar:
+          topic, already-known grammar, vocab picker, practice types (MCQ / TF / Type / Error
+          Correction multi-select), explanation length, &quot;Include common pitfalls&quot; toggle.
+          Examples auto-bold the target structure and get per-line 🔊 Listen buttons (using the new
+          cached TTS). Pitfalls render as a red strikethrough → green correct → tip box.
+        </li>
+        <li>
+          <span className="font-bold">📊 CEFR adaptation everywhere.</span> Every AI generation
+          surface (flashcards, exercises, all six block types, doc imports) now reads the course&apos;s
+          CEFR level and adapts vocabulary + grammar accordingly. &quot;Beginner&quot; → A1 →{' '}
+          <em>&quot;A pet animal&quot;</em>; &quot;Advanced&quot; → C1 → more nuanced phrasing.
+          Friendly course names like &quot;Beginner&quot; / &quot;Intermediate Low&quot; map to
+          CEFR codes automatically — no extra teacher input needed.
+        </li>
+        <li>
+          <span className="font-bold">💰 Cheaper TTS + tiered AI models.</span> Audio playback
+          switched from ElevenLabs to OpenAI TTS (~10× cheaper at comparable quality) + every
+          unique sentence is cached once in Supabase Storage so repeat plays cost nothing.
+          AI generation now tiered: Sonnet 4 stays on creative work (Reading, Grammar,
+          dialogue); Haiku 4.5 handles templated work (exercise gen, flashcards, type conversion,
+          doc imports) — roughly 60-70% AI bill drop with no quality regression on what teachers
+          care about.
+        </li>
+        <li>
+          <span className="font-bold">👁 Per-block publish / unpublish.</span> Every content block
+          (incl. flashcards) now has a small eye icon in its header. Click to hide from students
+          without deleting the block. New blocks added to a published lesson default to hidden so
+          half-built content doesn&apos;t accidentally ship; new blocks in a draft lesson default
+          to visible (will go live when the lesson publishes). Existing student progress on a
+          now-hidden block is preserved — only visibility changes.
+        </li>
+        <li>
+          <span className="font-bold">✏️ Editable course invite codes.</span> Replace the random
+          auto-generated codes with something memorable (e.g. <span className="font-mono">TRAVEL24</span>).
+          Both admin Info tab and superadmin invite panel have the field. Case-insensitive
+          uniqueness — students typing any case still match. Doesn&apos;t affect anyone already
+          enrolled.
+        </li>
+        <li>
+          <span className="font-bold">💬 Telegram lesson notifications.</span> Each course can post
+          to a Telegram group when a lesson publishes (or at a scheduled time). Add{' '}
+          <span className="font-mono">@English_with_Laura_Bot</span> to the group, paste the chat
+          ID into course settings (the bot replies to <span className="font-mono">/chatid</span>),
+          done. &quot;Send test message&quot; button verifies the wiring.
+        </li>
+        <li>
+          <span className="font-bold">🤖 AI generation on every content block type.</span> Mistakes,
+          Article, Grammar, Dialogue, Writing, Pronunciation all gained Generate-with-AI / Create-Manually
+          modals. Each has a sub-type focus dropdown (e.g. Grammar → Tenses / Articles / Prepositions
+          / Conditionals / etc.) plus a free-text &quot;Other&quot; for off-list focuses.
+        </li>
+        <li>
+          <span className="font-bold">🎯 Multiple Choice + Rank Order + Type-the-Answer editors
+          start small.</span> MCQ used to spawn with 4 empty options; now starts with 2 plus an{' '}
+          <em>+ Add answer</em> button (up to 6). Per-row × delete, no pre-selected correct answer
+          (forces teacher to pick), save-time validation blocks blank options + missing correct
+          answer. Rank Order: floor 3, ceiling 6 items. Type-Answer alternates: max 6.
+        </li>
+      </ul>
+
+      <Subhead>Earlier — v1.1.3</Subhead>
       <ul className="list-disc pl-5 space-y-1.5">
         <li>
           <span className="font-bold">🎧 New Audio content block</span> — paste a link, upload a file,
@@ -673,7 +771,7 @@ function WhatsNewSection() {
         </li>
       </ul>
 
-      <Subhead>Earlier — v1.1.x</Subhead>
+      <Subhead>Even earlier — v1.1.x</Subhead>
       <ul className="list-disc pl-5 space-y-1.5">
         <li><span className="font-bold">Persistent sidebar nav</span> on every admin page (with mobile hamburger menu)</li>
         <li><span className="font-bold">Deep routes</span> for /admin/courses and /admin/students</li>

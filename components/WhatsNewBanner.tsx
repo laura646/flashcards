@@ -9,7 +9,7 @@ import Link from 'next/link'
 // — every browser sees the banner again the next time they load any
 // /admin page.
 
-const RELEASE = 'v1.1.3'
+const RELEASE = 'v1.2.0'
 const STORAGE_KEY = `whats-new-dismissed:${RELEASE}`
 
 export default function WhatsNewBanner() {
@@ -45,10 +45,12 @@ export default function WhatsNewBanner() {
             What&apos;s new — {RELEASE}
           </p>
           <p className="text-xs text-[#46464b] mt-0.5 leading-relaxed">
-            New <span className="font-bold">Audio</span> content block + 6 follow-up exercise
-            types across Audio / Video / Reading. Every exercise type now has a visual editor.
-            Instant feedback on Multiple Choice. Better Dictation, Error Correction, Hangman, and
-            image search.{' '}
+            <span className="font-bold">🎙 Speak to AI</span> — students can now talk to the
+            dialogue partner with a real mic + hear replies out loud. New{' '}
+            <span className="font-bold">AI Reading</span> + <span className="font-bold">AI Grammar</span>{' '}
+            rich forms, automatic <span className="font-bold">CEFR-level adaptation</span>,{' '}
+            <span className="font-bold">per-block publish toggle</span>, editable course invite
+            codes, Telegram lesson notifications, and a much cheaper TTS backend.{' '}
             <Link
               href="/admin/help#whats-new"
               className="text-[#416ebe] font-bold hover:underline"
