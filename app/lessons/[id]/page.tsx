@@ -541,15 +541,23 @@ function DialogueChat({
           chatHistory: newMessages,
         }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({} as Record<string, unknown>))
+      // fetch() doesn't throw on HTTP error statuses — we have to check
+      // res.ok ourselves and surface a visible failure, otherwise the
+      // user just sees their message and then silence.
+      const replyText = typeof data.message === 'string' && data.message.trim()
+        ? data.message
+        : !res.ok
+          ? `Sorry — ${typeof data.error === 'string' ? data.error : `the AI request failed (HTTP ${res.status})`}. Try sending again.`
+          : "Sorry, I didn't catch that — could you say it again?"
       setMessages([...newMessages, {
         role: 'assistant',
-        content: data.message,
+        content: replyText,
         corrections: Array.isArray(data.corrections) ? data.corrections : [],
       }])
       if (data.wordsUsed) {
         const merged = new Set(newUsed)
-        data.wordsUsed.forEach((w: string) => merged.add(w.toLowerCase()))
+        ;(data.wordsUsed as string[]).forEach((w: string) => merged.add(w.toLowerCase()))
         setWordsUsed(merged)
       }
     } catch {

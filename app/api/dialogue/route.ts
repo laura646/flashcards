@@ -384,7 +384,16 @@ panel is shown to the student separately, so don't repeat them inside reply.`
     })
   } catch (err) {
     console.error('Dialogue API error:', err)
-    return NextResponse.json({ error: 'AI conversation failed' }, { status: 500 })
+    // Surface the underlying error so it's diagnosable from the browser.
+    let detail = '(unknown)'
+    if (err && typeof err === 'object') {
+      const e = err as { message?: string; status?: number; type?: string }
+      detail = e.message || e.type || JSON.stringify(err)
+      if (e.status) detail = `[${e.status}] ${detail}`
+    } else if (typeof err === 'string') {
+      detail = err
+    }
+    return NextResponse.json({ error: detail }, { status: 500 })
   }
 }
 
