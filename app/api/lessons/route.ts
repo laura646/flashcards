@@ -436,10 +436,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, lessonId })
   } catch (err) {
     console.error('Lesson save error:', err)
-    // Surface the underlying DB error so missing-column / constraint
-    // failures are diagnosable from the browser instead of the catch-all
-    // 'Failed to save lesson' message.
-    const detail = err instanceof Error ? err.message : String(err)
+    // Supabase errors aren't standard Error instances — they're plain
+    // objects with { message, details, hint, code }. Pull the relevant
+    // fields out so the browser sees a useful message.
+    let detail: string = '(unknown)'
+    if (err && typeof err === 'object') {
+      const e = err as { message?: string; details?: string; hint?: string; code?: string }
+      detail = e.message || e.details || e.hint || JSON.stringify(err)
+      if (e.code) detail = `[${e.code}] ${detail}`
+    } else if (typeof err === 'string') {
+      detail = err
+    }
     return NextResponse.json({ error: 'Failed to save lesson', detail }, { status: 500 })
   }
 }
