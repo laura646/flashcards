@@ -115,7 +115,7 @@ export default function VocabularyPage() {
   if (status === 'loading' || loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="text-[#416ebe] text-sm">Loading vocabulary…</div>
+        <div className="text-brandblue text-sm">Loading vocabulary…</div>
       </main>
     )
   }
@@ -168,12 +168,12 @@ export default function VocabularyPage() {
       <div className="mb-4">
         <button
           onClick={() => router.push('/home')}
-          className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-1"
+          className="text-xs text-ink-muted hover:text-sky transition-colors mb-1"
         >
           ← Home
         </button>
-        <h1 className="text-xl font-bold text-[#416ebe]">My Vocabulary</h1>
-        <p className="text-xs text-gray-400">{words.length} words from all your lessons</p>
+        <h1 className="text-xl font-bold text-brandblue">My Vocabulary</h1>
+        <p className="text-xs text-ink-muted">{words.length} words from all your lessons</p>
       </div>
 
       {/* Practice button */}
@@ -193,10 +193,10 @@ export default function VocabularyPage() {
       </button>
 
       {words.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#cddcf0] p-8 text-center">
+        <div className="bg-white rounded-2xl border border-sky-border p-8 text-center">
           <div className="text-4xl mb-3">🦗</div>
-          <p className="text-sm font-bold text-[#46464b]">Crickets…</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-sm font-bold text-ink-body">Crickets…</p>
+          <p className="text-xs text-ink-muted mt-1">
             No vocabulary yet. Once your teacher publishes lessons with flashcards,
             your words appear here automatically.
           </p>
@@ -205,7 +205,7 @@ export default function VocabularyPage() {
         <>
           {/* Search bar */}
           <div className="relative mb-3">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#c8ccd4] pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
             </svg>
             <input
@@ -214,12 +214,12 @@ export default function VocabularyPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search words, meanings…"
-              className="w-full pl-9 pr-9 py-2.5 text-sm text-[#46464b] border border-[#cddcf0] rounded-xl focus:outline-none focus:border-[#416ebe] bg-white"
+              className="w-full pl-9 pr-9 py-2.5 text-sm text-ink-body border border-sky-border rounded-xl focus:outline-none focus:border-sky bg-white"
             />
             {searchQuery && (
               <button
                 onClick={() => { setSearchQuery(''); searchRef.current?.focus() }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#c8ccd4] hover:text-ink-muted"
               >
                 ✕
               </button>
@@ -234,15 +234,15 @@ export default function VocabularyPage() {
                 onClick={() => setViewMode(v)}
                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors border ${
                   viewMode === v
-                    ? 'bg-[#416ebe] border-[#416ebe] text-white'
-                    : 'bg-white border-[#cddcf0] text-gray-400 hover:border-[#416ebe]'
+                    ? 'bg-sky border-sky text-white'
+                    : 'bg-white border-sky-border text-ink-muted hover:border-sky'
                 }`}
               >
                 {v === 'all' ? 'All words' : 'By lesson'}
               </button>
             ))}
             {searchQuery && (
-              <span className="ml-auto text-xs text-gray-400 self-center">
+              <span className="ml-auto text-xs text-ink-muted self-center">
                 {filtered.length} result{filtered.length !== 1 ? 's' : ''}
               </span>
             )}
@@ -252,23 +252,23 @@ export default function VocabularyPage() {
           {viewMode === 'all' && (
             <>
               {sortedAll.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-[#cddcf0] p-6 text-center">
-                  <p className="text-sm text-gray-400">No words match &ldquo;{searchQuery}&rdquo;</p>
+                <div className="bg-white rounded-2xl border border-sky-border p-6 text-center">
+                  <p className="text-sm text-ink-muted">No words match &ldquo;{searchQuery}&rdquo;</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden divide-y divide-[#e6f0fa]">
+                <div className="bg-white rounded-2xl border border-sky-border shadow-sm overflow-hidden divide-y divide-hairline">
                   {sortedAll.map((word) => {
                     const stage = getStage(word.word)
                     return (
                       <div key={word.id} className="px-4 py-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            <h4 className="text-sm font-bold text-[#46464b]">{word.word}</h4>
+                            <h4 className="text-sm font-bold text-ink-body">{word.word}</h4>
                             <AudioButton text={word.word} />
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             {word.phonetic && (
-                              <span className="text-xs text-gray-400">{word.phonetic}</span>
+                              <span className="text-xs text-ink-muted">{word.phonetic}</span>
                             )}
                             {stage > 0 && (
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STAGE_PILLS[stage]}`}>
@@ -277,7 +277,7 @@ export default function VocabularyPage() {
                             )}
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">{word.meaning}</p>
+                        <p className="text-xs text-ink-muted mt-0.5">{word.meaning}</p>
                       </div>
                     )
                   })}
@@ -290,28 +290,28 @@ export default function VocabularyPage() {
           {viewMode === 'by-lesson' && (
             <>
               {Object.keys(groupedByLesson).length === 0 ? (
-                <div className="bg-white rounded-2xl border border-[#cddcf0] p-6 text-center">
-                  <p className="text-sm text-gray-400">No words match &ldquo;{searchQuery}&rdquo;</p>
+                <div className="bg-white rounded-2xl border border-sky-border p-6 text-center">
+                  <p className="text-sm text-ink-muted">No words match &ldquo;{searchQuery}&rdquo;</p>
                 </div>
               ) : (
                 Object.entries(groupedByLesson).map(([lessonTitle, lessonWords]) => (
                   <div key={lessonTitle} className="mb-5">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                    <h3 className="text-xs font-bold text-ink-muted uppercase tracking-wider mb-2 px-1">
                       {lessonTitle}
                     </h3>
-                    <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden divide-y divide-[#e6f0fa]">
+                    <div className="bg-white rounded-2xl border border-sky-border shadow-sm overflow-hidden divide-y divide-hairline">
                       {lessonWords.map((word) => {
                         const stage = getStage(word.word)
                         return (
                           <div key={word.id} className="px-4 py-3">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
-                                <h4 className="text-sm font-bold text-[#46464b]">{word.word}</h4>
+                                <h4 className="text-sm font-bold text-ink-body">{word.word}</h4>
                                 <AudioButton text={word.word} />
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 {word.phonetic && (
-                                  <span className="text-xs text-gray-400">{word.phonetic}</span>
+                                  <span className="text-xs text-ink-muted">{word.phonetic}</span>
                                 )}
                                 {stage > 0 && (
                                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STAGE_PILLS[stage]}`}>
@@ -320,7 +320,7 @@ export default function VocabularyPage() {
                                 )}
                               </div>
                             </div>
-                            <p className="text-xs text-gray-500 mt-0.5">{word.meaning}</p>
+                            <p className="text-xs text-ink-muted mt-0.5">{word.meaning}</p>
                           </div>
                         )
                       })}
@@ -333,7 +333,7 @@ export default function VocabularyPage() {
         </>
       )}
 
-      <p className="mt-6 text-center text-xs text-gray-400">englishwithlaura.com</p>
+      <p className="mt-6 text-center text-xs text-ink-muted">englishwithlaura.com</p>
     </main>
   )
 }

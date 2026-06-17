@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import AudioButton from '@/components/AudioButton'
+import { RatingRow, type Rating } from '@/components/student-ui'
 
 interface SrsWord {
   id: string
@@ -40,7 +41,8 @@ type ReviewMode = 'flip' | 'quiz'
 type ReviewFilter = 'due' | 'hard' | 'easy' | 'all'
 
 const BOX_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
-const BOX_COLORS = ['', 'bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-blue-400', 'bg-green-400']
+// Leitner ramp (brief §3) — used ONLY for the box-distribution bar chart.
+const BOX_COLORS = ['', 'bg-leitner-new', 'bg-leitner-learning', 'bg-leitner-familiar', 'bg-leitner-known', 'bg-leitner-mastered']
 
 const GRADE_CONFIG = [
   { grade: 'again' as Grade, label: 'Again', sub: 'forgot',   base: 'bg-red-50 border-red-200 text-red-500',         active: 'bg-red-500 border-red-500 text-white',    dot: 'bg-red-400',    pill: 'bg-red-100 text-red-500' },
@@ -369,7 +371,7 @@ export default function VocabTrainer({ onBack }: Props) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-[#416ebe] text-sm">Loading trainer...</div>
+        <div className="text-brandblue text-sm">Loading trainer...</div>
       </div>
     )
   }
@@ -383,17 +385,17 @@ export default function VocabTrainer({ onBack }: Props) {
       <div className="flex flex-col gap-4">
         <div className="text-center py-6">
           <div className="text-5xl mb-3">{pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}</div>
-          <h2 className="text-xl font-bold text-[#416ebe]">Session Complete!</h2>
-          <p className="text-sm text-gray-400 mt-1">{sessionResults.total} words reviewed</p>
+          <h2 className="text-xl font-bold text-brandblue">Session Complete!</h2>
+          <p className="text-sm text-ink-muted mt-1">{sessionResults.total} words reviewed</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-[#cddcf0] p-4 space-y-2.5">
-          <p className="text-xs font-bold text-gray-400 uppercase mb-3">How it went</p>
+        <div className="bg-white rounded-2xl border border-sky-border p-4 space-y-2.5">
+          <p className="text-xs font-bold text-ink-muted uppercase mb-3">How it went</p>
           {GRADE_CONFIG.map(({ grade, label, dot, pill }) => (
             <div key={grade} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${dot}`} />
-                <span className="text-sm text-[#46464b]">{label}</span>
+                <span className="text-sm text-ink-body">{label}</span>
               </div>
               <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${pill}`}>
                 {sessionResults[grade]}
@@ -403,8 +405,8 @@ export default function VocabTrainer({ onBack }: Props) {
         </div>
 
         {stats && (
-          <div className="bg-white rounded-2xl border border-[#cddcf0] p-4">
-            <p className="text-xs font-bold text-gray-400 uppercase mb-3">Your vocabulary boxes</p>
+          <div className="bg-white rounded-2xl border border-sky-border p-4">
+            <p className="text-xs font-bold text-ink-muted uppercase mb-3">Your vocabulary boxes</p>
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map((box) => {
                 const count = stats[box as keyof Stats] as number || 0
@@ -414,8 +416,8 @@ export default function VocabTrainer({ onBack }: Props) {
                     <div className="w-full h-16 bg-gray-100 rounded-lg relative overflow-hidden">
                       <div className={`absolute bottom-0 w-full rounded-lg ${BOX_COLORS[box]} transition-all`} style={{ height: `${pctWidth}%` }} />
                     </div>
-                    <span className="text-[10px] font-bold text-gray-500">{count}</span>
-                    <span className="text-[9px] text-gray-400">{BOX_LABELS[box]}</span>
+                    <span className="text-[10px] font-bold text-ink-muted">{count}</span>
+                    <span className="text-[9px] text-ink-muted">{BOX_LABELS[box]}</span>
                   </div>
                 )
               })}
@@ -425,7 +427,7 @@ export default function VocabTrainer({ onBack }: Props) {
 
         <button
           onClick={() => { setView('home'); loadDueWords(); loadStats() }}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Done
         </button>
@@ -441,13 +443,13 @@ export default function VocabTrainer({ onBack }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setView('home')} className="text-sm text-gray-400 hover:text-[#416ebe]">← Back</button>
-          <h2 className="text-sm font-bold text-[#416ebe] flex-1">Vocabulary Review</h2>
-          <span className="text-xs text-gray-400">{currentIdx + 1}/{dueWords.length}</span>
+          <button onClick={() => setView('home')} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+          <h2 className="text-sm font-bold text-brandblue flex-1">Vocabulary Review</h2>
+          <span className="text-xs text-ink-muted">{currentIdx + 1}/{dueWords.length}</span>
         </div>
 
-        <div className="h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
-          <div className="h-full bg-[#416ebe] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="h-1.5 bg-sky-wash rounded-full overflow-hidden">
+          <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
         {/* 3D flip card */}
@@ -456,70 +458,50 @@ export default function VocabTrainer({ onBack }: Props) {
 
             {/* FRONT — word only */}
             <div
-              className="card-front bg-white border-2 border-[#cddcf0] rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-[#416ebe] transition-colors"
+              className="card-front bg-white border-2 border-sky rounded-flashcard p-8 flex flex-col items-center justify-center cursor-pointer transition-colors"
               onClick={() => { setFlipped(true); setHasFlipped(true) }}
             >
-              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white mb-3 ${BOX_COLORS[word.box_level]}`}>
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white mb-3 bg-sky">
                 {BOX_LABELS[word.box_level]}
               </span>
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-2xl font-bold text-[#46464b]">{word.word}</h3>
+                <h3 className="text-2xl font-bold text-brandblue">{word.word}</h3>
                 <span onClick={(e) => e.stopPropagation()}>
                   <AudioButton text={word.word} />
                 </span>
               </div>
-              {word.phonetic && <p className="text-xs text-gray-400 mb-2">{word.phonetic}</p>}
-              <p className="text-xs text-gray-400 mt-2">Tap to flip</p>
+              {word.phonetic && <p className="text-xs text-ink-muted mb-2">{word.phonetic}</p>}
+              <p className="text-xs text-ink-muted mt-2">Tap to flip</p>
             </div>
 
             {/* BACK — meaning, photo, translation, example */}
             <div
-              className="card-back bg-white border-2 border-[#416ebe] rounded-2xl p-6 flex flex-col items-center justify-center overflow-auto cursor-pointer"
+              className="card-back bg-white border-2 border-sky rounded-flashcard p-6 flex flex-col items-center justify-center overflow-auto cursor-pointer"
               onClick={() => setFlipped(false)}
             >
               {word.image_url && (
                 <img src={word.image_url} alt="" className="max-h-24 max-w-[180px] object-contain rounded-xl mb-3" />
               )}
-              <p className="text-base text-[#46464b] font-medium text-center">{word.meaning}</p>
+              <p className="text-base text-ink-body font-medium text-center">{word.meaning}</p>
               {word.translation && (
-                <p className="text-sm text-[#416ebe] font-medium mt-1.5">🌐 {word.translation}</p>
+                <p className="text-sm text-brandblue font-medium mt-1.5">🌐 {word.translation}</p>
               )}
               {word.example && (
-                <p className="text-xs text-gray-400 italic mt-2 text-center">{word.example}</p>
+                <p className="text-xs text-ink-muted italic mt-2 text-center">{word.example}</p>
               )}
-              <p className="text-[10px] text-gray-300 mt-3">Tap to flip back</p>
+              <p className="text-[10px] text-[#c8ccd4] mt-3">Tap to flip back</p>
             </div>
 
           </div>
         </div>
 
-        {/* Grade buttons + Next — visible once answer has been seen */}
+        {/* One-tap rating (brief §6): tapping a grade commits the SRS
+            review and advances immediately — no confirm step. */}
         {hasFlipped && (
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-4 gap-2">
-              {GRADE_CONFIG.map(({ grade, label, sub, base, active }) => (
-                <button
-                  key={grade}
-                  onClick={() => setSelectedGrade(grade)}
-                  className={`border-2 font-bold py-3 rounded-xl text-xs transition-colors ${selectedGrade === grade ? active : base}`}
-                >
-                  {label}
-                  <span className={`block text-[9px] font-normal mt-0.5 ${selectedGrade === grade ? 'text-white/80' : ''}`}>
-                    {sub}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {selectedGrade && (
-              <button
-                onClick={() => { handleReviewResult(selectedGrade); setSelectedGrade(null) }}
-                className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
-              >
-                Next →
-              </button>
-            )}
-          </div>
+          <RatingRow
+            onRate={(r) => handleReviewResult(r as Grade)}
+            captions={{ again: 'forgot', hard: 'barely', good: 'got it', easy: 'too easy' }}
+          />
         )}
       </div>
     )
@@ -534,36 +516,36 @@ export default function VocabTrainer({ onBack }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setView('home')} className="text-sm text-gray-400 hover:text-[#416ebe]">← Back</button>
-          <h2 className="text-sm font-bold text-[#416ebe] flex-1">Vocabulary Quiz</h2>
-          <span className="text-xs text-gray-400">{currentIdx + 1}/{dueWords.length}</span>
+          <button onClick={() => setView('home')} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+          <h2 className="text-sm font-bold text-brandblue flex-1">Vocabulary Quiz</h2>
+          <span className="text-xs text-ink-muted">{currentIdx + 1}/{dueWords.length}</span>
         </div>
 
-        <div className="h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
-          <div className="h-full bg-[#416ebe] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="h-1.5 bg-sky-wash rounded-full overflow-hidden">
+          <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
-        <div className="bg-white border-2 border-[#cddcf0] rounded-2xl p-6 shadow-sm text-center">
-          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white mb-3 ${BOX_COLORS[word.box_level]}`}>
+        <div className="bg-white border-2 border-sky rounded-flashcard p-6 text-center">
+          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white mb-3 bg-sky">
             {BOX_LABELS[word.box_level]}
           </span>
           <div className="flex items-center justify-center gap-2">
-            <h3 className="text-2xl font-bold text-[#46464b]">{word.word}</h3>
+            <h3 className="text-2xl font-bold text-brandblue">{word.word}</h3>
             <AudioButton text={word.word} />
           </div>
-          {word.phonetic && <p className="text-xs text-gray-400 mt-1">{word.phonetic}</p>}
-          <p className="text-xs text-gray-400 mt-3">What does this word mean?</p>
+          {word.phonetic && <p className="text-xs text-ink-muted mt-1">{word.phonetic}</p>}
+          <p className="text-xs text-ink-muted mt-3">What does this word mean?</p>
         </div>
 
         <div className="space-y-2">
           {quizOptions.map((opt, i) => {
             const isSelected = quizSelected === i
             const isCorrect = opt === correctMeaning
-            let btnClass = 'bg-white border-2 border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'
+            let btnClass = 'bg-white border-[1.5px] border-sky-border text-ink-body hover:border-sky'
             if (quizSelected !== null) {
-              if (isCorrect) btnClass = 'bg-green-50 border-2 border-green-400 text-green-700'
-              else if (isSelected && !isCorrect) btnClass = 'bg-red-50 border-2 border-red-400 text-red-500'
-              else btnClass = 'bg-gray-50 border-2 border-gray-200 text-gray-400'
+              if (isCorrect) btnClass = 'bg-correct-bg border-[1.5px] border-correct-border text-correct-fg'
+              else if (isSelected && !isCorrect) btnClass = 'bg-incorrect-bg border-[1.5px] border-incorrect-border text-incorrect-fg'
+              else btnClass = 'bg-white border-[1.5px] border-hairline text-ink-muted opacity-70'
             }
             return (
               <button key={i} onClick={() => handleQuizSelect(i)} disabled={quizSelected !== null}
@@ -582,8 +564,8 @@ export default function VocabTrainer({ onBack }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setView('home')} className="text-sm text-gray-400 hover:text-[#416ebe]">← Back</button>
-          <h2 className="text-sm font-bold text-[#416ebe]">Add a Word</h2>
+          <button onClick={() => setView('home')} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+          <h2 className="text-sm font-bold text-brandblue">Add a Word</h2>
         </div>
 
         <div className="space-y-3">
@@ -595,15 +577,15 @@ export default function VocabTrainer({ onBack }: Props) {
             { label: 'Translation (your language, optional)', value: addTranslation, setter: setAddTranslation, placeholder: 'e.g. повсюду, überall…' },
           ].map(({ label, value, setter, placeholder }) => (
             <div key={label}>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">{label}</label>
+              <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">{label}</label>
               <input type="text" value={value} onChange={(e) => setter(e.target.value)} placeholder={placeholder}
-                className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe]" />
+                className="w-full text-sm text-ink-body border border-sky-border rounded-lg px-3 py-2 focus:outline-none focus:border-sky" />
             </div>
           ))}
         </div>
 
         <button onClick={handleAddWord} disabled={!addWord.trim()}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
           Add Word
         </button>
       </div>
@@ -617,9 +599,9 @@ export default function VocabTrainer({ onBack }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setStageBox(null)} className="text-sm text-gray-400 hover:text-[#416ebe]">← Back</button>
-          <h2 className="text-sm font-bold text-[#416ebe] flex-1">
-            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white mr-2 ${BOX_COLORS[stageBox]}`}>
+          <button onClick={() => setStageBox(null)} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+          <h2 className="text-sm font-bold text-brandblue flex-1">
+            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white mr-2 bg-sky">
               {label}
             </span>
             {stageWords.length} word{stageWords.length === 1 ? '' : 's'}
@@ -628,27 +610,27 @@ export default function VocabTrainer({ onBack }: Props) {
 
         {isWeakStage && stageWords.length > 0 && (
           <button onClick={reviewStage}
-            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors">
+            className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors">
             Review these {stageWords.length} word{stageWords.length === 1 ? '' : 's'} now
           </button>
         )}
 
         {stageLoading ? (
-          <div className="text-sm text-gray-400 text-center py-8">Loading…</div>
+          <div className="text-sm text-ink-muted text-center py-8">Loading…</div>
         ) : stageWords.length === 0 ? (
-          <div className="bg-[#f7fafd] rounded-xl border border-[#e6f0fa] p-6 text-center">
+          <div className="bg-surface rounded-xl border border-hairline p-6 text-center">
             <div className="text-3xl mb-2">{stageBox === 5 ? '🏆' : '📭'}</div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-ink-muted">
               {stageBox === 5
                 ? "No mastered words yet — keep reviewing and they'll land here."
                 : 'No words in this stage right now.'}
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-[#cddcf0] shadow-sm overflow-hidden divide-y divide-[#e6f0fa]">
+          <div className="bg-white rounded-2xl border border-sky-border shadow-sm overflow-hidden divide-y divide-hairline">
             {stageWords.map((w) =>
               editingId === w.id ? (
-                <div key={w.id} className="px-4 py-3 bg-[#f7fafd] space-y-2">
+                <div key={w.id} className="px-4 py-3 bg-surface space-y-2">
                   {[
                     { key: 'word' as const, label: 'Word', placeholder: '' },
                     { key: 'phonetic' as const, label: 'Phonetic', placeholder: '' },
@@ -659,20 +641,20 @@ export default function VocabTrainer({ onBack }: Props) {
                     { key: 'image_url' as const, label: 'Image URL (optional — paste a direct image link)', placeholder: 'https://…' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key}>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">{label}</label>
+                      <label className="block text-[10px] font-bold text-ink-muted uppercase mb-0.5">{label}</label>
                       <input type="text" value={editForm[key]}
                         onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
                         placeholder={placeholder}
-                        className="w-full text-sm text-[#46464b] border border-[#cddcf0] rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#416ebe]" />
+                        className="w-full text-sm text-ink-body border border-sky-border rounded-lg px-2 py-1.5 focus:outline-none focus:border-sky" />
                     </div>
                   ))}
                   <div className="flex gap-2 pt-1">
                     <button onClick={() => saveEdit(w.id)} disabled={editSaving || !editForm.word.trim()}
-                      className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-2 rounded-lg text-xs transition-colors disabled:opacity-50">
+                      className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-2 rounded-lg text-xs transition-colors disabled:opacity-50">
                       {editSaving ? 'Saving…' : 'Save'}
                     </button>
                     <button onClick={cancelEdit} disabled={editSaving}
-                      className="px-4 text-xs font-bold text-gray-400 hover:text-[#46464b]">
+                      className="px-4 text-xs font-bold text-ink-muted hover:text-ink-body">
                       Cancel
                     </button>
                   </div>
@@ -681,19 +663,19 @@ export default function VocabTrainer({ onBack }: Props) {
                 <div key={w.id} className="px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h4 className="text-sm font-bold text-[#46464b] truncate">{w.word}</h4>
+                      <h4 className="text-sm font-bold text-ink-body truncate">{w.word}</h4>
                       <AudioButton text={w.word} />
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {w.phonetic && <span className="text-xs text-gray-400">{w.phonetic}</span>}
+                      {w.phonetic && <span className="text-xs text-ink-muted">{w.phonetic}</span>}
                       <button onClick={() => startEdit(w)} title="Edit this word (only you see your changes)"
-                        className="text-xs text-gray-300 hover:text-[#416ebe] transition-colors">
+                        className="text-xs text-[#c8ccd4] hover:text-sky transition-colors">
                         ✎ Edit
                       </button>
                     </div>
                   </div>
-                  {w.meaning && <p className="text-xs text-gray-500 mt-0.5">{w.meaning}</p>}
-                  {w.translation && <p className="text-xs text-[#416ebe] mt-0.5">🌐 {w.translation}</p>}
+                  {w.meaning && <p className="text-xs text-ink-muted mt-0.5">{w.meaning}</p>}
+                  {w.translation && <p className="text-xs text-brandblue mt-0.5">🌐 {w.translation}</p>}
                 </div>
               )
             )}
@@ -718,9 +700,9 @@ export default function VocabTrainer({ onBack }: Props) {
             className="bg-white rounded-t-2xl p-6 w-full max-w-lg pb-10"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-bold text-[#46464b] mb-5">Start Review</h3>
+            <h3 className="text-base font-bold text-ink-body mb-5">Start Review</h3>
 
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">How many words?</label>
+            <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">How many words?</label>
             <div className="flex items-center gap-3 mb-5">
               <input
                 type="text"
@@ -736,12 +718,12 @@ export default function VocabTrainer({ onBack }: Props) {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
                 }}
-                className="w-20 text-sm text-center text-[#46464b] border border-[#cddcf0] rounded-lg px-3 py-2 focus:outline-none focus:border-[#416ebe]"
+                className="w-20 text-sm text-center text-ink-body border border-sky-border rounded-lg px-3 py-2 focus:outline-none focus:border-sky"
               />
-              <span className="text-xs text-gray-400">words</span>
+              <span className="text-xs text-ink-muted">words</span>
             </div>
 
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Which words?</label>
+            <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">Which words?</label>
             <div className="grid grid-cols-2 gap-2 mb-5">
               {([
                 { value: 'due' as ReviewFilter,  label: 'Due today' },
@@ -752,15 +734,15 @@ export default function VocabTrainer({ onBack }: Props) {
                 <button key={value} onClick={() => setReviewFilter(value)}
                   className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
                     reviewFilter === value
-                      ? 'bg-[#416ebe] border-[#416ebe] text-white'
-                      : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'
+                      ? 'bg-sky border-sky text-white'
+                      : 'bg-white border-sky-border text-ink-body hover:border-sky'
                   }`}>
                   {label}
                 </button>
               ))}
             </div>
 
-            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Mode</label>
+            <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">Mode</label>
             <div className="grid grid-cols-2 gap-2 mb-5">
               {([
                 { value: 'flip' as ReviewMode, label: '🃏 Flip cards' },
@@ -769,8 +751,8 @@ export default function VocabTrainer({ onBack }: Props) {
                 <button key={value} onClick={() => setModalMode(value)}
                   className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
                     modalMode === value
-                      ? 'bg-[#416ebe] border-[#416ebe] text-white'
-                      : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'
+                      ? 'bg-sky border-sky text-white'
+                      : 'bg-white border-sky-border text-ink-body hover:border-sky'
                   }`}>
                   {label}
                 </button>
@@ -780,11 +762,11 @@ export default function VocabTrainer({ onBack }: Props) {
             {modalError && <p className="text-xs text-red-500 mb-3">{modalError}</p>}
 
             <button onClick={startModalReview} disabled={modalLoading}
-              className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 mb-2">
+              className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 mb-2">
               {modalLoading ? 'Loading…' : 'Start →'}
             </button>
             <button onClick={() => setShowReviewModal(false)}
-              className="w-full text-sm text-gray-400 hover:text-[#46464b] py-2">
+              className="w-full text-sm text-ink-muted hover:text-ink-body py-2">
               Cancel
             </button>
           </div>
@@ -793,8 +775,8 @@ export default function VocabTrainer({ onBack }: Props) {
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe]">← Back</button>
-          <h2 className="text-sm font-bold text-[#416ebe] flex-1">Vocabulary Trainer</h2>
+          <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+          <h2 className="text-sm font-bold text-brandblue flex-1">Vocabulary Trainer</h2>
         </div>
 
         {error && (
@@ -804,13 +786,13 @@ export default function VocabTrainer({ onBack }: Props) {
           </div>
         )}
 
-        {/* Streak banner */}
+        {/* Streak banner — white card + sky-wash icon tile */}
         {streak > 0 && (
-          <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl p-4 text-white flex items-center gap-3">
-            <span className="text-3xl">🔥</span>
+          <div className="bg-white rounded-card border border-hairline p-4 flex items-center gap-3">
+            <div className="w-11 h-11 shrink-0 flex items-center justify-center text-2xl bg-sky-wash rounded-tile">🔥</div>
             <div className="flex-1">
-              <p className="text-lg font-bold leading-tight">{streak}-day streak</p>
-              <p className="text-[11px] text-amber-50">
+              <p className="text-base font-extrabold text-ink-black leading-tight">{streak}-day streak</p>
+              <p className="text-[11px] text-ink-muted">
                 {reviewedToday
                   ? 'Reviewed today — nice. Keep it going tomorrow!'
                   : `Review today to keep your ${streak}-day streak alive`}
@@ -819,79 +801,79 @@ export default function VocabTrainer({ onBack }: Props) {
           </div>
         )}
 
-        {/* Due words card */}
-        <div className="bg-gradient-to-r from-[#416ebe] to-[#5a8fd4] rounded-2xl p-5 text-white">
+        {/* Due words card — solid sky */}
+        <div className="bg-sky rounded-card p-5 text-white">
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-white/15 rounded-xl p-3">
-              <p className="text-[10px] text-blue-100 uppercase font-bold tracking-wide">Due for review</p>
-              <p className="text-3xl font-bold mt-1">{stats?.review_due ?? 0}</p>
-              <p className="text-[10px] text-blue-100 mt-0.5">already seen, time to repeat</p>
+            <div className="bg-white/15 rounded-tile p-3">
+              <p className="text-[10px] text-white/80 uppercase font-bold tracking-wide">Due for review</p>
+              <p className="text-[40px] leading-none font-extrabold mt-1 tracking-hero">{stats?.review_due ?? 0}</p>
+              <p className="text-[10px] text-white/80 mt-1">already seen, time to repeat</p>
             </div>
-            <div className="bg-white/15 rounded-xl p-3">
-              <p className="text-[10px] text-blue-100 uppercase font-bold tracking-wide">New words</p>
-              <p className="text-3xl font-bold mt-1">{stats?.new_words ?? 0}</p>
-              <p className="text-[10px] text-blue-100 mt-0.5">waiting to be introduced</p>
+            <div className="bg-white/15 rounded-tile p-3">
+              <p className="text-[10px] text-white/80 uppercase font-bold tracking-wide">New words</p>
+              <p className="text-[40px] leading-none font-extrabold mt-1 tracking-hero">{stats?.new_words ?? 0}</p>
+              <p className="text-[10px] text-white/80 mt-1">waiting to be introduced</p>
             </div>
           </div>
           {dueCount > 0 ? (
             <button onClick={openReviewModal}
-              className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
+              className="w-full bg-white text-ink-body font-extrabold py-2.5 rounded-tile text-sm hover:bg-white/95 transition-colors">
               🃏 Start Review
             </button>
           ) : (
-            <p className="text-xs text-blue-100 text-center">All caught up! Come back later for more reviews.</p>
+            <p className="text-xs text-white/80 text-center">All caught up! Come back later for more reviews.</p>
           )}
         </div>
 
         {/* Box distribution */}
         {stats && stats.total > 0 && (
-          <div className="bg-white rounded-2xl border border-[#cddcf0] p-4">
-            <p className="text-xs font-bold text-gray-400 uppercase mb-3">Your words — {stats.total} total</p>
+          <div className="bg-white rounded-2xl border border-sky-border p-4">
+            <p className="text-xs font-bold text-ink-muted uppercase mb-3">Your words — {stats.total} total</p>
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map((box) => {
                 const count = stats[box as keyof Stats] as number || 0
                 const pctHeight = stats.total > 0 ? Math.max((count / stats.total) * 100, count > 0 ? 10 : 0) : 0
                 return (
                   <button key={box} onClick={() => count > 0 && openStage(box)} disabled={count === 0}
-                    className={`flex-1 flex flex-col items-center gap-1 rounded-lg p-1 transition-colors ${count > 0 ? 'hover:bg-[#f7fafd] cursor-pointer' : 'cursor-default'}`}
+                    className={`flex-1 flex flex-col items-center gap-1 rounded-lg p-1 transition-colors ${count > 0 ? 'hover:bg-surface cursor-pointer' : 'cursor-default'}`}
                     title={count > 0 ? `See your ${count} ${BOX_LABELS[box]} word${count === 1 ? '' : 's'}` : undefined}>
-                    <div className="w-full h-20 bg-gray-100 rounded-lg relative overflow-hidden">
-                      <div className={`absolute bottom-0 w-full rounded-lg ${BOX_COLORS[box]} transition-all duration-500`} style={{ height: `${pctHeight}%` }} />
+                    <div className="w-full h-20 bg-[#eef1f6] rounded-tile relative overflow-hidden">
+                      <div className={`absolute bottom-0 w-full rounded-tile ${BOX_COLORS[box]} transition-all duration-500`} style={{ height: `${pctHeight}%` }} />
                     </div>
-                    <span className="text-xs font-bold text-gray-500">{count}</span>
-                    <span className="text-[9px] text-gray-400">{BOX_LABELS[box]}</span>
+                    <span className="text-xs font-bold text-ink-muted">{count}</span>
+                    <span className="text-[9px] text-ink-muted">{BOX_LABELS[box]}</span>
                   </button>
                 )
               })}
             </div>
-            <p className="text-[10px] text-gray-300 text-center mt-2">Tap a bar to see those words</p>
+            <p className="text-[10px] text-[#c8ccd4] text-center mt-2">Tap a bar to see those words</p>
           </div>
         )}
 
         {/* Add word */}
         <button onClick={() => setView('add')}
-          className="w-full bg-white border-2 border-[#cddcf0] text-[#46464b] font-bold py-3 rounded-xl text-sm hover:border-[#416ebe] hover:text-[#416ebe] transition-colors">
+          className="w-full bg-white border-2 border-sky-border text-ink-body font-bold py-3 rounded-xl text-sm hover:border-sky hover:text-sky transition-colors">
           + Add word
         </button>
 
         {/* Focus words */}
         {focusWords.length > 0 && (
-          <div className="bg-white rounded-2xl border border-[#cddcf0] p-4">
+          <div className="bg-white rounded-2xl border border-sky-border p-4">
             <button onClick={() => setShowFocus((v) => !v)} className="w-full flex items-center justify-between">
-              <p className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1.5">
+              <p className="text-xs font-bold text-ink-muted uppercase flex items-center gap-1.5">
                 <span>🎯</span> {focusWords.length} word{focusWords.length === 1 ? '' : 's'} need extra attention
               </p>
-              <span className="text-xs text-gray-400">{showFocus ? '▲' : '▼'}</span>
+              <span className="text-xs text-ink-muted">{showFocus ? '▲' : '▼'}</span>
             </button>
             {showFocus && (
               <div className="mt-3 space-y-1.5">
                 {focusWords.map((w) => (
                   <div key={w.id} className="flex items-baseline justify-between gap-2 border-b border-[#f0f4f9] pb-1.5 last:border-b-0">
-                    <span className="text-sm font-bold text-[#46464b]">{w.word}</span>
-                    <span className="text-xs text-gray-400 text-right">{w.meaning || '—'}</span>
+                    <span className="text-sm font-bold text-ink-body">{w.word}</span>
+                    <span className="text-xs text-ink-muted text-right">{w.meaning || '—'}</span>
                   </div>
                 ))}
-                <p className="text-[10px] text-gray-300 pt-1">
+                <p className="text-[10px] text-[#c8ccd4] pt-1">
                   These come back often in your reviews until they stick. That&apos;s the system working.
                 </p>
               </div>
@@ -900,8 +882,8 @@ export default function VocabTrainer({ onBack }: Props) {
         )}
 
         {stats && stats.total === 0 && (
-          <div className="bg-[#f7fafd] rounded-xl border border-[#e6f0fa] p-4 text-center">
-            <p className="text-xs text-gray-400">
+          <div className="bg-surface rounded-xl border border-hairline p-4 text-center">
+            <p className="text-xs text-ink-muted">
               No words yet. Your vocabulary imports automatically from your lessons —
               once your teacher publishes lessons with flashcards, they&apos;ll appear
               here. You can also add words manually.
