@@ -1,13 +1,17 @@
 import type { Metadata } from 'next'
-import { Lato } from 'next/font/google'
+import { Rubik } from 'next/font/google'
 import './globals.css'
 import Providers from '@/components/Providers'
 
-const lato = Lato({
+// Phase A of the student-app visual redesign — Rubik replaces Lato as
+// the global typeface. Loaded with the full weight range the brief
+// calls for (400-900) so headings, eyebrows and the 40/900 word
+// rendering all have proper weights available.
+const rubik = Rubik({
   subsets: ['latin'],
-  weight: ['300', '400', '700', '900'],
+  weight: ['400', '500', '600', '700', '800', '900'],
   display: 'swap',
-  variable: '--font-lato',
+  variable: '--font-rubik',
 })
 
 export const metadata: Metadata = {
@@ -21,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={lato.variable}>
+    <html lang="en" className={rubik.variable}>
       <body className="min-h-screen bg-gray-50">
         <Providers>{children}</Providers>
       </body>

@@ -3,13 +3,52 @@
 @tailwind utilities;
 
 * {
-  font-family: var(--font-lato), 'Lato', sans-serif;
+  font-family: var(--font-rubik), 'Rubik', sans-serif;
 }
 
 body {
   background-color: #f9fafb;
   color: #46464b;
 }
+
+/* ── Student-app "10B" motion (locked set, see EWL Animations.dc.html) ── */
+
+/* 4-bar equalizer used by AudioCircle while a clip plays. Staggered via
+   per-bar animation-delay applied inline by the component. */
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50%      { transform: scaleY(1); }
+}
+.animate-eq {
+  display: inline-block;
+  height: 100%;
+  transform-origin: bottom;
+  animation: eq 0.9s ease-in-out infinite;
+}
+
+/* Bouncing dots used on the Loading screen + sending indicator. */
+@keyframes bounce-dot {
+  0%, 100% { transform: translateY(0); }
+  40%      { transform: translateY(-10px); }
+}
+.animate-bounce-dot {
+  animation: bounce-dot 1s ease-in-out infinite;
+}
+
+/* Quiz answer-state pulses. */
+@keyframes correct-pulse {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.0); }
+  35%  { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(22, 163, 74, 0.18); }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.0); }
+}
+.animate-correct-pulse { animation: correct-pulse 1.5s ease-out; }
+
+@keyframes wrong-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+.animate-wrong-shake { animation: wrong-shake 0.6s ease-in-out; }
 
 .card-flip {
   perspective: 1000px;
