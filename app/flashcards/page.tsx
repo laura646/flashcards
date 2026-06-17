@@ -21,6 +21,14 @@ export default function FlashcardsPage() {
     }
   }, [status, router])
 
+  // Honour a ?mode=flip|quiz|self-assess deep-link (e.g. from the Home
+  // quick-action tiles). Read from the URL on mount to avoid wrapping the
+  // page in a useSearchParams Suspense boundary.
+  useEffect(() => {
+    const m = new URLSearchParams(window.location.search).get('mode')
+    if (m === 'flip' || m === 'quiz' || m === 'self-assess') setMode(m)
+  }, [])
+
   if (status === 'loading') {
     return (
       <main className="min-h-screen flex items-center justify-center">

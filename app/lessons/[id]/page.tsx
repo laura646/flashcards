@@ -2232,56 +2232,54 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const totalCount = contentItems.length
   const allComplete = totalCount > 0 && completedCount === totalCount
 
+  // Current/next activity = first incomplete item in sorted order (10B
+  // highlight). Derived only from existing completion flags.
+  const firstIncompleteKey = contentItems.find((item) => !item.completed)?.key
+
   return (
-    <main className="min-h-screen flex flex-col items-center px-4 py-8">
+    <main className="min-h-screen bg-[#f9fafb] flex flex-col items-center px-4 py-8">
       <div className="w-full max-w-lg">
         {/* Back button */}
         <button
           onClick={() => router.push('/home')}
-          className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-4"
+          className="text-xs font-bold text-sky hover:underline mb-4"
         >
           ← Back to lessons
         </button>
 
         {/* Lesson Header */}
-        <div className="bg-white rounded-2xl shadow-sm border-2 border-[#cddcf0] p-6 mb-4">
-          <p className="text-xs text-gray-400 mb-1">{formatDate(lesson.lesson_date)}</p>
-          <h1 className="text-xl font-bold text-[#416ebe] mb-2">
+        <div className="bg-white rounded-card border border-hairline p-6 mb-4">
+          <p className="text-xs text-ink-muted mb-1">{formatDate(lesson.lesson_date)}</p>
+          <h1 className="text-xl font-extrabold text-brandblue mb-2">
             {lesson.title}
             {lessonType !== 'lesson' && (
-              <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-600 align-middle">
+              <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-bold bg-sky-wash text-ink-body align-middle">
                 {lessonType === 'mid_course_test' ? '📝 Mid-Course Test' : lessonType === 'final_test' ? '🎓 Final Test' : '🔄 Review Test'}
               </span>
             )}
           </h1>
           {lesson.summary && (
-            <p className="text-sm text-gray-500 leading-relaxed">{lesson.summary}</p>
+            <p className="text-sm text-ink-muted leading-relaxed">{lesson.summary}</p>
           )}
         </div>
 
         {/* Progress Header */}
         {totalCount > 0 && (
-          <div className={`rounded-2xl p-4 mb-4 transition-all ${
-            allComplete
-              ? 'bg-gradient-to-r from-green-400 to-emerald-500'
-              : 'bg-white border-2 border-[#cddcf0]'
-          }`}>
+          <div className="rounded-card p-4 mb-4 bg-white border border-hairline">
             <div className="flex items-center justify-between mb-2">
-              <span className={`text-sm font-bold ${allComplete ? 'text-white' : 'text-[#46464b]'}`}>
-                {allComplete ? 'Lesson complete!' : 'Your progress'}
+              <span className="text-sm font-bold text-ink-black">
+                {allComplete ? 'Lesson complete! 🎉' : 'Your progress'}
               </span>
-              <span className={`text-xs font-bold ${allComplete ? 'text-green-100' : 'text-[#416ebe]'}`}>
+              <span className="text-xs font-bold text-sky">
                 {completedCount}/{totalCount}
               </span>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1.5">
               {contentItems.map((item) => (
                 <div
                   key={item.key}
                   className={`h-2 flex-1 rounded-full transition-all duration-500 ${
-                    item.completed
-                      ? allComplete ? 'bg-white/70' : 'bg-green-400'
-                      : allComplete ? 'bg-white/30' : 'bg-gray-200'
+                    item.completed ? 'bg-sky' : 'bg-[#eef1f6]'
                   }`}
                 />
               ))}
@@ -2292,49 +2290,42 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         {/* Content Cards */}
         {contentItems.length > 0 ? (
           <div className="flex flex-col gap-3">
-            {contentItems.map((item) => (
-              <button
-                key={item.key}
-                onClick={item.onClick}
-                className={`bg-white rounded-2xl shadow-sm border-2 p-5 text-left transition-all group flex items-center gap-4 ${
-                  item.completed
-                    ? 'border-green-200 hover:border-green-400'
-                    : 'border-[#cddcf0] hover:border-[#416ebe]'
-                }`}
-              >
-                <div className="text-3xl">{item.icon}</div>
-                <div className="flex-1">
-                  <h3 className={`text-sm font-bold group-hover:text-[#3560b0] ${
-                    item.completed ? 'text-green-600' : 'text-[#416ebe]'
-                  }`}>
-                    {item.label}
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{item.subtitle}</p>
-                </div>
-                <svg
-                  className="w-4 h-4 text-gray-300 group-hover:text-[#416ebe] transition-colors"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+            {contentItems.map((item) => {
+              const isCurrent = item.key === firstIncompleteKey
+              return (
+                <button
+                  key={item.key}
+                  onClick={item.onClick}
+                  className={`bg-white rounded-card p-5 text-left transition-all group flex items-center gap-4 border-[1.5px] ${
+                    isCurrent
+                      ? 'border-sky'
+                      : 'border-hairline hover:border-sky'
+                  }`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
-            ))}
+                  <div className="w-12 h-12 shrink-0 flex items-center justify-center text-2xl bg-sky-wash rounded-tile">
+                    {item.completed ? '✅' : item.icon}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className={`text-[15px] font-bold ${isCurrent ? 'text-brandblue' : 'text-ink-black'}`}>
+                      {item.label}
+                    </h3>
+                    <p className="text-xs text-ink-muted mt-0.5">{item.subtitle}</p>
+                  </div>
+                  <svg className="w-4 h-4 text-[#c8ccd4] group-hover:text-sky transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )
+            })}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">
+          <div className="bg-white rounded-card border border-hairline p-8 text-center">
             <div className="text-4xl mb-3">📖</div>
-            <p className="text-sm text-gray-400">No content for this lesson yet.</p>
+            <p className="text-sm text-ink-muted">No content for this lesson yet.</p>
           </div>
         )}
 
-        <p className="mt-8 text-center text-xs text-gray-400">englishwithlaura.com</p>
+        <p className="mt-8 text-center text-xs text-ink-muted">englishwithlaura.com</p>
       </div>
     </main>
   )

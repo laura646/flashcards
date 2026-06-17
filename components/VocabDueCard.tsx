@@ -4,13 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 // Home-screen card surfacing how many vocabulary words are due for
-// spaced-repetition review. This is the main discoverability unlock —
-// before this, the SRS was buried 3 taps deep and most students never
-// found it.
-//
-// On mount it silently triggers a sync (so the SRS self-populates from
-// the student's lessons) then fetches the due count. Loads independently
-// of the rest of the home page so it never blocks the main render.
+// spaced-repetition review. "10B" re-skin — all data flow preserved:
+// silent sync on mount, then stats + streak fetch; hides itself when
+// there's no SRS data. Every router.push('/vocabulary') call site kept.
 
 interface SrsStats {
   total: number
@@ -29,7 +25,6 @@ export default function VocabDueCard() {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
-      // 1. Silent best-effort sync so new lesson words enter the SRS
       try {
         await fetch('/api/vocab-srs', {
           method: 'POST',
@@ -39,7 +34,6 @@ export default function VocabDueCard() {
       } catch {
         /* non-blocking */
       }
-      // 2. Fetch the due/total counts + the review streak in parallel
       try {
         const [statsRes, streakRes] = await Promise.all([
           fetch('/api/vocab-srs?action=stats'),
@@ -63,72 +57,67 @@ export default function VocabDueCard() {
     }
   }, [])
 
-  // While loading, render a slim skeleton so the layout doesn't jump
   if (loading) {
     return (
-      <div className="w-full bg-white rounded-2xl border-2 border-[#cddcf0] p-5 mb-3 animate-pulse">
-        <div className="h-4 w-40 bg-gray-100 rounded mb-2" />
-        <div className="h-3 w-56 bg-gray-100 rounded" />
+      <div className="w-full bg-white rounded-card border border-hairline p-5 mb-3 animate-pulse">
+        <div className="h-4 w-40 bg-sky-wash rounded mb-2" />
+        <div className="h-3 w-56 bg-sky-wash rounded" />
       </div>
     )
   }
 
-  // No SRS data at all (sync found nothing / error) → don't clutter home
   if (!stats || stats.total === 0) return null
 
   const due = stats.review_due ?? stats.due
-
   const newWords = stats.new_words ?? 0
 
-  // No reviews due but new words waiting — nudge them to learn new words
+  // No reviews due but new words waiting
   if (due === 0 && newWords > 0) {
     return (
       <button
         onClick={() => router.push('/vocabulary')}
-        className="w-full bg-white rounded-2xl border-2 border-[#cddcf0] p-5 mb-3 text-left hover:border-[#416ebe] transition-colors group"
+        className="w-full bg-white rounded-card border border-hairline p-5 mb-3 text-left hover:border-sky transition-colors group"
       >
         <div className="flex items-center gap-4">
           <div className="text-3xl">✨</div>
           <div className="flex-1">
-            <h3 className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe] transition-colors">
+            <h3 className="text-sm font-bold text-ink-black">
               {newWords} new word{newWords === 1 ? '' : 's'} waiting
             </h3>
-            <p className="text-xs text-gray-400 mt-0.5">No reviews due — learn some new words today</p>
+            <p className="text-xs text-ink-muted mt-0.5">No reviews due — learn some new words today</p>
           </div>
-          <span className="text-gray-300 group-hover:text-[#416ebe] transition-colors text-lg">→</span>
+          <span className="text-[#c8ccd4] group-hover:text-sky transition-colors text-lg">→</span>
         </div>
       </button>
     )
   }
 
-  // Fully caught up — nothing due, nothing new
+  // Fully caught up
   if (due === 0) {
     return (
       <button
         onClick={() => router.push('/vocabulary')}
-        className="w-full bg-white rounded-2xl border-2 border-[#cddcf0] p-5 mb-3 text-left hover:border-[#416ebe] transition-colors group"
+        className="w-full bg-white rounded-card border border-hairline p-5 mb-3 text-left hover:border-sky transition-colors group"
       >
         <div className="flex items-center gap-4">
           <div className="text-3xl">✅</div>
           <div className="flex-1">
-            <h3 className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe] transition-colors">
-              Vocabulary — all caught up!
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h3 className="text-sm font-bold text-ink-black">Vocabulary — all caught up!</h3>
+            <p className="text-xs text-ink-muted mt-0.5">
               {stats.total} words tracked. Come back later for more reviews.
             </p>
           </div>
-          <span className="text-gray-300 group-hover:text-[#416ebe] transition-colors text-lg">→</span>
+          <span className="text-[#c8ccd4] group-hover:text-sky transition-colors text-lg">→</span>
         </div>
       </button>
     )
   }
 
-  // Words due — prominent, action-oriented
+  // Words due — prominent solid-sky card with a yellow streak chip
   return (
     <button
       onClick={() => router.push('/vocabulary')}
-      className="w-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl shadow-sm p-5 mb-3 text-left transition-all hover:shadow-md group"
+      className="w-full bg-sky rounded-card shadow-sm p-5 mb-3 text-left transition-all hover:brightness-[0.97] group"
     >
       <div className="flex items-center gap-4">
         <div className="text-3xl">🧠</div>
@@ -138,12 +127,12 @@ export default function VocabDueCard() {
               {due} {due === 1 ? 'word' : 'words'} due for review
             </h3>
             {streak > 0 && (
-              <span className="bg-white/25 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+              <span className="bg-streak-fill text-streak-ink text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
                 🔥 {streak}
               </span>
             )}
           </div>
-          <p className="text-xs text-amber-50 mt-0.5">
+          <p className="text-xs text-white/90 mt-0.5">
             {streak > 0 && !reviewedToday
               ? `Review now to keep your ${streak}-day streak alive`
               : `A quick ${due <= 10 ? '2-minute' : '5-minute'} review keeps them in your memory`}

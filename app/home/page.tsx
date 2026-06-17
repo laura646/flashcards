@@ -5,6 +5,8 @@ import { useSession } from 'next-auth/react'
 import SignOutButton from '@/components/SignOutButton'
 import { useRouter } from 'next/navigation'
 import VocabDueCard from '@/components/VocabDueCard'
+import { Button, Pill, Eyebrow, Card, SkyHero, TextField } from '@/components/student-ui'
+import BottomTabBar from '@/components/student-ui/BottomTabBar'
 
 interface Course {
   id: string
@@ -38,6 +40,12 @@ export default function HomePage() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [loading, setLoading] = useState(true)
   const [totalPoints, setTotalPoints] = useState(0)
+  // Hero stats (words-due + streak). Read-only, additive — VocabDueCard
+  // still owns the sync + its own render. We just surface the numbers in
+  // the hero. (Lifting these would refactor the working card; a second
+  // cheap GET is lower-risk.)
+  const [heroDue, setHeroDue] = useState<number | null>(null)
+  const [heroStreak, setHeroStreak] = useState(0)
 
   const role = session?.user?.role || 'student'
 
@@ -48,25 +56,21 @@ export default function HomePage() {
     }
 
     if (status === 'authenticated') {
-      // Redirect superadmin to superadmin dashboard
       if (role === 'superadmin') {
         router.replace('/superadmin')
         return
       }
-      // Redirect teachers to admin
       if (role === 'teacher') {
         router.replace('/admin')
         return
       }
 
-      // Fetch student's courses (and pre-fetch lessons in parallel if possible)
       fetch('/api/student/courses')
         .then((res) => res.json())
         .then(async (data) => {
           const studentCourses = data.courses || []
           setCourses(studentCourses)
 
-          // If only 1 course, auto-select and load lessons immediately
           if (studentCourses.length === 1) {
             setSelectedCourse(studentCourses[0])
             try {
@@ -81,6 +85,16 @@ export default function HomePage() {
           }
         })
         .catch(() => setLoading(false))
+
+      // Hero stats — best-effort, never blocks render.
+      fetch('/api/vocab-srs?action=stats')
+        .then((r) => r.json())
+        .then((d) => { if (d.stats) setHeroDue(d.stats.review_due ?? d.stats.due ?? 0) })
+        .catch(() => {})
+      fetch('/api/vocab-srs?action=streak')
+        .then((r) => r.json())
+        .then((d) => setHeroStreak(d.streak || 0))
+        .catch(() => {})
     }
   }, [status, session, router, role])
 
@@ -104,7 +118,7 @@ export default function HomePage() {
   if (status === 'loading' || loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="text-[#416ebe] text-sm">Loading...</div>
+        <div className="text-brandblue text-sm">Loading...</div>
       </main>
     )
   }
@@ -121,7 +135,6 @@ export default function HomePage() {
   // ── No courses enrolled ──
   if (courses.length === 0) {
     return <NoCourses studentName={studentName} onEnrolled={() => {
-      // Reload courses after enrollment
       fetch('/api/student/courses')
         .then(res => res.json())
         .then(data => {
@@ -138,188 +151,197 @@ export default function HomePage() {
   // ── Course picker (multiple courses) ──
   if (!selectedCourse && courses.length > 1) {
     return (
-      <main className="min-h-screen flex flex-col items-center px-4 py-8">
-        <div className="mb-8 text-center">
-          <img src="/logo.svg" alt="English with Laura" className="h-32 mx-auto mb-2" />
-          <p className="text-xs font-medium text-gray-400 mb-3">English with Laura Learning Platform <span className="text-gray-300">(beta)</span></p>
-          <p className="text-[#46464b] mt-1 text-sm">Welcome back, {studentName}!</p>
-        </div>
-
-        <div className="w-full max-w-lg">
-          <h2 className="text-lg font-bold text-[#416ebe] mb-4">My Courses</h2>
+      <main className="min-h-screen bg-[#f9fafb] flex flex-col">
+        <SkyHero>
+          <div className="max-w-lg mx-auto w-full">
+            <img src="/logo-onblue.png" alt="English with Laura" className="h-12" />
+            <p className="text-white/90 mt-3 text-sm">Welcome back, {studentName}!</p>
+          </div>
+        </SkyHero>
+        <div className="w-full max-w-lg mx-auto px-4 py-6 flex-1">
+          <Eyebrow tone="brand" className="block mb-1">My courses</Eyebrow>
+          <h2 className="text-lg font-extrabold text-brandblue mb-4">Choose a course</h2>
           <div className="flex flex-col gap-3">
             {courses.map((course) => (
-              <button
-                key={course.id}
-                onClick={() => selectCourse(course)}
-                className="bg-white rounded-2xl shadow-sm border-2 border-[#cddcf0] hover:border-[#416ebe] p-5 text-left transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe] transition-colors">
-                      {course.name}
-                    </h3>
-                    {course.description && (
-                      <p className="text-xs text-gray-400 mt-0.5">{course.description}</p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-1">
-                      {course.lesson_count} lesson{course.lesson_count !== 1 ? 's' : ''}
-                    </p>
+              <button key={course.id} onClick={() => selectCourse(course)} className="text-left">
+                <Card className="hover:border-sky transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold text-brandblue">{course.name}</h3>
+                      {course.description && <p className="text-xs text-ink-muted mt-0.5">{course.description}</p>}
+                      <p className="text-xs text-ink-muted mt-1">{course.lesson_count} lesson{course.lesson_count !== 1 ? 's' : ''}</p>
+                    </div>
+                    <span className="text-[#c8ccd4] text-lg">→</span>
                   </div>
-                  <span className="text-gray-300 group-hover:text-[#416ebe] transition-colors text-lg">
-                    &rarr;
-                  </span>
-                </div>
+                </Card>
               </button>
             ))}
           </div>
         </div>
-
-        <div className="mt-8 flex items-center gap-3 text-xs text-gray-400">
-        <a href="https://englishwithlaura.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#416ebe] transition-colors">englishwithlaura.com</a>
-        <span>·</span>
-        <SignOutButton />
-      </div>
+        <Footer />
       </main>
     )
   }
 
   // ── Lessons view (single course or selected course) ──
   return (
-    <main className="min-h-screen flex flex-col items-center px-4 py-8">
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <img src="/logo.svg" alt="English with Laura" className="h-32 mx-auto mb-2" />
-        <p className="text-xs font-medium text-gray-400 mb-3">English with Laura Learning Platform <span className="text-gray-300">(beta)</span></p>
-        <p className="text-[#46464b] mt-1 text-sm">Welcome back, {studentName}!</p>
-        {totalPoints > 0 && (
-          <div className="mt-2 inline-flex items-center gap-1.5 bg-gradient-to-r from-yellow-400 to-amber-500 text-white font-bold px-4 py-1.5 rounded-full text-sm shadow-sm">
-            <span>⭐</span> {totalPoints.toLocaleString()} points
+    <main className="min-h-screen bg-[#f9fafb] pb-24">
+      {/* Sky hero */}
+      <SkyHero>
+        <div className="max-w-lg mx-auto w-full">
+          <div className="flex items-center justify-between">
+            <img src="/logo-onblue.png" alt="English with Laura" className="h-11" />
+            {heroStreak > 0 && (
+              <span className="inline-flex items-center gap-1 bg-streak-fill text-streak-ink text-xs font-bold px-3 py-1 rounded-full">
+                🔥 {heroStreak}
+              </span>
+            )}
           </div>
-        )}
-      </div>
+          <p className="text-white/90 mt-3 text-sm">Welcome back, {studentName}!</p>
+          <div className="flex items-end justify-between mt-3">
+            <div>
+              <p className="text-white/90 text-sm">Words to review</p>
+              <p className="text-[42px] leading-none font-extrabold tracking-hero">{heroDue ?? 0}</p>
+            </div>
+            <Button variant="onHeroWhite" onClick={() => router.push('/vocabulary')}>Start review</Button>
+          </div>
+        </div>
+      </SkyHero>
 
-      <div className="w-full max-w-lg">
-        {/* Course header with back button if multiple courses */}
+      <div className="w-full max-w-lg mx-auto px-4 py-6">
+        {/* Quick actions */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { emoji: '🔄', label: 'Flip', href: '/flashcards?mode=flip' },
+            { emoji: '🎯', label: 'Quiz', href: '/flashcards?mode=quiz' },
+            { emoji: '➕', label: 'Add word', href: '/vocabulary' },
+          ].map((qa) => (
+            <button
+              key={qa.label}
+              onClick={() => router.push(qa.href)}
+              className="flex flex-col items-center gap-1.5 bg-sky-wash rounded-tile py-4 hover:brightness-95 transition-all"
+            >
+              <span className="text-2xl">{qa.emoji}</span>
+              <span className="text-[12px] font-bold text-ink-body">{qa.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Back to courses */}
         {courses.length > 1 && (
           <button
             onClick={() => { setSelectedCourse(null); setLessons([]) }}
-            className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-2"
+            className="text-xs font-bold text-sky hover:underline mb-3"
           >
-            &larr; My Courses
+            ← My courses
           </button>
         )}
 
-        <h2 className="text-lg font-bold text-[#416ebe] mb-4 flex items-center gap-2">
-          <span>📚</span> {selectedCourse?.name || 'My Lessons'}
-        </h2>
+        {/* Course heading + points */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span>📚</span>
+            <h2 className="text-lg font-extrabold text-brandblue">{selectedCourse?.name || 'My Lessons'}</h2>
+          </div>
+          {totalPoints > 0 && (
+            <span className="inline-flex items-center gap-1 bg-streak-fill text-streak-ink text-xs font-bold px-3 py-1 rounded-full">
+              ⭐ {totalPoints.toLocaleString()}
+            </span>
+          )}
+        </div>
 
         {/* Course Info */}
         {selectedCourse && (selectedCourse.level || selectedCourse.telegram_link || selectedCourse.lesson_link || selectedCourse.schedule) && (
-          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 mb-4">
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-gray-500">
-              {selectedCourse.level && (
-                <span>📊 <strong>Level:</strong> {selectedCourse.level}</span>
-              )}
-              {selectedCourse.schedule && (
-                <span>📅 <strong>Schedule:</strong> {selectedCourse.schedule}</span>
-              )}
+          <Card className="mb-4">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-ink-body">
+              {selectedCourse.level && <span>📊 <strong>Level:</strong> {selectedCourse.level}</span>}
+              {selectedCourse.schedule && <span>📅 <strong>Schedule:</strong> {selectedCourse.schedule}</span>}
               {selectedCourse.lesson_link && (
-                <a href={selectedCourse.lesson_link} target="_blank" rel="noopener noreferrer" className="text-[#416ebe] hover:underline">
-                  🔗 Join Lesson
-                </a>
+                <a href={selectedCourse.lesson_link} target="_blank" rel="noopener noreferrer" className="text-sky font-bold hover:underline">🔗 Join Lesson</a>
               )}
               {selectedCourse.telegram_link && (
-                <a href={selectedCourse.telegram_link} target="_blank" rel="noopener noreferrer" className="text-[#416ebe] hover:underline">
-                  💬 Telegram Group
-                </a>
+                <a href={selectedCourse.telegram_link} target="_blank" rel="noopener noreferrer" className="text-sky font-bold hover:underline">💬 Telegram Group</a>
               )}
             </div>
-          </div>
+          </Card>
         )}
 
-        {/* Daily spaced-repetition nudge — the #1 retention driver.
-            Self-contained: syncs + fetches its own data, hides if empty. */}
+        {/* Daily spaced-repetition nudge — self-contained */}
         <VocabDueCard />
 
         {lessons.length === 0 ? (
-          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">
+          <Card className="text-center py-8">
             <div className="text-4xl mb-3">📖</div>
-            <p className="text-sm text-gray-400">No lessons available yet. Check back soon!</p>
-          </div>
+            <p className="text-sm text-ink-muted">No lessons available yet. Check back soon!</p>
+          </Card>
         ) : (
-          <div className="flex flex-col gap-3 mb-8">
+          <div className="flex flex-col gap-3">
             {lessons.map((lesson, index) => {
               const lessonNumber = lessons.length - index
+              const isTest = lesson.lesson_type && lesson.lesson_type !== 'lesson'
+              const exDone = (lesson.exercises_completed || 0) === lesson.exercise_count && lesson.exercise_count > 0
+              const pct = lesson.exercise_count > 0 ? Math.round(((lesson.exercises_completed || 0) / lesson.exercise_count) * 100) : 0
               return (
-                <button
-                  key={lesson.id}
-                  onClick={() => router.push(`/lessons/${lesson.id}`)}
-                  className="bg-white rounded-2xl shadow-sm border-2 border-[#cddcf0] hover:border-[#416ebe] p-5 text-left transition-all group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs font-bold text-white px-2 py-0.5 rounded-full ${
-                          lesson.lesson_type && lesson.lesson_type !== 'lesson' ? 'bg-purple-500' : 'bg-[#416ebe]'
-                        }`}>
-                          {lesson.lesson_type === 'mid_course_test' ? '📝 Test' :
-                           lesson.lesson_type === 'final_test' ? '🎓 Final Test' :
-                           lesson.lesson_type === 'review_test' ? '🔄 Review' :
-                           `Lesson ${lessonNumber}`}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {formatDate(lesson.lesson_date)}
-                        </span>
-                      </div>
-                      <h3 className="text-sm font-bold text-[#46464b] group-hover:text-[#416ebe] transition-colors">
-                        {lesson.title}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-2">
-                        {(!lesson.lesson_type || lesson.lesson_type === 'lesson') && (
-                          <span className="text-xs text-gray-400 flex items-center gap-1">
-                            {lesson.flashcards_studied ? '✅' : '🃏'} {lesson.flashcard_count} words
+                <button key={lesson.id} onClick={() => router.push(`/lessons/${lesson.id}`)} className="text-left">
+                  <Card className="hover:border-sky transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[11px] font-bold text-white px-2 py-0.5 rounded-full ${isTest ? 'bg-[#8b5cf6]' : 'bg-sky'}`}>
+                            {lesson.lesson_type === 'mid_course_test' ? '📝 Test' :
+                             lesson.lesson_type === 'final_test' ? '🎓 Final Test' :
+                             lesson.lesson_type === 'review_test' ? '🔄 Review' :
+                             `Lesson ${lessonNumber}`}
                           </span>
-                        )}
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          {lesson.exercises_completed === lesson.exercise_count && lesson.exercise_count > 0 ? '✅' : '✏️'} {lesson.exercises_completed || 0}/{lesson.exercise_count} exercises
-                        </span>
-                        {(lesson.points_earned || 0) > 0 && (
-                          <span className="text-xs text-amber-500 font-bold flex items-center gap-0.5">
-                            ⭐ {lesson.points_earned} pts
-                          </span>
-                        )}
-                      </div>
-                      {/* Progress bar */}
-                      {lesson.exercise_count > 0 && (
-                        <div className="mt-2 h-1 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-300 ${
-                              (lesson.exercises_completed || 0) === lesson.exercise_count ? 'bg-green-400' : 'bg-[#416ebe]'
-                            }`}
-                            style={{ width: `${Math.round(((lesson.exercises_completed || 0) / lesson.exercise_count) * 100)}%` }}
-                          />
+                          <span className="text-xs text-ink-muted">{formatDate(lesson.lesson_date)}</span>
                         </div>
-                      )}
+                        <h3 className="text-sm font-bold text-brandblue">{lesson.title}</h3>
+                        <div className="flex items-center gap-3 mt-2">
+                          {(!lesson.lesson_type || lesson.lesson_type === 'lesson') && (
+                            <span className="text-xs text-ink-muted flex items-center gap-1">
+                              {lesson.flashcards_studied ? '✅' : '🃏'} {lesson.flashcard_count} words
+                            </span>
+                          )}
+                          <span className="text-xs text-ink-muted flex items-center gap-1">
+                            {exDone ? '✅' : '✏️'} {lesson.exercises_completed || 0}/{lesson.exercise_count} exercises
+                          </span>
+                          {(lesson.points_earned || 0) > 0 && (
+                            <span className="text-xs text-amber-500 font-bold flex items-center gap-0.5">⭐ {lesson.points_earned} pts</span>
+                          )}
+                        </div>
+                        {lesson.exercise_count > 0 && (
+                          <div className="mt-2 h-1.5 bg-[#eef1f6] rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${exDone ? 'bg-correct-fg' : 'bg-sky'}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[#c8ccd4] text-lg ml-2">→</span>
                     </div>
-                    <span className="text-gray-300 group-hover:text-[#416ebe] transition-colors text-lg">
-                      &rarr;
-                    </span>
-                  </div>
+                  </Card>
                 </button>
               )
             })}
           </div>
         )}
 
+        <Footer />
       </div>
 
-      <div className="mt-8 flex items-center gap-3 text-xs text-gray-400">
-        <a href="https://englishwithlaura.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#416ebe] transition-colors">englishwithlaura.com</a>
-        <span>·</span>
-        <SignOutButton />
-      </div>
+      <BottomTabBar />
     </main>
+  )
+}
+
+function Footer() {
+  return (
+    <div className="mt-8 flex items-center justify-center gap-3 text-xs text-ink-muted">
+      <a href="https://englishwithlaura.com" target="_blank" rel="noopener noreferrer" className="hover:text-sky transition-colors">englishwithlaura.com</a>
+      <span>·</span>
+      <SignOutButton />
+    </div>
   )
 }
 
@@ -356,40 +378,36 @@ function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolle
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4">
-      <img src="/logo.svg" alt="English with Laura" className="h-32 mb-2" />
-      <p className="text-xs font-medium text-gray-400 mb-4">English with Laura Learning Platform <span className="text-gray-300">(beta)</span></p>
-      <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center max-w-md">
-        <div className="text-4xl mb-3">📚</div>
-        <h2 className="text-lg font-bold text-[#46464b] mb-2">Welcome, {studentName}!</h2>
-        <p className="text-sm text-gray-500 mb-6">
-          You&apos;re not enrolled in any courses yet. Enter an invite code from your teacher to get started.
-        </p>
-
-        <form onSubmit={handleJoin} className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Enter invite code"
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value)}
-            className="flex-1 text-sm border border-[#cddcf0] rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b] text-center uppercase tracking-wider"
-          />
-          <button
-            type="submit"
-            disabled={joining || !inviteCode.trim()}
-            className="px-5 py-2.5 bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
-          >
-            {joining ? '...' : 'Join'}
-          </button>
-        </form>
-
-        {joinError && <p className="text-xs text-red-500 mt-3">{joinError}</p>}
-        {joinSuccess && <p className="text-xs text-green-600 font-bold mt-3">{joinSuccess}</p>}
-      </div>
-      <div className="mt-6 flex items-center gap-3 text-xs text-gray-400">
-        <a href="https://englishwithlaura.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#416ebe] transition-colors">englishwithlaura.com</a>
-        <span>·</span>
-        <SignOutButton />
+    <main className="min-h-screen bg-[#f9fafb] flex flex-col">
+      <SkyHero>
+        <div className="max-w-md mx-auto w-full flex flex-col items-center text-center">
+          <img src="/logo-onblue.png" alt="English with Laura" className="h-14" />
+          <p className="text-white/90 mt-3 text-sm">Welcome, {studentName}!</p>
+        </div>
+      </SkyHero>
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">
+        <Card padding="lg" className="text-center max-w-md w-full">
+          <div className="text-4xl mb-3">📚</div>
+          <h2 className="text-lg font-extrabold text-brandblue mb-2">Get started</h2>
+          <p className="text-sm text-ink-muted mb-6">
+            You&apos;re not enrolled in any courses yet. Enter an invite code from your teacher to get started.
+          </p>
+          <form onSubmit={handleJoin} className="space-y-3 text-left">
+            <TextField
+              label="Invite code"
+              placeholder="e.g. TRAVEL24"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              className="text-center"
+            />
+            <Button type="submit" variant="primary" fullWidth disabled={joining || !inviteCode.trim()}>
+              {joining ? 'Joining…' : 'Join course'}
+            </Button>
+          </form>
+          {joinError && <p className="text-xs text-incorrect-fg mt-3">{joinError}</p>}
+          {joinSuccess && <p className="text-xs text-correct-fg font-bold mt-3">{joinSuccess}</p>}
+        </Card>
+        <Footer />
       </div>
     </main>
   )
