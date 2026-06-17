@@ -1493,27 +1493,27 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         <div className="flex items-center justify-between mb-6">
           <div>
             <BackToLesson />
-            <h1 className="text-xl font-bold text-[#416ebe]">New Words</h1>
-            <p className="text-xs text-gray-400">{lesson.title}</p>
+            <h1 className="text-xl font-extrabold text-brandblue">New Words</h1>
+            <p className="text-xs text-ink-muted">{lesson.title}</p>
           </div>
-          <span className="text-xs text-gray-400 bg-[#e6f0fa] px-3 py-1 rounded-full">
+          <span className="text-[11px] font-bold text-ink-body bg-sky-wash px-3 py-1 rounded-full">
             {flashcards.length} words
           </span>
         </div>
 
-        <div className="flex gap-2 mb-6 bg-[#e6f0fa] p-1.5 rounded-xl">
+        <div className="flex gap-1 mb-6 bg-sky-wash p-1 rounded-full">
           {modeButtons.map(({ key, label, description }) => (
             <button
               key={key}
               onClick={() => setFlashcardMode(key)}
-              className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all ${
+              className={`flex-1 py-2.5 px-2 rounded-full text-xs font-bold transition-all ${
                 flashcardMode === key
-                  ? 'bg-white text-[#416ebe] shadow-sm'
-                  : 'text-[#46464b] hover:text-[#416ebe]'
+                  ? 'bg-white text-brandblue shadow-[0_1px_2px_rgba(15,22,40,0.08)]'
+                  : 'text-ink-body hover:text-ink-black'
               }`}
             >
               <div>{label}</div>
-              <div className="font-normal mt-0.5 text-gray-400">{description}</div>
+              <div className={`font-normal mt-0.5 ${flashcardMode === key ? 'text-ink-muted' : 'text-ink-muted'}`}>{description}</div>
             </button>
           ))}
         </div>

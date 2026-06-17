@@ -3,6 +3,12 @@
 import { useState } from 'react'
 import { Flashcard } from '@/data/flashcards'
 import CardFace from './CardFace'
+import { Button, Pill, ProgressBar } from './student-ui'
+
+// "10B" re-skin — behaviour unchanged. Passive flip-through review with
+// no scoring/SRS. onComplete(total) fires exactly once when advancing
+// past the last card. CompletionScreen is exported for QuizMode +
+// SelfAssessMode to reuse.
 
 interface Props {
   cards: Flashcard[]
@@ -15,7 +21,6 @@ export default function FlipMode({ cards, onComplete }: Props) {
   const [done, setDone] = useState(false)
 
   const current = cards[index]
-  const progress = ((index) / cards.length) * 100
 
   const next = () => {
     if (index + 1 >= cards.length) {
@@ -39,15 +44,10 @@ export default function FlipMode({ cards, onComplete }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Progress */}
+      {/* Progress (trailing fill — value={index}, not index+1) */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">{index + 1} / {cards.length}</span>
+        <ProgressBar value={index} total={cards.length} className="flex-1" />
+        <Pill>{index + 1} / {cards.length}</Pill>
       </div>
 
       {/* Flip card */}
@@ -57,22 +57,19 @@ export default function FlipMode({ cards, onComplete }: Props) {
         onClick={() => setFlipped(!flipped)}
       >
         <div className={`card-flip-inner w-full h-full ${flipped ? 'flipped' : ''}`}>
-          <div className="card-front w-full h-full bg-white border border-[#cddcf0] rounded-2xl shadow-sm">
+          <div className="card-front w-full h-full bg-white border-2 border-sky rounded-flashcard">
             <CardFace card={current} showBack={false} />
           </div>
-          <div className="card-back w-full h-full bg-white border border-[#416ebe] rounded-2xl shadow-sm">
+          <div className="card-back w-full h-full bg-white border-2 border-sky rounded-flashcard">
             <CardFace card={current} showBack={true} />
           </div>
         </div>
       </div>
 
       {/* Next button */}
-      <button
-        onClick={next}
-        className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
-      >
+      <Button variant="primary" fullWidth onClick={next}>
         {index + 1 >= cards.length ? 'Finish' : 'Next →'}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -81,15 +78,12 @@ function CompletionScreen({ total, onRestart, message }: { total: number; onRest
   return (
     <div className="flex flex-col items-center justify-center text-center py-12 gap-4">
       <div className="text-5xl">🎉</div>
-      <h2 className="text-xl font-bold text-[#416ebe]">Well done!</h2>
-      <p className="text-sm text-gray-500">{message}</p>
-      <p className="text-xs text-gray-400">You studied {total} words.</p>
-      <button
-        onClick={onRestart}
-        className="mt-4 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-2.5 px-8 rounded-xl text-sm transition-colors"
-      >
+      <h2 className="text-xl font-extrabold text-brandblue">Well done!</h2>
+      <p className="text-sm text-ink-muted">{message}</p>
+      <p className="text-xs text-ink-muted">You studied {total} words.</p>
+      <Button variant="primary" onClick={onRestart} className="mt-4 !px-8">
         Start again
-      </button>
+      </Button>
     </div>
   )
 }

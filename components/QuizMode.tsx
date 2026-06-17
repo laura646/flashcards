@@ -4,6 +4,12 @@ import { useState, useMemo } from 'react'
 import { Flashcard } from '@/data/flashcards'
 import { recordWordStruggle } from '@/lib/wordStruggle'
 import { CompletionScreen } from './FlipMode'
+import { Button, Card, Eyebrow, Pill, ProgressBar } from './student-ui'
+
+// "10B" re-skin — behaviour unchanged. 4-option MCQ (which word matches
+// the meaning). onComplete(score, total) fires once on the final answer.
+// recordWordStruggle(userEmail, word, 'quiz', correct) fires at selection
+// when userEmail is present. Answer locks after first pick.
 
 interface Props {
   cards: Flashcard[]
@@ -31,7 +37,6 @@ export default function QuizMode({ cards, onComplete, userEmail }: Props) {
   const shuffledCards = useMemo(() => shuffle(cards), [cards])
   const current = shuffledCards[index]
   const options = useMemo(() => getOptions(cards, current), [cards, current])
-  const progress = (index / shuffledCards.length) * 100
 
   const handleSelect = (option: string) => {
     if (selected !== null) return
@@ -73,31 +78,25 @@ export default function QuizMode({ cards, onComplete, userEmail }: Props) {
   }
 
   const isCorrect = selected === current.word
-  const isWrong = selected !== null && !isCorrect
 
   return (
     <div className="flex flex-col gap-4">
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">{index + 1} / {shuffledCards.length}</span>
+        <ProgressBar value={index} total={shuffledCards.length} className="flex-1" />
+        <Pill>{index + 1} / {shuffledCards.length}</Pill>
       </div>
 
       {/* Score */}
-      <div className="text-center text-xs text-gray-400">
-        Score: <span className="font-bold text-[#416ebe]">{score}</span> / {index}
+      <div className="text-center text-xs text-ink-muted">
+        Score: <span className="font-bold text-brandblue">{score}</span> / {index}
       </div>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">
-        <p className="text-xs text-[#00aff0] font-bold uppercase tracking-widest mb-3">Which word matches this meaning?</p>
-        <p className="text-base text-[#46464b] font-medium leading-relaxed">{current.meaning}</p>
-      </div>
+      <Card padding="lg">
+        <Eyebrow tone="sky" className="mb-3 block">Which word matches this meaning?</Eyebrow>
+        <p className="text-base text-ink-body font-medium leading-relaxed">{current.meaning}</p>
+      </Card>
 
       {/* Options */}
       <div className="grid grid-cols-2 gap-2">
@@ -105,15 +104,15 @@ export default function QuizMode({ cards, onComplete, userEmail }: Props) {
           const isThis = selected === option
           const isThisCorrect = option === current.word
 
-          let cls = 'border-2 rounded-xl py-3 px-4 text-sm font-bold transition-all text-left '
+          let cls = 'border-[1.5px] rounded-tile py-3 px-4 text-sm font-bold transition-all text-left '
           if (selected === null) {
-            cls += 'border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] hover:text-[#416ebe] bg-white cursor-pointer'
+            cls += 'border-sky-border text-ink-body hover:border-sky hover:text-sky bg-white cursor-pointer'
           } else if (isThisCorrect) {
-            cls += 'border-green-400 bg-green-50 text-green-700 cursor-default'
+            cls += 'border-correct-border bg-correct-bg text-correct-fg cursor-default'
           } else if (isThis && !isThisCorrect) {
-            cls += 'border-red-300 bg-red-50 text-red-500 cursor-default'
+            cls += 'border-incorrect-border bg-incorrect-bg text-incorrect-fg cursor-default'
           } else {
-            cls += 'border-[#e6f0fa] text-gray-300 bg-white cursor-default'
+            cls += 'border-hairline text-ink-muted bg-white cursor-default opacity-70'
           }
 
           return (
@@ -130,18 +129,15 @@ export default function QuizMode({ cards, onComplete, userEmail }: Props) {
       {selected !== null && (
         <div className="flex flex-col gap-2">
           {isCorrect ? (
-            <p className="text-center text-sm text-green-600 font-bold">Correct! 🎉</p>
+            <p className="text-center text-sm text-correct-fg font-bold">Correct! 🎉</p>
           ) : (
-            <p className="text-center text-sm text-red-400 font-bold">
-              The answer was: <span className="text-[#416ebe]">{current.word}</span>
+            <p className="text-center text-sm text-incorrect-fg font-bold">
+              The answer was: <span className="text-brandblue">{current.word}</span>
             </p>
           )}
-          <button
-            onClick={next}
-            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
-          >
+          <Button variant="primary" fullWidth onClick={next}>
             {index + 1 >= shuffledCards.length ? 'See Results' : 'Next →'}
-          </button>
+          </Button>
         </div>
       )}
     </div>
