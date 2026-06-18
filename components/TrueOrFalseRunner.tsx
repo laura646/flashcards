@@ -73,10 +73,10 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -97,7 +97,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
                     {isCorrect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm text-[#46464b]">{q.statement}</p>
+                    <p className="text-sm text-ink-body">{q.statement}</p>
                     <p className="text-xs mt-1">
                       <span className={`font-bold ${q.isTrue ? 'text-green-600' : 'text-red-500'}`}>
                         {q.isTrue ? 'True' : 'False'}
@@ -109,7 +109,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
                       )}
                     </p>
                     {q.explanation && (
-                      <p className="text-xs text-gray-400 mt-1 italic">{q.explanation}</p>
+                      <p className="text-xs text-ink-muted mt-1 italic">{q.explanation}</p>
                     )}
                   </div>
                 </div>
@@ -121,7 +121,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
         {/* Back button */}
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -135,30 +135,30 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors"
+          className="text-sm text-ink-muted hover:text-sky transition-colors"
         >
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress bar */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {currentIndex + 1} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Statement card */}
       <div
@@ -167,13 +167,13 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
             ? 'border-green-400 bg-green-50'
             : feedback === 'wrong'
             ? 'border-red-400 bg-red-50'
-            : 'border-[#cddcf0]'
+            : 'border-sky-border'
         }`}
       >
         <p className="text-xs text-[#00aff0] font-bold uppercase tracking-widest mb-3">
           Statement {currentIndex + 1}
         </p>
-        <p className="text-lg text-[#46464b] font-medium leading-relaxed">
+        <p className="text-lg text-ink-body font-medium leading-relaxed">
           {current.statement}
         </p>
 
@@ -190,10 +190,10 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
               <span className="text-xl font-bold">✗</span>
               <span className="font-bold text-sm">Incorrect</span>
             </div>
-            <p className="text-xs text-[#46464b]">
+            <p className="text-xs text-ink-body">
               The answer is <span className="font-bold">{current.isTrue ? 'True' : 'False'}</span>.
               {current.explanation && (
-                <span className="text-gray-400 italic ml-1">{current.explanation}</span>
+                <span className="text-ink-muted italic ml-1">{current.explanation}</span>
               )}
             </p>
           </div>
@@ -212,8 +212,8 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
                 ? 'border-green-400 bg-green-100 text-green-700 animate-pulse'
                 : 'border-red-400 bg-red-100 text-red-600 animate-pulse'
               : feedback !== null
-              ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed'
-              : 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe] hover:bg-[#d0e2f7] active:scale-95 cursor-pointer'
+              ? 'border-gray-200 bg-gray-50 text-[#c8ccd4] cursor-not-allowed'
+              : 'border-sky bg-sky-wash text-brandblue hover:bg-[#d0e2f7] active:scale-95 cursor-pointer'
           }`}
         >
           <span className="text-3xl">✓</span>
@@ -230,7 +230,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
                 ? 'border-green-400 bg-green-100 text-green-700 animate-pulse'
                 : 'border-red-400 bg-red-100 text-red-600 animate-pulse'
               : feedback !== null
-              ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed'
+              ? 'border-gray-200 bg-gray-50 text-[#c8ccd4] cursor-not-allowed'
               : 'border-red-300 bg-red-50 text-red-500 hover:bg-red-100 active:scale-95 cursor-pointer'
           }`}
         >
@@ -246,7 +246,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : answers[i] !== null
                 ? answers[i] === exercise.questions[i].isTrue
                   ? 'bg-green-400'

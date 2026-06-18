@@ -169,13 +169,13 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
       <div className="flex flex-col gap-4">
         {/* Results header */}
         <div className="text-center py-6">
-          <div className="text-5xl mb-3">
+          <div className="w-16 h-16 mx-auto mb-3 flex items-center justify-center text-4xl bg-sky-wash rounded-card">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-extrabold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -187,29 +187,29 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
             return (
               <div
                 key={q.id}
-                className={`bg-white rounded-xl border-2 p-4 ${
-                  isCorrect ? 'border-green-200' : 'border-red-200'
+                className={`bg-white rounded-card border-[1.5px] p-4 ${
+                  isCorrect ? 'border-correct-border' : 'border-incorrect-border'
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <span className={`text-sm font-bold mt-0.5 ${isCorrect ? 'text-green-500' : 'text-red-400'}`}>
+                  <span className={`text-sm font-bold mt-0.5 ${isCorrect ? 'text-correct-fg' : 'text-incorrect-fg'}`}>
                     {isCorrect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm text-[#46464b]">{formatPrompt(q.prompt)}</p>
+                    <p className="text-sm text-ink-body">{formatPrompt(q.prompt)}</p>
                     {!isCorrect && (
                       <p className="text-xs mt-1">
-                        <span className="text-red-400 line-through">
+                        <span className="text-incorrect-fg line-through">
                           {renderChosenAnswer(q, answers[i])}
                         </span>
                         {' → '}
-                        <span className="text-green-600 font-bold">
+                        <span className="text-correct-fg font-bold">
                           {renderCorrectAnswer(q)}
                         </span>
                       </p>
                     )}
                     {q.explanation && (
-                      <p className="text-xs text-gray-500 mt-1.5 italic leading-relaxed">
+                      <p className="text-xs text-ink-muted mt-1.5 italic leading-relaxed">
                         {q.explanation}
                       </p>
                     )}
@@ -223,7 +223,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
         {/* Back button */}
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -245,46 +245,46 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors"
+          className="text-sm text-ink-muted hover:text-sky transition-colors"
         >
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {currentIndex + 1} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
         <p className="text-xs text-[#00aff0] font-bold uppercase tracking-widest mb-3">
           Question {currentIndex + 1}
           {currentMulti && (
-            <span className="ml-2 text-[#416ebe] normal-case tracking-normal">
+            <span className="ml-2 text-brandblue normal-case tracking-normal">
               · Select all that apply
             </span>
           )}
         </p>
-        <p className="text-lg text-[#46464b] font-medium leading-relaxed">
+        <p className="text-lg text-ink-body font-medium leading-relaxed">
           {formatPrompt(current.prompt)}
         </p>
         {current.hint && (
-          <p className="text-xs text-gray-400 mt-2 italic">{current.hint}</p>
+          <p className="text-xs text-ink-muted mt-2 italic">{current.hint}</p>
         )}
       </div>
 
@@ -305,12 +305,12 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
             } else if (selected) {
               stateClass = 'border-red-400 bg-red-50 text-red-500'
             } else {
-              stateClass = 'border-[#cddcf0] bg-white text-gray-400'
+              stateClass = 'border-sky-border bg-white text-ink-muted'
             }
           } else {
             stateClass = selected
-              ? 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
-              : 'border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] bg-white'
+              ? 'border-sky bg-sky-wash text-brandblue'
+              : 'border-sky-border text-ink-body hover:border-sky bg-white'
           }
           return (
             <button
@@ -323,7 +323,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
               <span
                 className={`flex-shrink-0 w-5 h-5 border-2 flex items-center justify-center transition-colors ${
                   currentMulti ? 'rounded' : 'rounded-full'
-                } ${selected ? 'border-[#416ebe] bg-[#416ebe]' : 'border-[#cddcf0]'}`}
+                } ${selected ? 'border-sky bg-sky' : 'border-sky-border'}`}
               >
                 {selected && (
                   currentMulti ? (
@@ -335,7 +335,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
                   )
                 )}
               </span>
-              <span className="text-gray-400">{String.fromCharCode(97 + i)})</span>
+              <span className="text-ink-muted">{String.fromCharCode(97 + i)})</span>
               <span className="flex-1">{option}</span>
             </button>
           )
@@ -359,11 +359,11 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
           {!currentCorrect && (
             <p className="text-xs text-gray-600 mt-1">
               Correct answer:{' '}
-              <span className="font-bold text-[#46464b]">{renderCorrectAnswer(current)}</span>
+              <span className="font-bold text-ink-body">{renderCorrectAnswer(current)}</span>
             </p>
           )}
           {current.explanation && (
-            <p className="text-xs text-[#46464b] mt-2 leading-relaxed">
+            <p className="text-xs text-ink-body mt-2 leading-relaxed">
               {current.explanation}
             </p>
           )}
@@ -380,7 +380,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
           >
             <div className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : isQuestionAnswered(q, answers[i])
                 ? 'bg-[#00aff0]'
                 : 'bg-[#cddcf0]'
@@ -396,14 +396,14 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
             <button
               onClick={goPrev}
               disabled={currentIndex === 0}
-              className="flex-1 border-2 border-[#cddcf0] text-[#46464b] font-bold py-3 rounded-xl text-sm transition-colors hover:border-[#416ebe] disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex-1 border-2 border-sky-border text-ink-body font-bold py-3 rounded-xl text-sm transition-colors hover:border-sky disabled:opacity-30 disabled:cursor-not-allowed"
             >
               ← Previous
             </button>
             {!isLastQuestion ? (
               <button
                 onClick={goNext}
-                className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
               >
                 Next →
               </button>
@@ -411,14 +411,14 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
               <button
                 onClick={handleSubmit}
                 disabled={!allAnswered}
-                className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Submit answers
               </button>
             )}
           </div>
           {!allAnswered && isLastQuestion && (
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-xs text-ink-muted text-center">
               Answer all questions to submit
             </p>
           )}
@@ -428,7 +428,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
           <button
             onClick={goPrev}
             disabled={currentIndex === 0}
-            className="flex-1 border-2 border-[#cddcf0] text-[#46464b] font-bold py-3 rounded-xl text-sm transition-colors hover:border-[#416ebe] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex-1 border-2 border-sky-border text-ink-body font-bold py-3 rounded-xl text-sm transition-colors hover:border-sky disabled:opacity-30 disabled:cursor-not-allowed"
           >
             ← Previous
           </button>
@@ -437,12 +437,12 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
               <button
                 onClick={checkCurrent}
                 disabled={!isQuestionAnswered(current, answers[currentIndex])}
-                className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Check
               </button>
             ) : (
-              <span className="flex-1 text-xs text-gray-400 text-center self-center">
+              <span className="flex-1 text-xs text-ink-muted text-center self-center">
                 Choose an answer to see feedback
               </span>
             )
@@ -450,14 +450,14 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
             <button
               onClick={finishPractice}
               disabled={!allChecked}
-              className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Finish
             </button>
           ) : (
             <button
               onClick={goNext}
-              className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+              className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
             >
               Next →
             </button>

@@ -143,10 +143,10 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
       <div className="flex flex-col gap-4">
         <div className="text-center py-6">
           <div className="text-5xl mb-3">{pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}</div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{pairs.length} ({pct}%)
           </p>
         </div>
@@ -168,9 +168,9 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                     <p className="text-sm text-red-400 line-through mb-0.5">{placedTile.text}</p>
                   )}
                   <p className="text-sm">
-                    <span className="font-bold text-[#416ebe]">{correctTile?.text}</span>
-                    <span className="text-gray-400 mx-2">→</span>
-                    <span className="text-[#46464b]">{slot.text}</span>
+                    <span className="font-bold text-brandblue">{correctTile?.text}</span>
+                    <span className="text-ink-muted mx-2">→</span>
+                    <span className="text-ink-body">{slot.text}</span>
                   </p>
                 </div>
               </div>
@@ -178,7 +178,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
           })}
         </div>
 
-        <button onClick={onBack} className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2">
+        <button onClick={onBack} className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2">
           ← Back to exercises
         </button>
       </div>
@@ -190,22 +190,22 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">← Back</button>
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">← Back</button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Keyword tiles pool */}
       <div
-        className="bg-white border border-[#cddcf0] rounded-2xl p-4 shadow-sm"
+        className="bg-white border border-sky-border rounded-2xl p-4 shadow-sm"
         onDragOver={(e) => e.preventDefault()}
         onDrop={() => handleDropOnPool()}
       >
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Tap or drag to match</p>
+        <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider mb-3">Tap or drag to match</p>
         <div className="flex flex-wrap gap-2 min-h-[44px]">
           {availableTiles.map(tile => (
             <button
@@ -219,10 +219,10 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                 selectedTile === tile.id
                   ? tile.image_url
                     ? 'ring-3 ring-[#416ebe] shadow-md scale-105'
-                    : 'bg-[#416ebe] text-white shadow-md scale-105'
+                    : 'bg-sky text-white shadow-md scale-105'
                   : tile.image_url
                   ? 'hover:ring-2 hover:ring-[#416ebe] active:scale-95'
-                  : 'bg-[#e6f0fa] text-[#416ebe] border border-[#cddcf0] hover:bg-[#d0e0f5] active:scale-95'
+                  : 'bg-sky-wash text-brandblue border border-sky-border hover:bg-[#d0e0f5] active:scale-95'
               }`}
             >
               {tile.image_url ? (
@@ -233,7 +233,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
             </button>
           ))}
           {availableTiles.length === 0 && (
-            <p className="text-xs text-gray-300 py-2">All tiles placed!</p>
+            <p className="text-xs text-[#c8ccd4] py-2">All tiles placed!</p>
           )}
         </div>
       </div>
@@ -247,7 +247,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
           return (
             <div
               key={slot.id}
-              className="flex items-center gap-3 bg-white border border-[#cddcf0] rounded-xl p-3 shadow-sm"
+              className="flex items-center gap-3 bg-white border border-sky-border rounded-xl p-3 shadow-sm"
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDropOnSlot(slot.id)}
             >
@@ -256,10 +256,10 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                 onClick={() => handleSlotTap(slot.id)}
                 className={`min-w-[7rem] min-h-[2.5rem] rounded-lg border-2 border-dashed flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all shrink-0 ${
                   placedTile
-                    ? 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
+                    ? 'border-sky bg-sky-wash text-brandblue'
                     : selectedTile !== null
-                    ? 'border-[#416ebe] bg-[#e6f0fa]/30 animate-pulse'
-                    : 'border-gray-300 bg-gray-50 text-gray-300'
+                    ? 'border-sky bg-sky-wash/30 animate-pulse'
+                    : 'border-gray-300 bg-gray-50 text-[#c8ccd4]'
                 }`}
               >
                 {placedTile ? (
@@ -278,7 +278,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                 {slot.right_image_url && (
                   <img src={slot.right_image_url} alt="" className="max-w-[180px] max-h-[130px] object-contain rounded" />
                 )}
-                {slot.text && <p className="text-sm text-[#46464b] font-medium">{slot.text}</p>}
+                {slot.text && <p className="text-sm text-ink-body font-medium">{slot.text}</p>}
               </div>
             </div>
           )
@@ -289,7 +289,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
       <button
         onClick={handleSubmit}
         disabled={!allPlaced}
-        className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Submit Answers
       </button>

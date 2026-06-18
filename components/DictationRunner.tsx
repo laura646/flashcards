@@ -231,10 +231,10 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -255,11 +255,11 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
                     {isCorrect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-xs text-gray-400 mb-1">Expected:</p>
-                    <p className="text-sm text-[#46464b] font-medium">{q.text}</p>
+                    <p className="text-xs text-ink-muted mb-1">Expected:</p>
+                    <p className="text-sm text-ink-body font-medium">{q.text}</p>
                     {!isCorrect && result && (
                       <div className="mt-2">
-                        <p className="text-xs text-gray-400 mb-1">Your answer:</p>
+                        <p className="text-xs text-ink-muted mb-1">Your answer:</p>
                         <p className="text-sm">{renderDiff(result.diff)}</p>
                       </div>
                     )}
@@ -272,7 +272,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -286,39 +286,39 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
       ? 'border-green-400'
       : feedback === 'wrong'
       ? 'border-red-400'
-      : 'border-[#cddcf0]'
+      : 'border-sky-border'
 
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {answeredCount} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card with audio buttons */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-4">
+      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-4">
           Sentence {currentIndex + 1}
         </p>
 
@@ -328,7 +328,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
             <button
               onClick={() => playAudio(false)}
               disabled={isPlaying}
-              className="flex items-center gap-2 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-sky hover:brightness-95 text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               {isPlaying ? (
                 <span className="animate-pulse">Playing...</span>
@@ -341,17 +341,17 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
             <button
               onClick={() => playAudio(true)}
               disabled={isPlaying}
-              className="flex items-center gap-2 bg-[#e6f0fa] hover:bg-[#cddcf0] text-[#416ebe] font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-sky-wash hover:bg-[#cddcf0] text-brandblue font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               <span className="text-lg">🐢</span> Slow
             </button>
           </div>
 
           {playCount === 0 && (
-            <p className="text-xs text-gray-400">Press play to listen, then type what you hear</p>
+            <p className="text-xs text-ink-muted">Press play to listen, then type what you hear</p>
           )}
           {playCount > 0 && (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-ink-muted">
               Played {playCount} time{playCount !== 1 ? 's' : ''}
             </p>
           )}
@@ -368,7 +368,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
           disabled={feedback !== null}
           placeholder="Type what you hear..."
           rows={2}
-          className={`w-full border-2 ${borderColor} rounded-xl py-3 px-4 text-sm text-[#46464b] bg-white outline-none transition-colors focus:border-[#416ebe] disabled:bg-gray-50 placeholder:text-gray-300 resize-none`}
+          className={`w-full border-2 ${borderColor} rounded-xl py-3 px-4 text-sm text-ink-body bg-white outline-none transition-colors focus:border-sky disabled:bg-gray-50 placeholder:text-[#c8ccd4] resize-none`}
           autoComplete="off"
           spellCheck={false}
         />
@@ -382,10 +382,10 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
         {feedback === 'wrong' && results[currentIndex] && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-3">
             <p className="text-sm text-red-500 font-bold mb-2 text-center">Not quite.</p>
-            <p className="text-xs text-gray-400 mb-1">Comparison:</p>
+            <p className="text-xs text-ink-muted mb-1">Comparison:</p>
             <p className="text-sm">{renderDiff(results[currentIndex]!.diff)}</p>
-            <p className="text-xs text-gray-400 mt-2">Correct:</p>
-            <p className="text-sm text-[#46464b] font-medium">{current.text}</p>
+            <p className="text-xs text-ink-muted mt-2">Correct:</p>
+            <p className="text-sm text-ink-body font-medium">{current.text}</p>
           </div>
         )}
       </div>
@@ -395,14 +395,14 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
         <button
           onClick={handleSubmitAnswer}
           disabled={inputValue.trim() === '' || playCount === 0}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Check
         </button>
       ) : feedback === 'wrong' ? (
         <button
           onClick={() => advance(results)}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Next →
         </button>
@@ -415,7 +415,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : results[i]?.correct
                 ? 'bg-green-400'
                 : results[i] !== null

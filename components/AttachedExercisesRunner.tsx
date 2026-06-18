@@ -56,9 +56,9 @@ export default function AttachedExercisesRunner({ exercises, onScore }: Props) {
       {exercises.map((ex) => (
         <div
           key={ex.id}
-          className="bg-white border border-[#cddcf0] rounded-2xl p-4"
+          className="bg-white border border-sky-border rounded-2xl p-4"
         >
-          <p className="text-[10px] font-bold text-[#416ebe] uppercase tracking-wider mb-3">
+          <p className="text-[10px] font-bold text-brandblue uppercase tracking-wider mb-3">
             {ATTACHED_TYPE_ICONS[ex.type]} {ATTACHED_TYPE_LABELS[ex.type]}
           </p>
           <Dispatch
@@ -147,18 +147,18 @@ function InlineMcq({ questions, onScore }: { questions: unknown[]; onScore: (s: 
         const isChecked = checked[i]
         const isCorrect = picks[i] === q.correctIndex
         return (
-          <div key={String(q.id) || i} className="bg-[#f7fafd] border border-[#e6f0fa] rounded-lg p-3">
-            <p className="text-sm font-medium text-[#46464b] mb-2">{i + 1}. {q.prompt}</p>
+          <div key={String(q.id) || i} className="bg-surface border border-hairline rounded-lg p-3">
+            <p className="text-sm font-medium text-ink-body mb-2">{i + 1}. {q.prompt}</p>
             <div className="space-y-1.5">
               {q.options.map((opt, oi) => {
                 const selected = picks[i] === oi
                 const isThisCorrect = oi === q.correctIndex
-                let cls = 'border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] bg-white'
+                let cls = 'border-sky-border text-ink-body hover:border-sky bg-white'
                 if (isChecked) {
                   if (isThisCorrect) cls = 'border-green-400 bg-green-50 text-green-700'
                   else if (selected) cls = 'border-red-400 bg-red-50 text-red-500'
-                  else cls = 'border-[#cddcf0] bg-white text-gray-400'
-                } else if (selected) cls = 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
+                  else cls = 'border-sky-border bg-white text-ink-muted'
+                } else if (selected) cls = 'border-sky bg-sky-wash text-brandblue'
                 return (
                   <button
                     key={oi}
@@ -174,20 +174,20 @@ function InlineMcq({ questions, onScore }: { questions: unknown[]; onScore: (s: 
               })}
             </div>
             {q.hint && !isChecked && (
-              <p className="text-[11px] text-gray-400 italic mt-2">{q.hint}</p>
+              <p className="text-[11px] text-ink-muted italic mt-2">{q.hint}</p>
             )}
             {!isChecked ? (
               <button
                 onClick={() => check(i)}
                 disabled={picks[i] === null}
-                className="mt-2 bg-[#416ebe] hover:bg-[#3560b0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
+                className="mt-2 bg-sky hover:brightness-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
               >
                 Check
               </button>
             ) : (
               <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${isCorrect ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                 {isCorrect ? '✓ Correct' : `✗ Correct answer: ${q.options[q.correctIndex]}`}
-                {q.explanation && <p className="text-[#46464b] mt-1">{q.explanation}</p>}
+                {q.explanation && <p className="text-ink-body mt-1">{q.explanation}</p>}
               </div>
             )}
           </div>
@@ -217,17 +217,17 @@ function InlineTrueFalse({ questions, onScore }: { questions: unknown[]; onScore
         const isChecked = checked[i]
         const isCorrect = picks[i] === q.isTrue
         return (
-          <div key={String(q.id) || i} className="bg-[#f7fafd] border border-[#e6f0fa] rounded-lg p-3">
-            <p className="text-sm text-[#46464b] mb-2">{i + 1}. {q.statement}</p>
+          <div key={String(q.id) || i} className="bg-surface border border-hairline rounded-lg p-3">
+            <p className="text-sm text-ink-body mb-2">{i + 1}. {q.statement}</p>
             <div className="flex gap-2">
               {([true, false] as const).map((v) => {
                 const sel = picks[i] === v
-                let cls = 'border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] bg-white'
+                let cls = 'border-sky-border text-ink-body hover:border-sky bg-white'
                 if (isChecked) {
                   if (q.isTrue === v) cls = 'border-green-400 bg-green-50 text-green-700'
                   else if (sel) cls = 'border-red-400 bg-red-50 text-red-500'
-                  else cls = 'border-[#cddcf0] bg-white text-gray-400'
-                } else if (sel) cls = 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
+                  else cls = 'border-sky-border bg-white text-ink-muted'
+                } else if (sel) cls = 'border-sky bg-sky-wash text-brandblue'
                 return (
                   <button
                     key={String(v)}
@@ -244,14 +244,14 @@ function InlineTrueFalse({ questions, onScore }: { questions: unknown[]; onScore
               <button
                 onClick={() => check(i)}
                 disabled={picks[i] === null}
-                className="mt-2 bg-[#416ebe] hover:bg-[#3560b0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
+                className="mt-2 bg-sky hover:brightness-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
               >
                 Check
               </button>
             ) : (
               <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${isCorrect ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
                 {isCorrect ? '✓ Correct' : `✗ Correct answer: ${q.isTrue ? 'True' : 'False'}`}
-                {q.explanation && <p className="text-[#46464b] mt-1">{q.explanation}</p>}
+                {q.explanation && <p className="text-ink-body mt-1">{q.explanation}</p>}
               </div>
             )}
           </div>
@@ -291,8 +291,8 @@ function InlineTypeAnswer({ questions, onScore }: { questions: unknown[]; onScor
         const isChecked = checked[i]
         const ok = isChecked && isRight(q, vals[i])
         return (
-          <div key={String(q.id) || i} className="bg-[#f7fafd] border border-[#e6f0fa] rounded-lg p-3">
-            <p className="text-sm text-[#46464b] mb-2">{i + 1}. {q.prompt}</p>
+          <div key={String(q.id) || i} className="bg-surface border border-hairline rounded-lg p-3">
+            <p className="text-sm text-ink-body mb-2">{i + 1}. {q.prompt}</p>
             <input
               type="text"
               value={vals[i]}
@@ -300,18 +300,18 @@ function InlineTypeAnswer({ questions, onScore }: { questions: unknown[]; onScor
               onKeyDown={(e) => { if (e.key === 'Enter') check(i) }}
               disabled={isChecked}
               placeholder="Type your answer…"
-              className={`w-full border-2 rounded-lg px-3 py-2 text-sm text-[#46464b] focus:outline-none disabled:bg-gray-50 ${
-                isChecked ? (ok ? 'border-green-400' : 'border-red-400') : 'border-[#cddcf0] focus:border-[#416ebe]'
+              className={`w-full border-2 rounded-lg px-3 py-2 text-sm text-ink-body focus:outline-none disabled:bg-gray-50 ${
+                isChecked ? (ok ? 'border-green-400' : 'border-red-400') : 'border-sky-border focus:border-sky'
               }`}
             />
             {q.hint && !isChecked && (
-              <p className="text-[11px] text-gray-400 italic mt-1">{q.hint}</p>
+              <p className="text-[11px] text-ink-muted italic mt-1">{q.hint}</p>
             )}
             {!isChecked ? (
               <button
                 onClick={() => check(i)}
                 disabled={!vals[i].trim()}
-                className="mt-2 bg-[#416ebe] hover:bg-[#3560b0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
+                className="mt-2 bg-sky hover:brightness-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-40"
               >
                 Check
               </button>

@@ -45,7 +45,7 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   if (!exercise.questions || exercise.questions.length === 0) {
-    return <div className="text-center py-8 text-sm text-gray-400">No questions in this exercise.</div>
+    return <div className="text-center py-8 text-sm text-ink-muted">No questions in this exercise.</div>
   }
 
   const current = exercise.questions[currentIndex]
@@ -131,10 +131,10 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -155,12 +155,12 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
                     {isCorrect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-xs text-gray-400 mb-1">{q.criterion}</p>
+                    <p className="text-xs text-ink-muted mb-1">{q.criterion}</p>
                     {!isCorrect && (
                       <>
-                        <p className="text-xs text-gray-400">Your order:</p>
+                        <p className="text-xs text-ink-muted">Your order:</p>
                         <p className="text-sm text-red-400">{result?.order.join(' → ')}</p>
-                        <p className="text-xs text-gray-400 mt-1">Correct order:</p>
+                        <p className="text-xs text-ink-muted mt-1">Correct order:</p>
                       </>
                     )}
                     <p className="text-sm text-green-600 font-medium">{q.items.join(' → ')}</p>
@@ -173,7 +173,7 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -186,36 +186,36 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {answeredCount} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-5 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-2">
+      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-2">
           Question {currentIndex + 1}
         </p>
-        <p className="text-base text-[#46464b] font-medium mb-4">{current.criterion}</p>
+        <p className="text-base text-ink-body font-medium mb-4">{current.criterion}</p>
 
         {/* Sortable items */}
         <div className="space-y-2">
@@ -238,18 +238,18 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
                 onDragEnd={() => setDragIndex(null)}
                 className={`flex items-center gap-2 p-3 rounded-xl border-2 transition-all ${
                   feedback === null
-                    ? 'bg-[#f7fafd] border-[#cddcf0] cursor-grab active:cursor-grabbing hover:border-[#416ebe]'
+                    ? 'bg-surface border-sky-border cursor-grab active:cursor-grabbing hover:border-sky'
                     : isInCorrectPosition
                     ? 'bg-green-50 border-green-300'
                     : isInWrongPosition
                     ? 'bg-red-50 border-red-300'
-                    : 'bg-white border-[#cddcf0]'
+                    : 'bg-white border-sky-border'
                 }`}
               >
                 {/* Position number */}
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                   feedback === null
-                    ? 'bg-[#416ebe] text-white'
+                    ? 'bg-sky text-white'
                     : isInCorrectPosition
                     ? 'bg-green-500 text-white'
                     : 'bg-red-400 text-white'
@@ -258,7 +258,7 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
                 </span>
 
                 {/* Item text */}
-                <span className="flex-1 text-sm text-[#46464b]">{item}</span>
+                <span className="flex-1 text-sm text-ink-body">{item}</span>
 
                 {/* Move buttons (mobile-friendly) */}
                 {feedback === null && (
@@ -266,14 +266,14 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
                     <button
                       onClick={() => moveUp(idx)}
                       disabled={idx === 0}
-                      className="text-gray-400 hover:text-[#416ebe] disabled:opacity-20 text-xs px-1"
+                      className="text-ink-muted hover:text-sky disabled:opacity-20 text-xs px-1"
                     >
                       ▲
                     </button>
                     <button
                       onClick={() => moveDown(idx)}
                       disabled={idx === items.length - 1}
-                      className="text-gray-400 hover:text-[#416ebe] disabled:opacity-20 text-xs px-1"
+                      className="text-ink-muted hover:text-sky disabled:opacity-20 text-xs px-1"
                     >
                       ▼
                     </button>
@@ -294,7 +294,7 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
       {feedback === 'wrong' && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
           <p className="text-sm text-red-500 font-bold mb-1">Not quite.</p>
-          <p className="text-xs text-gray-500">Correct: {current.items.join(' → ')}</p>
+          <p className="text-xs text-ink-muted">Correct: {current.items.join(' → ')}</p>
         </div>
       )}
 
@@ -302,14 +302,14 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
       {feedback === null ? (
         <button
           onClick={handleCheck}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Check order
         </button>
       ) : feedback === 'wrong' ? (
         <button
           onClick={() => advance(results)}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Next →
         </button>
@@ -322,7 +322,7 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : results[i]?.correct
                 ? 'bg-green-400'
                 : results[i] !== null

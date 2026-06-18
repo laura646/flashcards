@@ -139,7 +139,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
   }, [current, placed, targetLength, feedback, results, currentIndex])
 
   if (!exercise.questions || exercise.questions.length === 0) {
-    return <div className="text-center py-8 text-sm text-gray-400">No questions in this exercise.</div>
+    return <div className="text-center py-8 text-sm text-ink-muted">No questions in this exercise.</div>
   }
 
   const answeredCount = results.filter(r => r !== null).length
@@ -258,10 +258,10 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
       <div className="flex flex-col gap-4">
         <div className="text-center py-6">
           <div className="text-5xl mb-3">{pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}</div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -276,7 +276,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
                     {correct ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    {q.clue && <p className="text-xs text-gray-400 mb-1">{q.clue}</p>}
+                    {q.clue && <p className="text-xs text-ink-muted mb-1">{q.clue}</p>}
                     <p className={`text-sm font-bold ${correct ? 'text-green-600' : 'text-red-400'}`}>
                       {isSentence ? q.word : q.word.toUpperCase()}
                     </p>
@@ -286,7 +286,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
             )
           })}
         </div>
-        <button onClick={onBack} className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2">
+        <button onClick={onBack} className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2">
           ← Back to exercises
         </button>
       </div>
@@ -301,26 +301,26 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">← Back</button>
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">← Back</button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
-          <div className="h-full bg-[#416ebe] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
+          <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">{answeredCount} / {exercise.questions.length}</span>
+        <span className="text-xs text-ink-muted whitespace-nowrap">{answeredCount} / {exercise.questions.length}</span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-5 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-2">
+      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-2">
           {sentenceMode ? 'Sentence' : 'Word'} {currentIndex + 1}
         </p>
 
@@ -329,7 +329,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
         )}
 
         {current.clue && (
-          <p className="text-sm text-[#46464b] mb-4 bg-[#e6f0fa] rounded-lg p-3">{current.clue}</p>
+          <p className="text-sm text-ink-body mb-4 bg-sky-wash rounded-lg p-3">{current.clue}</p>
         )}
 
         {/* Answer area — drop zone */}
@@ -340,14 +340,14 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
               : feedback === 'wrong'
               ? 'border-red-300 bg-red-50'
               : placed.length > 0
-              ? 'border-[#416ebe] bg-[#e6f0fa]/30'
+              ? 'border-sky bg-sky-wash/30'
               : 'border-gray-300 bg-gray-50'
           } ${shake ? 'animate-bounce' : ''}`}
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => handleDropOnPlacedEnd()}
         >
           {placed.length === 0 && (
-            <p className="text-xs text-gray-300 self-center">
+            <p className="text-xs text-[#c8ccd4] self-center">
               {sentenceMode ? 'Tap or drag words here in the correct order' : 'Tap or drag letters here to spell the word'}
             </p>
           )}
@@ -366,7 +366,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
                   ? 'bg-green-100 border-2 border-green-400 text-green-700'
                   : feedback === 'wrong'
                   ? 'bg-red-100 border-2 border-red-400 text-red-700'
-                  : 'bg-[#e6f0fa] border-2 border-[#416ebe] text-[#416ebe] hover:bg-[#d0e0f5] active:scale-95'
+                  : 'bg-sky-wash border-2 border-sky text-brandblue hover:bg-[#d0e0f5] active:scale-95'
               }`}
             >
               {tile.text}
@@ -391,8 +391,8 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
                 sentenceMode ? 'text-sm' : 'text-lg'
               } ${
                 feedback !== null
-                  ? 'bg-gray-100 border-2 border-gray-200 text-gray-300 cursor-default'
-                  : 'bg-[#416ebe] border-2 border-[#3560b0] text-white hover:bg-[#3560b0] active:scale-95 shadow-sm cursor-pointer'
+                  ? 'bg-gray-100 border-2 border-gray-200 text-[#c8ccd4] cursor-default'
+                  : 'bg-sky border-2 border-[#3560b0] text-white hover:brightness-95 active:scale-95 shadow-sm cursor-pointer'
               }`}
             >
               {tile.text}
@@ -406,15 +406,15 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
             <button
               onClick={submitAnswer}
               disabled={placed.length === 0}
-              className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Submit
             </button>
             <div className="flex justify-center gap-3">
-              <button onClick={resetTiles} className="text-xs text-gray-400 hover:text-[#416ebe] font-bold px-3 py-1.5 rounded-lg hover:bg-[#e6f0fa] transition-colors">
+              <button onClick={resetTiles} className="text-xs text-ink-muted hover:text-sky font-bold px-3 py-1.5 rounded-lg hover:bg-sky-wash transition-colors">
                 Reset
               </button>
-              <button onClick={showAnswer} className="text-xs text-gray-400 hover:text-amber-500 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors">
+              <button onClick={showAnswer} className="text-xs text-ink-muted hover:text-amber-500 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors">
                 Show answer
               </button>
             </div>
@@ -432,7 +432,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
           <p className="text-sm text-red-500 font-bold mb-1">
             {revealed ? 'The answer is:' : 'Not quite right.'}
           </p>
-          <p className="text-sm text-[#46464b] font-bold">
+          <p className="text-sm text-ink-body font-bold">
             {sentenceMode ? current.word : current.word.toUpperCase()}
           </p>
         </div>
@@ -440,7 +440,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
 
       {/* Next button after feedback */}
       {feedback !== null && feedback === 'wrong' && (
-        <button onClick={() => advance(results)} className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors">
+        <button onClick={() => advance(results)} className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors">
           Next →
         </button>
       )}
@@ -452,7 +452,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : results[i] === true
                 ? 'bg-green-400'
                 : results[i] === false

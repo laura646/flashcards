@@ -30,7 +30,7 @@ const OddOneOutRunner = lazy(() => import('@/components/OddOneOutRunner'))
 
 const ExerciseLoadingFallback = () => (
   <div className="flex items-center justify-center py-12">
-    <div className="text-[#416ebe] text-sm">Loading exercise...</div>
+    <div className="text-brandblue text-sm">Loading exercise...</div>
   </div>
 )
 
@@ -228,8 +228,8 @@ function InlineQuiz({
         const isCorrect = userAnswer === q.correctIndex
 
         return (
-          <div key={qi} className="bg-white rounded-xl border-2 border-[#cddcf0] p-4">
-            <p className="text-sm font-medium text-[#46464b] mb-3">{q.prompt}</p>
+          <div key={qi} className="bg-white rounded-xl border-[1.5px] border-sky-border p-4">
+            <p className="text-sm font-medium text-ink-body mb-3">{q.prompt}</p>
             <div className="space-y-2">
               {q.options.map((opt, oi) => {
                 let btnClass =
@@ -240,12 +240,12 @@ function InlineQuiz({
                   } else if (oi === userAnswer && !isCorrect) {
                     btnClass += 'border-red-300 bg-red-50 text-red-500 line-through'
                   } else {
-                    btnClass += 'border-gray-200 text-gray-400'
+                    btnClass += 'border-gray-200 text-ink-muted'
                   }
                 } else if (userAnswer === oi) {
-                  btnClass += 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe] font-bold'
+                  btnClass += 'border-sky bg-sky-wash text-brandblue font-bold'
                 } else {
-                  btnClass += 'border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] bg-white'
+                  btnClass += 'border-sky-border text-ink-body hover:border-sky bg-white'
                 }
 
                 return (
@@ -257,7 +257,7 @@ function InlineQuiz({
                     }}
                     className={btnClass}
                   >
-                    <span className="text-gray-400 mr-2">
+                    <span className="text-ink-muted mr-2">
                       {String.fromCharCode(97 + oi)})
                     </span>
                     {opt}
@@ -273,7 +273,7 @@ function InlineQuiz({
         <button
           onClick={handleCheck}
           disabled={!allAnswered}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Check answers
         </button>
@@ -284,7 +284,7 @@ function InlineQuiz({
           <div className="text-3xl mb-2">
             {score === questions.length ? '🌟' : score >= questions.length * 0.6 ? '👍' : '💪'}
           </div>
-          <p className="text-sm font-bold text-[#416ebe]">
+          <p className="text-sm font-bold text-brandblue">
             {score}/{questions.length} correct
           </p>
           <button
@@ -292,7 +292,7 @@ function InlineQuiz({
               setSelected({})
               setShowResults(false)
             }}
-            className="mt-3 text-xs text-[#416ebe] hover:underline"
+            className="mt-3 text-xs text-brandblue hover:underline"
           >
             Try again
           </button>
@@ -620,7 +620,7 @@ function DialogueChat({
   if (loadingHistory) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-[#416ebe] text-sm">Loading conversation...</div>
+        <div className="text-brandblue text-sm">Loading conversation...</div>
       </div>
     )
   }
@@ -628,16 +628,16 @@ function DialogueChat({
   return (
     <div className="flex flex-col h-[calc(100vh-14rem)]">
       {/* Scenario + Finish session button */}
-      <div className="bg-[#e6f0fa] rounded-xl p-3 mb-3 flex items-start gap-3">
+      <div className="bg-sky-wash rounded-xl p-3 mb-3 flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-[#416ebe] font-bold mb-1">Scenario</p>
-          <p className="text-sm text-[#46464b]">{content.scenario}</p>
+          <p className="text-xs text-brandblue font-bold mb-1">Scenario</p>
+          <p className="text-sm text-ink-body">{content.scenario}</p>
         </div>
         {messages.length > 0 && (
           <button
             onClick={finishSession}
             disabled={finishing}
-            className="shrink-0 text-[11px] font-bold text-[#416ebe] hover:text-[#3560b0] disabled:opacity-50 underline"
+            className="shrink-0 text-[11px] font-bold text-brandblue hover:text-[#3560b0] disabled:opacity-50 underline"
             title="End session and see a quick recap"
           >
             {finishing ? 'Wrapping up…' : 'Finish session ▸'}
@@ -649,8 +649,8 @@ function DialogueChat({
       {targetWords.length > 0 && (
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-xs text-gray-400 font-bold">Target words</p>
-            <span className="text-xs text-[#416ebe]">
+            <p className="text-xs text-ink-muted font-bold">Target words</p>
+            <span className="text-xs text-brandblue">
               {usedCount}/{targetWords.length}
             </span>
           </div>
@@ -663,7 +663,7 @@ function DialogueChat({
                   className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all ${
                     used
                       ? 'bg-green-100 text-green-700 border border-green-300'
-                      : 'bg-gray-100 text-gray-500 border border-gray-200'
+                      : 'bg-gray-100 text-ink-muted border border-gray-200'
                   }`}
                 >
                   {used && '✓ '}{w}
@@ -690,8 +690,8 @@ function DialogueChat({
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                   msg.role === 'user'
-                    ? 'bg-[#416ebe] text-white rounded-br-md'
-                    : 'bg-white border-2 border-[#cddcf0] text-[#46464b] rounded-bl-md'
+                    ? 'bg-sky text-white rounded-br-md'
+                    : 'bg-white border-[1.5px] border-sky-border text-ink-body rounded-bl-md'
                 }`}
               >
                 <div>{msg.content}</div>
@@ -699,7 +699,7 @@ function DialogueChat({
                   <button
                     onClick={() => playMessageAudio(msg.content)}
                     title="Listen"
-                    className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-[#416ebe] hover:text-[#3560b0] font-bold"
+                    className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-brandblue hover:text-[#3560b0] font-bold"
                   >
                     🔊 Listen
                   </button>
@@ -714,7 +714,7 @@ function DialogueChat({
                   {(msg as DialogueChatMessage).corrections!.map((c, ci) => (
                     <li key={ci} className="text-xs">
                       <span className="text-red-500 line-through mr-1">{c.original}</span>
-                      <span className="text-gray-400 mx-0.5">→</span>
+                      <span className="text-ink-muted mx-0.5">→</span>
                       <span className="text-green-700 font-medium ml-1">{c.correct}</span>
                       {c.why && <p className="text-[11px] text-amber-700 mt-0.5">{c.why}</p>}
                     </li>
@@ -726,7 +726,7 @@ function DialogueChat({
         ))}
         {sending && (
           <div className="flex justify-start">
-            <div className="bg-white border-2 border-[#cddcf0] rounded-2xl rounded-bl-md px-4 py-3">
+            <div className="bg-white border-[1.5px] border-sky-border rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex gap-1">
                 <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -758,8 +758,8 @@ function DialogueChat({
             recording
               ? 'bg-red-500 text-white animate-pulse'
               : transcribing
-                ? 'bg-gray-200 text-gray-400'
-                : 'bg-[#e6f0fa] text-[#416ebe] hover:bg-[#cddcf0]'
+                ? 'bg-gray-200 text-ink-muted'
+                : 'bg-sky-wash text-sky hover:bg-sky-border'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {transcribing ? (
@@ -786,13 +786,13 @@ function DialogueChat({
             }
           }}
           placeholder={recording ? 'Recording — tap mic again to stop…' : transcribing ? 'Transcribing…' : 'Type or speak your message…'}
-          className="flex-1 border-2 border-[#cddcf0] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#416ebe] transition-colors"
+          className="flex-1 border-[1.5px] border-sky-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sky transition-colors"
           disabled={sending || transcribing}
         />
         <button
           onClick={sendMessage}
           disabled={!input.trim() || sending || transcribing}
-          className="bg-[#416ebe] hover:bg-[#3560b0] text-white px-5 py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-sky hover:brightness-95 text-white px-5 py-3 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Send
         </button>
@@ -802,22 +802,22 @@ function DialogueChat({
       {report && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
-            <div className="px-6 py-5 border-b border-[#e6f0fa]">
-              <p className="text-[11px] font-bold text-[#416ebe] uppercase tracking-wider">Session report</p>
-              <h3 className="text-base font-bold text-[#46464b] mt-1">{studentName ? `Great work, ${studentName}!` : 'Great work!'}</h3>
+            <div className="px-6 py-5 border-b border-hairline">
+              <p className="text-[11px] font-bold text-brandblue uppercase tracking-wider">Session report</p>
+              <h3 className="text-base font-bold text-ink-body mt-1">{studentName ? `Great work, ${studentName}!` : 'Great work!'}</h3>
             </div>
             <div className="px-6 py-4 space-y-4">
               {/* Words used */}
               {report.total_target_words > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-                    Words used <span className="text-[#416ebe]">{report.used_words.length} / {report.total_target_words}</span>
+                  <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider mb-2">
+                    Words used <span className="text-brandblue">{report.used_words.length} / {report.total_target_words}</span>
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {targetWords.map((w) => {
                       const used = report.used_words.some((u) => u.toLowerCase() === w.toLowerCase())
                       return (
-                        <span key={w} className={`text-xs px-2.5 py-1 rounded-full font-medium ${used ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}>
+                        <span key={w} className={`text-xs px-2.5 py-1 rounded-full font-medium ${used ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-gray-100 text-ink-muted border border-gray-200'}`}>
                           {used && '✓ '}{w}
                         </span>
                       )
@@ -828,13 +828,13 @@ function DialogueChat({
               {/* Top corrections */}
               {report.top_corrections.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Watch out for</p>
+                  <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider mb-2">Watch out for</p>
                   <ul className="space-y-2">
                     {report.top_corrections.map((c, i) => (
                       <li key={i} className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                         <div className="text-sm">
                           <span className="text-red-500 line-through mr-1">{c.original}</span>
-                          <span className="text-gray-400 mx-1">→</span>
+                          <span className="text-ink-muted mx-1">→</span>
                           <span className="text-green-700 font-medium ml-1">{c.correct}</span>
                         </div>
                         {c.why && <p className="text-[11px] text-amber-700 mt-1">{c.why}</p>}
@@ -845,20 +845,20 @@ function DialogueChat({
               )}
               {/* Encouragement */}
               {report.encouragement && (
-                <p className="text-sm text-[#46464b] bg-[#e6f0fa] rounded-lg px-3 py-2 italic">{report.encouragement}</p>
+                <p className="text-sm text-ink-body bg-sky-wash rounded-lg px-3 py-2 italic">{report.encouragement}</p>
               )}
               {/* Next practice */}
               {report.next_practice && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">For next time</p>
-                  <p className="text-sm text-[#46464b]">{report.next_practice}</p>
+                  <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider mb-1">For next time</p>
+                  <p className="text-sm text-ink-body">{report.next_practice}</p>
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-[#e6f0fa] flex justify-end">
+            <div className="px-6 py-4 border-t border-hairline flex justify-end">
               <button
                 onClick={() => setReport(null)}
-                className="bg-[#416ebe] hover:bg-[#3560b0] text-white text-sm font-bold px-5 py-2.5 rounded-xl"
+                className="bg-sky hover:brightness-95 text-white text-sm font-bold px-5 py-2.5 rounded-xl"
               >
                 Done
               </button>
@@ -1212,7 +1212,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   if (status === 'loading' || loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="text-[#416ebe] text-sm">Loading lesson...</div>
+        <div className="text-brandblue text-sm">Loading lesson...</div>
       </main>
     )
   }
@@ -1222,10 +1222,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       <main className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
           <div className="text-4xl mb-3">📖</div>
-          <p className="text-sm text-gray-400">Lesson not found</p>
+          <p className="text-sm text-ink-muted">Lesson not found</p>
           <button
             onClick={() => router.push('/home')}
-            className="mt-4 text-sm text-[#416ebe] hover:underline"
+            className="mt-4 text-sm text-brandblue hover:underline"
           >
             ← Back to home
           </button>
@@ -1249,7 +1249,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         setWritingText('')
         setWritingSaved(false)
       }}
-      className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-1"
+      className="text-xs text-ink-muted hover:text-sky transition-colors mb-1"
     >
       ← Back to lesson
     </button>
@@ -1300,16 +1300,16 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       if (testAttemptStatus === 'loading' || testAttemptStatus === null) {
         runnerContent = (
           <div className="flex flex-col gap-4">
-            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+            <button onClick={onBackToExercises} className="text-sm text-ink-muted hover:text-sky transition-colors self-start">
               ← Back
             </button>
-            <div className="text-center text-sm text-gray-400 mt-12">Preparing test…</div>
+            <div className="text-center text-sm text-ink-muted mt-12">Preparing test…</div>
           </div>
         )
       } else if (testAttemptStatus === 'error') {
         runnerContent = (
           <div className="flex flex-col gap-4">
-            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+            <button onClick={onBackToExercises} className="text-sm text-ink-muted hover:text-sky transition-colors self-start">
               ← Back
             </button>
             <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
@@ -1323,7 +1323,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         // Locked. Only teacher can reset.
         runnerContent = (
           <div className="flex flex-col gap-4">
-            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+            <button onClick={onBackToExercises} className="text-sm text-ink-muted hover:text-sky transition-colors self-start">
               ← Back
             </button>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
@@ -1358,19 +1358,19 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         const perResults = Array.isArray(a?.per_question_results) ? (a!.per_question_results as boolean[]) : []
         runnerContent = (
           <div className="flex flex-col gap-4">
-            <button onClick={onBackToExercises} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors self-start">
+            <button onClick={onBackToExercises} className="text-sm text-ink-muted hover:text-sky transition-colors self-start">
               ← Back
             </button>
             <div className="text-center py-2">
               <div className="text-5xl mb-3">
                 {submittedPct != null ? (submittedPct >= 80 ? '🌟' : submittedPct >= 60 ? '👍' : '💪') : '📝'}
               </div>
-              <h2 className="text-xl font-bold text-[#416ebe]">Test completed</h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <h2 className="text-xl font-bold text-brandblue">Test completed</h2>
+              <p className="text-sm text-ink-muted mt-1">
                 {submittedPct != null ? <>You scored {a?.score}/{a?.total} ({submittedPct}%)</> : 'Score: not recorded'}
                 {submittedAtLabel && <> · {submittedAtLabel}</>}
               </p>
-              <p className="text-[10px] text-gray-400 mt-1">
+              <p className="text-[10px] text-ink-muted mt-1">
                 Tests can only be taken once. Contact your teacher if you need a retry.
               </p>
             </div>
@@ -1394,10 +1394,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                           {correct ? '✓' : '✗'}
                         </span>
                         <div className="flex-1">
-                          <p className="text-sm text-[#46464b]">{q.prompt || `Question ${i + 1}`}</p>
+                          <p className="text-sm text-ink-body">{q.prompt || `Question ${i + 1}`}</p>
                           {correctText && (
                             <p className="text-xs mt-1">
-                              <span className="text-gray-400">Correct: </span>
+                              <span className="text-ink-muted">Correct: </span>
                               <span className="text-green-600 font-bold">{correctText}</span>
                             </p>
                           )}
@@ -1409,7 +1409,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               </div>
             )}
             {(perResults.length === 0 || reviewQuestions.length === 0) && (
-              <p className="text-xs text-gray-400 text-center italic">
+              <p className="text-xs text-ink-muted text-center italic">
                 Detailed per-question review is not available for this exercise.
               </p>
             )}
@@ -1565,18 +1565,18 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             setSelectedExercise(ex)
             setView('exercise-runner')
           }}
-          className={`bg-white rounded-2xl border-2 p-5 text-left transition-all group flex items-center gap-4 ${
+          className={`bg-white rounded-card border-[1.5px] p-5 text-left transition-all group flex items-center gap-4 ${
             isDone
-              ? 'border-green-300 hover:border-green-400'
-              : 'border-[#cddcf0] hover:border-[#416ebe]'
+              ? 'border-correct-border hover:border-correct-fg'
+              : 'border-sky-border hover:border-sky'
           }`}
         >
-          <div className="text-3xl">{isDone ? '✅' : (ex.icon || '📝')}</div>
+          <div className="w-12 h-12 shrink-0 flex items-center justify-center text-2xl bg-sky-wash rounded-tile">{isDone ? '✅' : (ex.icon || '📝')}</div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h3
-                className={`text-sm font-bold group-hover:text-[#3560b0] ${
-                  isDone ? 'text-green-600' : 'text-[#416ebe]'
+                className={`text-sm font-bold ${
+                  isDone ? 'text-correct-fg' : 'text-brandblue'
                 }`}
               >
                 {ex.title || ({ multiple_choice: 'Multiple Choice', fill_blank: 'Fill in the Blank', match_halves: 'Match Halves', type_answer: 'Type the Answer', anagram: 'Unjumble', unjumble: 'Unjumble', true_or_false: 'True or False', hangman: 'Hangman', error_correction: 'Error Correction', complete_sentence: 'Complete the Sentence', group_sort: 'Group Sort', dictation: 'Dictation', rank_order: 'Rank Order', text_sequencing: 'Text Sequencing', transform: 'Transform', cloze_listening: 'Cloze Listening' } as Record<string, string>)[ex.exercise_type] || 'Exercise'}
@@ -1585,13 +1585,13 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                 <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-600">Bonus</span>
               )}
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-ink-muted mt-0.5">
               {isDone ? 'Completed — tap to redo' : ex.subtitle}
             </p>
           </div>
           <div
             className={`text-xs px-2.5 py-1 rounded-full ${
-              isDone ? 'text-green-600 bg-green-50' : 'text-gray-300 bg-[#e6f0fa]'
+              isDone ? 'text-green-600 bg-green-50' : 'text-[#c8ccd4] bg-sky-wash'
             }`}
           >
             {isDone ? 'Done' : `${ex.questions.length} Qs`}
@@ -1605,13 +1605,13 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => setView('overview')}
-            className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors"
+            className="text-sm text-ink-muted hover:text-sky transition-colors"
           >
             ← Back
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-[#416ebe]">Exercises</h1>
-            <p className="text-xs text-gray-400">{lesson.title}</p>
+            <h1 className="text-xl font-bold text-brandblue">Exercises</h1>
+            <p className="text-xs text-ink-muted">{lesson.title}</p>
           </div>
         </div>
 
@@ -1626,9 +1626,9 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         {bonusExercises.length > 0 && (
           <>
             <div className="flex items-center gap-2 mb-3 mt-2">
-              <div className="flex-1 h-px bg-[#e6f0fa]" />
+              <div className="flex-1 h-px bg-sky-wash" />
               <span className="text-[10px] font-bold uppercase text-amber-500 tracking-wider">Bonus Exercises</span>
-              <div className="flex-1 h-px bg-[#e6f0fa]" />
+              <div className="flex-1 h-px bg-sky-wash" />
             </div>
             <div className="flex flex-col gap-3">
               {bonusExercises.map(ex => renderExerciseCard(ex, true))}
@@ -1637,9 +1637,9 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         )}
 
         {exercises.length === 0 && (
-          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">
+          <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-8 text-center">
             <div className="text-4xl mb-3">✏️</div>
-            <p className="text-sm text-gray-400">No exercises for this lesson yet.</p>
+            <p className="text-sm text-ink-muted">No exercises for this lesson yet.</p>
           </div>
         )}
       </main>
@@ -1663,10 +1663,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
@@ -1674,7 +1674,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             {content.mistakes.map((m, i) => (
               <div
                 key={i}
-                className="bg-white rounded-2xl border-2 border-[#cddcf0] p-5 space-y-3"
+                className="bg-white rounded-2xl border-[1.5px] border-sky-border p-5 space-y-3"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 space-y-2">
@@ -1698,16 +1698,16 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                   </div>
                 </div>
 
-                <div className="bg-[#e6f0fa] rounded-lg px-3 py-2">
-                  <p className="text-xs text-[#46464b]">
-                    <span className="font-bold text-[#416ebe]">Why? </span>
+                <div className="bg-sky-wash rounded-lg px-3 py-2">
+                  <p className="text-xs text-ink-body">
+                    <span className="font-bold text-brandblue">Why? </span>
                     {m.explanation}
                   </p>
                 </div>
 
                 {m.practice && m.practice.length > 0 && (
                   <div className="pt-2 border-t border-gray-100">
-                    <p className="text-xs font-bold text-[#416ebe] mb-2">Quick practice</p>
+                    <p className="text-xs font-bold text-brandblue mb-2">Quick practice</p>
                     <InlineQuiz questions={m.practice} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
                   </div>
                 )}
@@ -1729,10 +1729,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
@@ -1748,7 +1748,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           ) : (
             <div className="bg-gray-100 rounded-2xl p-8 text-center mb-6">
-              <p className="text-sm text-gray-400">Video not available</p>
+              <p className="text-sm text-ink-muted">Video not available</p>
             </div>
           )}
 
@@ -1760,7 +1760,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             if (effective.length === 0) return null
             return (
               <div>
-                <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension exercises</h2>
+                <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
                 <AttachedExercisesRunner
                   exercises={effective}
                   onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
@@ -1782,27 +1782,27 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
           {content.audio_url ? (
-            <div className="bg-white border border-[#cddcf0] rounded-2xl p-4 mb-6">
+            <div className="bg-white border border-sky-border rounded-2xl p-4 mb-6">
               {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <audio controls src={content.audio_url} className="w-full" />
             </div>
           ) : (
             <div className="bg-gray-100 rounded-2xl p-8 text-center mb-6">
-              <p className="text-sm text-gray-400">Audio not available</p>
+              <p className="text-sm text-ink-muted">Audio not available</p>
             </div>
           )}
 
           {content.exercises && content.exercises.length > 0 && (
             <div>
-              <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension exercises</h2>
+              <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
               <AttachedExercisesRunner
                 exercises={content.exercises}
                 onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
@@ -1823,19 +1823,19 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-6 mb-6">
-            <div className="text-sm text-[#46464b] leading-relaxed whitespace-pre-wrap">
+          <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-6 mb-6">
+            <div className="text-sm text-ink-body leading-relaxed whitespace-pre-wrap">
               {content.text}
             </div>
             {content.source && (
-              <p className="text-xs text-gray-400 mt-4 pt-3 border-t border-gray-100 italic">
+              <p className="text-xs text-ink-muted mt-4 pt-3 border-t border-gray-100 italic">
                 Source: {content.source}
               </p>
             )}
@@ -1849,7 +1849,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             if (effective.length === 0) return null
             return (
               <div>
-                <h2 className="text-sm font-bold text-[#416ebe] mb-3">Comprehension exercises</h2>
+                <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
                 <AttachedExercisesRunner
                   exercises={effective}
                   onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
@@ -1869,10 +1869,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-4">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
@@ -1896,27 +1896,27 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
           {/* Rule explanation */}
-          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-6 mb-4">
-            <h2 className="text-xs font-bold text-[#416ebe] uppercase tracking-wider mb-3">
+          <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-6 mb-4">
+            <h2 className="text-xs font-bold text-brandblue uppercase tracking-wider mb-3">
               Rule
             </h2>
-            <p className="text-sm text-[#46464b] leading-relaxed whitespace-pre-wrap">
+            <p className="text-sm text-ink-body leading-relaxed whitespace-pre-wrap">
               {content.explanation}
             </p>
           </div>
 
           {/* Examples — with target structure highlight + Listen audio */}
           {content.examples && content.examples.length > 0 && (
-            <div className="bg-[#e6f0fa] rounded-2xl p-5 mb-4">
-              <h2 className="text-xs font-bold text-[#416ebe] uppercase tracking-wider mb-3">
+            <div className="bg-sky-wash rounded-2xl p-5 mb-4">
+              <h2 className="text-xs font-bold text-brandblue uppercase tracking-wider mb-3">
                 Examples
               </h2>
               <ul className="space-y-2">
@@ -1929,7 +1929,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                     body = (
                       <>
                         {ex.slice(0, idx)}
-                        <strong className="text-[#416ebe]">{ex.slice(idx, idx + hl.length)}</strong>
+                        <strong className="text-brandblue">{ex.slice(idx, idx + hl.length)}</strong>
                         {ex.slice(idx + hl.length)}
                       </>
                     )
@@ -1937,7 +1937,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                   return (
                     <li
                       key={i}
-                      className="flex items-center gap-2 text-sm text-[#46464b] bg-white rounded-lg px-3 py-2 border border-[#cddcf0]"
+                      className="flex items-center gap-2 text-sm text-ink-body bg-white rounded-lg px-3 py-2 border border-sky-border"
                     >
                       <span className="flex-1">{body}</span>
                       <AudioButton text={ex} />
@@ -1956,13 +1956,13 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               </h2>
               <ul className="space-y-3">
                 {content.pitfalls.map((p, i) => (
-                  <li key={i} className="text-sm text-[#46464b]">
+                  <li key={i} className="text-sm text-ink-body">
                     <div>
                       <span className="text-red-400 line-through mr-1">{p.mistake}</span>
-                      <span className="mx-1 text-gray-300">→</span>
+                      <span className="mx-1 text-[#c8ccd4]">→</span>
                       <span className="text-green-600 font-medium">{p.correct}</span>
                     </div>
-                    {p.tip && <p className="text-[11px] text-gray-500 mt-0.5">{p.tip}</p>}
+                    {p.tip && <p className="text-[11px] text-ink-muted mt-0.5">{p.tip}</p>}
                   </li>
                 ))}
               </ul>
@@ -1972,7 +1972,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           {/* Practice exercises — prefer new multi-type field; fall back to legacy MCQ */}
           {content.practice_exercises && content.practice_exercises.length > 0 ? (
             <div>
-              <h2 className="text-sm font-bold text-[#416ebe] mb-3">Practice</h2>
+              <h2 className="text-sm font-bold text-brandblue mb-3">Practice</h2>
               <AttachedExercisesRunner
                 exercises={content.practice_exercises}
                 onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
@@ -1980,7 +1980,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           ) : content.exercises && content.exercises.length > 0 ? (
             <div>
-              <h2 className="text-sm font-bold text-[#416ebe] mb-3">Practice</h2>
+              <h2 className="text-sm font-bold text-brandblue mb-3">Practice</h2>
               <InlineQuiz questions={content.exercises} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
             </div>
           ) : null}
@@ -1999,26 +1999,26 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
           {/* Prompt */}
-          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-6 mb-4">
-            <h2 className="text-xs font-bold text-[#416ebe] uppercase tracking-wider mb-2">
+          <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-6 mb-4">
+            <h2 className="text-xs font-bold text-brandblue uppercase tracking-wider mb-2">
               Writing prompt
             </h2>
-            <p className="text-sm text-[#46464b] leading-relaxed">{content.prompt}</p>
+            <p className="text-sm text-ink-body leading-relaxed">{content.prompt}</p>
           </div>
 
           {/* Guidelines */}
           {content.guidelines && (
-            <div className="bg-[#e6f0fa] rounded-xl p-4 mb-4">
-              <h2 className="text-xs font-bold text-[#416ebe] mb-1">Guidelines</h2>
-              <p className="text-xs text-[#46464b] leading-relaxed whitespace-pre-wrap">
+            <div className="bg-sky-wash rounded-xl p-4 mb-4">
+              <h2 className="text-xs font-bold text-brandblue mb-1">Guidelines</h2>
+              <p className="text-xs text-ink-body leading-relaxed whitespace-pre-wrap">
                 {content.guidelines}
               </p>
             </div>
@@ -2034,7 +2034,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               }}
               placeholder="Start writing here..."
               rows={10}
-              className="w-full border-2 border-[#cddcf0] rounded-2xl p-4 text-sm text-[#46464b] leading-relaxed resize-y focus:outline-none focus:border-[#416ebe] transition-colors"
+              className="w-full border-[1.5px] border-sky-border rounded-2xl p-4 text-sm text-ink-body leading-relaxed resize-y focus:outline-none focus:border-sky transition-colors"
             />
           </div>
 
@@ -2045,7 +2045,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                 className={`text-xs font-bold ${
                   content.word_limit && wordCount > content.word_limit
                     ? 'text-red-500'
-                    : 'text-gray-400'
+                    : 'text-ink-muted'
                 }`}
               >
                 {wordCount} {content.word_limit ? `/ ${content.word_limit}` : ''} words
@@ -2054,7 +2054,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
                 <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
-                      wordCount > content.word_limit ? 'bg-red-400' : 'bg-[#416ebe]'
+                      wordCount > content.word_limit ? 'bg-red-400' : 'bg-sky'
                     }`}
                     style={{
                       width: `${Math.min((wordCount / content.word_limit) * 100, 100)}%`,
@@ -2071,7 +2071,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <button
             onClick={handleWritingSubmit}
             disabled={!writingText.trim() || writingSaved}
-            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {writingSaved ? 'Submitted' : 'Submit writing'}
           </button>
@@ -2089,10 +2089,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">{meta.icon}</span>
             <div>
-              <h1 className="text-xl font-bold text-[#416ebe]">
+              <h1 className="text-xl font-bold text-brandblue">
                 {selectedBlock.title || meta.label}
               </h1>
-              <p className="text-xs text-gray-400">{lesson.title}</p>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
             </div>
           </div>
 
@@ -2100,19 +2100,19 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             {content.words.map((w, i) => (
               <div
                 key={i}
-                className="bg-white rounded-2xl border-2 border-[#cddcf0] p-5"
+                className="bg-white rounded-2xl border-[1.5px] border-sky-border p-5"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <AudioButton text={w.word} />
                   <div>
-                    <h3 className="text-base font-bold text-[#416ebe]">{w.word}</h3>
-                    <p className="text-xs text-gray-400">{w.phonetic}</p>
+                    <h3 className="text-base font-bold text-brandblue">{w.word}</h3>
+                    <p className="text-xs text-ink-muted">{w.phonetic}</p>
                   </div>
                 </div>
                 {w.tips && (
-                  <div className="bg-[#e6f0fa] rounded-lg px-3 py-2 mt-2">
-                    <p className="text-xs text-[#46464b]">
-                      <span className="font-bold text-[#416ebe]">Tip: </span>
+                  <div className="bg-sky-wash rounded-lg px-3 py-2 mt-2">
+                    <p className="text-xs text-ink-body">
+                      <span className="font-bold text-brandblue">Tip: </span>
                       {w.tips}
                     </p>
                   </div>
@@ -2130,7 +2130,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         <BackToLesson />
         <div className="text-center py-12">
           <div className="text-4xl mb-3">📦</div>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-ink-muted">
             This content type is not yet supported.
           </p>
         </div>

@@ -49,7 +49,7 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   if (!exercise.questions || exercise.questions.length === 0) {
-    return <div className="text-center py-8 text-sm text-gray-400">No questions in this exercise.</div>
+    return <div className="text-center py-8 text-sm text-ink-muted">No questions in this exercise.</div>
   }
 
   const current = exercise.questions[currentIndex]
@@ -134,10 +134,10 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -158,11 +158,11 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
                     {isCorrect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-xs text-gray-400 mb-1">Correct order:</p>
+                    <p className="text-xs text-ink-muted mb-1">Correct order:</p>
                     <div className="space-y-1">
                       {q.segments.map((seg, si) => (
-                        <p key={si} className="text-sm text-[#46464b]">
-                          <span className="text-xs text-[#416ebe] font-bold mr-1">{si + 1}.</span>
+                        <p key={si} className="text-sm text-ink-body">
+                          <span className="text-xs text-brandblue font-bold mr-1">{si + 1}.</span>
                           {seg}
                         </p>
                       ))}
@@ -176,7 +176,7 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -189,33 +189,33 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {answeredCount} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-5 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-4">
+      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-4">
           {isParagraph ? 'Arrange the paragraphs' : 'Arrange the sentences'}
         </p>
 
@@ -240,18 +240,18 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
                 onDragEnd={() => setDragIndex(null)}
                 className={`flex items-start gap-2 p-3 rounded-xl border-2 transition-all ${
                   feedback === null
-                    ? 'bg-[#f7fafd] border-[#cddcf0] cursor-grab active:cursor-grabbing hover:border-[#416ebe]'
+                    ? 'bg-surface border-sky-border cursor-grab active:cursor-grabbing hover:border-sky'
                     : isInCorrectPosition
                     ? 'bg-green-50 border-green-300'
                     : isInWrongPosition
                     ? 'bg-red-50 border-red-300'
-                    : 'bg-white border-[#cddcf0]'
+                    : 'bg-white border-sky-border'
                 }`}
               >
                 {/* Position number */}
                 <span className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold mt-0.5 ${
                   feedback === null
-                    ? 'bg-[#416ebe] text-white'
+                    ? 'bg-sky text-white'
                     : isInCorrectPosition
                     ? 'bg-green-500 text-white'
                     : 'bg-red-400 text-white'
@@ -260,7 +260,7 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
                 </span>
 
                 {/* Segment text */}
-                <span className={`flex-1 text-sm text-[#46464b] ${isParagraph ? 'leading-relaxed' : ''}`}>
+                <span className={`flex-1 text-sm text-ink-body ${isParagraph ? 'leading-relaxed' : ''}`}>
                   {seg}
                 </span>
 
@@ -270,14 +270,14 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
                     <button
                       onClick={() => moveUp(idx)}
                       disabled={idx === 0}
-                      className="text-gray-400 hover:text-[#416ebe] disabled:opacity-20 text-xs px-1"
+                      className="text-ink-muted hover:text-sky disabled:opacity-20 text-xs px-1"
                     >
                       ▲
                     </button>
                     <button
                       onClick={() => moveDown(idx)}
                       disabled={idx === segments.length - 1}
-                      className="text-gray-400 hover:text-[#416ebe] disabled:opacity-20 text-xs px-1"
+                      className="text-ink-muted hover:text-sky disabled:opacity-20 text-xs px-1"
                     >
                       ▼
                     </button>
@@ -298,10 +298,10 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
       {feedback === 'wrong' && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3">
           <p className="text-sm text-red-500 font-bold mb-2 text-center">Not quite.</p>
-          <p className="text-xs text-gray-400 mb-1">Correct order:</p>
+          <p className="text-xs text-ink-muted mb-1">Correct order:</p>
           <div className="space-y-1">
             {current.segments.map((seg, i) => (
-              <p key={i} className="text-xs text-[#46464b]">
+              <p key={i} className="text-xs text-ink-body">
                 <span className="text-green-600 font-bold mr-1">{i + 1}.</span>
                 {seg}
               </p>
@@ -314,14 +314,14 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
       {feedback === null ? (
         <button
           onClick={handleCheck}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Check order
         </button>
       ) : feedback === 'wrong' ? (
         <button
           onClick={() => advance(results)}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Next →
         </button>
@@ -334,7 +334,7 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : results[i]?.correct
                 ? 'bg-green-400'
                 : results[i] !== null

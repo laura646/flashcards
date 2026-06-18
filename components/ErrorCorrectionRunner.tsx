@@ -275,10 +275,10 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             {totalCorrect}/{totalErrors} errors fixed ({pct}%) · {perfectCount}/{exercise.questions.length} sentences fully corrected
           </p>
         </div>
@@ -304,12 +304,12 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
                     {cleanPerfect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-xs text-gray-400 mb-1">Original (with errors):</p>
+                    <p className="text-xs text-ink-muted mb-1">Original (with errors):</p>
                     <p className="text-sm text-red-400 line-through">{q.incorrect}</p>
-                    <p className="text-xs text-gray-400 mt-2 mb-1">Correct version:</p>
+                    <p className="text-xs text-ink-muted mt-2 mb-1">Correct version:</p>
                     <p className="text-sm text-green-600 font-medium">{q.correct}</p>
                     {(!perfect || falsePositives > 0) && (
-                      <p className="text-xs text-gray-400 mt-2">
+                      <p className="text-xs text-ink-muted mt-2">
                         Found {result.foundErrors}/{result.totalErrors} errors, fixed {result.correctFixes} correctly
                         {falsePositives > 0 && (
                           <>
@@ -331,7 +331,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -344,47 +344,47 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {answeredCount} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Phase indicator */}
       <div className="flex gap-2">
         <div className={`flex-1 text-center py-1.5 rounded-lg text-xs font-bold ${
-          phase === 'highlight' ? 'bg-[#416ebe] text-white' : 'bg-[#e6f0fa] text-[#416ebe]'
+          phase === 'highlight' ? 'bg-sky text-white' : 'bg-sky-wash text-brandblue'
         }`}>
           Step 1: Find errors
         </div>
         <div className={`flex-1 text-center py-1.5 rounded-lg text-xs font-bold ${
-          phase === 'correct' ? 'bg-[#416ebe] text-white' : phase === 'feedback' ? 'bg-[#e6f0fa] text-[#416ebe]' : 'bg-gray-100 text-gray-400'
+          phase === 'correct' ? 'bg-sky text-white' : phase === 'feedback' ? 'bg-sky-wash text-brandblue' : 'bg-gray-100 text-ink-muted'
         }`}>
           Step 2: Fix them
         </div>
       </div>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-5 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-3">
+      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-3">
           Sentence {currentIndex + 1}
         </p>
 
@@ -407,7 +407,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
                   className={`px-2 py-1 rounded-lg text-base transition-all border-2 ${
                     w.highlighted
                       ? 'bg-red-100 border-red-300 text-red-700 font-bold'
-                      : 'bg-white border-transparent text-[#46464b] hover:bg-gray-50 hover:border-gray-200'
+                      : 'bg-white border-transparent text-ink-body hover:bg-gray-50 hover:border-gray-200'
                   }`}
                 >
                   {w.word}
@@ -439,7 +439,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
                         }
                       }}
                       onBlur={() => setEditingWordIndex(null)}
-                      className="w-24 text-center border-2 border-[#416ebe] rounded-lg px-2 py-1 text-sm text-[#46464b] outline-none bg-blue-50"
+                      className="w-24 text-center border-2 border-sky rounded-lg px-2 py-1 text-sm text-ink-body outline-none bg-blue-50"
                       autoComplete="off"
                       spellCheck={false}
                     />
@@ -522,7 +522,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
               }
               // Plain word — not an error, not flagged
               return (
-                <span key={w.index} className="inline-block px-1 py-0.5 text-base text-[#46464b]">
+                <span key={w.index} className="inline-block px-1 py-0.5 text-base text-ink-body">
                   {w.word}
                 </span>
               )
@@ -530,7 +530,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
 
             // Phase correct but not highlighted
             return (
-              <span key={w.index} className="px-2 py-1 text-base text-[#46464b]">
+              <span key={w.index} className="px-2 py-1 text-base text-ink-body">
                 {w.word}
               </span>
             )
@@ -553,11 +553,11 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
                     </p>
                   ) : (
                     <>
-                      <p className="text-gray-500">
+                      <p className="text-ink-muted">
                         Found {r.foundErrors} of {r.totalErrors} error
                         {r.totalErrors !== 1 ? 's' : ''}
                       </p>
-                      <p className="text-gray-500">Correctly fixed: {r.correctFixes}</p>
+                      <p className="text-ink-muted">Correctly fixed: {r.correctFixes}</p>
                     </>
                   )}
                   {falsePositives > 0 && (
@@ -566,7 +566,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
                       {falsePositives === 1 ? ' was' : ' were'} already correct.
                     </p>
                   )}
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className="text-xs text-ink-muted mt-2">
                     Correct version:{' '}
                     <span className="text-green-600 font-medium">{current.correct}</span>
                   </p>
@@ -582,7 +582,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
         <button
           onClick={moveToCorrectPhase}
           disabled={words.filter((w) => w.highlighted).length === 0}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           I found the errors → Now let me fix them
         </button>
@@ -592,7 +592,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
         <button
           onClick={handleSubmitCorrections}
           disabled={!allHighlightedHaveCorrections()}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Check my corrections
         </button>
@@ -601,7 +601,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
       {phase === 'feedback' && (
         <button
           onClick={() => advance(results)}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Next →
         </button>
@@ -617,7 +617,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
               key={i}
               className={`w-2.5 h-2.5 rounded-full transition-all ${
                 i === currentIndex
-                  ? 'bg-[#416ebe] scale-125'
+                  ? 'bg-sky scale-125'
                   : perfect
                   ? 'bg-green-400'
                   : r !== null

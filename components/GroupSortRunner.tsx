@@ -169,10 +169,10 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You sorted {score}/{totalItems} items correctly ({pct}%)
           </p>
         </div>
@@ -185,10 +185,10 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
               .map(([item]) => item)
 
             return (
-              <div key={group.name} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4">
+              <div key={group.name} className="bg-white rounded-2xl border-2 border-sky-border p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <GroupHeaderImage url={group.image_url} />
-                  <h3 className="text-sm font-bold text-[#416ebe]">{group.name}</h3>
+                  <h3 className="text-sm font-bold text-brandblue">{group.name}</h3>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {group.items.map((it) => {
@@ -202,7 +202,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
                             ? 'border-green-300 bg-green-50 text-green-700'
                             : wasPlacedElsewhere
                             ? 'border-red-300 bg-red-50 text-red-600'
-                            : 'border-gray-200 bg-gray-50 text-gray-400'
+                            : 'border-gray-200 bg-gray-50 text-ink-muted'
                         }`}
                       >
                         {wasPlacedHere && '✓'}
@@ -210,7 +210,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
                         <ItemImage url={it.image_url} size="sm" />
                         <span>{it.text}</span>
                         {wasPlacedElsewhere && (
-                          <span className="text-gray-400 ml-1">(was in {placements[it.text]})</span>
+                          <span className="text-ink-muted ml-1">(was in {placements[it.text]})</span>
                         )}
                       </span>
                     )
@@ -223,7 +223,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -237,34 +237,34 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${((totalItems - unplacedItems.length) / totalItems) * 100}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {totalItems - unplacedItems.length} / {totalItems}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Items to sort */}
       {unplacedItems.length > 0 && (
         <div>
-          <p className="text-xs font-bold text-gray-400 mb-2">Items to sort</p>
+          <p className="text-xs font-bold text-ink-muted mb-2">Items to sort</p>
           <div className="flex flex-wrap gap-2">
             {unplacedItems.map((item) => {
               const imageUrl = itemImageMap[item]
@@ -277,8 +277,8 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
                   onClick={() => handleItemTap(item)}
                   className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                     isSelected
-                      ? 'bg-[#416ebe] text-white border-2 border-[#416ebe] scale-105 shadow-md'
-                      : 'bg-white text-[#46464b] border-2 border-[#cddcf0] hover:border-[#416ebe] hover:text-[#416ebe] cursor-grab active:cursor-grabbing'
+                      ? 'bg-sky text-white border-2 border-sky scale-105 shadow-md'
+                      : 'bg-white text-ink-body border-2 border-sky-border hover:border-sky hover:text-sky cursor-grab active:cursor-grabbing'
                   }`}
                 >
                   <ItemImage url={imageUrl} size="md" />
@@ -305,17 +305,17 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
               onDrop={() => handleDrop(group.name)}
               className={`rounded-2xl border-2 border-dashed p-4 min-h-[120px] transition-all ${
                 selectedItem
-                  ? 'border-[#416ebe] bg-[#e6f0fa]/30 cursor-pointer hover:bg-[#e6f0fa]'
-                  : 'border-[#cddcf0] bg-white'
+                  ? 'border-sky bg-sky-wash/30 cursor-pointer hover:bg-sky-wash'
+                  : 'border-sky-border bg-white'
               }`}
             >
               <div className="flex items-center justify-center gap-2 mb-3">
                 <GroupHeaderImage url={group.image_url} />
-                <h3 className="text-sm font-bold text-[#416ebe] text-center">{group.name}</h3>
+                <h3 className="text-sm font-bold text-brandblue text-center">{group.name}</h3>
               </div>
               <div className="flex flex-wrap gap-1.5 justify-center">
                 {placedItems.length === 0 && (
-                  <p className="text-xs text-gray-300 italic">
+                  <p className="text-xs text-[#c8ccd4] italic">
                     {selectedItem ? 'Tap to place here' : 'Drop items here'}
                   </p>
                 )}
@@ -328,7 +328,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
                         e.stopPropagation()
                         removeItem(item)
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#e6f0fa] text-[#416ebe] border border-[#cddcf0] hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-wash text-brandblue border border-sky-border hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
                       title="Click to remove"
                     >
                       <ItemImage url={imageUrl} size="sm" />
@@ -347,7 +347,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
       <button
         onClick={handleCheck}
         disabled={!allPlaced}
-        className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Check answers
       </button>

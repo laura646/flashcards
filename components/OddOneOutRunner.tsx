@@ -39,7 +39,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
   }, [currentIndex])
 
   if (!exercise.questions || exercise.questions.length === 0) {
-    return <div className="text-center py-8 text-sm text-gray-400">No questions in this exercise.</div>
+    return <div className="text-center py-8 text-sm text-ink-muted">No questions in this exercise.</div>
   }
 
   const handleSelect = (optIndex: number) => {
@@ -85,10 +85,10 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
       <div className="flex flex-col gap-4">
         <div className="text-center py-6">
           <div className="text-5xl mb-3">{pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}</div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -103,7 +103,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
                     {correct ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-[#46464b] mb-1">{q.prompt}</p>
+                    <p className="text-sm font-bold text-ink-body mb-1">{q.prompt}</p>
                     <div className="flex flex-wrap gap-2">
                       {q.options.map((opt, oi) => (
                         <span
@@ -119,7 +119,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
                       ))}
                     </div>
                     {q.explanation && (
-                      <p className="text-xs text-gray-400 mt-1 italic">{q.explanation}</p>
+                      <p className="text-xs text-ink-muted mt-1 italic">{q.explanation}</p>
                     )}
                   </div>
                 </div>
@@ -128,7 +128,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
           })}
         </div>
 
-        <button onClick={onBack} className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2">
+        <button onClick={onBack} className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2">
           ← Back to exercises
         </button>
       </div>
@@ -140,35 +140,35 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">← Back</button>
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">← Back</button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
-          <div className="h-full bg-[#416ebe] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
+          <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">{answeredCount} / {exercise.questions.length}</span>
+        <span className="text-xs text-ink-muted whitespace-nowrap">{answeredCount} / {exercise.questions.length}</span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
         {/* Keyword */}
         <div className="text-center mb-5">
-          <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Which one doesn&apos;t belong?</p>
-          <p className="text-2xl font-bold text-[#416ebe]">{current.prompt}</p>
+          <p className="text-xs text-ink-muted uppercase tracking-widest mb-1">Which one doesn&apos;t belong?</p>
+          <p className="text-2xl font-bold text-brandblue">{current.prompt}</p>
         </div>
 
         {/* Options */}
         <div className="space-y-2">
           {current.options.map((opt, oi) => {
-            let style = 'border-[#e6f0fa] bg-white hover:border-[#416ebe] hover:bg-[#e6f0fa] cursor-pointer'
+            let style = 'border-hairline bg-white hover:border-sky hover:bg-sky-wash cursor-pointer'
 
             if (feedback !== null) {
               if (oi === current.correctIndex) {
@@ -178,7 +178,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
                 style = 'border-green-200 bg-green-50 text-green-700'
               }
             } else if (selectedIndex === oi) {
-              style = 'border-[#416ebe] bg-[#e6f0fa] ring-2 ring-[#416ebe] cursor-pointer'
+              style = 'border-sky bg-sky-wash ring-2 ring-[#416ebe] cursor-pointer'
             }
 
             return (
@@ -206,7 +206,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
         <button
           onClick={handleSubmit}
           disabled={selectedIndex === null}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Submit
         </button>
@@ -217,7 +217,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
         <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
           <p className="text-sm text-green-600 font-bold">✓ Correct!</p>
           {current.explanation && (
-            <p className="text-xs text-gray-500 mt-1">{current.explanation}</p>
+            <p className="text-xs text-ink-muted mt-1">{current.explanation}</p>
           )}
         </div>
       )}
@@ -225,18 +225,18 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
       {feedback === 'wrong' && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
           <p className="text-sm text-red-500 font-bold mb-1">✗ Not quite.</p>
-          <p className="text-xs text-[#46464b]">
+          <p className="text-xs text-ink-body">
             The odd one out is: <span className="font-bold line-through">{current.options[current.correctIndex]}</span>
           </p>
           {current.explanation && (
-            <p className="text-xs text-gray-500 mt-1">{current.explanation}</p>
+            <p className="text-xs text-ink-muted mt-1">{current.explanation}</p>
           )}
         </div>
       )}
 
       {/* Next button */}
       {feedback !== null && (
-        <button onClick={advance} className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors">
+        <button onClick={advance} className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors">
           {answeredCount >= exercise.questions.length ? 'See Results' : 'Next →'}
         </button>
       )}
@@ -248,7 +248,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : results[i] === true
                 ? 'bg-green-400'
                 : results[i] === false

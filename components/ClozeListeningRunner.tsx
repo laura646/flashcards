@@ -57,7 +57,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   if (!exercise.questions || exercise.questions.length === 0) {
-    return <div className="text-center py-8 text-sm text-gray-400">No questions in this exercise.</div>
+    return <div className="text-center py-8 text-sm text-ink-muted">No questions in this exercise.</div>
   }
 
   const current = exercise.questions[currentIndex]
@@ -213,10 +213,10 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             {correctBlanks}/{totalBlanks} blanks correct ({pct}%)
           </p>
         </div>
@@ -245,7 +245,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
                   >
                     {allCorrect ? '✓' : '✗'}
                   </span>
-                  <div className="flex-1 text-sm text-[#46464b] leading-relaxed flex flex-wrap items-baseline gap-x-0.5">
+                  <div className="flex-1 text-sm text-ink-body leading-relaxed flex flex-wrap items-baseline gap-x-0.5">
                     {qParts.map((part, pi) => {
                       if (part.type === 'text') return <span key={pi}>{part.value}</span>
                       const bid = part.blankId
@@ -270,7 +270,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -292,36 +292,36 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors"
+          className="text-sm text-ink-muted hover:text-sky transition-colors"
         >
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {currentIndex + 1} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Mode toggle */}
-      <div className="flex rounded-xl bg-[#e6f0fa] p-1">
+      <div className="flex rounded-xl bg-sky-wash p-1">
         <button
           onClick={() => { setMode('listen_first'); setBlanksRevealed(false) }}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
             mode === 'listen_first'
-              ? 'bg-white text-[#416ebe] shadow-sm'
-              : 'text-gray-400 hover:text-[#416ebe]'
+              ? 'bg-white text-brandblue shadow-sm'
+              : 'text-ink-muted hover:text-sky'
           }`}
         >
           Listen First
@@ -330,8 +330,8 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
           onClick={() => { setMode('read_listen'); setBlanksRevealed(true) }}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
             mode === 'read_listen'
-              ? 'bg-white text-[#416ebe] shadow-sm'
-              : 'text-gray-400 hover:text-[#416ebe]'
+              ? 'bg-white text-brandblue shadow-sm'
+              : 'text-ink-muted hover:text-sky'
           }`}
         >
           Read & Listen
@@ -339,11 +339,11 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Audio controls */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-5 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-3">
+      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-3">
           Sentence {currentIndex + 1}
         </p>
         <div className="flex flex-col items-center gap-3">
@@ -351,7 +351,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
             <button
               onClick={() => playAudio(false)}
               disabled={isPlaying}
-              className="flex items-center gap-2 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-sky hover:brightness-95 text-white font-bold py-3 px-6 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               {isPlaying ? (
                 <span className="animate-pulse">Playing...</span>
@@ -364,19 +364,19 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
             <button
               onClick={() => playAudio(true)}
               disabled={isPlaying}
-              className="flex items-center gap-2 bg-[#e6f0fa] hover:bg-[#cddcf0] text-[#416ebe] font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-sky-wash hover:bg-[#cddcf0] text-brandblue font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               <span className="text-lg">🐢</span> Slow
             </button>
           </div>
           {playCount === 0 && mode === 'listen_first' && (
-            <p className="text-xs text-gray-400">Listen first, then fill in the blanks</p>
+            <p className="text-xs text-ink-muted">Listen first, then fill in the blanks</p>
           )}
           {playCount === 0 && mode === 'read_listen' && (
-            <p className="text-xs text-gray-400">Play audio and fill in the missing words</p>
+            <p className="text-xs text-ink-muted">Play audio and fill in the missing words</p>
           )}
           {playCount > 0 && (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-ink-muted">
               Played {playCount} time{playCount !== 1 ? 's' : ''}
             </p>
           )}
@@ -385,8 +385,8 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
 
       {/* Text with blanks */}
       {showBlanks ? (
-        <div className="bg-white border border-[#cddcf0] rounded-2xl p-5 shadow-sm">
-          <div className="text-base text-[#46464b] leading-loose flex flex-wrap items-center gap-y-2">
+        <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+          <div className="text-base text-ink-body leading-loose flex flex-wrap items-center gap-y-2">
             {parts.map((part, pi) => {
               if (part.type === 'text') return <span key={pi}>{part.value}</span>
               const blankId = part.blankId
@@ -410,8 +410,8 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
                         ? 'border-green-400 bg-green-50 text-green-700'
                         : status === 'wrong'
                         ? 'border-red-400 bg-red-50 text-red-600'
-                        : 'border-gray-300 bg-gray-50 text-[#46464b] focus:border-[#416ebe] focus:bg-[#e6f0fa]'
-                    } disabled:bg-gray-50 placeholder:text-gray-300`}
+                        : 'border-gray-300 bg-gray-50 text-ink-body focus:border-sky focus:bg-sky-wash'
+                    } disabled:bg-gray-50 placeholder:text-[#c8ccd4]`}
                   />
                   {isSubmitted && status === 'wrong' && (
                     <span className="text-xs text-green-600 mt-0.5">
@@ -424,8 +424,8 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
           </div>
         </div>
       ) : (
-        <div className="bg-gray-50 border border-[#cddcf0] rounded-2xl p-5 text-center">
-          <p className="text-sm text-gray-400 italic">
+        <div className="bg-gray-50 border border-sky-border rounded-2xl p-5 text-center">
+          <p className="text-sm text-ink-muted italic">
             Listen to the audio first. The blanks will appear after playback.
           </p>
         </div>
@@ -436,7 +436,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
         <button
           onClick={handleCheck}
           disabled={!allFilled || playCount === 0}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Check
         </button>
@@ -445,7 +445,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
       {isSubmitted && (
         <button
           onClick={handleNext}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           {currentIndex + 1 < exercise.questions.length ? 'Next →' : 'See Results'}
         </button>
@@ -458,7 +458,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : submitted[i]
                 ? Object.keys(exercise.questions[i].blanks).every(
                     (bid) =>

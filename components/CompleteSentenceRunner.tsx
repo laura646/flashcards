@@ -166,10 +166,10 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{total} blanks ({pct}%)
           </p>
         </div>
@@ -191,7 +191,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
                   <span className={`text-sm font-bold mt-0.5 ${allCorrect ? 'text-green-500' : 'text-red-400'}`}>
                     {allCorrect ? '✓' : '✗'}
                   </span>
-                  <div className="flex-1 text-sm text-[#46464b] leading-relaxed flex flex-wrap items-baseline gap-x-0.5">
+                  <div className="flex-1 text-sm text-ink-body leading-relaxed flex flex-wrap items-baseline gap-x-0.5">
                     {parts.map((part, pi) => {
                       if (part.type === 'text') return <span key={pi}>{part.value}</span>
                       const blankId = part.blankId!
@@ -218,7 +218,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -241,26 +241,26 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors">
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
-          <div className="h-full bg-[#416ebe] rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
+          <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {currentIndex + 1} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question image */}
       {current.image_url && (
@@ -268,17 +268,17 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
           <img
             src={current.image_url}
             alt=""
-            className="max-h-48 rounded-2xl border border-[#cddcf0] shadow-sm object-contain"
+            className="max-h-48 rounded-2xl border border-sky-border shadow-sm object-contain"
           />
         </div>
       )}
 
       {/* Sentence with blanks */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-4">
+      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-4">
           Sentence {currentIndex + 1}
         </p>
-        <div className="text-base text-[#46464b] leading-loose flex flex-wrap items-center gap-y-2">
+        <div className="text-base text-ink-body leading-loose flex flex-wrap items-center gap-y-2">
           {parts.map((part, pi) => {
             if (part.type === 'text') return <span key={pi}>{part.value}</span>
             const blankId = part.blankId!
@@ -297,10 +297,10 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
                     : status === 'wrong'
                     ? 'border-red-400 bg-red-50 text-red-600'
                     : placed
-                    ? 'border-[#416ebe] bg-[#e6f0fa] text-[#416ebe]'
+                    ? 'border-sky bg-sky-wash text-brandblue'
                     : selectedWord
-                    ? 'border-[#416ebe] bg-[#e6f0fa]/50 text-gray-400 animate-pulse'
-                    : 'border-gray-300 bg-gray-50 text-gray-400'
+                    ? 'border-sky bg-sky-wash/50 text-ink-muted animate-pulse'
+                    : 'border-gray-300 bg-gray-50 text-ink-muted'
                 }`}
               >
                 {placed || '___'}
@@ -316,7 +316,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
       {/* Word bank */}
       {!isSubmitted && (
         <div>
-          <p className="text-xs font-bold text-gray-400 mb-2">Word bank</p>
+          <p className="text-xs font-bold text-ink-muted mb-2">Word bank</p>
           <div className="flex flex-wrap gap-2">
             {current.wordBank.map((word, wi) => {
               const isUsed = usedWords.has(word)
@@ -330,10 +330,10 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
                   disabled={isUsed}
                   className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                     isUsed
-                      ? 'bg-gray-100 text-gray-300 border border-gray-200 cursor-default'
+                      ? 'bg-gray-100 text-[#c8ccd4] border border-gray-200 cursor-default'
                       : isSelected
-                      ? 'bg-[#416ebe] text-white border-2 border-[#416ebe] scale-105 shadow-md'
-                      : 'bg-white text-[#46464b] border-2 border-[#cddcf0] hover:border-[#416ebe] hover:text-[#416ebe] cursor-grab active:cursor-grabbing'
+                      ? 'bg-sky text-white border-2 border-sky scale-105 shadow-md'
+                      : 'bg-white text-ink-body border-2 border-sky-border hover:border-sky hover:text-sky cursor-grab active:cursor-grabbing'
                   }`}
                 >
                   {word}
@@ -349,14 +349,14 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
         <button
           onClick={handleCheck}
           disabled={!allBlanksFilled}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Check answer
         </button>
       ) : (
         <button
           onClick={handleNext}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           {currentIndex + 1 < exercise.questions.length ? 'Next Sentence →' : 'See Results'}
         </button>
@@ -369,7 +369,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : submitted[i]
                 ? Object.keys(exercise.questions[i].blanks).every(
                     (blankId) =>

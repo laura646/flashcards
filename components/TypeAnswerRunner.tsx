@@ -158,10 +158,10 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You scored {score}/{exercise.questions.length} ({pct}%)
           </p>
         </div>
@@ -187,7 +187,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
                     {isCorrect ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm text-[#46464b]">{formatPrompt(q.prompt)}</p>
+                    <p className="text-sm text-ink-body">{formatPrompt(q.prompt)}</p>
                     {!isCorrect && result && (
                       <p className="text-xs mt-1">
                         <span className="text-red-400 line-through">
@@ -214,7 +214,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
         {/* Back button */}
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -228,7 +228,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
       ? 'border-green-400'
       : feedback === 'wrong'
       ? 'border-red-400'
-      : 'border-[#cddcf0]'
+      : 'border-sky-border'
 
   return (
     <div className="flex flex-col gap-4">
@@ -236,44 +236,44 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors"
+          className="text-sm text-ink-muted hover:text-sky transition-colors"
         >
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {answeredCount} / {exercise.questions.length}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-3">
+      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-3">
           Question {currentIndex + 1}
         </p>
         {current.image_url && (
           <img src={current.image_url} alt="" className="max-h-48 max-w-full object-contain rounded-xl mb-3" />
         )}
-        <p className="text-lg text-[#46464b] font-medium leading-relaxed">
+        <p className="text-lg text-ink-body font-medium leading-relaxed">
           {formatPrompt(current.prompt)}
         </p>
         {current.hint && (
-          <p className="text-xs text-gray-400 mt-2 italic">
+          <p className="text-xs text-ink-muted mt-2 italic">
             Hint: {current.hint}
           </p>
         )}
@@ -289,7 +289,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
           onKeyDown={handleKeyDown}
           disabled={feedback !== null}
           placeholder="Type your answer..."
-          className={`w-full border-2 ${borderColor} rounded-xl py-3 px-4 text-sm text-[#46464b] bg-white outline-none transition-colors focus:border-[#416ebe] disabled:bg-gray-50 placeholder:text-gray-300`}
+          className={`w-full border-2 ${borderColor} rounded-xl py-3 px-4 text-sm text-ink-body bg-white outline-none transition-colors focus:border-sky disabled:bg-gray-50 placeholder:text-[#c8ccd4]`}
           autoComplete="off"
           spellCheck={false}
         />
@@ -306,11 +306,11 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
             <p className="text-sm text-red-500 font-bold mb-1">
               Not quite.
             </p>
-            <p className="text-sm text-[#46464b]">
+            <p className="text-sm text-ink-body">
               Correct answer:{' '}
               <span className="font-bold text-green-600">{current.answer}</span>
               {current.alternatives && current.alternatives.length > 0 && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-ink-muted">
                   {' '}(also accepted: {current.alternatives.join(', ')})
                 </span>
               )}
@@ -324,14 +324,14 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
         <button
           onClick={handleSubmitAnswer}
           disabled={inputValue.trim() === ''}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Check answer
         </button>
       ) : feedback === 'wrong' ? (
         <button
           onClick={handleNextAfterWrong}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Next →
         </button>
@@ -344,7 +344,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : results[i]?.correct
                 ? 'bg-green-400'
                 : results[i] !== null

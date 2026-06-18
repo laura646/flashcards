@@ -193,10 +193,10 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
           <div className="text-5xl mb-3">
             {pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}
           </div>
-          <h2 className="text-xl font-bold text-[#416ebe]">
+          <h2 className="text-xl font-bold text-brandblue">
             {pct >= 80 ? 'Excellent!' : pct >= 60 ? 'Good effort!' : 'Keep practising!'}
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-ink-muted mt-1">
             You guessed {score}/{totalWords} words correctly ({pct}%)
           </p>
         </div>
@@ -216,8 +216,8 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
                     {correct ? '✓' : '✗'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-[#46464b]">{q.word}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{q.clue}</p>
+                    <p className="text-sm font-bold text-ink-body">{q.word}</p>
+                    <p className="text-xs text-ink-muted mt-0.5">{q.clue}</p>
                   </div>
                 </div>
               </div>
@@ -227,7 +227,7 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
 
         <button
           onClick={onBack}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors mt-2"
         >
           ← Back to exercises
         </button>
@@ -247,12 +247,12 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
               key={i}
               className={`inline-flex items-center justify-center text-xl font-bold min-w-[2rem] h-10 ${
                 isLetter
-                  ? 'border-b-2 border-[#416ebe]'
+                  ? 'border-b-2 border-sky'
                   : ''
               } ${
                 isRoundDone && isLetter && !guessedLetters.has(char)
                   ? 'text-red-400'
-                  : 'text-[#46464b]'
+                  : 'text-ink-body'
               }`}
             >
               {revealed ? (isLetter ? char : char) : '\u00A0'}
@@ -271,44 +271,44 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors"
+          className="text-sm text-ink-muted hover:text-sky transition-colors"
         >
           ← Back
         </button>
         <div className="flex-1">
-          <h2 className="text-sm font-bold text-[#416ebe]">{exercise.title}</h2>
+          <h2 className="text-sm font-bold text-brandblue">{exercise.title}</h2>
         </div>
       </div>
 
       {/* Progress */}
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 bg-[#e6f0fa] rounded-full overflow-hidden">
+        <div className="flex-1 h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#416ebe] rounded-full transition-all duration-300"
+            className="h-full bg-sky rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-ink-muted whitespace-nowrap">
           {currentIndex + 1} / {totalWords}
         </span>
       </div>
 
       {/* Instructions */}
-      <p className="text-xs text-gray-400 italic">{exercise.instructions}</p>
+      <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Game card */}
-      <div className="bg-white border border-[#cddcf0] rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
         {/* Clue */}
-        <p className="text-xs text-[#416ebe] font-bold uppercase tracking-widest mb-1">
+        <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-1">
           Clue
         </p>
-        <p className="text-sm text-[#46464b] mb-4 leading-relaxed">{current.clue}</p>
+        <p className="text-sm text-ink-body mb-4 leading-relaxed">{current.clue}</p>
 
         {/* Wilting-flower visual (replaces classic gallows) */}
         <FlowerSVG wrongCount={wrongCount} won={won} />
 
         {/* Petals remaining */}
-        <p className="text-xs text-center text-gray-400 mt-2 mb-3">
+        <p className="text-xs text-center text-ink-muted mt-2 mb-3">
           {MAX_WRONG - wrongCount} petal{MAX_WRONG - wrongCount === 1 ? '' : 's'} left
         </p>
 
@@ -355,7 +355,7 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
                     ? 'bg-green-100 text-green-600 border border-green-200 cursor-default'
                     : isWrong
                     ? 'bg-gray-100 text-red-400 border border-gray-200 cursor-default'
-                    : 'bg-white border-2 border-[#cddcf0] text-[#46464b] hover:border-[#416ebe] hover:text-[#416ebe] active:bg-[#e6f0fa]'
+                    : 'bg-white border-2 border-sky-border text-ink-body hover:border-sky hover:text-sky active:bg-sky-wash'
                 }`}
               >
                 {letter}
@@ -366,7 +366,7 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
       ) : (
         <button
           onClick={handleNext}
-          className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           {currentIndex + 1 < totalWords ? 'Next Word →' : 'See Results'}
         </button>
@@ -379,7 +379,7 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
             key={i}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
-                ? 'bg-[#416ebe] scale-125'
+                ? 'bg-sky scale-125'
                 : i < results.length
                 ? results[i]
                   ? 'bg-green-400'
