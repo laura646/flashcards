@@ -29,7 +29,7 @@ interface BtnProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'classN
 }
 
 export function Button({ variant = 'primary', size = 'md', fullWidth, className = '', children, disabled, ...rest }: BtnProps) {
-  const base = 'inline-flex items-center justify-center font-extrabold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-sky/40 disabled:cursor-not-allowed'
+  const base = 'inline-flex items-center justify-center font-extrabold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40 disabled:cursor-not-allowed'
   const sizes = {
     sm: 'text-[12px] px-3 py-2 rounded-tile gap-1',
     md: 'text-sm px-5 py-3 rounded-tile gap-1.5',
@@ -180,7 +180,7 @@ export function SegmentedControl<T extends string>({
 export function ProgressBar({ value, total, className = '', height = 'h-1.5' }: { value: number; total: number; className?: string; height?: string }) {
   const pct = total > 0 ? Math.min(100, Math.max(0, (value / total) * 100)) : 0
   return (
-    <div className={`w-full ${height} bg-[#eef1f6] rounded-full overflow-hidden ${className}`} role="progressbar" aria-valuenow={value} aria-valuemax={total}>
+    <div className={`w-full ${height} bg-[#eef1f6] rounded-full overflow-hidden ${className}`} role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={total}>
       <div
         className={`${height} bg-sky rounded-full transition-[width] duration-700 ease-in-out`}
         style={{ width: `${pct}%` }}
@@ -192,7 +192,14 @@ export function ProgressBar({ value, total, className = '', height = 'h-1.5' }: 
 // Segmented progress — used by Lesson detail's "1 / 3" tri-bar.
 export function SegmentedProgress({ filled, total, className = '' }: { filled: number; total: number; className?: string }) {
   return (
-    <div className={`flex gap-1.5 ${className}`}>
+    <div
+      className={`flex gap-1.5 ${className}`}
+      role="progressbar"
+      aria-valuenow={filled}
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-label={`Step ${filled} of ${total}`}
+    >
       {Array.from({ length: total }).map((_, i) => (
         <div
           key={i}

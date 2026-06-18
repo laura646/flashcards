@@ -55,7 +55,7 @@ body {
 }
 
 .card-flip-inner {
-  transition: transform 0.6s;
+  transition: transform 0.55s;
   transform-style: preserve-3d;
   position: relative;
 }

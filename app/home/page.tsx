@@ -176,7 +176,7 @@ export default function HomePage() {
             <p className="text-white mt-3 text-sm">Welcome back, {studentName}!</p>
           </div>
         </SkyHero>
-        <div className="w-full max-w-lg mx-auto px-4 py-6 flex-1">
+        <div className="w-full max-w-lg mx-auto px-4 py-6 pb-24 flex-1">
           <Eyebrow tone="brand" className="block mb-1">My courses</Eyebrow>
           <h2 className="text-lg font-extrabold text-brandblue mb-4">Choose a course</h2>
           <div className="flex flex-col gap-3">
@@ -195,8 +195,9 @@ export default function HomePage() {
               </button>
             ))}
           </div>
+          <Footer />
         </div>
-        <Footer />
+        <BottomTabBar />
       </main>
     )
   }

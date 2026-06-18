@@ -49,11 +49,13 @@ const BOX_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
 // Leitner ramp (brief §3) — used ONLY for the box-distribution bar chart.
 const BOX_COLORS = ['', 'bg-leitner-new', 'bg-leitner-learning', 'bg-leitner-familiar', 'bg-leitner-known', 'bg-leitner-mastered']
 
+// Session-summary chips use the 10B rating tokens so they match the
+// one-tap RatingRow (again=grey, hard=indigo, good=sky-wash, easy=sky).
 const GRADE_CONFIG = [
-  { grade: 'again' as Grade, label: 'Again', sub: 'forgot',   base: 'bg-red-50 border-red-200 text-red-500',         active: 'bg-red-500 border-red-500 text-white',    dot: 'bg-red-400',    pill: 'bg-red-100 text-red-500' },
-  { grade: 'hard'  as Grade, label: 'Hard',  sub: 'barely',   base: 'bg-orange-50 border-orange-200 text-orange-500', active: 'bg-orange-500 border-orange-500 text-white', dot: 'bg-orange-400', pill: 'bg-orange-100 text-orange-500' },
-  { grade: 'good'  as Grade, label: 'Good',  sub: 'got it',   base: 'bg-green-50 border-green-200 text-green-600',   active: 'bg-green-500 border-green-500 text-white',  dot: 'bg-green-400',  pill: 'bg-green-100 text-green-600' },
-  { grade: 'easy'  as Grade, label: 'Easy',  sub: 'too easy', base: 'bg-blue-50 border-blue-200 text-blue-500',      active: 'bg-blue-500 border-blue-500 text-white',    dot: 'bg-blue-400',   pill: 'bg-blue-100 text-blue-500' },
+  { grade: 'again' as Grade, label: 'Again', sub: 'forgot',   dot: 'bg-rating-again-fg', pill: 'bg-rating-again-bg text-rating-again-fg' },
+  { grade: 'hard'  as Grade, label: 'Hard',  sub: 'barely',   dot: 'bg-rating-hard-fg',  pill: 'bg-rating-hard-bg text-rating-hard-fg'  },
+  { grade: 'good'  as Grade, label: 'Good',  sub: 'got it',   dot: 'bg-sky-dark',        pill: 'bg-sky-wash text-sky-dark'              },
+  { grade: 'easy'  as Grade, label: 'Easy',  sub: 'too easy', dot: 'bg-sky',             pill: 'bg-sky text-white'                      },
 ]
 
 export default function VocabTrainer({ onBack, initialAction = null }: Props) {
@@ -278,8 +280,16 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
   const generateQuizOptions = useCallback((idx: number) => {
     if (dueWords.length === 0) return
     const correct = dueWords[idx]
-    const wrongPool = dueWords.filter((_, i) => i !== idx).map((w) => w.meaning).filter((m) => m && m.length > 0)
-    const shuffled = [...wrongPool].sort(() => Math.random() - 0.5).slice(0, 3)
+    // Distinct wrong meanings, excluding any that match the correct answer
+    // (two words can share a meaning → otherwise the quiz shows two correct
+    // options). Tiny decks may yield <3 distractors; that's fine.
+    const wrongPool = Array.from(new Set(
+      dueWords
+        .filter((_, i) => i !== idx)
+        .map((w) => w.meaning)
+        .filter((m) => m && m.length > 0 && m !== correct.meaning)
+    ))
+    const shuffled = wrongPool.sort(() => Math.random() - 0.5).slice(0, 3)
     setQuizOptions([...shuffled, correct.meaning].sort(() => Math.random() - 0.5))
   }, [dueWords])
 
@@ -454,7 +464,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="text-center py-6">
-          <div className="text-5xl mb-3">{pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}</div>
+          <div className="text-5xl mb-3" aria-hidden="true">{pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}</div>
           <h2 className="text-xl font-bold text-brandblue">Session Complete!</h2>
           <p className="text-sm text-ink-muted mt-1">{sessionResults.total} words reviewed</p>
         </div>

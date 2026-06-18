@@ -1916,7 +1916,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           {/* Examples — with target structure highlight + Listen audio */}
           {content.examples && content.examples.length > 0 && (
             <div className="bg-sky-wash rounded-2xl p-5 mb-4">
-              <h2 className="text-xs font-bold text-brandblue uppercase tracking-wider mb-3">
+              <h2 className="text-xs font-bold text-sky-dark uppercase tracking-wider mb-3">
                 Examples
               </h2>
               <ul className="space-y-2">
