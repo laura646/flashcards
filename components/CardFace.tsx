@@ -27,7 +27,7 @@ export default function CardFace({ card, showBack = false }: Props) {
           <p className="text-[13px] text-ink-muted font-mono">{card.phonetic}</p>
           <AudioButton text={card.word} />
         </div>
-        <p className="text-[13px] text-[#b9c0cc] mt-6">tap to flip</p>
+        <p className="text-[13px] text-ink-muted mt-6">tap to flip</p>
       </div>
     )
   }

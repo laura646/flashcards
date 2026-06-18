@@ -29,7 +29,11 @@ module.exports = {
         ink: {
           black: '#15161a',         // question text, list titles, meaning
           body: '#46464b',          // body, on-light-blue text
-          muted: '#8b8f98',         // metadata, captions, subtitles
+          // Darkened from the brief's #8b8f98 (3.2:1, fails WCAG AA) to
+          // #6b7280 (~4.8:1 on white) so all the secondary copy that uses
+          // this token — metadata, definitions, phonetics, subtitles — is
+          // legible. Accessibility override of the brief's spec.
+          muted: '#6b7280',         // metadata, captions, subtitles
         },
         hairline: '#ececef',        // card borders, dividers
         surface: '#f6f8fb',         // quiz sub-question panels
@@ -54,7 +58,9 @@ module.exports = {
           'hard-fg': '#6a6fb0',
         },
         leitner: {
-          new: '#e7eaf0',
+          // Darkened from the brief's #e7eaf0 (≈1.07:1 on the #eef1f6 track —
+          // the New bar read as empty) to #cdd3df so the lowest bucket is visible.
+          new: '#cdd3df',
           learning: '#ffeb00',
           familiar: '#7fd4f5',
           known: '#00aff0',

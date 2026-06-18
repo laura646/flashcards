@@ -41,6 +41,7 @@ export default function VocabularyPage() {
   const [streak, setStreak] = useState(0)
   const [loading, setLoading] = useState(false)
   const [showTrainer, setShowTrainer] = useState(false)
+  const [trainerAction, setTrainerAction] = useState<'flip' | 'quiz' | 'add' | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
@@ -98,6 +99,19 @@ export default function VocabularyPage() {
     }
     if (status === 'authenticated') {
       loadAll()
+      // Deep-link from Home quick-action tiles: ?mode=flip|quiz opens the
+      // trainer straight into Start-Review with that mode; ?action=add opens
+      // the add-word view. Always over the student's real SRS words.
+      const params = new URLSearchParams(window.location.search)
+      const mode = params.get('mode')
+      const action = params.get('action')
+      if (mode === 'flip' || mode === 'quiz') {
+        setTrainerAction(mode)
+        setShowTrainer(true)
+      } else if (action === 'add') {
+        setTrainerAction('add')
+        setShowTrainer(true)
+      }
     }
   }, [status, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -108,6 +122,7 @@ export default function VocabularyPage() {
 
   const closeTrainer = () => {
     setShowTrainer(false)
+    setTrainerAction(null)
     refreshStats()
     setTimeout(() => window.scrollTo({ top: savedScrollRef.current }), 0)
   }
@@ -125,7 +140,7 @@ export default function VocabularyPage() {
   if (showTrainer) {
     return (
       <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
-        <VocabTrainer onBack={closeTrainer} />
+        <VocabTrainer onBack={closeTrainer} initialAction={trainerAction} />
       </main>
     )
   }

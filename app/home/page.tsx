@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import SignOutButton from '@/components/SignOutButton'
 import { useRouter } from 'next/navigation'
-import VocabDueCard from '@/components/VocabDueCard'
+import VocabDueCard, { type SrsStats } from '@/components/VocabDueCard'
 import { Button, Pill, Eyebrow, Card, SkyHero, TextField } from '@/components/student-ui'
 import BottomTabBar from '@/components/student-ui/BottomTabBar'
 
@@ -40,12 +40,16 @@ export default function HomePage() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [loading, setLoading] = useState(true)
   const [totalPoints, setTotalPoints] = useState(0)
-  // Hero stats (words-due + streak). Read-only, additive — VocabDueCard
-  // still owns the sync + its own render. We just surface the numbers in
-  // the hero. (Lifting these would refactor the working card; a second
-  // cheap GET is lower-risk.)
-  const [heroDue, setHeroDue] = useState<number | null>(null)
-  const [heroStreak, setHeroStreak] = useState(0)
+  // Single source of truth for SRS data — fetched once here (sync + stats
+  // + streak), surfaced in the hero AND passed into VocabDueCard, so the
+  // two never disagree and we don't double-sync.
+  const [srsStats, setSrsStats] = useState<SrsStats | null>(null)
+  const [srsStreak, setSrsStreak] = useState(0)
+  const [srsReviewedToday, setSrsReviewedToday] = useState(false)
+  const [srsLoading, setSrsLoading] = useState(true)
+
+  const heroDue = srsStats ? (srsStats.review_due ?? srsStats.due ?? 0) : null
+  const heroStreak = srsStreak
 
   const role = session?.user?.role || 'student'
 
@@ -86,15 +90,29 @@ export default function HomePage() {
         })
         .catch(() => setLoading(false))
 
-      // Hero stats — best-effort, never blocks render.
-      fetch('/api/vocab-srs?action=stats')
-        .then((r) => r.json())
-        .then((d) => { if (d.stats) setHeroDue(d.stats.review_due ?? d.stats.due ?? 0) })
-        .catch(() => {})
-      fetch('/api/vocab-srs?action=streak')
-        .then((r) => r.json())
-        .then((d) => setHeroStreak(d.streak || 0))
-        .catch(() => {})
+      // SRS data — sync first (so freshly-enrolled students aren't stale),
+      // then read stats + streak once. Feeds both the hero and VocabDueCard.
+      ;(async () => {
+        try {
+          await fetch('/api/vocab-srs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'sync' }),
+          })
+        } catch { /* non-blocking */ }
+        try {
+          const [statsRes, streakRes] = await Promise.all([
+            fetch('/api/vocab-srs?action=stats'),
+            fetch('/api/vocab-srs?action=streak'),
+          ])
+          const statsData = await statsRes.json()
+          const streakData = await streakRes.json()
+          if (statsData.stats) setSrsStats(statsData.stats)
+          setSrsStreak(streakData.streak || 0)
+          setSrsReviewedToday(!!streakData.reviewedToday)
+        } catch { /* leave null → card hides, hero shows dash */ }
+        setSrsLoading(false)
+      })()
     }
   }, [status, session, router, role])
 
@@ -155,7 +173,7 @@ export default function HomePage() {
         <SkyHero>
           <div className="max-w-lg mx-auto w-full">
             <img src="/logo-onblue.png" alt="English with Laura" className="h-12" />
-            <p className="text-white/90 mt-3 text-sm">Welcome back, {studentName}!</p>
+            <p className="text-white mt-3 text-sm">Welcome back, {studentName}!</p>
           </div>
         </SkyHero>
         <div className="w-full max-w-lg mx-auto px-4 py-6 flex-1">
@@ -197,11 +215,15 @@ export default function HomePage() {
               </span>
             )}
           </div>
-          <p className="text-white/90 mt-3 text-sm">Welcome back, {studentName}!</p>
+          <p className="text-white mt-3 text-sm">Welcome back, {studentName}!</p>
           <div className="flex items-end justify-between mt-3">
             <div>
-              <p className="text-white/90 text-sm">Words to review</p>
-              <p className="text-[42px] leading-none font-extrabold tracking-hero">{heroDue ?? 0}</p>
+              <p className="text-white text-sm">Words to review</p>
+              {heroDue === null ? (
+                <span className="inline-block mt-1 h-9 w-16 rounded-lg bg-white/25 animate-pulse" />
+              ) : (
+                <p className="text-[42px] leading-none font-extrabold tracking-hero">{heroDue}</p>
+              )}
             </div>
             <Button variant="onHeroWhite" onClick={() => router.push('/vocabulary')}>Start review</Button>
           </div>
@@ -212,9 +234,11 @@ export default function HomePage() {
         {/* Quick actions */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
-            { emoji: '🔄', label: 'Flip', href: '/flashcards?mode=flip' },
-            { emoji: '🎯', label: 'Quiz', href: '/flashcards?mode=quiz' },
-            { emoji: '➕', label: 'Add word', href: '/vocabulary' },
+            // Route into the REAL SRS trainer (the student's own due words),
+            // not the static demo deck. The trainer reads ?mode / ?action.
+            { emoji: '🔄', label: 'Flip', href: '/vocabulary?mode=flip' },
+            { emoji: '🎯', label: 'Quiz', href: '/vocabulary?mode=quiz' },
+            { emoji: '➕', label: 'Add word', href: '/vocabulary?action=add' },
           ].map((qa) => (
             <button
               key={qa.label}
@@ -267,7 +291,7 @@ export default function HomePage() {
         )}
 
         {/* Daily spaced-repetition nudge — self-contained */}
-        <VocabDueCard />
+        <VocabDueCard external={{ stats: srsStats, streak: srsStreak, reviewedToday: srsReviewedToday, loading: srsLoading }} />
 
         {lessons.length === 0 ? (
           <Card className="text-center py-8">
@@ -382,7 +406,7 @@ function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolle
       <SkyHero>
         <div className="max-w-md mx-auto w-full flex flex-col items-center text-center">
           <img src="/logo-onblue.png" alt="English with Laura" className="h-14" />
-          <p className="text-white/90 mt-3 text-sm">Welcome, {studentName}!</p>
+          <p className="text-white mt-3 text-sm">Welcome, {studentName}!</p>
         </div>
       </SkyHero>
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-8">

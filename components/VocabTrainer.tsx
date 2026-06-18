@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import AudioButton from '@/components/AudioButton'
 import { RatingRow, type Rating } from '@/components/student-ui'
@@ -35,6 +35,11 @@ interface SessionResults {
 
 interface Props {
   onBack: () => void
+  // Deep-link entry from the Home quick-action tiles:
+  //   'add'  → open the add-word view
+  //   'flip' / 'quiz' → open the Start-Review modal with that mode preset
+  // (always over the student's REAL SRS words, never a demo deck).
+  initialAction?: 'flip' | 'quiz' | 'add' | null
 }
 
 type ReviewMode = 'flip' | 'quiz'
@@ -51,9 +56,10 @@ const GRADE_CONFIG = [
   { grade: 'easy'  as Grade, label: 'Easy',  sub: 'too easy', base: 'bg-blue-50 border-blue-200 text-blue-500',      active: 'bg-blue-500 border-blue-500 text-white',    dot: 'bg-blue-400',   pill: 'bg-blue-100 text-blue-500' },
 ]
 
-export default function VocabTrainer({ onBack }: Props) {
+export default function VocabTrainer({ onBack, initialAction = null }: Props) {
   const { data: session } = useSession()
   const studentEmail = session?.user?.email || ''
+  const initialActionDone = useRef(false)
 
   const [view, setView] = useState<'home' | 'review' | 'add'>('home')
   const [stats, setStats] = useState<Stats | null>(null)
@@ -221,6 +227,20 @@ export default function VocabTrainer({ onBack }: Props) {
     }
     init()
   }, [loadStats, loadDueWords, loadStreak, loadFocus])
+
+  // Deep-link entry from the Home quick-action tiles. Runs once, after the
+  // trainer has loaded, so review starts over real (synced) SRS words.
+  useEffect(() => {
+    if (loading || !initialAction || initialActionDone.current) return
+    initialActionDone.current = true
+    if (initialAction === 'add') {
+      setView('add')
+    } else if (initialAction === 'flip' || initialAction === 'quiz') {
+      setModalMode(initialAction)
+      setModalError('')
+      setShowReviewModal(true)
+    }
+  }, [loading, initialAction])
 
   const handleAddWord = async () => {
     if (!addWord.trim()) return
@@ -489,7 +509,7 @@ export default function VocabTrainer({ onBack }: Props) {
               {word.example && (
                 <p className="text-xs text-ink-muted italic mt-2 text-center">{word.example}</p>
               )}
-              <p className="text-[10px] text-[#c8ccd4] mt-3">Tap to flip back</p>
+              <p className="text-[10px] text-ink-muted mt-3">Tap to flip back</p>
             </div>
 
           </div>
@@ -669,7 +689,7 @@ export default function VocabTrainer({ onBack }: Props) {
                     <div className="flex items-center gap-2 shrink-0">
                       {w.phonetic && <span className="text-xs text-ink-muted">{w.phonetic}</span>}
                       <button onClick={() => startEdit(w)} title="Edit this word (only you see your changes)"
-                        className="text-xs text-[#c8ccd4] hover:text-sky transition-colors">
+                        className="text-xs text-ink-muted hover:text-sky transition-colors">
                         ✎ Edit
                       </button>
                     </div>
@@ -805,14 +825,14 @@ export default function VocabTrainer({ onBack }: Props) {
         <div className="bg-sky rounded-card p-5 text-white">
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div className="bg-white/15 rounded-tile p-3">
-              <p className="text-[10px] text-white/80 uppercase font-bold tracking-wide">Due for review</p>
+              <p className="text-[10px] text-white uppercase font-bold tracking-wide">Due for review</p>
               <p className="text-[40px] leading-none font-extrabold mt-1 tracking-hero">{stats?.review_due ?? 0}</p>
-              <p className="text-[10px] text-white/80 mt-1">already seen, time to repeat</p>
+              <p className="text-[10px] text-white mt-1">already seen, time to repeat</p>
             </div>
             <div className="bg-white/15 rounded-tile p-3">
-              <p className="text-[10px] text-white/80 uppercase font-bold tracking-wide">New words</p>
+              <p className="text-[10px] text-white uppercase font-bold tracking-wide">New words</p>
               <p className="text-[40px] leading-none font-extrabold mt-1 tracking-hero">{stats?.new_words ?? 0}</p>
-              <p className="text-[10px] text-white/80 mt-1">waiting to be introduced</p>
+              <p className="text-[10px] text-white mt-1">waiting to be introduced</p>
             </div>
           </div>
           {dueCount > 0 ? (
@@ -821,7 +841,7 @@ export default function VocabTrainer({ onBack }: Props) {
               🃏 Start Review
             </button>
           ) : (
-            <p className="text-xs text-white/80 text-center">All caught up! Come back later for more reviews.</p>
+            <p className="text-xs text-white text-center">All caught up! Come back later for more reviews.</p>
           )}
         </div>
 
@@ -846,7 +866,7 @@ export default function VocabTrainer({ onBack }: Props) {
                 )
               })}
             </div>
-            <p className="text-[10px] text-[#c8ccd4] text-center mt-2">Tap a bar to see those words</p>
+            <p className="text-[10px] text-ink-muted text-center mt-2">Tap a bar to see those words</p>
           </div>
         )}
 
@@ -873,7 +893,7 @@ export default function VocabTrainer({ onBack }: Props) {
                     <span className="text-xs text-ink-muted text-right">{w.meaning || '—'}</span>
                   </div>
                 ))}
-                <p className="text-[10px] text-[#c8ccd4] pt-1">
+                <p className="text-[10px] text-ink-muted pt-1">
                   These come back often in your reviews until they stick. That&apos;s the system working.
                 </p>
               </div>

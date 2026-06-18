@@ -8,21 +8,41 @@ import { useRouter } from 'next/navigation'
 // silent sync on mount, then stats + streak fetch; hides itself when
 // there's no SRS data. Every router.push('/vocabulary') call site kept.
 
-interface SrsStats {
+export interface SrsStats {
   total: number
   due: number
   review_due: number
   new_words: number
 }
 
-export default function VocabDueCard() {
+// Single source of truth: Home fetches the SRS data once (sync + stats +
+// streak) and passes it in via `external`, so the hero number and this
+// card never disagree and we don't double-sync. If `external` is omitted
+// (e.g. reused elsewhere), the card falls back to fetching its own data.
+interface Props {
+  external?: {
+    stats: SrsStats | null
+    streak: number
+    reviewedToday: boolean
+    loading: boolean
+  }
+}
+
+export default function VocabDueCard({ external }: Props = {}) {
   const router = useRouter()
-  const [stats, setStats] = useState<SrsStats | null>(null)
-  const [streak, setStreak] = useState(0)
-  const [reviewedToday, setReviewedToday] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [selfStats, setSelfStats] = useState<SrsStats | null>(null)
+  const [selfStreak, setSelfStreak] = useState(0)
+  const [selfReviewedToday, setSelfReviewedToday] = useState(false)
+  const [selfLoading, setSelfLoading] = useState(true)
+
+  const controlled = external !== undefined
+  const stats = controlled ? external!.stats : selfStats
+  const streak = controlled ? external!.streak : selfStreak
+  const reviewedToday = controlled ? external!.reviewedToday : selfReviewedToday
+  const loading = controlled ? external!.loading : selfLoading
 
   useEffect(() => {
+    if (controlled) return // parent owns the data
     let cancelled = false
     const run = async () => {
       try {
@@ -42,20 +62,20 @@ export default function VocabDueCard() {
         const statsData = await statsRes.json()
         const streakData = await streakRes.json()
         if (!cancelled) {
-          if (statsData.stats) setStats(statsData.stats)
-          setStreak(streakData.streak || 0)
-          setReviewedToday(!!streakData.reviewedToday)
+          if (statsData.stats) setSelfStats(statsData.stats)
+          setSelfStreak(streakData.streak || 0)
+          setSelfReviewedToday(!!streakData.reviewedToday)
         }
       } catch {
         /* leave stats null → card hides itself */
       }
-      if (!cancelled) setLoading(false)
+      if (!cancelled) setSelfLoading(false)
     }
     run()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [controlled])
 
   if (loading) {
     return (
@@ -132,7 +152,7 @@ export default function VocabDueCard() {
               </span>
             )}
           </div>
-          <p className="text-xs text-white/90 mt-0.5">
+          <p className="text-xs text-white mt-0.5">
             {streak > 0 && !reviewedToday
               ? `Review now to keep your ${streak}-day streak alive`
               : `A quick ${due <= 10 ? '2-minute' : '5-minute'} review keeps them in your memory`}

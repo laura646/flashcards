@@ -1,12 +1,14 @@
 'use client'
 
 // Student-app "10B" bottom tab bar (brief §1). Pinned bottom, hairline
-// top border, 4 line icons. Active tab = sky; inactive = #c8ccd4.
+// top border. Active tab = sky; inactive label = #6b7280 (AA-legible).
 //
-// Mounted ONLY on the Home screen per the brief (inner screens stay
-// tab-bar-free). Tabs route to the four confirmed-existing student
-// pages: /home, /vocabulary, /flashcards, /exercises. (Destinations are
-// a best-guess default for the autonomous build — trivially changed.)
+// Tabs route ONLY to real-content destinations: Home (the course/lesson
+// hub) and Vocabulary (the SRS trainer over the student's own words).
+// The earlier /flashcards + /exercises tabs were removed — they render
+// STATIC DEMO decks, not the student's course, so routing primary nav
+// there was misleading. Whether more top-level sections belong here is a
+// deliberate IA question (pending usage instrumentation), not a default.
 
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -37,24 +39,6 @@ const TABS: Tab[] = [
       </svg>
     ),
   },
-  {
-    label: 'Flashcards',
-    href: '/flashcards',
-    icon: (a) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={stroke(a)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 10h18" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Exercises',
-    href: '/exercises',
-    icon: (a) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={stroke(a)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-      </svg>
-    ),
-  },
 ]
 
 export default function BottomTabBar() {
@@ -74,7 +58,7 @@ export default function BottomTabBar() {
               aria-current={active ? 'page' : undefined}
             >
               {tab.icon(active)}
-              <span className={`text-[10px] font-bold ${active ? 'text-sky' : 'text-[#c8ccd4]'}`}>{tab.label}</span>
+              <span className={`text-[10px] font-bold ${active ? 'text-sky' : 'text-[#6b7280]'}`}>{tab.label}</span>
             </button>
           )
         })}
