@@ -271,7 +271,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
       <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-6 shadow-sm">
         <p className="text-xs text-sky font-extrabold uppercase tracking-eyebrow mb-3">
           Question {currentIndex + 1}
           {currentMulti && (
@@ -311,7 +311,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
             }
           } else {
             stateClass = selected
-              ? 'border-sky bg-sky-wash text-brandblue'
+              ? 'border-sky bg-sky-wash text-ink-body'
               : 'border-sky-border text-ink-body hover:border-sky bg-white'
           }
           return (

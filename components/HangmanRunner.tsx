@@ -297,7 +297,7 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
       <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Game card */}
-      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-6 shadow-sm">
         {/* Clue */}
         <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-1">
           Clue

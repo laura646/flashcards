@@ -243,7 +243,7 @@ function InlineQuiz({
                     btnClass += 'border-gray-200 text-ink-muted'
                   }
                 } else if (userAnswer === oi) {
-                  btnClass += 'border-sky bg-sky-wash text-brandblue font-bold'
+                  btnClass += 'border-sky bg-sky-wash text-ink-body font-bold'
                 } else {
                   btnClass += 'border-sky-border text-ink-body hover:border-sky bg-white'
                 }

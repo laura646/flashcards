@@ -60,6 +60,9 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
   const { data: session } = useSession()
   const studentEmail = session?.user?.email || ''
   const initialActionDone = useRef(false)
+  // Guard so a fast double-tap on the one-tap RatingRow can't rate two
+  // cards from a single render (it commits an irreversible SRS write).
+  const ratingInFlight = useRef(false)
 
   const [view, setView] = useState<'home' | 'review' | 'add'>('home')
   const [stats, setStats] = useState<Stats | null>(null)
@@ -328,8 +331,10 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
   }
 
   const handleReviewResult = async (grade: Grade) => {
+    if (ratingInFlight.current) return // block double-tap rating two cards
     const word = dueWords[currentIdx]
     if (!word) return
+    ratingInFlight.current = true
 
     try {
       const res = await fetch('/api/vocab-srs', {
@@ -379,6 +384,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
       loadStats()
       loadStreak()
     }
+    ratingInFlight.current = false
   }
 
   const handleQuizSelect = (optionIdx: number) => {
@@ -472,9 +478,10 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
           <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* 3D flip card */}
+        {/* 3D flip card — auto-height so long words/translations/examples
+            on the back never clip (grid-stacks both faces). */}
         <div className="card-flip w-full" style={{ minHeight: '280px' }}>
-          <div className={`card-flip-inner w-full h-full${flipped ? ' flipped' : ''}`}>
+          <div className={`card-flip-inner flip-autoheight w-full h-full${flipped ? ' flipped' : ''}`}>
 
             {/* FRONT — word only */}
             <div
@@ -496,7 +503,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
 
             {/* BACK — meaning, photo, translation, example */}
             <div
-              className="card-back bg-white border-2 border-sky rounded-flashcard p-6 flex flex-col items-center justify-center overflow-auto cursor-pointer"
+              className="card-back bg-white border-2 border-sky rounded-flashcard p-6 flex flex-col items-center justify-center cursor-pointer"
               onClick={() => setFlipped(false)}
             >
               {word.image_url && (

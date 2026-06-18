@@ -79,6 +79,25 @@ body {
   height: 100%;
 }
 
+/* Auto-height flip variant: grid-stack both faces in one cell so the card
+   sizes to the TALLER face (the back, with image + meaning + translation +
+   example). Without this, the back is absolutely-positioned and the card
+   height is driven by the short front, clipping long real words. */
+.card-flip-inner.flip-autoheight {
+  display: grid;
+}
+.card-flip-inner.flip-autoheight > .card-front,
+.card-flip-inner.flip-autoheight > .card-back {
+  grid-area: 1 / 1;
+}
+.card-flip-inner.flip-autoheight > .card-back {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  height: auto;
+}
+
 /* Print styles — used by the Reports page "Export as PDF" flow.
    We also hide common app chrome (header/nav) so the PDF shows only
    the report content. */

@@ -158,7 +158,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
       <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-5 shadow-sm">
         {/* Keyword */}
         <div className="text-center mb-5">
           <p className="text-xs text-ink-muted uppercase tracking-widest mb-1">Which one doesn&apos;t belong?</p>

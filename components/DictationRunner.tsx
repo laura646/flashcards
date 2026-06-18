@@ -317,7 +317,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
       <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card with audio buttons */}
-      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-6 shadow-sm">
         <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-4">
           Sentence {currentIndex + 1}
         </p>
@@ -341,7 +341,7 @@ export default function DictationRunner({ exercise, onComplete, onBack }: Props)
             <button
               onClick={() => playAudio(true)}
               disabled={isPlaying}
-              className="flex items-center gap-2 bg-sky-wash hover:bg-[#cddcf0] text-brandblue font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-sky-wash hover:bg-sky-border text-ink-body font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               <span className="text-lg">🐢</span> Slow
             </button>

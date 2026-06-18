@@ -201,7 +201,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
 
       {/* Keyword tiles pool */}
       <div
-        className="bg-white border border-sky-border rounded-2xl p-4 shadow-sm"
+        className="bg-white border border-sky-border rounded-card p-4 shadow-sm"
         onDragOver={(e) => e.preventDefault()}
         onDrop={() => handleDropOnPool()}
       >
@@ -222,7 +222,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                     : 'bg-sky text-white shadow-md scale-105'
                   : tile.image_url
                   ? 'hover:ring-2 hover:ring-[#416ebe] active:scale-95'
-                  : 'bg-sky-wash text-brandblue border border-sky-border hover:bg-[#d0e0f5] active:scale-95'
+                  : 'bg-sky-wash text-ink-body border border-sky-border hover:bg-sky-border active:scale-95'
               }`}
             >
               {tile.image_url ? (
@@ -256,7 +256,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
                 onClick={() => handleSlotTap(slot.id)}
                 className={`min-w-[7rem] min-h-[2.5rem] rounded-lg border-2 border-dashed flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all shrink-0 ${
                   placedTile
-                    ? 'border-sky bg-sky-wash text-brandblue'
+                    ? 'border-sky bg-sky-wash text-ink-body'
                     : selectedTile !== null
                     ? 'border-sky bg-sky-wash/30 animate-pulse'
                     : 'border-gray-300 bg-gray-50 text-[#c8ccd4]'

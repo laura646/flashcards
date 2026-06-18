@@ -342,7 +342,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
       <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Audio controls */}
-      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-5 shadow-sm">
         <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-3">
           Sentence {currentIndex + 1}
         </p>
@@ -364,7 +364,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
             <button
               onClick={() => playAudio(true)}
               disabled={isPlaying}
-              className="flex items-center gap-2 bg-sky-wash hover:bg-[#cddcf0] text-brandblue font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-sky-wash hover:bg-sky-border text-ink-body font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
               <span className="text-lg">🐢</span> Slow
             </button>
@@ -385,7 +385,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
 
       {/* Text with blanks */}
       {showBlanks ? (
-        <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+        <div className="bg-white border border-sky-border rounded-card p-5 shadow-sm">
           <div className="text-base text-ink-body leading-loose flex flex-wrap items-center gap-y-2">
             {parts.map((part, pi) => {
               if (part.type === 'text') return <span key={pi}>{part.value}</span>
@@ -424,7 +424,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
           </div>
         </div>
       ) : (
-        <div className="bg-gray-50 border border-sky-border rounded-2xl p-5 text-center">
+        <div className="bg-gray-50 border border-sky-border rounded-card p-5 text-center">
           <p className="text-sm text-ink-muted italic">
             Listen to the audio first. The blanks will appear after playback.
           </p>

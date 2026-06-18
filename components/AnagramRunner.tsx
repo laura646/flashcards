@@ -319,7 +319,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
       <p className="text-xs text-ink-muted italic">{exercise.instructions}</p>
 
       {/* Question card */}
-      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-5 shadow-sm">
         <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-2">
           {sentenceMode ? 'Sentence' : 'Word'} {currentIndex + 1}
         </p>
@@ -366,7 +366,7 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
                   ? 'bg-green-100 border-2 border-green-400 text-green-700'
                   : feedback === 'wrong'
                   ? 'bg-red-100 border-2 border-red-400 text-red-700'
-                  : 'bg-sky-wash border-2 border-sky text-brandblue hover:bg-[#d0e0f5] active:scale-95'
+                  : 'bg-sky-wash border-2 border-sky text-ink-body hover:bg-sky-border active:scale-95'
               }`}
             >
               {tile.text}

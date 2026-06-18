@@ -185,7 +185,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
               .map(([item]) => item)
 
             return (
-              <div key={group.name} className="bg-white rounded-2xl border-2 border-sky-border p-4">
+              <div key={group.name} className="bg-white rounded-card border-2 border-sky-border p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <GroupHeaderImage url={group.image_url} />
                   <h3 className="text-sm font-bold text-brandblue">{group.name}</h3>
@@ -303,7 +303,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
               onClick={() => handleGroupTap(group.name)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(group.name)}
-              className={`rounded-2xl border-2 border-dashed p-4 min-h-[120px] transition-all ${
+              className={`rounded-card border-2 border-dashed p-4 min-h-[120px] transition-all ${
                 selectedItem
                   ? 'border-sky bg-sky-wash/30 cursor-pointer hover:bg-sky-wash'
                   : 'border-sky-border bg-white'
@@ -328,7 +328,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
                         e.stopPropagation()
                         removeItem(item)
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-wash text-brandblue border border-sky-border hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-wash text-ink-body border border-sky-border hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors"
                       title="Click to remove"
                     >
                       <ItemImage url={imageUrl} size="sm" />

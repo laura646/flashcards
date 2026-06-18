@@ -162,7 +162,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
 
       {/* Statement card */}
       <div
-        className={`bg-white border rounded-2xl p-6 shadow-sm transition-colors duration-300 ${
+        className={`bg-white border rounded-card p-6 shadow-sm transition-colors duration-300 ${
           feedback === 'correct'
             ? 'border-green-400 bg-green-50'
             : feedback === 'wrong'
@@ -206,14 +206,14 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
         <button
           onClick={() => handleAnswer(true)}
           disabled={feedback !== null}
-          className={`flex-1 flex flex-col items-center justify-center gap-1 py-5 rounded-2xl text-lg font-bold transition-all duration-300 border-2 ${
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-5 rounded-card text-lg font-bold transition-all duration-300 border-2 ${
             feedback !== null && answers[currentIndex] === true
               ? feedback === 'correct'
                 ? 'border-green-400 bg-green-100 text-green-700 animate-pulse'
                 : 'border-red-400 bg-red-100 text-red-600 animate-pulse'
               : feedback !== null
               ? 'border-gray-200 bg-gray-50 text-[#c8ccd4] cursor-not-allowed'
-              : 'border-sky bg-sky-wash text-brandblue hover:bg-[#d0e2f7] active:scale-95 cursor-pointer'
+              : 'border-sky bg-sky-wash text-ink-body hover:bg-sky-border active:scale-95 cursor-pointer'
           }`}
         >
           <span className="text-3xl">✓</span>
@@ -224,7 +224,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
         <button
           onClick={() => handleAnswer(false)}
           disabled={feedback !== null}
-          className={`flex-1 flex flex-col items-center justify-center gap-1 py-5 rounded-2xl text-lg font-bold transition-all duration-300 border-2 ${
+          className={`flex-1 flex flex-col items-center justify-center gap-1 py-5 rounded-card text-lg font-bold transition-all duration-300 border-2 ${
             feedback !== null && answers[currentIndex] === false
               ? feedback === 'correct'
                 ? 'border-green-400 bg-green-100 text-green-700 animate-pulse'

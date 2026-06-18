@@ -371,19 +371,19 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
       {/* Phase indicator */}
       <div className="flex gap-2">
         <div className={`flex-1 text-center py-1.5 rounded-lg text-xs font-bold ${
-          phase === 'highlight' ? 'bg-sky text-white' : 'bg-sky-wash text-brandblue'
+          phase === 'highlight' ? 'bg-sky text-white' : 'bg-sky-wash text-ink-body'
         }`}>
           Step 1: Find errors
         </div>
         <div className={`flex-1 text-center py-1.5 rounded-lg text-xs font-bold ${
-          phase === 'correct' ? 'bg-sky text-white' : phase === 'feedback' ? 'bg-sky-wash text-brandblue' : 'bg-gray-100 text-ink-muted'
+          phase === 'correct' ? 'bg-sky text-white' : phase === 'feedback' ? 'bg-sky-wash text-ink-body' : 'bg-gray-100 text-ink-muted'
         }`}>
           Step 2: Fix them
         </div>
       </div>
 
       {/* Question card */}
-      <div className="bg-white border border-sky-border rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-5 shadow-sm">
         <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-3">
           Sentence {currentIndex + 1}
         </p>

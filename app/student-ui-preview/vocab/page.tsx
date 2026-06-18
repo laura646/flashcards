@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import VocabTrainer from '@/components/VocabTrainer'
 
 const MOCK_WORDS = [
+  { id: '0', word: 'notwithstanding', meaning: 'In spite of; without being affected by the particular factor mentioned — used to introduce a contrast that does not change the outcome of the main clause.', phonetic: 'ˌnɒtwɪθˈstandɪŋ', translation: 'несмотря на / trotzdem', example: 'Notwithstanding the heavy rain and the late hour, the entire team stayed behind to finish the project before the morning deadline.', box_level: 2, next_review_at: '' },
   { id: '1', word: 'mercury', meaning: 'The smallest planet, closest to the Sun.', phonetic: 'ˈmɜːkjʊri', example: 'Mercury orbits the Sun fastest.', box_level: 1, next_review_at: '' },
   { id: '2', word: 'orbit', meaning: 'The path of an object around a star or planet.', phonetic: 'ˈɔːbɪt', example: 'Earth completes one orbit a year.', box_level: 3, next_review_at: '' },
   { id: '3', word: 'galaxy', meaning: 'A huge system of stars held together by gravity.', phonetic: 'ˈɡaləksi', example: 'We live in the Milky Way galaxy.', box_level: 2, next_review_at: '' },

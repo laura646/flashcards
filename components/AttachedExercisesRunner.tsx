@@ -56,7 +56,7 @@ export default function AttachedExercisesRunner({ exercises, onScore }: Props) {
       {exercises.map((ex) => (
         <div
           key={ex.id}
-          className="bg-white border border-sky-border rounded-2xl p-4"
+          className="bg-white border border-sky-border rounded-card p-4"
         >
           <p className="text-[10px] font-bold text-brandblue uppercase tracking-wider mb-3">
             {ATTACHED_TYPE_ICONS[ex.type]} {ATTACHED_TYPE_LABELS[ex.type]}
@@ -158,7 +158,7 @@ function InlineMcq({ questions, onScore }: { questions: unknown[]; onScore: (s: 
                   if (isThisCorrect) cls = 'border-green-400 bg-green-50 text-green-700'
                   else if (selected) cls = 'border-red-400 bg-red-50 text-red-500'
                   else cls = 'border-sky-border bg-white text-ink-muted'
-                } else if (selected) cls = 'border-sky bg-sky-wash text-brandblue'
+                } else if (selected) cls = 'border-sky bg-sky-wash text-ink-body'
                 return (
                   <button
                     key={oi}
@@ -227,7 +227,7 @@ function InlineTrueFalse({ questions, onScore }: { questions: unknown[]; onScore
                   if (q.isTrue === v) cls = 'border-green-400 bg-green-50 text-green-700'
                   else if (sel) cls = 'border-red-400 bg-red-50 text-red-500'
                   else cls = 'border-sky-border bg-white text-ink-muted'
-                } else if (sel) cls = 'border-sky bg-sky-wash text-brandblue'
+                } else if (sel) cls = 'border-sky bg-sky-wash text-ink-body'
                 return (
                   <button
                     key={String(v)}

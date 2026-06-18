@@ -268,13 +268,13 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
           <img
             src={current.image_url}
             alt=""
-            className="max-h-48 rounded-2xl border border-sky-border shadow-sm object-contain"
+            className="max-h-48 rounded-card border border-sky-border shadow-sm object-contain"
           />
         </div>
       )}
 
       {/* Sentence with blanks */}
-      <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
+      <div className="bg-white border border-sky-border rounded-card p-6 shadow-sm">
         <p className="text-xs text-brandblue font-bold uppercase tracking-widest mb-4">
           Sentence {currentIndex + 1}
         </p>
@@ -297,7 +297,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
                     : status === 'wrong'
                     ? 'border-red-400 bg-red-50 text-red-600'
                     : placed
-                    ? 'border-sky bg-sky-wash text-brandblue'
+                    ? 'border-sky bg-sky-wash text-ink-body'
                     : selectedWord
                     ? 'border-sky bg-sky-wash/50 text-ink-muted animate-pulse'
                     : 'border-gray-300 bg-gray-50 text-ink-muted'
