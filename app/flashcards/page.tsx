@@ -32,7 +32,7 @@ export default function FlashcardsPage() {
   if (status === 'loading') {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="text-[#416ebe] text-sm">Loading...</div>
+        <div className="text-brandblue text-sm">Loading...</div>
       </main>
     )
   }
@@ -95,32 +95,32 @@ export default function FlashcardsPage() {
         <div>
           <button
             onClick={() => router.push('/home')}
-            className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-1"
+            className="text-xs text-ink-muted hover:text-sky transition-colors mb-1"
           >
             &larr; Home
           </button>
-          <h1 className="text-xl font-bold text-[#416ebe]">New Words</h1>
-          <p className="text-xs text-gray-400">Hi, {studentName}!</p>
+          <h1 className="text-xl font-bold text-brandblue">New Words</h1>
+          <p className="text-xs text-ink-muted">Hi, {studentName}!</p>
         </div>
-        <span className="text-xs text-gray-400 bg-[#e6f0fa] px-3 py-1 rounded-full">
+        <span className="text-xs text-ink-muted bg-sky-wash px-3 py-1 rounded-full">
           {flashcards.length} words
         </span>
       </div>
 
       {/* Mode selector */}
-      <div className="flex gap-2 mb-6 bg-[#e6f0fa] p-1.5 rounded-xl">
+      <div className="flex gap-2 mb-6 bg-sky-wash p-1.5 rounded-xl">
         {modeButtons.map(({ key, label, description }) => (
           <button
             key={key}
             onClick={() => setMode(key)}
             className={`flex-1 py-3 px-2 rounded-lg text-xs font-bold transition-all ${
               mode === key
-                ? 'bg-white text-[#416ebe] shadow-sm'
-                : 'text-[#46464b] hover:text-[#416ebe]'
+                ? 'bg-white text-brandblue shadow-sm'
+                : 'text-ink-body hover:text-sky'
             }`}
           >
             <div>{label}</div>
-            <div className={`font-normal mt-0.5 text-gray-400`}>
+            <div className={`font-normal mt-0.5 text-ink-muted`}>
               {description}
             </div>
           </button>

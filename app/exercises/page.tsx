@@ -44,7 +44,7 @@ export default function ExercisesPage() {
   if (status === 'loading') {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="text-[#416ebe] text-sm">Loading...</div>
+        <div className="text-brandblue text-sm">Loading...</div>
       </main>
     )
   }
@@ -105,13 +105,13 @@ export default function ExercisesPage() {
         <div className="flex items-center gap-3 mb-6">
           <button
             onClick={() => router.push('/home')}
-            className="text-sm text-gray-400 hover:text-[#416ebe] transition-colors"
+            className="text-sm text-ink-muted hover:text-sky transition-colors"
           >
             &larr; Home
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-[#416ebe]">Practice Exercises</h1>
-            <p className="text-xs text-gray-400">Hi, {studentName}! Choose an exercise.</p>
+            <h1 className="text-xl font-bold text-brandblue">Practice Exercises</h1>
+            <p className="text-xs text-ink-muted">Hi, {studentName}! Choose an exercise.</p>
           </div>
           {completedCount > 0 && (
             <span className="text-xs text-green-600 bg-green-50 px-2.5 py-1 rounded-full font-bold">
@@ -131,24 +131,24 @@ export default function ExercisesPage() {
                 className={`bg-white rounded-2xl border-2 p-5 text-left transition-all group flex items-center gap-4 ${
                   isDone
                     ? 'border-green-300 hover:border-green-400'
-                    : 'border-[#cddcf0] hover:border-[#416ebe]'
+                    : 'border-sky-border hover:border-sky'
                 }`}
               >
                 <div className="text-3xl">{isDone ? '\u2705' : ex.icon}</div>
                 <div className="flex-1">
                   <h3 className={`text-sm font-bold group-hover:text-[#3560b0] ${
-                    isDone ? 'text-green-600' : 'text-[#416ebe]'
+                    isDone ? 'text-green-600' : 'text-brandblue'
                   }`}>
                     {ex.title}
                   </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-ink-muted mt-0.5">
                     {isDone ? 'Completed \u2014 tap to redo' : ex.subtitle}
                   </p>
                 </div>
                 <div className={`text-xs px-2.5 py-1 rounded-full ${
                   isDone
                     ? 'text-green-600 bg-green-50'
-                    : 'text-gray-300 bg-[#e6f0fa]'
+                    : 'text-[#c8ccd4] bg-sky-wash'
                 }`}>
                   {isDone ? 'Done' : `${ex.questions.length} Qs`}
                 </div>
@@ -157,7 +157,7 @@ export default function ExercisesPage() {
           })}
         </div>
 
-        <p className="mt-8 text-center text-xs text-gray-400">
+        <p className="mt-8 text-center text-xs text-ink-muted">
           englishwithlaura.com
         </p>
       </main>

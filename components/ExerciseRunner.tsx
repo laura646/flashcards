@@ -272,7 +272,7 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
 
       {/* Question card */}
       <div className="bg-white border border-sky-border rounded-2xl p-6 shadow-sm">
-        <p className="text-xs text-[#00aff0] font-bold uppercase tracking-widest mb-3">
+        <p className="text-xs text-sky font-extrabold uppercase tracking-eyebrow mb-3">
           Question {currentIndex + 1}
           {currentMulti && (
             <span className="ml-2 text-brandblue normal-case tracking-normal">
@@ -301,11 +301,13 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
           let stateClass: string
           if (showFeedback) {
             if (isCorrectOption) {
-              stateClass = 'border-green-400 bg-green-50 text-green-700'
+              // Locked motion: correct → pulse + green glow ring.
+              stateClass = 'border-correct-border bg-correct-bg text-correct-fg animate-correct-pulse'
             } else if (selected) {
-              stateClass = 'border-red-400 bg-red-50 text-red-500'
+              // Locked motion: wrong → shake.
+              stateClass = 'border-incorrect-border bg-incorrect-bg text-incorrect-fg animate-wrong-shake'
             } else {
-              stateClass = 'border-sky-border bg-white text-ink-muted'
+              stateClass = 'border-sky-border bg-white text-ink-muted opacity-70'
             }
           } else {
             stateClass = selected
