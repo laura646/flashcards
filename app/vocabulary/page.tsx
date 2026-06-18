@@ -31,7 +31,7 @@ interface SrsStats {
 
 const STAGE_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
 // 10B Leitner ramp — matches the VocabTrainer dashboard bucket colours.
-const STAGE_PILLS = ['', 'bg-leitner-new text-ink-body', 'bg-leitner-learning text-streak-ink', 'bg-leitner-familiar text-ink-black', 'bg-leitner-known text-white', 'bg-leitner-mastered text-white']
+const STAGE_PILLS = ['', 'bg-leitner-new text-ink-black', 'bg-leitner-learning text-streak-ink', 'bg-leitner-familiar text-ink-black', 'bg-leitner-known text-white', 'bg-leitner-mastered text-white']
 
 export default function VocabularyPage() {
   const { data: session, status } = useSession()

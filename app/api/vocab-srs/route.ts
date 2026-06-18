@@ -456,39 +456,7 @@ export async function POST(req: NextRequest) {
         new_box: next.box_level,
         interval_days: next.interval_days,
         next_review_at: next.next_review_at,
-        // Pre-review snapshot so the client can offer a one-tap Undo that
-        // restores the exact prior SRS state (see the 'restore' action).
-        prev: {
-          ease_factor: word.ease_factor ?? DEFAULT_EASE,
-          interval_days: word.interval_days ?? 0,
-          repetitions: word.repetitions ?? 0,
-          box_level: word.box_level ?? 1,
-          next_review_at: word.next_review_at,
-        },
       })
-    }
-
-    // Undo a review — restore a word's SRS state from the snapshot the
-    // client captured from the preceding 'review' response. Scoped to the
-    // caller's own word, so it can only ever revert their own data.
-    if (action === 'restore') {
-      const { word_id, prev } = body
-      if (!word_id || !prev || typeof prev !== 'object') {
-        return NextResponse.json({ error: 'Missing word_id or prev' }, { status: 400 })
-      }
-      const { error } = await supabase
-        .from('vocab_srs')
-        .update({
-          ease_factor: prev.ease_factor,
-          interval_days: prev.interval_days,
-          repetitions: prev.repetitions,
-          box_level: prev.box_level,
-          next_review_at: prev.next_review_at,
-        })
-        .eq('id', word_id)
-        .eq('user_email', email)
-      if (error) throw error
-      return NextResponse.json({ ok: true })
     }
 
     // Add a single word manually

@@ -65,11 +65,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
   // Guard so a fast double-tap on the one-tap RatingRow can't rate two
   // cards from a single render (it commits an irreversible SRS write).
   const ratingInFlight = useRef(false)
-  // Undo support: snapshot of the just-rated card so a mis-tap is recoverable.
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [lastReview, setLastReview] = useState<
-    { wordId: string; word: string; prev: unknown; grade: Grade; requeued: boolean; prevIdx: number } | null
-  >(null)
 
   const [view, setView] = useState<'home' | 'review' | 'add'>('home')
   const [stats, setStats] = useState<Stats | null>(null)
@@ -351,7 +346,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
     if (!word) return
     ratingInFlight.current = true
 
-    let prevSnapshot: unknown = null
     try {
       const res = await fetch('/api/vocab-srs', {
         method: 'POST',
@@ -359,11 +353,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
         body: JSON.stringify({ action: 'review', word_id: word.id, grade }),
       })
       if (!res.ok) setError('Failed to save review. Progress may be lost.')
-      else {
-        setError(null) // clear any prior transient failure on success
-        const data = await res.json().catch(() => null)
-        prevSnapshot = data?.prev ?? null
-      }
+      else setError(null) // clear any prior transient failure on success
     } catch {
       setError('Network error — review not saved.')
     }
@@ -381,12 +371,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
     }
 
     if (currentIdx + 1 < dueWords.length) {
-      // Offer a brief Undo for flip-mode self-ratings (irreversible SRS write).
-      if (prevSnapshot && reviewMode === 'flip') {
-        setLastReview({ wordId: word.id, word: word.word, prev: prevSnapshot, grade, requeued: grade === 'again', prevIdx: currentIdx })
-        if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-        undoTimerRef.current = setTimeout(() => setLastReview(null), 4500)
-      }
       setCurrentIdx(currentIdx + 1)
       setFlipped(false)
       setHasFlipped(false)
@@ -412,33 +396,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
       loadStreak()
     }
     ratingInFlight.current = false
-  }
-
-  // Undo the most recent rating: restore the word's prior SRS state, step
-  // back to it, and roll back the session tally + any 'again' re-queue.
-  const undoLastReview = async () => {
-    if (!lastReview) return
-    const lr = lastReview
-    setLastReview(null)
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
-    try {
-      await fetch('/api/vocab-srs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'restore', word_id: lr.wordId, prev: lr.prev }),
-      })
-    } catch { /* best-effort; UI still rolls back */ }
-    setSessionResults((prev) => ({
-      ...prev,
-      [lr.grade]: Math.max(0, prev[lr.grade] - 1),
-      total: Math.max(0, prev.total - 1),
-    }))
-    if (lr.requeued) setDueWords((prev) => prev.slice(0, -1)) // drop the re-queued copy
-    setCurrentIdx(lr.prevIdx)
-    setFlipped(true)      // show the answer again so they can re-rate
-    setHasFlipped(true)
-    setSelectedGrade(null)
-    setQuizSelected(null)
   }
 
   const handleQuizSelect = (optionIdx: number) => {
@@ -592,14 +549,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
             onRate={(r) => handleReviewResult(r as Grade)}
             captions={{ again: 'forgot', hard: 'barely', good: 'got it', easy: 'too easy' }}
           />
-        )}
-
-        {/* Undo strip — recover a mis-tapped one-tap rating (4.5s window). */}
-        {lastReview && (
-          <div className="flex items-center justify-between bg-ink-black text-white rounded-tile px-4 py-3">
-            <span className="text-sm">Rated <span className="font-bold capitalize">{lastReview.grade}</span> · {lastReview.word}</span>
-            <button onClick={undoLastReview} className="text-sm font-extrabold text-sky hover:underline">Undo</button>
-          </div>
         )}
       </div>
     )

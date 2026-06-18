@@ -58,9 +58,10 @@ module.exports = {
           'hard-fg': '#6a6fb0',
         },
         leitner: {
-          // Darkened from the brief's #e7eaf0 (≈1.07:1 on the #eef1f6 track —
-          // the New bar read as empty) to #cdd3df so the lowest bucket is visible.
-          new: '#cdd3df',
+          // "New" = fresh/just-started, so a lively emerald (a sprout) rather
+          // than grey. Slight teal undertone ties into the blue brand; the
+          // ramp then climbs emerald → yellow → light-sky → sky → navy.
+          new: '#10b981',
           learning: '#ffeb00',
           familiar: '#7fd4f5',
           known: '#00aff0',

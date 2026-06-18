@@ -31,8 +31,8 @@ function installMockFetch() {
       if (action === 'all') return jsonRes({ words: MOCK_WORDS })
       if (action === 'focus') return jsonRes({ words: [{ id: '2', word: 'orbit', meaning: 'path around a star' }] })
       if (action === 'streak') return jsonRes({ streak: 4, reviewedToday: false })
-      if (postAction === 'review') return jsonRes({ ok: true, new_box: 2, prev: { ease_factor: 2.5, interval_days: 0, repetitions: 0, box_level: 1, next_review_at: new Date(0).toISOString() } })
-      if (postAction === 'sync' || postAction === 'restore' || postAction === 'add' || postAction === 'update') return jsonRes({ ok: true })
+      if (postAction === 'review') return jsonRes({ ok: true, new_box: 2 })
+      if (postAction === 'sync' || postAction === 'add' || postAction === 'update') return jsonRes({ ok: true })
       return jsonRes({ ok: true })
     }
     if (url.includes('/api/progress')) return jsonRes({ ok: true })
