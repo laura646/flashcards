@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import AudioButton from '@/components/AudioButton'
 import AttachedExercisesRunner from '@/components/AttachedExercisesRunner'
+import LessonAudioPlayer from '@/components/student-ui/LessonAudioPlayer'
 import { detectUsedTargets } from '@/lib/word-detection'
 import type { AttachedExercise } from '@/lib/attached-exercise'
 import { legacyMcqToAttached } from '@/lib/attached-exercise'
@@ -1790,12 +1791,11 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           </div>
 
           {content.audio_url ? (
-            <div className="bg-white border border-sky-border rounded-2xl p-4 mb-6">
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-              <audio controls src={content.audio_url} className="w-full" />
+            <div className="mb-6">
+              <LessonAudioPlayer src={content.audio_url} />
             </div>
           ) : (
-            <div className="bg-gray-100 rounded-2xl p-8 text-center mb-6">
+            <div className="bg-surface rounded-card p-8 text-center mb-6">
               <p className="text-sm text-ink-muted">Audio not available</p>
             </div>
           )}
