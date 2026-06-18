@@ -30,7 +30,8 @@ interface SrsStats {
 }
 
 const STAGE_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
-const STAGE_PILLS = ['', 'bg-red-100 text-red-500', 'bg-orange-100 text-orange-500', 'bg-yellow-100 text-yellow-600', 'bg-blue-100 text-blue-500', 'bg-green-100 text-green-600']
+// 10B Leitner ramp — matches the VocabTrainer dashboard bucket colours.
+const STAGE_PILLS = ['', 'bg-leitner-new text-ink-body', 'bg-leitner-learning text-streak-ink', 'bg-leitner-familiar text-ink-black', 'bg-leitner-known text-white', 'bg-leitner-mastered text-white']
 
 export default function VocabularyPage() {
   const { data: session, status } = useSession()
@@ -194,13 +195,13 @@ export default function VocabularyPage() {
       {/* Practice button */}
       <button
         onClick={openTrainer}
-        className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white py-5 rounded-2xl text-sm font-bold hover:from-amber-500 hover:to-orange-600 transition-all shadow-sm mb-5"
+        className="w-full bg-sky text-white py-5 rounded-card text-sm font-bold hover:bg-sky-dark transition-all shadow-sm mb-5"
       >
         <div className="flex items-center justify-center gap-3">
           <span className="text-2xl">🧠</span>
           <div className="text-left">
             <div className="text-base">Practice with the Vocabulary Trainer</div>
-            <div className="text-[11px] font-normal text-amber-50 mt-0.5">
+            <div className="text-[11px] font-normal text-white/85 mt-0.5">
               {practiceSubtext()}
             </div>
           </div>

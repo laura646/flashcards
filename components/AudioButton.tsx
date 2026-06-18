@@ -43,8 +43,8 @@ export default function AudioButton({ text }: Props) {
       title="Listen to pronunciation"
       className={`inline-flex items-center justify-center w-9 h-9 rounded-full border transition-all ${
         playing
-          ? 'bg-[#416ebe] border-[#416ebe] text-white'
-          : 'bg-white border-[#cddcf0] text-[#416ebe] hover:border-[#416ebe]'
+          ? 'bg-sky border-sky text-white'
+          : 'bg-white border-sky-border text-sky hover:border-sky'
       } disabled:opacity-50`}
     >
       {loading ? (

@@ -350,6 +350,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
       })
       if (!res.ok) setError('Failed to save review. Progress may be lost.')
       else {
+        setError(null) // clear any prior transient failure on success
         const data = await res.json().catch(() => null)
         prevSnapshot = data?.prev ?? null
       }
@@ -521,6 +522,15 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
           <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
+        {/* Save-failure feedback on the active card — the dashboard banner
+            isn't visible mid-session, so surface it here too. */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between">
+            <p className="text-xs text-red-500">{error}</p>
+            <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">✕</button>
+          </div>
+        )}
+
         {/* 3D flip card — auto-height so long words/translations/examples
             on the back never clip (grid-stacks both faces). */}
         <div className="card-flip w-full" style={{ minHeight: '280px' }}>
@@ -602,6 +612,14 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
         <div className="h-1.5 bg-sky-wash rounded-full overflow-hidden">
           <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
+
+        {/* Save-failure feedback on the active card (see flip mode). */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between">
+            <p className="text-xs text-red-500">{error}</p>
+            <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">✕</button>
+          </div>
+        )}
 
         <div className="bg-white border-2 border-sky rounded-flashcard p-6 text-center">
           <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white mb-3 bg-sky">
