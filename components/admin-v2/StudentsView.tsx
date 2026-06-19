@@ -19,8 +19,8 @@ export interface StudentSummary {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="bg-white rounded-card border border-hairline p-4">
-      <p className="text-[12px] text-ink-muted">{label}</p>
+    <div className="bg-sky-wash rounded-card border border-sky-border p-4">
+      <p className="text-[12px] text-ink-body">{label}</p>
       <p className="text-2xl font-bold text-sky-text mt-0.5">{value}</p>
     </div>
   )
@@ -90,25 +90,28 @@ export function StudentsView({ students, loading, onOpenStudent }: {
               <button
                 key={s.email}
                 onClick={() => onOpenStudent(s.email)}
-                className="text-left bg-white rounded-card border border-hairline p-4 hover:border-sky transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40 flex gap-3"
+                className="text-left bg-white rounded-card border border-hairline p-4 hover:border-sky transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40 flex flex-col min-h-[118px]"
               >
-                <div className="w-10 h-10 rounded-full bg-sky-wash text-sky-text flex items-center justify-center text-sm font-bold shrink-0" aria-hidden="true">
-                  {(s.name || s.email)[0]?.toUpperCase()}
+                <div className="flex gap-3">
+                  <div className="w-10 h-10 rounded-full bg-sky-wash text-sky-text flex items-center justify-center text-sm font-bold shrink-0" aria-hidden="true">
+                    {(s.name || s.email)[0]?.toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-ink-black truncate">{s.name || 'Unknown'}</p>
+                      {s.level && <Pill variant="level">{s.level}</Pill>}
+                      {s.blocked && <span className="text-[10px] font-bold bg-incorrect-bg text-incorrect-fg px-2 py-0.5 rounded-full">BLOCKED</span>}
+                    </div>
+                    <p className="text-xs text-ink-muted truncate mt-0.5">{s.email}</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-bold text-ink-black truncate">{s.name || 'Unknown'}</p>
-                    {s.level && <Pill variant="level">{s.level}</Pill>}
-                    {s.blocked && <span className="text-[10px] font-bold bg-incorrect-bg text-incorrect-fg px-2 py-0.5 rounded-full">BLOCKED</span>}
-                  </div>
-                  <p className="text-xs text-ink-muted truncate">{s.email}</p>
-                  <div className="flex gap-1.5 mt-1.5 flex-wrap items-center">
-                    {s.courses.slice(0, 2).map((c) => (
-                      <span key={c.course_id} className="text-[10px] bg-surface text-ink-muted px-2 py-0.5 rounded-full">{c.course_name}</span>
-                    ))}
-                    {s.courses.length > 2 && <span className="text-[10px] text-ink-muted">+{s.courses.length - 2}</span>}
-                    {s.company && <span className="text-[10px] text-ink-muted">· {s.company}</span>}
-                  </div>
+                <div className="mt-auto pt-3 border-t border-hairline flex gap-1.5 flex-wrap items-center">
+                  {s.courses.slice(0, 2).map((c) => (
+                    <span key={c.course_id} className="text-[10px] bg-surface text-ink-muted px-2 py-0.5 rounded-full">{c.course_name}</span>
+                  ))}
+                  {s.courses.length > 2 && <span className="text-[10px] text-ink-muted">+{s.courses.length - 2}</span>}
+                  {s.company && <span className="text-[10px] text-ink-muted">🏢 {s.company}</span>}
+                  {s.courses.length === 0 && !s.company && <span className="text-[10px] text-ink-muted">Not enrolled yet</span>}
                 </div>
               </button>
             ))}

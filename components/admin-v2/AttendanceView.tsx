@@ -77,9 +77,9 @@ export function AttendanceView(p: {
               {/* Counts strip */}
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {counts.map((c) => (
-                  <div key={c.value} className="bg-white rounded-card border border-hairline p-3 text-center">
+                  <div key={c.value} className="bg-sky-wash rounded-card border border-sky-border p-3 text-center">
                     <p className="text-xl font-bold text-ink-black">{c.n}</p>
-                    <p className="text-[11px] text-ink-muted">{c.label}</p>
+                    <p className="text-[11px] text-ink-body">{c.label}</p>
                   </div>
                 ))}
               </div>

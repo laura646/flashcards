@@ -25,8 +25,8 @@ export interface CourseSummary {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="bg-white rounded-card border border-hairline p-4">
-      <p className="text-[12px] text-ink-muted">{label}</p>
+    <div className="bg-sky-wash rounded-card border border-sky-border p-4">
+      <p className="text-[12px] text-ink-body">{label}</p>
       <p className="text-2xl font-bold text-sky-text mt-0.5">{value}</p>
     </div>
   )
