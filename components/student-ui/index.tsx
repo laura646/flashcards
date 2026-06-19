@@ -320,3 +320,50 @@ export function SkyHero({ children, className = '' }: { children: ReactNode; cla
     </div>
   )
 }
+
+// ════════════════════════════════════════════════════════════════
+// Async states — Skeleton / Spinner / EmptyState / InlineError
+// Wave 0 addition: the kit had no shared loading/empty/error states, so
+// every screen invented its own (grey skeletons, bare spinners, native
+// alert()). AI generation + audio waits make these non-optional. Use
+// these instead of ad-hoc states so the teacher side feels native.
+// ════════════════════════════════════════════════════════════════
+
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div aria-hidden="true" className={`animate-pulse bg-hairline rounded-tile ${className}`} />
+}
+
+export function Spinner({ size = 20, label = 'Loading…', className = '' }: { size?: number; label?: string; className?: string }) {
+  return (
+    <span role="status" aria-label={label} className={`inline-flex ${className}`}>
+      <span
+        className="block animate-spin rounded-full border-2 border-sky-border border-t-sky"
+        style={{ width: size, height: size }}
+      />
+    </span>
+  )
+}
+
+export function EmptyState({ icon, title, hint, action, className = '' }: { icon?: ReactNode; title: string; hint?: string; action?: ReactNode; className?: string }) {
+  return (
+    <div className={`flex flex-col items-center justify-center text-center py-10 px-6 ${className}`}>
+      {icon && <div className="text-4xl mb-3" aria-hidden="true">{icon}</div>}
+      <p className="text-sm font-bold text-ink-body">{title}</p>
+      {hint && <p className="text-xs text-ink-muted mt-1 max-w-xs leading-relaxed">{hint}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  )
+}
+
+export function InlineError({ message, onRetry, className = '' }: { message: string; onRetry?: () => void; className?: string }) {
+  return (
+    <div role="alert" className={`flex items-center justify-between gap-3 bg-incorrect-bg border border-incorrect-border rounded-tile px-3.5 py-2.5 ${className}`}>
+      <span className="text-xs font-medium text-incorrect-fg">{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="text-xs font-extrabold text-incorrect-fg underline shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-incorrect-fg/40 rounded">
+          Retry
+        </button>
+      )}
+    </div>
+  )
+}

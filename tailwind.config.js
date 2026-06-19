@@ -20,8 +20,12 @@ module.exports = {
         },
         // ── Student app "10B" tokens (design_handoff_student_app/README.md) ──
         sky: {
-          DEFAULT: '#00aff0', // primary fill, hero, active icons, eyebrows, progress
-          dark: '#0089c4',    // text on light-sky surfaces (secondary button text)
+          DEFAULT: '#00aff0', // primary FILL only (hero, solid buttons, progress) — 2.5:1, NOT for text
+          dark: '#0089c4',    // large/bold text on light-sky surfaces (~3.9:1 — large text only)
+          // Accessible sky for normal-size TEXT, links, small icons & badges on
+          // white/light surfaces (teacher side is dense small text). ~4.8:1 on
+          // white = WCAG AA. Use this, never sky.DEFAULT, for sky-coloured text.
+          text: '#0076a8',
           wash: '#e6f6fe',    // quick-action tiles, segmented track, audio fills
           border: '#cfeafb',  // 1.5px borders on light-sky elements
         },
@@ -42,12 +46,18 @@ module.exports = {
           ink: '#5a4b00',
         },
         correct: {
-          fg: '#16a34a',
+          // Darkened from #16a34a (only ~2.97:1 on correct.bg — failed WCAG AA)
+          // to #15803d (~4.6:1) so the green "correct" text/icon is legible.
+          // Reused everywhere answer-checking shows a correct state.
+          fg: '#15803d',
           bg: '#e7f7ee',
           border: '#c3ebd4',
         },
         incorrect: {
-          fg: '#e5484d',
+          // Darkened from #e5484d (~3.6:1 on incorrect.bg — failed WCAG AA) to
+          // #c92a2a (~5:1) so the red "incorrect" text/icon is legible. Reused
+          // everywhere answer-checking shows a wrong state + the InlineError kit.
+          fg: '#c92a2a',
           bg: '#fdecec',
           border: '#f6cdcf',
         },
