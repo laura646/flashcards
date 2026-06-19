@@ -116,7 +116,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
           <p className="text-sm text-gray-500">
             You&apos;ve been enrolled in <strong>{courseName}</strong>.
           </p>
-          <p className="text-xs text-gray-400 mt-2">Redirecting to your lessons...</p>
+          <p className="text-xs text-ink-muted mt-2">Redirecting to your lessons...</p>
         </div>
       </main>
     )
@@ -155,19 +155,21 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
         <form onSubmit={handleCredentialsLogin} className="space-y-3">
           <input
             type="email"
+            aria-label="Email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
+            className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] focus-visible:ring-2 focus-visible:ring-[#416ebe]/40 transition-colors text-[#46464b]"
           />
           <input
             type="password"
+            aria-label="Password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
+            className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] focus-visible:ring-2 focus-visible:ring-[#416ebe]/40 transition-colors text-[#46464b]"
           />
           {loginError && (
             <p role="alert" className="text-xs text-incorrect-fg font-medium">{loginError}</p>
@@ -175,7 +177,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
           <button
             type="submit"
             disabled={loginLoading}
-            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
+            className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-lg text-sm transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#416ebe]/40 focus-visible:ring-offset-1"
           >
             {loginLoading ? 'Signing in...' : 'Sign in & Join'}
           </button>
@@ -184,14 +186,14 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
         {/* Divider */}
         <div className="flex items-center gap-3 my-5">
           <div className="flex-1 h-px bg-[#cddcf0]" />
-          <span className="text-xs text-gray-400">or</span>
+          <span className="text-xs text-ink-muted">or</span>
           <div className="flex-1 h-px bg-[#cddcf0]" />
         </div>
 
         {/* Google Sign In */}
         <button
           onClick={() => signIn('google', { callbackUrl: `/join/${code}` })}
-          className="w-full bg-white hover:bg-gray-50 text-[#46464b] font-bold py-3 rounded-lg text-sm transition-colors border-2 border-[#cddcf0] hover:border-[#416ebe] flex items-center justify-center gap-3"
+          className="w-full bg-white hover:bg-gray-50 text-[#46464b] font-bold py-3 rounded-lg text-sm transition-colors border-2 border-[#cddcf0] hover:border-[#416ebe] flex items-center justify-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#416ebe]/40"
         >
           <svg width="20" height="20" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -213,7 +215,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
         </p>
       </div>
 
-      <p className="mt-6 text-xs text-gray-400">englishwithlaura.com</p>
+      <p className="mt-6 text-xs text-ink-muted">englishwithlaura.com</p>
     </main>
   )
 }

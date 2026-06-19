@@ -429,8 +429,8 @@ function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolle
               {joining ? 'Joining…' : 'Join course'}
             </Button>
           </form>
-          {joinError && <p className="text-xs text-incorrect-fg mt-3">{joinError}</p>}
-          {joinSuccess && <p className="text-xs text-correct-fg font-bold mt-3">{joinSuccess}</p>}
+          {joinError && <p role="alert" className="text-xs text-incorrect-fg mt-3">⚠ {joinError}</p>}
+          {joinSuccess && <p role="status" className="text-xs text-correct-fg font-bold mt-3">✓ {joinSuccess}</p>}
           <p className="text-[11px] text-ink-muted mt-4">Don&apos;t have a code? Ask your teacher or school for one.</p>
         </Card>
         <Footer />

@@ -60,16 +60,17 @@ export default function ForgotPasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-3">
               <input
                 type="email"
+                aria-label="Email"
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
+                className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] focus-visible:ring-2 focus-visible:ring-[#416ebe]/40 transition-colors text-[#46464b]"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-lg text-sm transition-colors disabled:opacity-50"
+                className="w-full bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-lg text-sm transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#416ebe]/40 focus-visible:ring-offset-1"
               >
                 {loading ? 'Sending...' : 'Send reset link'}
               </button>
@@ -87,7 +88,7 @@ export default function ForgotPasswordPage() {
         )}
       </div>
 
-      <p className="mt-6 text-xs text-gray-400">
+      <p className="mt-6 text-xs text-ink-muted">
         englishwithlaura.com
       </p>
     </main>
