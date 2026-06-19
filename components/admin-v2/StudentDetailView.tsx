@@ -187,7 +187,7 @@ export function StudentDetailView({
   if (loading) {
     return (
       <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <Skeleton className="h-4 w-44 mb-5" />
           {[0, 1, 2].map((i) => (
             <div key={i} className="bg-white rounded-card border border-hairline p-5 mb-4">
@@ -205,7 +205,7 @@ export function StudentDetailView({
   if (!student) {
     return (
       <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <PageHeader crumbs={[{ label: 'My Students', onClick: onBack }, { label: 'Student' }]} className="mb-5" />
           <InlineError message="Student not found, or you don't have access to them." />
         </div>
@@ -217,7 +217,7 @@ export function StudentDetailView({
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <PageHeader
           crumbs={[{ label: 'My Students', onClick: onBack }, { label: student.name || 'Unknown' }]}
           className="mb-5"
@@ -248,8 +248,10 @@ export function StudentDetailView({
           </div>
         </Card>
 
+        {/* ── Two-column body: Profile (left) · Notes + Activity (right) ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         {/* ── Student profile card ── */}
-        <Card className="mb-4">
+        <Card>
           <div className="flex items-center justify-between mb-3">
             <Eyebrow>Student Profile</Eyebrow>
             {!editingProfile && (
@@ -409,8 +411,10 @@ export function StudentDetailView({
           )}
         </Card>
 
+        {/* ── Right column: Notes + Activity ── */}
+        <div className="space-y-4">
         {/* ── Teacher notes card ── */}
-        <Card className="mb-4">
+        <Card>
           <Eyebrow>Teacher Notes</Eyebrow>
           <textarea
             value={notes}
@@ -456,6 +460,8 @@ export function StudentDetailView({
             </div>
           )}
         </Card>
+        </div>
+        </div>
 
         {/* ── Send reminder modal ── */}
         {showReminderModal && (
