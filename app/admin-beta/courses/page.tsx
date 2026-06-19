@@ -47,7 +47,7 @@ export default function CoursesBetaPage() {
     <CoursesView
       courses={courses}
       loading={status === 'loading' || loading}
-      onOpenCourse={(id) => router.push(`/admin/courses/${id}`)}
+      onOpenCourse={(id) => router.push(`/admin-beta/courses/${id}`)}
     />
   )
 }

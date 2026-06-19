@@ -43,7 +43,7 @@ export default function StudentsBetaPage() {
     <StudentsView
       students={students}
       loading={status === 'loading' || loading}
-      onOpenStudent={(email) => router.push(`/admin/students/${encodeURIComponent(email)}`)}
+      onOpenStudent={(email) => router.push(`/admin-beta/students/${encodeURIComponent(email)}`)}
     />
   )
 }
