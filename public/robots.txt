@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin
+Disallow: /admin-beta
+Disallow: /admin-preview
+Disallow: /student-ui-preview
+Disallow: /superadmin
+Disallow: /api
