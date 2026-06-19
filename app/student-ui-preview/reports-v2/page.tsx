@@ -10,6 +10,7 @@ const STUDENTS: StudentReport[] = [
     email: 'marek@acme.com', name: 'Marek Novak', cefr: 'B2',
     completionPct: 90, attendancePct: 95, avgLatestPct: 82, streak: 12, vocabFocus: 3,
     aiSummary: 'Marek is progressing steadily at B2. Vocabulary is a real strength (88%), but listening lags (64%) — a little more dictation would help. Excellent attendance and a 12-day streak show strong, consistent practice.',
+    aiGeneratedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // ~3h ago (cached state)
     skills: [{ label: 'Vocabulary', pct: 88 }, { label: 'Grammar', pct: 80 }, { label: 'Reading', pct: 83 }, { label: 'Listening', pct: 64 }],
     trend: [60, 72, 68, 80, 84, 90],
     vocab: [3, 5, 6, 8, 12],
@@ -20,7 +21,8 @@ const STUDENTS: StudentReport[] = [
   {
     email: 'sofia@acme.com', name: 'Sofia Ruiz', cefr: 'B1',
     completionPct: 60, attendancePct: 80, avgLatestPct: 74, streak: 4, vocabFocus: 6,
-    aiSummary: 'Sofia is solid at B1 with good grammar gains. Scores dipped on the last two exercises — a quick review of past tenses would help. Encourage more regular practice to rebuild her streak.',
+    aiSummary: null, // empty state — demonstrates the "Generate summary" button
+    aiGeneratedAt: null,
     skills: [{ label: 'Grammar', pct: 82 }, { label: 'Vocabulary', pct: 75 }, { label: 'Reading', pct: 70 }, { label: 'Listening', pct: 68 }],
     trend: [70, 76, 74, 72, 68, 71],
     vocab: [6, 7, 4, 3, 2],
@@ -31,5 +33,13 @@ const STUDENTS: StudentReport[] = [
 ]
 
 export default function ReportsV2Preview() {
-  return <ReportsView courseName="Business English" students={STUDENTS} onRegenerate={() => {}} />
+  return (
+    <ReportsView
+      courseName="Business English"
+      students={STUDENTS}
+      generatingEmail={null}
+      onGenerate={(email) => console.log('generate', email)}
+      onRegenerate={(email) => console.log('regenerate', email)}
+    />
+  )
 }

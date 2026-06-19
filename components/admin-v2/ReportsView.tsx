@@ -11,7 +11,7 @@
 // vocabulary mastery (Leitner ramp), attendance, tests, teacher notes.
 
 import { useState } from 'react'
-import { Pill, EmptyState } from '@/components/student-ui'
+import { Pill, EmptyState, Button, Spinner } from '@/components/student-ui'
 
 export interface StudentReport {
   email: string
@@ -22,7 +22,8 @@ export interface StudentReport {
   avgLatestPct: number | null
   streak: number
   vocabFocus: number | null
-  aiSummary: string
+  aiSummary: string | null
+  aiGeneratedAt?: string | null
   skills: { label: string; pct: number }[]
   trend: number[]
   vocab: number[] // 5 counts: New, Learning, Familiar, Known, Mastered
@@ -56,10 +57,29 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   )
 }
 
-export function ReportsView({ courseName, students, onRegenerate }: {
+// "just now / 3h ago / 2d ago / date" — for the AI summary timestamp.
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diffMs = Date.now() - then
+  if (diffMs < 0) return 'just now'
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(then).toLocaleDateString()
+}
+
+export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail }: {
   courseName: string
   students: StudentReport[]
   onRegenerate?: (email: string) => void
+  onGenerate?: (email: string) => void
+  generatingEmail?: string | null
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const s = students.find((x) => x.email === sel) || null
@@ -105,14 +125,35 @@ export function ReportsView({ courseName, students, onRegenerate }: {
           <div><h1 className="text-xl font-bold text-ink-black">{s.name}</h1>{s.cefr && <p className="text-[12px] text-ink-muted">Working at {s.cefr}</p>}</div>
         </div>
 
-        {/* AI summary */}
+        {/* AI summary — on demand: generate / loading / cached */}
         <div className="bg-white rounded-card border border-sky-border p-5 mb-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-extrabold uppercase tracking-eyebrow text-sky-text">✨ AI progress summary</span>
-            {onRegenerate && <button onClick={() => onRegenerate(s.email)} className="text-[12px] text-ink-body border border-hairline rounded-tile px-2.5 py-1 hover:bg-surface">↻ Regenerate</button>}
+            {generatingEmail !== s.email && s.aiSummary && onRegenerate && (
+              <button onClick={() => onRegenerate(s.email)} className="text-[12px] text-ink-body border border-hairline rounded-tile px-2.5 py-1 hover:bg-surface">↻ Regenerate</button>
+            )}
           </div>
-          <p className="text-[14px] text-ink-body leading-relaxed">{s.aiSummary}</p>
-          <p className="text-[11px] text-ink-muted mt-2">AI estimate — your read is the final word.</p>
+
+          {generatingEmail === s.email ? (
+            <div className="flex items-center gap-2.5 py-1.5">
+              <Spinner size={18} label="Generating summary…" />
+              <span className="text-[13px] text-ink-muted">Generating summary…</span>
+            </div>
+          ) : s.aiSummary ? (
+            <>
+              <p className="text-[14px] text-ink-body leading-relaxed">{s.aiSummary}</p>
+              {s.aiGeneratedAt && <p className="text-[11px] text-ink-muted mt-2">Generated {relativeTime(s.aiGeneratedAt)}</p>}
+              <p className="text-[11px] text-ink-muted mt-1">AI estimate — your read is the final word.</p>
+            </>
+          ) : (
+            <div className="py-1">
+              <p className="text-[13px] text-ink-body">No summary yet for {s.name.split(' ')[0]}.</p>
+              <p className="text-[11px] text-ink-muted mt-1 mb-3">Uses AI to read this student&rsquo;s data — costs nothing until you click.</p>
+              {onGenerate && (
+                <Button variant="primary" size="sm" onClick={() => onGenerate(s.email)}>✨ Generate summary</Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Stat band */}

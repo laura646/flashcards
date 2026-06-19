@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { supabase } from '@/lib/supabase'
 import { requireRole, hasAccessToCourse } from '@/lib/roles'
 
 // ═══════════════════════════════════════════════════════════════
@@ -59,6 +60,19 @@ interface DigestPayload {
 function errorResponse(err: unknown): NextResponse {
   const e = err as { status?: number; message?: string }
   return NextResponse.json({ error: e.message || 'Error' }, { status: e.status || 500 })
+}
+
+// Derive an integer "days" for caching from the digest's time range. The
+// digest only carries a human label (e.g. "Last 7 days", "All time"), so we
+// map the recognised buckets 7/30/90/all → 7/30/90/0. Anything unrecognised
+// falls back to 0 ("all time" / unbounded).
+function deriveTimeRangeDays(label: string | undefined): number {
+  const l = (label || '').toLowerCase()
+  if (l.includes('7')) return 7
+  if (l.includes('30')) return 30
+  if (l.includes('90')) return 90
+  if (l.includes('all')) return 0
+  return 0
 }
 
 export async function POST(req: NextRequest) {
@@ -133,13 +147,76 @@ export async function POST(req: NextRequest) {
       .join('')
       .trim()
 
+    const summary = text || `Summary unavailable for ${body.studentName}.`
+    const timeRangeDays = deriveTimeRangeDays(body.timeRangeLabel)
+    const generatedAt = new Date().toISOString()
+
+    // Cache the summary (one row per student+course; regenerating overwrites).
+    // FAIL-SAFE: if the table doesn't exist yet (or any DB error), we swallow
+    // it — generation must never break because the cache is unavailable.
+    try {
+      await supabase
+        .from('student_ai_summaries')
+        .upsert(
+          {
+            student_email: body.studentEmail,
+            course_id: body.courseId,
+            summary,
+            time_range_days: timeRangeDays,
+            generated_by: auth.email,
+            generated_at: generatedAt,
+          },
+          { onConflict: 'student_email,course_id' },
+        )
+    } catch (cacheErr) {
+      console.error('student-summary cache upsert failed (ignored):', cacheErr)
+    }
+
     return NextResponse.json({
-      summary: text || `Summary unavailable for ${body.studentName}.`,
+      summary,
+      generatedAt,
+      timeRangeDays,
       cached: false,
     })
   } catch (err) {
     console.error('student-summary error:', err)
     return NextResponse.json({ error: 'Failed to generate summary' }, { status: 500 })
+  }
+}
+
+// ─── GET: read all cached summaries for a course (token-free "reopen") ───
+
+export async function GET(req: NextRequest) {
+  let auth
+  try {
+    auth = await requireRole('teacher', 'superadmin')
+  } catch (err) {
+    return errorResponse(err)
+  }
+
+  const courseId = req.nextUrl.searchParams.get('courseId')
+  if (!courseId) {
+    return NextResponse.json({ error: 'courseId required' }, { status: 400 })
+  }
+
+  const hasAccess = await hasAccessToCourse(auth.email, auth.role, courseId)
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+  }
+
+  // FAIL-SAFE: if the table doesn't exist yet (or any DB error), return an
+  // empty list rather than a 500 — the report just shows no cached summaries.
+  try {
+    const { data, error } = await supabase
+      .from('student_ai_summaries')
+      .select('student_email, summary, generated_at, time_range_days')
+      .eq('course_id', courseId)
+
+    if (error) throw error
+    return NextResponse.json({ summaries: data || [] })
+  } catch (err) {
+    console.error('student-summary GET error (returning empty):', err)
+    return NextResponse.json({ summaries: [] })
   }
 }
 
