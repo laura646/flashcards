@@ -415,7 +415,7 @@ function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolle
           <div className="text-4xl mb-3">📚</div>
           <h2 className="text-lg font-extrabold text-brandblue mb-2">Get started</h2>
           <p className="text-sm text-ink-muted mb-6">
-            You&apos;re not enrolled in any courses yet. Enter an invite code from your teacher to get started.
+            You&apos;re not in a course yet. Enter the invite code your teacher gave you — it&apos;s usually in your welcome email or from your school.
           </p>
           <form onSubmit={handleJoin} className="space-y-3 text-left">
             <TextField
@@ -431,6 +431,7 @@ function NoCourses({ studentName, onEnrolled }: { studentName: string; onEnrolle
           </form>
           {joinError && <p className="text-xs text-incorrect-fg mt-3">{joinError}</p>}
           {joinSuccess && <p className="text-xs text-correct-fg font-bold mt-3">{joinSuccess}</p>}
+          <p className="text-[11px] text-ink-muted mt-4">Don&apos;t have a code? Ask your teacher or school for one.</p>
         </Card>
         <Footer />
       </div>

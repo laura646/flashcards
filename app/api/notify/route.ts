@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
             </tr>
           </table>
           <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e6f0fa;">
-            <a href="https://flashcards-app-navy.vercel.app/admin"
+            <a href="https://app.englishwithlaura.com/admin"
                style="display: inline-block; background: #416ebe; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">
               View in Admin Console
             </a>

@@ -664,7 +664,7 @@ export async function POST(req: NextRequest) {
               <p style="font-size: 15px; margin-top: 0;">Hi ${esc(studentName) || 'there'},</p>
               <p style="font-size: 15px; line-height: 1.6; white-space: pre-line;">${esc(message)}</p>
               <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e6f0fa;">
-                <a href="https://flashcards-app-navy.vercel.app"
+                <a href="https://app.englishwithlaura.com"
                    style="display: inline-block; background: #416ebe; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">
                   Open Flashcards App
                 </a>

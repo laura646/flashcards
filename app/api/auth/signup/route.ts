@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       try {
         const esc = (await import('@/lib/html')).escHtml
         const resend = new Resend(apiKey)
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://flashcards-app-navy.vercel.app'
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
         await resend.emails.send({
           from: 'English with Laura <noreply@learn.englishwithlaura.com>',
           to: trimmedEmail,

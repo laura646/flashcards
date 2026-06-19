@@ -113,7 +113,7 @@ function SignUpForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={8}
+            minLength={10}
             className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
           />
           <input

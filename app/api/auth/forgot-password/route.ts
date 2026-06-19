@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       return successResponse
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://flashcards-app-navy.vercel.app'
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
     const resetUrl = `${appUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(trimmedEmail)}`
 
     const esc = (await import('@/lib/html')).escHtml
