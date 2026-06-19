@@ -66,6 +66,7 @@ export default function LandingPage() {
         <form onSubmit={handleCredentialsLogin} className="space-y-3">
           <input
             type="email"
+            aria-label="Email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -74,6 +75,7 @@ export default function LandingPage() {
           />
           <input
             type="password"
+            aria-label="Password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -81,7 +83,7 @@ export default function LandingPage() {
             className={inputCls}
           />
 
-          {error && <p className="text-xs text-incorrect-fg font-medium">{error}</p>}
+          {error && <p role="alert" className="text-xs text-incorrect-fg font-medium">{error}</p>}
 
           <Button type="submit" variant="primary" fullWidth disabled={loading}>
             {loading ? 'Signing in…' : 'Sign in'}

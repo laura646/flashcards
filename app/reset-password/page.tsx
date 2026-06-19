@@ -129,7 +129,7 @@ function ResetPasswordForm() {
               />
 
               {error && (
-                <p className="text-xs text-red-500 font-medium">{error}</p>
+                <p role="alert" className="text-xs text-incorrect-fg font-medium">{error}</p>
               )}
 
               <button

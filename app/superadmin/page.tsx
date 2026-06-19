@@ -605,7 +605,7 @@ export default function SuperadminPage() {
 
   const copyInviteLink = () => {
     if (!selectedCourse) return
-    navigator.clipboard.writeText(`https://flashcards-app-navy.vercel.app/join/${selectedCourse.invite_code}`)
+    navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'}/join/${selectedCourse.invite_code}`)
     showToast('Invite link copied!')
   }
 
@@ -1336,7 +1336,7 @@ export default function SuperadminPage() {
           <div className="bg-[#e6f0fa] rounded-2xl p-4 mb-4">
             <p className="text-xs font-bold text-[#416ebe] mb-2">Student Invite Link</p>
             <div className="flex gap-2">
-              <input readOnly value={`https://flashcards-app-navy.vercel.app/join/${selectedCourse.invite_code}`} className="flex-1 bg-white border border-[#cddcf0] rounded-lg px-3 py-2 text-xs text-[#46464b]" />
+              <input readOnly value={`${process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'}/join/${selectedCourse.invite_code}`} className="flex-1 bg-white border border-[#cddcf0] rounded-lg px-3 py-2 text-xs text-[#46464b]" />
               <button onClick={copyInviteLink} className="bg-[#416ebe] text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-[#3560b0]">Copy</button>
             </div>
             {editingInviteCode ? (

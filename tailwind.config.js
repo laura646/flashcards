@@ -68,14 +68,14 @@ module.exports = {
           'hard-fg': '#6a6fb0',
         },
         leitner: {
-          // "New" = fresh/just-started, so a lively emerald (a sprout) rather
-          // than grey. Slight teal undertone ties into the blue brand; the
-          // ramp then climbs emerald → yellow → light-sky → sky → navy.
-          new: '#10b981',
-          learning: '#ffeb00',
-          familiar: '#7fd4f5',
-          known: '#00aff0',
-          mastered: '#416ebe',
+          // Soft pastel ramp (calmer than the original saturated set):
+          // mint → butter → pale-sky → soft-sky → periwinkle. These are light
+          // tints, so any label sitting on them uses dark ink (not white).
+          new: '#a7e8c5',
+          learning: '#ffe9a3',
+          familiar: '#bfe4f7',
+          known: '#8fcdf0',
+          mastered: '#aab8e8',
         },
       },
       fontFamily: {

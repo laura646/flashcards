@@ -170,7 +170,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
             className="w-full text-sm border border-[#cddcf0] rounded-lg px-4 py-3 focus:outline-none focus:border-[#416ebe] transition-colors text-[#46464b]"
           />
           {loginError && (
-            <p className="text-xs text-red-500 font-medium">{loginError}</p>
+            <p role="alert" className="text-xs text-incorrect-fg font-medium">{loginError}</p>
           )}
           <button
             type="submit"
