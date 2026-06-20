@@ -17,7 +17,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import LessonsListView from '@/components/admin-v2/LessonsListView'
+import LessonBuilderView from '@/components/admin-v2/LessonBuilderView'
 import LessonEditorView from '@/components/admin-v2/LessonEditorView'
 import { useLessonEditor } from '@/lib/lesson-editor/useLessonEditor'
 import { useLessonAi } from '@/lib/lesson-editor/useLessonAi'
@@ -101,7 +101,16 @@ function LessonsBetaBody() {
   }, [editor.view, editor.dirty])
 
   if (status === 'loading') {
-    return <LessonsListView lessons={[]} loading query="" onQueryChange={() => {}} onOpenLesson={() => {}} onNewLesson={() => {}} />
+    return (
+      <LessonBuilderView
+        lessons={[]}
+        loading
+        onOpenLesson={() => {}}
+        onNewLesson={() => {}}
+        onNewTemplate={() => {}}
+        onOpenCourse={() => {}}
+      />
+    )
   }
 
   if (status === 'authenticated' && !isAdmin) {
@@ -205,13 +214,17 @@ function LessonsBetaBody() {
           onToggleCollapse={editor.toggleCollapse}
         />
       ) : (
-        <LessonsListView
+        <LessonBuilderView
           lessons={editor.lessons}
           loading={editor.loading}
-          query={editor.lessonQuery}
-          onQueryChange={editor.setLessonQuery}
           onOpenLesson={(id) => router.push(`/admin-beta/lessons?id=${id}`)}
-          onNewLesson={() => editor.startNewLesson()}
+          onNewLesson={(cid, cname) =>
+            cid
+              ? router.push(`/admin-beta/lessons?course_id=${cid}&course_name=${encodeURIComponent(cname || '')}`)
+              : editor.startNewLesson()
+          }
+          onNewTemplate={() => router.push('/admin-beta/lessons?mode=content-bank')}
+          onOpenCourse={(id) => router.push(`/admin-beta/courses/${id}`)}
         />
       )}
 

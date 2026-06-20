@@ -12,8 +12,8 @@
 // tiles, hairline/rounded-card cards, Pill variant="level" honouring the
 // LOCKED rule (brandblue text NEVER on a sky-wash background).
 
-import { useState } from 'react'
-import { Pill, EmptyState, Skeleton, Button, InlineError } from '@/components/student-ui'
+import { useMemo, useState } from 'react'
+import { Pill, EmptyState, Skeleton, Button, InlineError, TextField, SegmentedControl } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import { useConfirm } from '@/components/ConfirmDialog'
 import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES, COURSE_CATEGORIES } from '@/lib/common-issues'
@@ -176,6 +176,19 @@ export function CourseDetailView({
   const [archiveBusy, setArchiveBusy] = useState(false)
   const [archiveError, setArchiveError] = useState('')
   const [copied, setCopied] = useState(false)
+
+  // ── Lessons-tab client-side search + status filter (over the `lessons` prop) ──
+  const [lessonQuery, setLessonQuery] = useState('')
+  const [lessonStatus, setLessonStatus] = useState<'all' | 'draft' | 'published'>('all')
+
+  const filteredLessons = useMemo(() => {
+    const q = lessonQuery.trim().toLowerCase()
+    return lessons.filter((lesson) => {
+      const matchesQuery = !q || (lesson.title || '').toLowerCase().includes(q)
+      const matchesStatus = lessonStatus === 'all' || lesson.status === lessonStatus
+      return matchesQuery && matchesStatus
+    })
+  }, [lessons, lessonQuery, lessonStatus])
 
   // Seed the edit-form draft from the current course, then flip to edit mode.
   const startEditing = () => {
@@ -340,32 +353,59 @@ export function CourseDetailView({
             {lessons.length === 0 ? (
               <EmptyState icon="📖" title="No lessons yet" hint="Create one from scratch or import a ready-made plan from the content bank." />
             ) : (
-              <div className="divide-y divide-hairline">
-                {lessons.map((lesson) => (
-                  <button
-                    key={lesson.id}
-                    onClick={() => onOpenLesson(lesson.id)}
-                    className="w-full text-left px-5 py-4 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
-                      <div className="flex gap-2 mt-1 flex-wrap">
-                        {lesson.template_level && <Pill variant="level">{lesson.template_level}</Pill>}
-                        {lesson.template_category && <Pill variant="level">{lesson.template_category}</Pill>}
-                        {lesson.is_template && (
-                          <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Template</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
-                        {lesson.status === 'published' ? 'Published' : 'Draft'}
-                      </Pill>
-                      <span className="text-xs text-ink-muted">{formatDate(lesson.created_at)}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* Dense filter strip — search + status filter over the lessons prop */}
+                <div className="px-5 py-3 border-b border-hairline">
+                  <div className="bg-sky-wash rounded-card border border-sky-border p-3 flex flex-wrap items-end gap-3">
+                    <TextField
+                      label="Search"
+                      placeholder="Search lessons…"
+                      value={lessonQuery}
+                      onChange={(e) => setLessonQuery(e.target.value)}
+                      className="flex-1 min-w-[220px]"
+                    />
+                    <SegmentedControl<'all' | 'draft' | 'published'>
+                      segments={[
+                        { value: 'all', label: 'All' },
+                        { value: 'draft', label: 'Draft' },
+                        { value: 'published', label: 'Published' },
+                      ]}
+                      value={lessonStatus}
+                      onChange={setLessonStatus}
+                    />
+                  </div>
+                </div>
+                {filteredLessons.length === 0 ? (
+                  <EmptyState icon="🔍" title="No matches" hint="No lessons match your search or filter. Try clearing the search or switching the status filter." />
+                ) : (
+                  <div className="divide-y divide-hairline">
+                    {filteredLessons.map((lesson) => (
+                      <button
+                        key={lesson.id}
+                        onClick={() => onOpenLesson(lesson.id)}
+                        className="w-full text-left px-5 py-4 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            {lesson.template_level && <Pill variant="level">{lesson.template_level}</Pill>}
+                            {lesson.template_category && <Pill variant="level">{lesson.template_category}</Pill>}
+                            {lesson.is_template && (
+                              <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Template</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
+                            {lesson.status === 'published' ? 'Published' : 'Draft'}
+                          </Pill>
+                          <span className="text-xs text-ink-muted">{formatDate(lesson.created_at)}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
