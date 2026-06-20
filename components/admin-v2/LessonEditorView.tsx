@@ -38,6 +38,7 @@ import {
   type Exercise,
   type Flashcard,
 } from '@/lib/lesson-editor/types'
+import { COURSE_CATEGORIES } from '@/lib/common-issues'
 import type {
   AiResult,
   GenerateExercisesInput,
@@ -191,10 +192,12 @@ export function LessonEditorView({
   onDateChange: (v: string) => void
   onTypeChange: (v: string) => void
   onSummaryChange: (v: string) => void
-  // Content-bank template mode. When contentBankMode (or isTemplate) is true the
-  // editor renders a required Category + Level panel; the saveLesson guard blocks
-  // the save until both are set. All optional so the normal lesson editor + the
-  // preview harness are unaffected (they render nothing new).
+  // Level + Category are now surfaced for ALL lessons (bound to the existing
+  // template_level / template_category columns) so every lesson is filterable
+  // in My Library. They're optional for normal lessons; for content-bank
+  // templates (contentBankMode || isTemplate) they're flagged required and the
+  // saveLesson guard blocks the save until both are set. All optional props so
+  // the preview harness can omit the handlers.
   isTemplate?: boolean
   contentBankMode?: boolean
   templateCategory?: string
@@ -552,6 +555,44 @@ export function LessonEditorView({
             />
           </div>
 
+          {/* ── Level + Category ── Shown for EVERY lesson so even course-free
+              drafts are filterable in My Library. Optional for normal lessons
+              (a "Not set" empty option); the required-guard for content-bank
+              templates stays in the template chrome below + the saveLesson guard.
+              Bound to the existing template_level / template_category columns. */}
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
+                Level{templateMode && <span className="text-incorrect-fg ml-0.5">*</span>}
+              </span>
+              <select
+                value={templateLevel ?? ''}
+                onChange={(e) => onLevelChange?.(e.target.value)}
+                className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 h-[46px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
+              >
+                <option value="">Not set</option>
+                {CEFR_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
+                Category{templateMode && <span className="text-incorrect-fg ml-0.5">*</span>}
+              </span>
+              <select
+                value={templateCategory ?? ''}
+                onChange={(e) => onCategoryChange?.(e.target.value)}
+                className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 h-[46px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
+              >
+                <option value="">Not set</option>
+                {COURSE_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <label className="block mt-4">
             <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
               Summary / Class notes
@@ -564,38 +605,15 @@ export function LessonEditorView({
             />
           </label>
 
-          {/* ── Content Bank template panel ── Only in template mode. A required
-              Category (free text) + Level (CEFR) — the saveLesson guard blocks
-              the save until both are set, so we flag both as required. */}
+          {/* ── Content Bank template hint ── Template-only chrome. The Level +
+              Category selectors themselves now live above (always visible); for
+              content-bank templates the saveLesson guard requires both, so we
+              surface that requirement here. */}
           {templateMode && (
-            <div className="mt-5 rounded-tile border-[1.5px] border-sky-border bg-sky-wash p-4">
-              <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-sky-text mb-3">
-                Content Bank template
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <TextField
-                  label="Category"
-                  required
-                  value={templateCategory ?? ''}
-                  onChange={(e) => onCategoryChange?.(e.target.value)}
-                  placeholder="e.g. Business English, Travel, Grammar"
-                />
-                <div>
-                  <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
-                    Level<span className="text-incorrect-fg ml-0.5">*</span>
-                  </span>
-                  <SegmentedControl
-                    segments={CEFR_OPTIONS.map((c) => ({ value: c, label: c }))}
-                    value={(templateLevel as (typeof CEFR_OPTIONS)[number]) || ('' as (typeof CEFR_OPTIONS)[number])}
-                    onChange={(v) => onLevelChange?.(v)}
-                    className="flex-wrap"
-                  />
-                </div>
-              </div>
-              <p className="text-[12px] text-ink-muted mt-3">
-                Both Category and Level are required before this template can be saved.
-              </p>
-            </div>
+            <p className="text-[12px] text-sky-text mt-3 flex items-center gap-1.5">
+              <span aria-hidden="true">📚</span>
+              Both Level and Category are required before this template can be saved.
+            </p>
           )}
         </Card>
 

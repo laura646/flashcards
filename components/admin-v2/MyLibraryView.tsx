@@ -18,7 +18,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Pill, Skeleton, EmptyState, Spinner, TextField, SegmentedControl } from '@/components/student-ui'
 import FolderTree, { getFolderDepth, type Folder } from '@/components/admin-v2/FolderTree'
-import type { Lesson } from '@/lib/lesson-editor/types'
+import { CEFR_OPTIONS, type Lesson } from '@/lib/lesson-editor/types'
+import { COURSE_CATEGORIES } from '@/lib/common-issues'
 
 // Minimal shape we need off the my-courses payload (it returns more fields).
 interface CourseLite {
@@ -27,6 +28,17 @@ interface CourseLite {
 }
 
 type StatusFilter = 'all' | 'draft' | 'assigned' | 'published'
+
+// Lesson-type filter options (lesson.lesson_type values). 'all' = no filter.
+const LESSON_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'lesson', label: 'Lesson' },
+  { value: 'mid_course_test', label: 'Mid-Course Test' },
+  { value: 'final_test', label: 'Final Test' },
+  { value: 'review_test', label: 'Review Test' },
+]
+
+// Sentinel course-filter value for lessons with no course_id.
+const COURSE_UNASSIGNED = '__unassigned__'
 
 // What each lesson IS, for the status/location pill.
 type ItemKind = 'draft' | 'assigned' | 'published'
@@ -131,6 +143,12 @@ export default function MyLibraryView({
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
+  // ── Content filters (client-side over myLessons). '' = "All …". ──
+  const [levelFilter, setLevelFilter] = useState('')
+  const [courseFilter, setCourseFilter] = useState('')
+  const [lessonTypeFilter, setLessonTypeFilter] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+
   // ── Folder selection ──
   // null  = All content; '__unfiled__' = lessons in no folder; else folder id.
   const UNFILED = '__unfiled__'
@@ -168,11 +186,23 @@ export default function MyLibraryView({
       }
       // Status
       if (statusFilter !== 'all' && classifyLesson(l) !== statusFilter) return false
+      // Level (CEFR) — matches lesson.template_level
+      if (levelFilter && l.template_level !== levelFilter) return false
+      // Course — matches lesson.course_id ('' = all, sentinel = no course)
+      if (courseFilter === COURSE_UNASSIGNED) {
+        if (l.course_id) return false
+      } else if (courseFilter) {
+        if (l.course_id !== courseFilter) return false
+      }
+      // Lesson type — matches lesson.lesson_type
+      if (lessonTypeFilter && l.lesson_type !== lessonTypeFilter) return false
+      // Category (IELTS/GE/BE/ESP/Other) — matches lesson.template_category
+      if (categoryFilter && l.template_category !== categoryFilter) return false
       // Search (title)
       if (q && !(l.title || '').toLowerCase().includes(q)) return false
       return true
     })
-  }, [myLessons, selectedFolderId, statusFilter, search])
+  }, [myLessons, selectedFolderId, statusFilter, levelFilter, courseFilter, lessonTypeFilter, categoryFilter, search])
 
   // ── Transient toast ──
   const [toast, setToast] = useState<string | null>(null)
@@ -278,28 +308,89 @@ export default function MyLibraryView({
           </Button>
         </div>
 
-        {/* ── Search + status filter (sky-wash strip) ── */}
-        <div className="bg-sky-wash border border-sky-border rounded-card p-3 mb-5 flex flex-wrap items-end gap-3">
-          <TextField
-            label="Search"
-            placeholder="Search by title…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-[200px]"
-          />
-          <div className="pb-0.5">
-            <SegmentedControl<StatusFilter>
-              segments={[
-                { value: 'all', label: 'All' },
-                { value: 'draft', label: 'Drafts' },
-                { value: 'assigned', label: 'Assigned' },
-                { value: 'published', label: 'Published' },
-              ]}
-              value={statusFilter}
-              onChange={setStatusFilter}
-            />
+        {/* ── Search + status + content filters (sky-wash strip) ── */}
+        {myLessons.length > 0 && (
+          <div className="bg-sky-wash border border-sky-border rounded-card p-3 mb-5 flex flex-col gap-3">
+            {/* Row 1: search + status */}
+            <div className="flex flex-wrap items-end gap-3">
+              <TextField
+                label="Search"
+                placeholder="Search by title…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 min-w-[200px]"
+              />
+              <div className="pb-0.5">
+                <SegmentedControl<StatusFilter>
+                  segments={[
+                    { value: 'all', label: 'All' },
+                    { value: 'draft', label: 'Drafts' },
+                    { value: 'assigned', label: 'Assigned' },
+                    { value: 'published', label: 'Published' },
+                  ]}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                />
+              </div>
+            </div>
+            {/* Row 2: compact dropdown filters */}
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={levelFilter}
+                onChange={(e) => setLevelFilter(e.target.value)}
+                aria-label="Filter by level"
+                className="text-[13px] font-medium text-ink-body bg-white rounded-tile border-[1.5px] border-[#e3e5e9] px-2.5 py-1.5 focus:outline-none focus:border-sky transition-colors"
+              >
+                <option value="">All levels</option>
+                {CEFR_OPTIONS.map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {lvl}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={courseFilter}
+                onChange={(e) => setCourseFilter(e.target.value)}
+                aria-label="Filter by course"
+                className="text-[13px] font-medium text-ink-body bg-white rounded-tile border-[1.5px] border-[#e3e5e9] px-2.5 py-1.5 max-w-[180px] focus:outline-none focus:border-sky transition-colors"
+              >
+                <option value="">All courses</option>
+                <option value={COURSE_UNASSIGNED}>Unassigned</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={lessonTypeFilter}
+                onChange={(e) => setLessonTypeFilter(e.target.value)}
+                aria-label="Filter by lesson type"
+                className="text-[13px] font-medium text-ink-body bg-white rounded-tile border-[1.5px] border-[#e3e5e9] px-2.5 py-1.5 focus:outline-none focus:border-sky transition-colors"
+              >
+                <option value="">All types</option>
+                {LESSON_TYPE_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                aria-label="Filter by category"
+                className="text-[13px] font-medium text-ink-body bg-white rounded-tile border-[1.5px] border-[#e3e5e9] px-2.5 py-1.5 max-w-[200px] focus:outline-none focus:border-sky transition-colors"
+              >
+                <option value="">All categories</option>
+                {COURSE_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── Two-column: folders + content ── */}
         <div className="flex flex-col lg:flex-row gap-4">
@@ -454,7 +545,7 @@ export default function MyLibraryView({
                   hint={
                     myLessons.length === 0
                       ? 'Click ＋ New Lesson to start your first one.'
-                      : 'Try clearing the search, status filter or folder.'
+                      : 'Try clearing the search, filters or folder.'
                   }
                 />
               </div>
