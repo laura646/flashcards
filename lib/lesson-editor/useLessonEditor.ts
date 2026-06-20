@@ -24,6 +24,7 @@ import {
   type GrammarContent,
   type AttachedExercise,
   createDefaultContent,
+  createDefaultExercise,
   normalizeExerciseType,
   validateMcqQuestion,
 } from './types'
@@ -440,6 +441,21 @@ export function useLessonEditor() {
     })
   }, [currentLessonStatus])
 
+  // (legacy addManualExercise 1851-1860 + defaultPublishedForNewBlock 1272) —
+  // append a new standalone exercise (manual path only; the AI chooser modal is
+  // deferred). Seeds a default MCQ exercise and returns the created item.
+  const addExercise = useCallback((): ContentItem => {
+    let created: ContentItem = { type: 'exercise', data: createDefaultExercise(0), collapsed: false, order_index: 0 }
+    setContentItems((prev) => {
+      const newIndex = prev.length
+      const ex = createDefaultExercise(newIndex)
+      ex.published = currentLessonStatus !== 'published'
+      created = { type: 'exercise', data: ex, collapsed: false, order_index: newIndex }
+      return [...prev, created]
+    })
+    return created
+  }, [currentLessonStatus])
+
   // (legacy updateContentItem 1699-1705) — replace only .data at index,
   // preserving type / collapsed / order_index.
   const updateItemData = useCallback((index: number, data: ContentItem['data']) => {
@@ -570,6 +586,7 @@ export function useLessonEditor() {
     // content-edit actions
     addFlashcardsItem,
     addBlock,
+    addExercise,
     updateItemData,
     moveItem,
     removeItem,

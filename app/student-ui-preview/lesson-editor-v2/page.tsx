@@ -21,6 +21,7 @@ import {
   type ContentBlock,
   type BlockType,
   createDefaultContent,
+  createDefaultExercise,
 } from '@/lib/lesson-editor/types'
 
 const MOCK_LESSONS: Lesson[] = [
@@ -72,12 +73,28 @@ const MOCK_FLASHCARDS: Flashcard[] = [
 ]
 
 const MOCK_EXERCISE: Exercise = {
-  title: 'Match the directions',
+  title: 'Choose the correct word',
   subtitle: '',
   icon: '🎯',
-  instructions: '',
+  instructions: 'Pick the best option for each gap.',
   exercise_type: 'multiple_choice',
-  questions: [],
+  questions: [
+    {
+      id: 'q1',
+      prompt: 'I usually ___ to work by bus.',
+      options: ['go', 'goes', 'going'],
+      correctIndex: 0,
+      hint: 'Present simple, first person.',
+      explanation: '"I go" is the present simple form for the first person.',
+    },
+    {
+      id: 'q2',
+      prompt: 'She ___ coffee every morning.',
+      options: ['drink', 'drinks', 'drinking'],
+      correctIndex: 1,
+      hint: 'Third person singular.',
+    },
+  ],
   order_index: 3,
   published: true,
 }
@@ -130,6 +147,13 @@ export default function LessonEditorV2Preview() {
     setContentItems((prev) => {
       if (prev.find((i) => i.type === 'flashcards')) return prev
       return [...prev, { type: 'flashcards', data: [] as Flashcard[], collapsed: false, order_index: prev.length }]
+    })
+  }
+
+  const addExercise = () => {
+    setContentItems((prev) => {
+      const len = prev.length
+      return [...prev, { type: 'exercise', data: createDefaultExercise(len), collapsed: false, order_index: len }]
     })
   }
 
@@ -240,6 +264,7 @@ export default function LessonEditorV2Preview() {
           onSave={(s) => console.log('save', s)}
           onBack={() => setTab('list')}
           onAddFlashcards={addFlashcards}
+          onAddExercise={addExercise}
           onAddBlock={addBlock}
           onUpdateItem={updateItem}
           onMoveItem={moveItem}
@@ -273,6 +298,7 @@ export default function LessonEditorV2Preview() {
           onSave={(s) => console.log('save', s)}
           onBack={() => setTab('list')}
           onAddFlashcards={() => console.log('add flashcards')}
+          onAddExercise={() => console.log('add exercise')}
           onAddBlock={(t) => console.log('add block', t)}
           onUpdateItem={(i, d) => console.log('update', i, d)}
           onMoveItem={(i, dir) => console.log('move', i, dir)}

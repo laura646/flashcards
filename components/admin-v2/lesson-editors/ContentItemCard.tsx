@@ -23,8 +23,10 @@ import {
   type ContentItemType,
   type Flashcard,
   type ContentBlock,
+  type Exercise,
 } from '@/lib/lesson-editor/types'
 import FlashcardsEditor from './FlashcardsEditor'
+import ExerciseEditor from './ExerciseEditor'
 import {
   WritingEditor,
   PronunciationEditor,
@@ -45,6 +47,7 @@ interface Props {
   onTogglePublished: () => void
   onToggleCollapse: () => void
   onPickImage: (word: string, apply: (url: string) => void) => void
+  onPreview: (exercise: Exercise) => void
 }
 
 // Small square icon button for the header controls.
@@ -89,6 +92,7 @@ export default function ContentItemCard({
   onTogglePublished,
   onToggleCollapse,
   onPickImage,
+  onPreview,
 }: Props) {
   const cfg = BLOCK_CONFIG[item.type as ContentItemType]
   const icon = cfg?.icon || '📄'
@@ -209,8 +213,16 @@ export default function ContentItemCard({
             onChange={(block) => onUpdate(block)}
           />
         )
+      case 'exercise':
+        return (
+          <ExerciseEditor
+            exercise={item.data as Exercise}
+            onChange={onUpdate}
+            onPreview={onPreview}
+          />
+        )
       default:
-        // exercise / video / audio / article / grammar — read-only placeholder.
+        // video / audio / article / grammar — read-only placeholder.
         return (
           <div className="flex items-start gap-3 bg-sky-wash rounded-tile p-4 border border-hairline">
             <div className="text-xl leading-none shrink-0" aria-hidden="true">

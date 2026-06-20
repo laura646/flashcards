@@ -21,10 +21,12 @@ import { Button, Card, TextField, SegmentedControl, EmptyState, InlineError } fr
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import ContentItemCard from '@/components/admin-v2/lesson-editors/ContentItemCard'
 import ImagePickerModal from '@/components/ImagePickerModal'
+import ExercisePreview from '@/components/ExercisePreview'
 import {
   BLOCK_CONFIG,
   type ContentItem,
   type BlockType,
+  type Exercise,
 } from '@/lib/lesson-editor/types'
 
 // Lesson-type options (mirrors legacy LESSON_TYPES, page.tsx 140-145).
@@ -70,6 +72,7 @@ export function LessonEditorView({
   onSave,
   onBack,
   onAddFlashcards,
+  onAddExercise,
   onAddBlock,
   onUpdateItem,
   onMoveItem,
@@ -99,6 +102,7 @@ export function LessonEditorView({
   onSave: (status: 'draft' | 'published') => void
   onBack: () => void
   onAddFlashcards: () => void
+  onAddExercise: () => void
   onAddBlock: (type: BlockType) => void
   onUpdateItem: (index: number, data: ContentItem['data']) => void
   onMoveItem: (index: number, dir: 'up' | 'down') => void
@@ -114,6 +118,7 @@ export function LessonEditorView({
   // Local UI state — not part of the editor data contract.
   const [showDeleteIndex, setShowDeleteIndex] = useState<number | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null)
   const [imagePickerState, setImagePickerState] = useState<{
     word: string
     apply: (url: string) => void
@@ -236,6 +241,17 @@ export function LessonEditorView({
                       <span>{BLOCK_CONFIG.flashcards.label}</span>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onAddExercise()
+                      setAddMenuOpen(false)
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
+                  >
+                    <span aria-hidden="true">{BLOCK_CONFIG.exercise.icon}</span>
+                    <span>{BLOCK_CONFIG.exercise.label}</span>
+                  </button>
                   {ADDABLE_BLOCKS.map((type) => (
                     <button
                       key={type}
@@ -284,6 +300,7 @@ export function LessonEditorView({
                 onTogglePublished={() => handleTogglePublished(idx)}
                 onToggleCollapse={() => onToggleCollapse(idx)}
                 onPickImage={handlePickImage}
+                onPreview={setPreviewExercise}
               />
             ))}
           </div>
@@ -338,6 +355,14 @@ export function LessonEditorView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Exercise preview (student-facing runner) ── */}
+      {previewExercise && (
+        <ExercisePreview
+          exercise={previewExercise}
+          onClose={() => setPreviewExercise(null)}
+        />
       )}
 
       {/* ── Image picker (single instance, bridged via onPickImage) ── */}

@@ -115,6 +115,7 @@ function LessonsBetaBody() {
             router.push('/admin-beta/lessons')
           }}
           onAddFlashcards={editor.addFlashcardsItem}
+          onAddExercise={editor.addExercise}
           onAddBlock={editor.addBlock}
           onUpdateItem={editor.updateItemData}
           onMoveItem={editor.moveItem}

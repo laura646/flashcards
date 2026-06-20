@@ -272,3 +272,136 @@ export function normalizeExerciseType(t: string | null | undefined): string {
   if (t === 'multiple-choice') return 'multiple_choice'
   return t || ''
 }
+
+// ── Exercise constants (legacy page.tsx) — copied verbatim ──
+
+// Optional test-type tag for the reports "Tests" section
+// (legacy page.tsx 97-102)
+export const TEST_TYPE_OPTIONS = [
+  { value: '', label: 'Practice (default)' },
+  { value: 'review', label: 'Review test' },
+  { value: 'mid_course', label: 'Mid-course test' },
+  { value: 'end_of_course', label: 'End-of-course test' },
+] as const
+
+// Phase C: valid skill tags (displayed in editor + used by reports)
+// (legacy page.tsx 105-113)
+export const SKILL_OPTIONS = [
+  { value: 'vocabulary', label: 'Vocabulary' },
+  { value: 'grammar', label: 'Grammar' },
+  { value: 'listening', label: 'Listening' },
+  { value: 'reading', label: 'Reading' },
+  { value: 'writing', label: 'Writing' },
+  { value: 'speaking', label: 'Speaking' },
+  { value: 'pronunciation', label: 'Pronunciation' },
+] as const
+
+// (legacy page.tsx 115)
+export const CEFR_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
+
+// fill_blank and transform were removed from the picker — fill_blank was
+// effectively MCQ-with-a-blank (use multiple_choice instead) and transform
+// was MCQ-with-a-transformation-prompt (use multiple_choice). Existing
+// exercises of those types continue to render via the default runner.
+// (legacy page.tsx 121-138)
+export const EXERCISE_TYPES = [
+  { value: 'multiple_choice', label: 'Multiple Choice', icon: '🎯' },
+  { value: 'match_halves', label: 'Match Halves', icon: '🧩' },
+  { value: 'true_or_false', label: 'True or False', icon: '✅' },
+  { value: 'hangman', label: 'Hangman', icon: '🎮' },
+  { value: 'type_answer', label: 'Type the Answer', icon: '⌨️' },
+  // complete_sentence was removed from the picker — existing exercises
+  // keep rendering via the gap-fill builder + CompleteSentenceRunner.
+  // Use multiple_choice for blanks-with-options going forward.
+  { value: 'group_sort', label: 'Group Sort', icon: '🗂️' },
+  { value: 'dictation', label: 'Dictation', icon: '🎧' },
+  { value: 'error_correction', label: 'Error Correction', icon: '🔍' },
+  { value: 'rank_order', label: 'Rank Order', icon: '🔢' },
+  { value: 'text_sequencing', label: 'Text Sequencing', icon: '📄' },
+  { value: 'anagram', label: 'Unjumble', icon: '🔀' },
+  { value: 'cloze_listening', label: 'Cloze Listening', icon: '🎧' },
+  { value: 'odd_one_out', label: 'Odd One Out', icon: '🚫' },
+]
+
+// (legacy page.tsx 158-176)
+export const EXERCISE_TYPE_LABELS: Record<string, string> = {
+  multiple_choice: 'Multiple Choice',
+  fill_blank: 'Fill in the Blank',
+  match_halves: 'Match Halves',
+  transform: 'Transform',
+  true_or_false: 'True or False',
+  hangman: 'Hangman',
+  type_answer: 'Type the Answer',
+  complete_sentence: 'Complete the Sentence',
+  group_sort: 'Group Sort',
+  dictation: 'Dictation',
+  error_correction: 'Error Correction',
+  rank_order: 'Rank Order',
+  text_sequencing: 'Text Sequencing',
+  anagram: 'Unjumble',
+  unjumble: 'Unjumble',
+  cloze_listening: 'Cloze Listening',
+  odd_one_out: 'Odd One Out',
+}
+
+// ── Exercise helpers (legacy page.tsx) — copied verbatim ──
+
+// (legacy page.tsx 401-411)
+export function createDefaultExercise(orderIndex: number): Exercise {
+  return {
+    title: '',
+    subtitle: '',
+    icon: '',
+    instructions: '',
+    exercise_type: 'multiple_choice',
+    questions: [{ id: crypto.randomUUID(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }],
+    order_index: orderIndex,
+  }
+}
+
+// Empty question seed for each exercise type, so changing the type in
+// the picker resets the JSON editor to the right schema (matching what
+// the runner expects). Without this, a new exercise defaulted to MCQ
+// keeps its MCQ-shaped questions even after the teacher picks Hangman /
+// Dictation / etc., and the runner can't render it.
+// (legacy page.tsx 427-461)
+export function defaultDataForType(type: string): { questions: unknown[]; groupData?: unknown } {
+  const newId = () => crypto.randomUUID()
+  switch (type) {
+    case 'multiple_choice':
+    case 'multiple-choice':
+      return { questions: [{ id: newId(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }] }
+    case 'match_halves':
+      return { questions: [{ id: newId(), left: '', right: '' }] }
+    case 'true_or_false':
+      return { questions: [{ id: newId(), statement: '', isTrue: true, explanation: '' }] }
+    case 'hangman':
+    case 'anagram':
+      return { questions: [{ id: newId(), word: '', clue: '' }] }
+    case 'type_answer':
+      return { questions: [{ id: newId(), prompt: '', answer: '', hint: '' }] }
+    case 'complete_sentence':
+      return { questions: [{ id: newId(), text: '', blanks: {}, wordBank: [] }] }
+    case 'group_sort':
+      return { questions: [], groupData: { groups: [{ name: '', items: [] }] } }
+    case 'dictation':
+      return { questions: [{ id: newId(), text: '', audio_url: '', speed: 'normal' }] }
+    case 'error_correction':
+      return { questions: [{ id: newId(), incorrect: '', correct: '', hints: '' }] }
+    case 'rank_order':
+      return { questions: [{ id: newId(), criterion: '', items: ['', '', ''] }] }
+    case 'text_sequencing':
+      return { questions: [{ id: newId(), segments: ['', '', ''], level: 'sentence' }] }
+    case 'cloze_listening':
+      return { questions: [{ id: newId(), text: '', blanks: {}, audio_url: '' }] }
+    case 'odd_one_out':
+      return { questions: [{ id: newId(), items: ['', '', '', ''], oddIndex: 0, explanation: '' }] }
+    default:
+      return { questions: [{ id: newId(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }] }
+  }
+}
+
+// (legacy page.tsx 463-465)
+export function createMCQuestion(): MCQuestion {
+  return { id: crypto.randomUUID(), prompt: '', options: ['', ''], correctIndex: -1 }
+}
