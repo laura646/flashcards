@@ -1,0 +1,469 @@
+'use client'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// useLessonEditor — the lesson-editor "brain" for the 10B redesign
+// (/admin-beta/lessons). Holds all Phase-1 state and ports the LOAD / SAVE data
+// contract BYTE-FOR-BYTE from the legacy editor app/admin/lessons/page.tsx.
+//
+// The legacy file is left 100% untouched. Where the legacy code called
+// showToast() for user feedback, this hook instead sets the `error` state and
+// returns the message string (see saveLesson). All order_index / globalOrder /
+// group_sort / MCQ-validation / payload logic is preserved verbatim.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useCallback, useMemo, useState } from 'react'
+import {
+  type Lesson,
+  type Flashcard,
+  type Exercise,
+  type ContentBlock,
+  type ContentItem,
+  type View,
+  type MistakesContent,
+  type GrammarContent,
+  type AttachedExercise,
+  normalizeExerciseType,
+  validateMcqQuestion,
+} from './types'
+
+export interface StartNewLessonOpts {
+  courseId?: string | null
+  courseName?: string
+  contentBankMode?: boolean
+}
+
+export function useLessonEditor() {
+  // ── View ──
+  const [view, setView] = useState<View>('list')
+
+  // ── List ──
+  const [lessons, setLessons] = useState<Lesson[]>([])
+  const [loading, setLoading] = useState(true)
+  const [lessonQuery, setLessonQuery] = useState('')
+
+  // ── Async status ──
+  const [saving, setSaving] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // ── Editing identity / metadata ──
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
+  const [editingAuthorName, setEditingAuthorName] = useState<string | null>(null)
+  const [editingCreatedAt, setEditingCreatedAt] = useState<string | null>(null)
+
+  const [courseId, setCourseId] = useState<string | null>(null)
+  const [courseName, setCourseName] = useState<string>('')
+
+  const [title, setTitle] = useState('')
+  const [lessonDate, setLessonDate] = useState('')
+  const [lessonType, setLessonType] = useState<string>('lesson')
+  const [summary, setSummary] = useState('')
+
+  const [currentLessonStatus, setCurrentLessonStatus] = useState<'draft' | 'published'>('draft')
+  const [flashcardsPublished, setFlashcardsPublished] = useState(true)
+
+  const [isTemplate, setIsTemplate] = useState(false)
+  const [templateCategory, setTemplateCategory] = useState('')
+  const [templateLevel, setTemplateLevel] = useState('')
+
+  // contentBankMode is a session flag the editor was opened with. It drives the
+  // template-required guards in saveLesson and the default isTemplate in
+  // startNewLesson, mirroring the legacy searchParams-derived value.
+  const [contentBankMode, setContentBankMode] = useState(false)
+
+  // ── Content ──
+  const [contentItems, setContentItems] = useState<ContentItem[]>([])
+
+  // ── Derived: filtered lessons ──
+  const filteredLessons = useMemo(() => {
+    const q = lessonQuery.trim().toLowerCase()
+    if (!q) return lessons
+    return lessons.filter((l) =>
+      (l.title || '').toLowerCase().includes(q) ||
+      (l.summary || '').toLowerCase().includes(q),
+    )
+  }, [lessons, lessonQuery])
+
+  // ── Load list (legacy page.tsx 893-904) ──
+  const loadLessons = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/lessons?include_all=true')
+      if (!res.ok) throw new Error('Failed to fetch')
+      const data = await res.json()
+      setLessons(data.lessons || [])
+    } catch {
+      setError('Failed to load lessons')
+    }
+    setLoading(false)
+  }, [])
+
+  // ── Open an existing lesson by id ──
+  // Ported from legacy loadLessonForEditing (page.tsx 939-1029). ADAPTED: the
+  // legacy function received a `lesson` summary object from the already-loaded
+  // list and seeded metadata from it. Here we fetch directly by id
+  // (GET /api/lessons?id=ID) and seed metadata from data.lesson — which carries
+  // title, lesson_date, lesson_type, summary, is_template, template_category,
+  // template_level, status, course_id, author_name, created_at,
+  // flashcards_published — removing the need to first load the list. The
+  // contentItems building (legacy 968-1025) is preserved EXACTLY.
+  const openLessonById = useCallback(async (id: string) => {
+    setError(null)
+    setEditingLessonId(id)
+    setView('editor')
+
+    try {
+      const res = await fetch(`/api/lessons?id=${id}`)
+      if (!res.ok) throw new Error('Failed to fetch')
+      const data = await res.json()
+
+      const lesson = data.lesson || {}
+
+      // Seed metadata from data.lesson (replaces legacy seeding from the list row)
+      setCourseId(lesson.course_id || null)
+      setTitle(lesson.title || '')
+      setLessonDate(lesson.lesson_date || '')
+      setLessonType(lesson.lesson_type || 'lesson')
+      setSummary(lesson.summary || '')
+      setIsTemplate(lesson.is_template || false)
+      setTemplateCategory(lesson.template_category || '')
+      setTemplateLevel(lesson.template_level || '')
+      setCurrentLessonStatus(lesson.status === 'published' ? 'published' : 'draft')
+
+      setEditingAuthorName(lesson.author_name || null)
+      setEditingCreatedAt(lesson.created_at || null)
+      setFlashcardsPublished(lesson.flashcards_published !== false)
+
+      const items: ContentItem[] = []
+      let orderIdx = 0
+
+      // Load flashcards as a single content item (if any)
+      const flashcards: Flashcard[] = (data.flashcards || []).map((fc: Flashcard) => ({
+        id: fc.id,
+        lesson_id: fc.lesson_id,
+        word: fc.word,
+        phonetic: fc.phonetic,
+        meaning: fc.meaning,
+        example: fc.example,
+        notes: fc.notes || '',
+        image_url: fc.image_url || '',
+        order_index: fc.order_index,
+      }))
+      if (flashcards.length > 0) {
+        items.push({ type: 'flashcards', data: flashcards, collapsed: true, order_index: orderIdx++ })
+      }
+
+      // Load exercises as individual content items
+      const exercises: Exercise[] = (data.exercises || []).map((ex: Exercise) => ({
+        id: ex.id,
+        lesson_id: ex.lesson_id,
+        title: ex.title,
+        subtitle: ex.subtitle || '',
+        icon: ex.icon || '',
+        instructions: ex.instructions || '',
+        exercise_type: normalizeExerciseType(ex.exercise_type),
+        questions: ex.exercise_type === 'group_sort' ? [] : (ex.questions || []),
+        groupData: ex.exercise_type === 'group_sort' ? (ex.questions || ex.groupData) : ex.groupData,
+        order_index: ex.order_index,
+        points_per_answer: ex.points_per_answer,
+        completion_bonus: ex.completion_bonus,
+        is_mandatory: ex.is_mandatory !== false,
+        skills: ex.skills || [],
+        cefr_level: ex.cefr_level || null,
+        test_type: ex.test_type || null,
+        published: ex.published !== false,
+      }))
+      exercises.forEach((ex) => {
+        items.push({ type: 'exercise', data: ex, collapsed: true, order_index: orderIdx++ })
+      })
+
+      // Load content blocks
+      const blocks: ContentBlock[] = (data.blocks || []).map((b: ContentBlock) => ({
+        id: b.id,
+        lesson_id: b.lesson_id,
+        block_type: b.block_type,
+        title: b.title || '',
+        content: b.content,
+        order_index: b.order_index,
+        published: b.published !== false,
+      }))
+      blocks.forEach((block) => {
+        items.push({ type: block.block_type, data: block, collapsed: true, order_index: orderIdx++ })
+      })
+
+      setContentItems(items)
+    } catch {
+      setError('Failed to load lesson data')
+    }
+  }, [])
+
+  // ── Start a new lesson (legacy page.tsx 1033-1055) ──
+  const startNewLesson = useCallback((opts: StartNewLessonOpts = {}) => {
+    const optCourseId = opts.courseId ?? null
+    const optCourseName = opts.courseName ?? ''
+    const optContentBankMode = opts.contentBankMode ?? false
+
+    setContentBankMode(optContentBankMode)
+    setError(null)
+
+    setEditingLessonId(null)
+    setEditingAuthorName(null)
+    setEditingCreatedAt(null)
+    setCourseId(optCourseId)
+    setCourseName(optCourseName)
+    setTitle('')
+    setLessonDate(new Date().toISOString().slice(0, 10))
+    setLessonType('lesson')
+    setSummary('')
+    setContentItems([])
+    setIsTemplate(optContentBankMode ? true : false)
+    setTemplateCategory('')
+    setTemplateLevel('')
+    setCurrentLessonStatus('draft')
+    setFlashcardsPublished(true)
+    setView('editor')
+  }, [])
+
+  // ── Save (PORTED VERBATIM from legacy page.tsx 2251-2403) ──
+  // ADAPTED: legacy showToast(...) calls on validation failure are replaced by
+  // setError(message) + return of that message (so callers can surface it).
+  // Everything else — title/date guards, the full MCQ validation sweep, the
+  // content-bank category/level guard, flashcards/exercises/blocks extraction
+  // (order_index = array idx, flashcards globalOrder = the flashcards item idx,
+  // group_sort questions = groupData||questions, all field defaults), and the
+  // POST /api/lessons body — is byte-for-byte identical to legacy.
+  const saveLesson = useCallback(async (newStatus: 'draft' | 'published'): Promise<string | null> => {
+    setError(null)
+    if (!title.trim()) {
+      const msg = 'Please enter a lesson title'
+      setError(msg)
+      return msg
+    }
+    if (!lessonDate) {
+      const msg = 'Please set a lesson date'
+      setError(msg)
+      return msg
+    }
+    // MCQ validation across the whole lesson: standalone Exercise blocks,
+    // Mistakes practice questions, Grammar block questions, and attached
+    // multiple_choice follow-up exercises on Audio / Video / Article.
+    const mcqIssues: string[] = []
+    contentItems.forEach((item, idx) => {
+      const label = `Block ${idx + 1}`
+      if (item.type === 'exercise') {
+        const ex = item.data as Exercise
+        if (ex.exercise_type === 'multiple_choice' && Array.isArray(ex.questions)) {
+          ;(ex.questions as Array<{ options?: string[]; correctIndex?: number; correctIndices?: number[] }>).forEach((q, qi) => {
+            mcqIssues.push(...validateMcqQuestion(q, `${label} Q${qi + 1}`))
+          })
+        }
+      } else if (item.type === 'mistakes') {
+        const content = (item.data as ContentBlock).content as MistakesContent
+        content.mistakes?.forEach((m, mi) => {
+          m.practice?.forEach((p, pi) => {
+            mcqIssues.push(...validateMcqQuestion(p, `${label} Mistake ${mi + 1} Practice ${pi + 1}`))
+          })
+        })
+      } else if (item.type === 'grammar') {
+        const content = (item.data as ContentBlock).content as GrammarContent
+        content.exercises?.forEach((q, qi) => {
+          mcqIssues.push(...validateMcqQuestion(q, `${label} Grammar Q${qi + 1}`))
+        })
+      } else if (item.type === 'audio' || item.type === 'video' || item.type === 'article') {
+        const content = (item.data as ContentBlock).content as { exercises?: AttachedExercise[] }
+        content.exercises?.forEach((ax, axi) => {
+          if (ax.type === 'multiple_choice' && Array.isArray(ax.questions)) {
+            ;(ax.questions as Array<{ options?: string[]; correctIndex?: number; correctIndices?: number[] }>).forEach((q, qi) => {
+              mcqIssues.push(...validateMcqQuestion(q, `${label} Follow-up ${axi + 1} Q${qi + 1}`))
+            })
+          }
+        })
+      }
+    })
+    if (mcqIssues.length > 0) {
+      setError(mcqIssues[0])
+      return mcqIssues[0]
+    }
+    // In content bank mode, require category and level
+    if (contentBankMode && isTemplate) {
+      if (!templateCategory) {
+        const msg = 'Please select a category for this template'
+        setError(msg)
+        return msg
+      }
+      if (!templateLevel) {
+        const msg = 'Please select a level for this template'
+        setError(msg)
+        return msg
+      }
+    }
+
+    const isSavingDraft = newStatus === 'draft'
+    if (isSavingDraft) setSaving(true)
+    else setPublishing(true)
+
+    try {
+      // Extract flashcards, exercises, and blocks from content items
+      let flashcardItems: Flashcard[] = []
+      let flashcardsGlobalOrder = 0
+      const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null; test_type?: string | null; published: boolean }[] = []
+      const blockItems: { block_type: string; title: string; content: unknown; order_index: number; published: boolean }[] = []
+
+      contentItems.forEach((item, idx) => {
+        if (item.type === 'flashcards') {
+          flashcardItems = item.data as Flashcard[]
+          flashcardsGlobalOrder = idx
+        } else if (item.type === 'exercise') {
+          const ex = item.data as Exercise
+          exerciseItems.push({
+            title: ex.title,
+            subtitle: ex.subtitle,
+            icon: ex.icon,
+            instructions: ex.instructions,
+            exercise_type: ex.exercise_type,
+            questions: ex.exercise_type === 'group_sort' ? (ex.groupData || ex.questions) : ex.questions,
+            groupData: ex.groupData,
+            order_index: idx,
+            points_per_answer: ex.points_per_answer ?? 10,
+            completion_bonus: ex.completion_bonus ?? 0,
+            is_mandatory: ex.is_mandatory !== false,
+            skills: ex.skills && ex.skills.length > 0 ? ex.skills : null,
+            cefr_level: ex.cefr_level || null,
+            test_type: ex.test_type || null,
+            published: ex.published !== false,
+          })
+        } else {
+          const b = item.data as ContentBlock
+          blockItems.push({
+            block_type: b.block_type,
+            title: b.title,
+            content: b.content,
+            order_index: idx,
+            published: b.published !== false,
+          })
+        }
+      })
+
+      const res = await fetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lessonId: editingLessonId,
+          title: title.trim(),
+          lesson_date: lessonDate,
+          lesson_type: lessonType,
+          summary: summary.trim() || null,
+          status: newStatus,
+          is_template: isTemplate,
+          template_category: templateCategory || null,
+          template_level: templateLevel || null,
+          course_id: courseId || null,
+          flashcards: flashcardItems.map((fc, i) => ({
+            word: fc.word,
+            phonetic: fc.phonetic,
+            meaning: fc.meaning,
+            example: fc.example,
+            notes: fc.notes,
+            image_url: fc.image_url || null,
+            globalOrder: flashcardsGlobalOrder,
+          })),
+          exercises: exerciseItems,
+          blocks: blockItems,
+          flashcards_published: flashcardsPublished,
+        }),
+      })
+
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to save')
+
+      if (!editingLessonId && result.lessonId) {
+        setEditingLessonId(result.lessonId)
+      }
+
+      // legacy showToast(success) — handled by caller; reload list (verbatim).
+      await loadLessons()
+    } catch (err) {
+      console.error(err)
+      const msg = 'Failed to save lesson'
+      setError(msg)
+      setSaving(false)
+      setPublishing(false)
+      return msg
+    }
+
+    setSaving(false)
+    setPublishing(false)
+    return null
+  }, [
+    title, lessonDate, contentItems, contentBankMode, isTemplate, templateCategory,
+    templateLevel, editingLessonId, lessonType, summary, courseId, flashcardsPublished,
+    loadLessons,
+  ])
+
+  // ── Back to list ──
+  const backToList = useCallback(() => {
+    setEditingLessonId(null)
+    setEditingAuthorName(null)
+    setEditingCreatedAt(null)
+    setView('list')
+    void loadLessons()
+  }, [loadLessons])
+
+  return {
+    // view
+    view,
+
+    // list
+    lessons,
+    filteredLessons,
+    loading,
+    lessonQuery,
+    setLessonQuery,
+
+    // async status
+    saving,
+    publishing,
+    error,
+
+    // editing identity
+    editingLessonId,
+    editingAuthorName,
+    editingCreatedAt,
+
+    // metadata + setters
+    courseId,
+    setCourseId,
+    courseName,
+    setCourseName,
+    title,
+    setTitle,
+    lessonDate,
+    setLessonDate,
+    lessonType,
+    setLessonType,
+    summary,
+    setSummary,
+    currentLessonStatus,
+    isTemplate,
+    setIsTemplate,
+    templateCategory,
+    setTemplateCategory,
+    templateLevel,
+    setTemplateLevel,
+    flashcardsPublished,
+    setFlashcardsPublished,
+    contentBankMode,
+
+    // content
+    contentItems,
+
+    // functions
+    loadLessons,
+    openLessonById,
+    startNewLesson,
+    saveLesson,
+    backToList,
+  }
+}
+
+export type UseLessonEditor = ReturnType<typeof useLessonEditor>
