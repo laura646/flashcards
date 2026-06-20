@@ -115,11 +115,42 @@ const MOCK_DIALOGUE_BLOCK: ContentBlock = {
   published: false,
 }
 
+// Video block carrying only the LEGACY `questions` array (no `exercises`), so
+// the media editor's effective-read migration is exercised in the sandbox:
+// it should surface these MCQs as a Multiple Choice attached exercise.
+const MOCK_VIDEO_BLOCK: ContentBlock = {
+  block_type: 'video',
+  title: 'Watch: How airports work',
+  content: {
+    youtube_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    questions: [
+      { id: 'vq1', prompt: 'What document do you need to board?', options: ['Boarding pass', 'Receipt', 'Map'], correctIndex: 0 },
+      { id: 'vq2', prompt: 'Where do you check in luggage?', options: ['Gate', 'Check-in desk', 'Runway'], correctIndex: 1 },
+    ],
+  },
+  order_index: 3,
+  published: true,
+}
+
+const MOCK_ARTICLE_BLOCK: ContentBlock = {
+  block_type: 'article',
+  title: 'Reading: The history of flight',
+  content: {
+    text: 'The first powered flight took place in 1903 when the Wright brothers flew their aircraft in North Carolina...',
+    source: 'Aviation Weekly',
+    questions: [],
+  },
+  order_index: 4,
+  published: true,
+}
+
 const INITIAL_ITEMS: ContentItem[] = [
   { type: 'flashcards', data: MOCK_FLASHCARDS, collapsed: false, order_index: 0 },
   { type: 'writing', data: MOCK_WRITING_BLOCK, collapsed: false, order_index: 1 },
   { type: 'dialogue', data: MOCK_DIALOGUE_BLOCK, collapsed: true, order_index: 2 },
-  { type: 'exercise', data: MOCK_EXERCISE, collapsed: true, order_index: 3 },
+  { type: 'video', data: MOCK_VIDEO_BLOCK, collapsed: false, order_index: 3 },
+  { type: 'article', data: MOCK_ARTICLE_BLOCK, collapsed: true, order_index: 4 },
+  { type: 'exercise', data: MOCK_EXERCISE, collapsed: true, order_index: 5 },
 ]
 
 export default function LessonEditorV2Preview() {

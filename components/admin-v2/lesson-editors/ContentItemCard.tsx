@@ -7,8 +7,9 @@
 // delete) and a collapsible body that dispatches to the right editor by type.
 //
 // Phase 2 editable types: flashcards + the 4 simple blocks (writing /
-// pronunciation / mistakes / dialogue). Every other type (exercise / video /
-// audio / article / grammar) renders a read-only "coming soon" placeholder.
+// pronunciation / mistakes / dialogue). Phase 4 adds the 3 media blocks
+// (video / audio / article). Only grammar remains a read-only "coming soon"
+// placeholder.
 //
 // All mutations flow OUT via the callback props — this component owns no editor
 // state. The parent (LessonEditorView) owns the delete-confirm modal and the
@@ -33,6 +34,11 @@ import {
   MistakesEditor,
   DialogueEditor,
 } from './SimpleBlockEditors'
+import {
+  VideoEditor,
+  AudioEditor,
+  ArticleEditor,
+} from './MediaBlockEditors'
 
 interface Props {
   item: ContentItem
@@ -213,6 +219,27 @@ export default function ContentItemCard({
             onChange={(block) => onUpdate(block)}
           />
         )
+      case 'video':
+        return (
+          <VideoEditor
+            block={item.data as ContentBlock}
+            onChange={(block) => onUpdate(block)}
+          />
+        )
+      case 'audio':
+        return (
+          <AudioEditor
+            block={item.data as ContentBlock}
+            onChange={(block) => onUpdate(block)}
+          />
+        )
+      case 'article':
+        return (
+          <ArticleEditor
+            block={item.data as ContentBlock}
+            onChange={(block) => onUpdate(block)}
+          />
+        )
       case 'exercise':
         return (
           <ExerciseEditor
@@ -222,7 +249,7 @@ export default function ContentItemCard({
           />
         )
       default:
-        // video / audio / article / grammar — read-only placeholder.
+        // grammar — read-only placeholder.
         return (
           <div className="flex items-start gap-3 bg-sky-wash rounded-tile p-4 border border-hairline">
             <div className="text-xl leading-none shrink-0" aria-hidden="true">

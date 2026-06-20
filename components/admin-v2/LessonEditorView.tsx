@@ -37,8 +37,10 @@ const LESSON_TYPE_SEGMENTS: { value: string; label: string }[] = [
   { value: 'review_test', label: 'Review Test' },
 ]
 
-// Phase-2 block adds (excludes flashcards, which is a special top-level add).
-const ADDABLE_BLOCKS: BlockType[] = ['writing', 'pronunciation', 'mistakes', 'dialogue']
+// Block adds (excludes flashcards, which is a special top-level add).
+// Phase 2: writing / pronunciation / mistakes / dialogue.
+// Phase 4: video / audio / article.
+const ADDABLE_BLOCKS: BlockType[] = ['writing', 'pronunciation', 'mistakes', 'dialogue', 'video', 'audio', 'article']
 
 // Formats a full ISO timestamp like "Mar 12, 2025" (legacy formatAddedDate,
 // page.tsx 488-494).
