@@ -25,52 +25,67 @@ interface NavItem {
 // (/admin/courses/[id] and /admin/students/[email]) currently redirect
 // to /admin?courseDetail=… / ?studentDetail=… so the legacy detail
 // views keep working. The matcher accounts for either landing spot.
+// SWITCHED to the 10B redesign at /admin-beta/* (all 7 teacher pages now have
+// new versions). Active-match checks the /admin-beta/* path; also still matches
+// the old /admin/* path so the highlight is correct if a legacy route is hit.
 const PRIMARY_NAV: NavItem[] = [
   {
-    href: '/admin/courses',
+    href: '/admin-beta/courses',
     label: 'My Courses',
     icon: '📚',
     match: (p, v) =>
+      (p?.startsWith('/admin-beta/courses') ?? false) ||
       (p?.startsWith('/admin/courses') ?? false) ||
       (p === '/admin' && v !== 'students'),
   },
   {
-    href: '/admin/students',
+    href: '/admin-beta/students',
     label: 'My Students',
     icon: '👥',
     match: (p, v) =>
+      (p?.startsWith('/admin-beta/students') ?? false) ||
       (p?.startsWith('/admin/students') ?? false) ||
       (p === '/admin' && v === 'students'),
   },
   {
-    href: '/admin/lessons',
+    href: '/admin-beta/lessons',
     label: 'Lessons',
     icon: '📖',
-    match: (p) => p?.startsWith('/admin/lessons') ?? false,
+    match: (p) =>
+      (p?.startsWith('/admin-beta/lessons') ?? false) ||
+      (p?.startsWith('/admin/lessons') ?? false),
   },
   {
-    href: '/admin/attendance',
+    href: '/admin-beta/attendance',
     label: 'Attendance',
     icon: '✅',
-    match: (p) => p?.startsWith('/admin/attendance') ?? false,
+    match: (p) =>
+      (p?.startsWith('/admin-beta/attendance') ?? false) ||
+      (p?.startsWith('/admin/attendance') ?? false),
   },
   {
-    href: '/admin/reports',
+    href: '/admin-beta/reports',
     label: 'Reports',
     icon: '📊',
-    match: (p) => p?.startsWith('/admin/reports') ?? false,
+    match: (p) =>
+      (p?.startsWith('/admin-beta/reports') ?? false) ||
+      (p?.startsWith('/admin/reports') ?? false),
   },
   {
-    href: '/admin/content-bank',
+    href: '/admin-beta/content-bank',
     label: 'Content Bank',
     icon: '🗃️',
-    match: (p) => p?.startsWith('/admin/content-bank') ?? false,
+    match: (p) =>
+      (p?.startsWith('/admin-beta/content-bank') ?? false) ||
+      (p?.startsWith('/admin/content-bank') ?? false),
   },
   {
-    href: '/admin/help',
+    href: '/admin-beta/help',
     label: 'Help & Docs',
     icon: '❓',
-    match: (p) => p?.startsWith('/admin/help') ?? false,
+    match: (p) =>
+      (p?.startsWith('/admin-beta/help') ?? false) ||
+      (p?.startsWith('/admin/help') ?? false),
   },
 ]
 
@@ -211,7 +226,7 @@ function AdminSidebarInner() {
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-[#e6f0fa]">
               <Link
-                href="/admin/courses"
+                href="/admin-beta/courses"
                 className="font-bold text-[#416ebe] text-sm flex items-center gap-2"
               >
                 <span>✨</span> EwL Admin
@@ -233,7 +248,7 @@ function AdminSidebarInner() {
       <aside className="hidden md:flex md:flex-col fixed top-0 left-0 bottom-0 w-[240px] bg-white border-r border-[#e6f0fa] z-30">
         <div className="px-4 py-4 border-b border-[#e6f0fa]">
           <Link
-            href="/admin/courses"
+            href="/admin-beta/courses"
             className="font-bold text-[#416ebe] text-base flex items-center gap-2"
           >
             <span>✨</span> EwL Admin

@@ -7,7 +7,7 @@
 // rendered through the 10B CourseDetailView. This page owns ALL fetching,
 // the update-course / telegram-test mutations (exact existing action names +
 // payloads — no backend changes) and navigation; the View stays presentational.
-// Lesson links still point at the existing /admin/lessons editor.
+// Lesson links point at the new /admin-beta/lessons editor (the switch).
 
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
@@ -107,7 +107,7 @@ export default function CourseDetailBetaPage() {
         onBack={() => router.push('/admin-beta/courses')}
         onOpenLesson={(lid) =>
           router.push(
-            `/admin/lessons?id=${lid}&course_id=${id}&course_name=${encodeURIComponent(course?.name || '')}`
+            `/admin-beta/lessons?id=${lid}&course_id=${id}&course_name=${encodeURIComponent(course?.name || '')}`
           )
         }
         onOpenStudent={(email) => router.push(`/admin-beta/students/${encodeURIComponent(email)}`)}
@@ -122,7 +122,7 @@ export default function CourseDetailBetaPage() {
           existingTitles={lessons.map((l) => l.title)}
           onClose={() => setShowLessonChooser(false)}
           onCreateOwn={() =>
-            router.push(`/admin/lessons?course_id=${id}&course_name=${encodeURIComponent(course?.name || '')}`)
+            router.push(`/admin-beta/lessons?course_id=${id}&course_name=${encodeURIComponent(course?.name || '')}`)
           }
           onImported={() => { setShowLessonChooser(false); load() }}
         />

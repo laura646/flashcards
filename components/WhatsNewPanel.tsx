@@ -28,14 +28,14 @@ const ITEMS: WhatsNewItem[] = [
     icon: '📊',
     title: 'Reports rebuild + heatmap + AI summary',
     description: 'Per-course scoping, latest+best scores, attendance %, streak, skill breakdown, CEFR performance, plus a class heatmap and an AI-generated 2-3 sentence summary.',
-    href: '/admin/reports',
+    href: '/admin-beta/reports',
     hrefLabel: 'Open Reports',
   },
   {
     icon: '✅',
     title: 'Attendance UI',
     description: 'Mark Present / Absent / Late / Excused per student per lesson. Notes, audit trail, "Mark all present" shortcut.',
-    href: '/admin/attendance',
+    href: '/admin-beta/attendance',
     hrefLabel: 'Open Attendance',
   },
   {
@@ -52,7 +52,7 @@ const ITEMS: WhatsNewItem[] = [
     icon: '❓',
     title: 'Help & Docs',
     description: 'A new documentation page covering every admin feature with mockups, tips, and FAQs.',
-    href: '/admin/help',
+    href: '/admin-beta/help',
     hrefLabel: 'Open Help',
   },
 ]
@@ -123,7 +123,7 @@ export default function WhatsNewPanel() {
 
       <div className="mt-4 pt-3 border-t border-[#cddcf0]/60 flex items-center justify-between">
         <Link
-          href="/admin/help#whats-new"
+          href="/admin-beta/help#whats-new"
           className="text-[11px] text-[#416ebe] font-bold hover:underline"
         >
           See the full changelog in Help &amp; Docs →
