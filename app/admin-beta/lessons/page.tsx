@@ -21,6 +21,7 @@ import LessonsListView from '@/components/admin-v2/LessonsListView'
 import LessonEditorView from '@/components/admin-v2/LessonEditorView'
 import { useLessonEditor } from '@/lib/lesson-editor/useLessonEditor'
 import { useLessonAi } from '@/lib/lesson-editor/useLessonAi'
+import type { BlockType } from '@/lib/lesson-editor/types'
 
 function LessonsBetaBody() {
   const { data: session, status } = useSession()
@@ -169,6 +170,13 @@ function LessonsBetaBody() {
                 mistakes: result.mistakes,
               })
             }
+          }}
+          onAddFromBank={(picked) => {
+            editor.appendGeneratedFlashcards(picked.flashcards)
+            editor.appendGeneratedExercises(picked.exercises)
+            picked.blocks.forEach((b) =>
+              editor.appendGeneratedBlock(b.block_type as BlockType, b.title, b.content),
+            )
           }}
           onFetchCourseVocabulary={ai.fetchCourseVocabulary}
           onSuggestExercisesFromReading={ai.suggestExercisesFromReading}

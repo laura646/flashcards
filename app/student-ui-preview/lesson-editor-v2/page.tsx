@@ -330,6 +330,7 @@ export default function LessonEditorV2Preview() {
           onGenerateReading={async (form) => { console.log('AI reading', form); return { ok: true } }}
           onImportGoogleDoc={async (url) => { console.log('import doc', url); return { ok: true } }}
           onApplyImport={(result, opts) => console.log('apply import', result, opts)}
+          onAddFromBank={(picked) => console.log('add from bank', picked)}
           onFetchCourseVocabulary={async () => {
             console.log('fetch course vocabulary')
             return {
@@ -404,6 +405,7 @@ export default function LessonEditorV2Preview() {
           onGenerateReading={async (form) => { console.log('AI reading', form); return { ok: true } }}
           onImportGoogleDoc={async (url) => { console.log('import doc', url); return { ok: true } }}
           onApplyImport={(result, opts) => console.log('apply import', result, opts)}
+          onAddFromBank={(picked) => console.log('add from bank', picked)}
           onFetchCourseVocabulary={async () => { console.log('fetch course vocabulary'); return { ok: false, error: 'Save the lesson to a course first' } }}
           onSuggestExercisesFromReading={async (articleText, types, count) => { console.log('suggest exercises', { articleText, types, count }); return { ok: true, exercises: [] } }}
           aiError={null}

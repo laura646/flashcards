@@ -27,12 +27,14 @@ import GrammarAiForm, { type GrammarAiFormValues } from '@/components/admin-v2/l
 import ReadingAiForm, { type ReadingAiFormValues } from '@/components/admin-v2/lesson-editors/ai/ReadingAiForm'
 import ImportDocModal, { type ImportApplyOptions } from '@/components/admin-v2/lesson-editors/ai/ImportDocModal'
 import VocabPickerModal, { type VocabPickerLesson } from '@/components/admin-v2/lesson-editors/ai/VocabPickerModal'
+import ContentBankPickerModal from '@/components/admin-v2/lesson-editors/ai/ContentBankPickerModal'
 import {
   BLOCK_CONFIG,
   EXERCISE_TYPES,
   type ContentItem,
   type BlockType,
   type Exercise,
+  type Flashcard,
 } from '@/lib/lesson-editor/types'
 import type {
   AiResult,
@@ -152,6 +154,7 @@ export function LessonEditorView({
   onGenerateReading,
   onImportGoogleDoc,
   onApplyImport,
+  onAddFromBank,
   onFetchCourseVocabulary,
   onSuggestExercisesFromReading,
   aiError,
@@ -208,6 +211,14 @@ export function LessonEditorView({
   // sections via the editor hook.
   onImportGoogleDoc: (url: string) => Promise<{ ok: boolean; error?: string; data?: ImportDocResult }>
   onApplyImport: (result: ImportDocResult, opts: ImportApplyOptions) => void
+  // Phase 7: cherry-pick a content-bank template's items INTO the open lesson.
+  // The picker hands back the chosen flashcards / exercises / blocks; the caller
+  // merges them via the editor hook's append methods.
+  onAddFromBank: (picked: {
+    flashcards: Flashcard[]
+    exercises: Exercise[]
+    blocks: { block_type: string; title: string; content: unknown }[]
+  }) => void
   // Task C: lazy-loads the course's saved flashcard words for the vocab picker.
   // Resolves { ok, data?: { lessons } }; the view owns the picker modal + the
   // promise that resolves the teacher's chosen words back into the AI form.
@@ -259,6 +270,11 @@ export function LessonEditorView({
   // arrives so the modal can preview it before the teacher applies sections.
   const [importOpen, setImportOpen] = useState(false)
   const [importResult, setImportResult] = useState<ImportDocResult | null>(null)
+
+  // ── Content-bank picker (Phase 7) ──
+  // bankOpen toggles the in-editor content-bank picker modal. It self-fetches
+  // and hands the chosen items back via onAddFromBank.
+  const [bankOpen, setBankOpen] = useState(false)
 
   // ── Course-vocabulary picker (task C) ──
   // The AI forms call onPickVocab() and await the chosen words. We open the
@@ -405,6 +421,13 @@ export function LessonEditorView({
     closeImport()
   }
 
+  // ── Content-bank picker handlers (Phase 7) ──
+  const openBank = () => {
+    setAddMenuOpen(false)
+    onClearAiError()
+    setBankOpen(true)
+  }
+
   // ── Course-vocabulary picker handlers (task C) ──
   // Opens the picker and returns a promise that resolves with the teacher's
   // chosen words (or [] if they cancel). Lazy-loads the lessons on first open
@@ -515,8 +538,15 @@ export function LessonEditorView({
             )}
           </div>
 
-          {/* Action buttons (top-right): Import from Google Doc + Add content */}
+          {/* Action buttons (top-right): Content Bank + Import from Google Doc + Add content */}
           <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={openBank}
+          >
+            📚 Add from Content Bank
+          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -811,6 +841,18 @@ export function LessonEditorView({
           }}
           onApply={handleApplyImport}
           onClose={closeImport}
+        />
+      )}
+
+      {/* ── Content-bank picker (Phase 7) — cherry-pick a template's items into
+          the open lesson. Self-fetching; hands the picks back via onAddFromBank. ── */}
+      {bankOpen && (
+        <ContentBankPickerModal
+          onClose={() => setBankOpen(false)}
+          onAdd={(picked) => {
+            onAddFromBank(picked)
+            setBankOpen(false)
+          }}
         />
       )}
     </div>
