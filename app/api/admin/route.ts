@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
       let coursesQuery = supabase
         .from('courses')
-        .select('id, name, description, invite_code, created_at, course_type, archived_at, level')
+        .select('id, name, description, invite_code, created_at, course_type, course_category, archived_at, level')
         .in('id', courseIds)
       // Default: active only. include_archived=true returns active + archived.
       if (!includeArchived) {
@@ -550,7 +550,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'update-course') {
-      const { course_id, name, description, level, course_type, telegram_chat_id, invite_code } = body
+      const { course_id, name, description, level, course_type, course_category, telegram_chat_id, invite_code } = body
       if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
 
       // Verify teacher has access to this course
@@ -564,6 +564,7 @@ export async function POST(req: NextRequest) {
       if (description !== undefined) updateData.description = description
       if (level !== undefined) updateData.level = level
       if (course_type !== undefined) updateData.course_type = course_type
+      if (course_category !== undefined) updateData.course_category = course_category
       if (telegram_chat_id !== undefined) {
         // Allow blank to clear; trim and accept the bare ID (e.g. -1001234567890)
         const trimmed = typeof telegram_chat_id === 'string' ? telegram_chat_id.trim() : ''

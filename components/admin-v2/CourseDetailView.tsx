@@ -16,7 +16,7 @@ import { useState } from 'react'
 import { Pill, EmptyState, Skeleton, Button, InlineError } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import { useConfirm } from '@/components/ConfirmDialog'
-import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES } from '@/lib/common-issues'
+import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES, COURSE_CATEGORIES } from '@/lib/common-issues'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
 
@@ -27,6 +27,7 @@ export interface CourseDetailData {
   invite_code: string
   created_at: string
   course_type: string | null
+  course_category: string | null
   level: string | null
   telegram_chat_id: string | null
   archived_at: string | null
@@ -56,6 +57,7 @@ export interface CourseSaveForm {
   description: string
   level: string
   course_type: string
+  course_category: string
   telegram_chat_id: string
   invite_code: string
 }
@@ -165,7 +167,7 @@ export function CourseDetailView({
   const [tab, setTab] = useState<Tab>('lessons')
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<CourseSaveForm>({
-    name: '', description: '', level: '', course_type: '', telegram_chat_id: '', invite_code: '',
+    name: '', description: '', level: '', course_type: '', course_category: '', telegram_chat_id: '', invite_code: '',
   })
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -183,6 +185,7 @@ export function CourseDetailView({
       description: course.description || '',
       level: course.level || '',
       course_type: course.course_type || '',
+      course_category: course.course_category || '',
       telegram_chat_id: course.telegram_chat_id || '',
       invite_code: '',
     })
@@ -297,6 +300,7 @@ export function CourseDetailView({
               <div className="flex gap-2 mt-2.5 flex-wrap">
                 {course.level && <Pill variant="level">{course.level}</Pill>}
                 {course.course_type && <Pill variant="level">{course.course_type}</Pill>}
+                {course.course_category && <Pill variant="level">{course.course_category}</Pill>}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2.5 shrink-0">
@@ -431,7 +435,7 @@ export function CourseDetailView({
                     className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 h-20 resize-none bg-white focus:outline-none focus:border-sky"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Level</label>
                     <select
@@ -452,6 +456,17 @@ export function CourseDetailView({
                     >
                       <option value="">Not set</option>
                       {COURSE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Category</label>
+                    <select
+                      value={form.course_category}
+                      onChange={(e) => setForm({ ...form, course_category: e.target.value })}
+                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                    >
+                      <option value="">Not set</option>
+                      {COURSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                     </select>
                   </div>
                 </div>
@@ -505,9 +520,10 @@ export function CourseDetailView({
                 <div className="space-y-3">
                   <InfoRow label="Name">{course.name}</InfoRow>
                   <InfoRow label="Description">{course.description || '—'}</InfoRow>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-4 gap-4">
                     <InfoRow label="Level">{course.level || '—'}</InfoRow>
                     <InfoRow label="Type">{course.course_type || '—'}</InfoRow>
+                    <InfoRow label="Category">{course.course_category || '—'}</InfoRow>
                     <InfoRow label="Invite Code">
                       <span className="font-mono text-sky-text">{course.invite_code}</span>
                     </InfoRow>

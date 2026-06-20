@@ -173,7 +173,16 @@ export const COMMON_ISSUES_BY_LEVEL: Record<string, string[]> = {
   ],
 }
 
-export const COURSE_TYPES = ['Group', 'Individual', 'Small Group', 'Self Study']
+export const COURSE_TYPES = ['Group', '1-on-1', 'Small Group', 'Self Study']
+
+// Course category - stored as the short value, displayed with a friendly label
+export const COURSE_CATEGORIES: { value: string; label: string }[] = [
+  { value: 'IELTS', label: 'IELTS' },
+  { value: 'GE', label: 'General English (GE)' },
+  { value: 'BE', label: 'Business English (BE)' },
+  { value: 'ESP', label: 'English for Specific Purposes (ESP)' },
+  { value: 'Other', label: 'Other' },
+]
 
 // Country flags - common countries with their flag emojis
 export const COUNTRY_FLAGS: Record<string, string> = {

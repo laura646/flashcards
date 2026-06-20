@@ -17,6 +17,7 @@
 
 import { useMemo, useState } from 'react'
 import { Pill, EmptyState, Skeleton, TextField, SegmentedControl } from '@/components/student-ui'
+import { COURSE_CATEGORIES } from '@/lib/common-issues'
 
 export interface CourseSummary {
   id: string
@@ -24,6 +25,7 @@ export interface CourseSummary {
   description: string | null
   invite_code: string
   course_type: string | null
+  course_category: string | null
   level: string | null
   archived_at: string | null
   created_at: string
@@ -78,7 +80,12 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
   const [status, setStatus] = useState<StatusFilter>('active')
   const [level, setLevel] = useState<string | null>(null)
   const [courseType, setCourseType] = useState<string | null>(null)
+  const [category, setCategory] = useState<string | null>(null)
   const [sort, setSort] = useState<SortKey>('newest')
+
+  // Friendly label for a category short value (falls back to the raw value).
+  const categoryLabel = (value: string) =>
+    COURSE_CATEGORIES.find((c) => c.value === value)?.label ?? value
 
   // Derive filter chip options from the loaded courses.
   const levelOptions = useMemo(
@@ -89,6 +96,16 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
     () => Array.from(new Set(courses.map((c) => c.course_type).filter((t): t is string => !!t))).sort(),
     [courses],
   )
+  // Category options: only those present in the loaded courses, ordered to
+  // match COURSE_CATEGORIES (unknown values appended after, in sort order).
+  const categoryOptions = useMemo(() => {
+    const present = new Set(courses.map((c) => c.course_category).filter((c): c is string => !!c))
+    const known = COURSE_CATEGORIES.map((c) => c.value).filter((v) => present.has(v))
+    const extra = Array.from(present)
+      .filter((v) => !COURSE_CATEGORIES.some((c) => c.value === v))
+      .sort()
+    return [...known, ...extra]
+  }, [courses])
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -96,9 +113,10 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
       // Status (archived_at: null = active).
       if (status === 'active' && c.archived_at) return false
       if (status === 'archived' && !c.archived_at) return false
-      // Level / type chips.
+      // Level / type / category chips.
       if (level && c.level !== level) return false
       if (courseType && c.course_type !== courseType) return false
+      if (category && c.course_category !== category) return false
       // Smart search — name OR any trainer name/email OR any student email.
       if (q) {
         const inName = c.name.toLowerCase().includes(q)
@@ -118,7 +136,7 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
     return out
-  }, [courses, query, status, level, courseType, sort])
+  }, [courses, query, status, level, courseType, category, sort])
 
   const totalStudents = courses.reduce((n, c) => n + (c.student_count || 0), 0)
   const totalLessons = courses.reduce((n, c) => n + (c.lesson_count || 0), 0)
@@ -181,8 +199,8 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
               </label>
             </div>
 
-            {/* Row 2: level + type filter chips */}
-            {(levelOptions.length > 0 || typeOptions.length > 0) && (
+            {/* Row 2: level + type + category filter chips */}
+            {(levelOptions.length > 0 || typeOptions.length > 0 || categoryOptions.length > 0) && (
               <div className="flex flex-wrap items-center gap-2">
                 {levelOptions.length > 0 && (
                   <>
@@ -200,6 +218,16 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
                     {typeOptions.map((t) => (
                       <FilterChip key={t} active={courseType === t} onClick={() => setCourseType(courseType === t ? null : t)}>
                         {t}
+                      </FilterChip>
+                    ))}
+                  </>
+                )}
+                {categoryOptions.length > 0 && (
+                  <>
+                    <span className="text-[10px] font-extrabold uppercase tracking-eyebrow text-ink-muted ml-2 mr-0.5">Category</span>
+                    {categoryOptions.map((cat) => (
+                      <FilterChip key={cat} active={category === cat} onClick={() => setCategory(category === cat ? null : cat)}>
+                        {categoryLabel(cat)}
                       </FilterChip>
                     ))}
                   </>
@@ -251,6 +279,7 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
                   )}
                   <div className="flex gap-2 mt-2.5 flex-wrap">
                     {c.level && <Pill variant="level">{c.level}</Pill>}
+                    {c.course_category && <Pill variant="status">{c.course_category}</Pill>}
                     {c.course_type && (
                       <span className="text-[10px] font-bold bg-surface text-ink-muted px-2.5 py-1 rounded-full">{c.course_type}</span>
                     )}

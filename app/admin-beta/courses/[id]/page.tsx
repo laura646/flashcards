@@ -74,6 +74,7 @@ export default function CourseDetailBetaPage() {
           description: form.description,
           level: form.level || null,
           course_type: form.course_type || null,
+          course_category: form.course_category || null,
           telegram_chat_id: form.telegram_chat_id || null,
           invite_code: form.invite_code.trim() ? form.invite_code.trim() : undefined,
         }),

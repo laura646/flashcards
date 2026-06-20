@@ -18,6 +18,7 @@ const MOCK_COURSE: CourseDetailData = {
   invite_code: 'BIZB2',
   created_at: '2026-01-12T09:00:00.000Z',
   course_type: 'Group',
+  course_category: 'BE',
   level: 'B2',
   telegram_chat_id: '-1001234567890',
   archived_at: null,
