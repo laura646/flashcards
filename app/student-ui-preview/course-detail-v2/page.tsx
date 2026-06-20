@@ -20,6 +20,7 @@ const MOCK_COURSE: CourseDetailData = {
   course_type: 'Group',
   level: 'B2',
   telegram_chat_id: '-1001234567890',
+  archived_at: null,
 }
 
 const MOCK_STUDENTS: CourseStudentRow[] = [
@@ -47,6 +48,8 @@ export default function CourseDetailV2Preview() {
       onCreateLesson={() => console.log('create lesson')}
       onSaveCourse={async (form) => { console.log('save course', form); return { ok: true } }}
       onSendTelegramTest={async () => { console.log('telegram test'); return { ok: true } }}
+      onArchive={async () => { console.log('archive'); return { ok: true } }}
+      onRestore={async () => { console.log('restore'); return { ok: true } }}
     />
   )
 }

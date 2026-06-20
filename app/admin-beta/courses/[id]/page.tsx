@@ -31,6 +31,7 @@ export default function CourseDetailBetaPage() {
   const [lessons, setLessons] = useState<CourseLessonRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showLessonChooser, setShowLessonChooser] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
 
@@ -53,6 +54,13 @@ export default function CourseDetailBetaPage() {
   useEffect(() => {
     if (status === 'authenticated' && isAdmin) load()
   }, [status, isAdmin, load])
+
+  // Auto-dismiss the archive/restore toast.
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const onSaveCourse = useCallback(async (form: CourseSaveForm): Promise<{ ok: boolean; error?: string }> => {
     try {
@@ -93,6 +101,58 @@ export default function CourseDetailBetaPage() {
     }
   }, [id])
 
+  // Archive / restore share one POST helper. On success we flip the local
+  // archived_at instantly (no full re-fetch needed) so the header updates at
+  // once, then surface a transient toast. The backend returns 403/404 on an
+  // access failure; we branch on both per the backend contract note.
+  const setArchivedLocally = useCallback((value: string | null) => {
+    setCourse((prev) => (prev ? { ...prev, archived_at: value } : prev))
+  }, [])
+
+  const onArchive = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'archive-course', course_id: id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        const err = res.status === 403 || res.status === 404
+          ? 'You do not have access to archive this course'
+          : (data.error || 'Failed to archive course')
+        return { ok: false, error: err }
+      }
+      setArchivedLocally(new Date().toISOString())
+      setToast('Course archived — it is now hidden from your active list.')
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Failed to archive course' }
+    }
+  }, [id, setArchivedLocally])
+
+  const onRestore = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch('/api/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore-course', course_id: id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) {
+        const err = res.status === 403 || res.status === 404
+          ? 'You do not have access to restore this course'
+          : (data.error || 'Failed to restore course')
+        return { ok: false, error: err }
+      }
+      setArchivedLocally(null)
+      setToast('Course restored — it is back in your active list.')
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Failed to restore course' }
+    }
+  }, [id, setArchivedLocally])
+
   if (status === 'authenticated' && !isAdmin) {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
@@ -114,7 +174,15 @@ export default function CourseDetailBetaPage() {
         onCreateLesson={() => setShowLessonChooser(true)}
         onSaveCourse={onSaveCourse}
         onSendTelegramTest={onSendTelegramTest}
+        onArchive={onArchive}
+        onRestore={onRestore}
       />
+
+      {toast && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 font-rubik bg-ink-black text-white text-sm font-bold px-4 py-2.5 rounded-tile shadow-lg animate-fade-in">
+          {toast}
+        </div>
+      )}
 
       {showLessonChooser && (
         <ContentBankImportModal

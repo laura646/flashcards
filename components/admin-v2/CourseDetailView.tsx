@@ -15,6 +15,7 @@
 import { useState } from 'react'
 import { Pill, EmptyState, Skeleton, Button, InlineError } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
+import { useConfirm } from '@/components/ConfirmDialog'
 import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES } from '@/lib/common-issues'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
@@ -28,6 +29,7 @@ export interface CourseDetailData {
   course_type: string | null
   level: string | null
   telegram_chat_id: string | null
+  archived_at: string | null
 }
 
 export interface CourseStudentRow {
@@ -97,6 +99,8 @@ interface CourseDetailViewProps {
   onCreateLesson: () => void
   onSaveCourse: (form: CourseSaveForm) => Promise<{ ok: boolean; error?: string }>
   onSendTelegramTest: () => Promise<{ ok: boolean; error?: string }>
+  onArchive: () => Promise<{ ok: boolean; error?: string }>
+  onRestore: () => Promise<{ ok: boolean; error?: string }>
 }
 
 // A small read-only label/value row for the Course Info read view.
@@ -154,7 +158,10 @@ export function CourseDetailView({
   onCreateLesson,
   onSaveCourse,
   onSendTelegramTest,
+  onArchive,
+  onRestore,
 }: CourseDetailViewProps) {
+  const confirm = useConfirm()
   const [tab, setTab] = useState<Tab>('lessons')
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<CourseSaveForm>({
@@ -164,6 +171,9 @@ export function CourseDetailView({
   const [saving, setSaving] = useState(false)
   const [tgState, setTgState] = useState<{ kind: 'ok' | 'error'; message: string } | null>(null)
   const [tgSending, setTgSending] = useState(false)
+  const [archiveBusy, setArchiveBusy] = useState(false)
+  const [archiveError, setArchiveError] = useState('')
+  const [copied, setCopied] = useState(false)
 
   // Seed the edit-form draft from the current course, then flip to edit mode.
   const startEditing = () => {
@@ -211,6 +221,37 @@ export function CourseDetailView({
     )
   }
 
+  const handleArchive = async () => {
+    const ok = await confirm({
+      title: 'Archive this course?',
+      message: 'Archive this course? It will be hidden from the active list (you can restore it anytime).',
+      confirmLabel: 'Archive',
+    })
+    if (!ok) return
+    setArchiveError('')
+    setArchiveBusy(true)
+    const res = await onArchive()
+    setArchiveBusy(false)
+    if (!res.ok) setArchiveError(res.error || 'Failed to archive course')
+  }
+
+  const handleRestore = async () => {
+    setArchiveError('')
+    setArchiveBusy(true)
+    const res = await onRestore()
+    setArchiveBusy(false)
+    if (!res.ok) setArchiveError(res.error || 'Failed to restore course')
+  }
+
+  const handleCopyInvite = async () => {
+    if (!course) return
+    try {
+      await navigator.clipboard.writeText(course.invite_code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard unavailable — no-op */ }
+  }
+
   // ── Loading skeleton ──
   if (loading || !course) {
     return (
@@ -248,17 +289,36 @@ export function CourseDetailView({
         <div className="bg-white rounded-card border border-hairline p-5 mb-4">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-brandblue">{course.name}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl font-bold text-brandblue">{course.name}</h1>
+                {course.archived_at && <Pill variant="status">Archived</Pill>}
+              </div>
               <p className="text-sm text-ink-muted mt-1">{course.description || 'No description'}</p>
               <div className="flex gap-2 mt-2.5 flex-wrap">
                 {course.level && <Pill variant="level">{course.level}</Pill>}
                 {course.course_type && <Pill variant="level">{course.course_type}</Pill>}
               </div>
             </div>
-            <div className="text-xs text-ink-muted shrink-0">
-              Invite: <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
+            <div className="flex flex-col items-end gap-2.5 shrink-0">
+              <div className="text-xs text-ink-muted">
+                Invite: <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
+              </div>
+              {course.archived_at ? (
+                <Button variant="secondary" size="sm" onClick={handleRestore} disabled={archiveBusy}>
+                  {archiveBusy ? 'Restoring…' : 'Restore course'}
+                </Button>
+              ) : (
+                <Button variant="neutral" size="sm" onClick={handleArchive} disabled={archiveBusy}>
+                  {archiveBusy ? 'Archiving…' : 'Archive course'}
+                </Button>
+              )}
             </div>
           </div>
+          {archiveError && (
+            <div className="mt-3">
+              <InlineError message={archiveError} />
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -397,11 +457,19 @@ export function CourseDetailView({
                 </div>
                 <div>
                   <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Invite code</label>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="text-xs text-ink-muted">
+                      Current code: <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
+                    </span>
+                    <Button variant="neutral" size="sm" onClick={handleCopyInvite}>
+                      {copied ? 'Copied!' : 'Copy'}
+                    </Button>
+                  </div>
                   <input
                     type="text"
                     value={form.invite_code}
                     onChange={(e) => setForm({ ...form, invite_code: e.target.value.toUpperCase() })}
-                    placeholder="Leave blank to keep current"
+                    placeholder="Type a new code to change it (leave blank to keep current)"
                     maxLength={20}
                     className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white font-mono uppercase focus:outline-none focus:border-sky"
                   />

@@ -43,36 +43,67 @@ export async function GET(req: NextRequest) {
   try {
     // ── My Courses: list teacher's courses with counts ──
     if (action === 'my-courses') {
+      const includeArchived = req.nextUrl.searchParams.get('include_archived') === 'true'
+
       const courseIds = await getTeacherCourseIds(email, role as 'teacher')
       if (courseIds.length === 0) return NextResponse.json({ courses: [] })
 
-      const { data: courses, error } = await supabase
+      let coursesQuery = supabase
         .from('courses')
         .select('id, name, description, invite_code, created_at, course_type, archived_at, level')
         .in('id', courseIds)
-        .is('archived_at', null)
-        .order('created_at', { ascending: false })
+      // Default: active only. include_archived=true returns active + archived.
+      if (!includeArchived) {
+        coursesQuery = coursesQuery.is('archived_at', null)
+      }
+      const { data: courses, error } = await coursesQuery.order('created_at', { ascending: false })
 
       if (error) throw error
 
-      const [studentRes, lessonRes] = await Promise.all([
-        supabase.from('course_students').select('course_id').in('course_id', courseIds).is('removed_at', null),
+      const [studentRes, lessonRes, teacherRes] = await Promise.all([
+        supabase.from('course_students').select('course_id, student_email').in('course_id', courseIds).is('removed_at', null),
         supabase.from('lessons').select('course_id').in('course_id', courseIds),
+        supabase.from('course_teachers').select('course_id, teacher_email').in('course_id', courseIds),
       ])
 
       const studentCounts: Record<string, number> = {}
       const lessonCounts: Record<string, number> = {}
-      ;(studentRes.data || []).forEach((s: { course_id: string }) => {
+      const studentEmailsByCourse: Record<string, string[]> = {}
+      ;(studentRes.data || []).forEach((s: { course_id: string; student_email: string }) => {
         studentCounts[s.course_id] = (studentCounts[s.course_id] || 0) + 1
+        ;(studentEmailsByCourse[s.course_id] ||= []).push(s.student_email)
       })
       ;(lessonRes.data || []).forEach((l: { course_id: string }) => {
         lessonCounts[l.course_id] = (lessonCounts[l.course_id] || 0) + 1
       })
 
+      // Resolve trainer names in bulk (mirror superadmin pattern)
+      const teacherRows = (teacherRes.data || []) as { course_id: string; teacher_email: string }[]
+      const teacherEmails = Array.from(new Set(teacherRows.map((t) => t.teacher_email)))
+      const nameByEmail: Record<string, string> = {}
+      if (teacherEmails.length > 0) {
+        const { data: teacherUsers } = await supabase
+          .from('users')
+          .select('email, name')
+          .in('email', teacherEmails)
+        ;(teacherUsers || []).forEach((u: { email: string; name: string | null }) => {
+          nameByEmail[u.email] = u.name || ''
+        })
+      }
+      const trainersByCourse: Record<string, { email: string; name: string }[]> = {}
+      for (const t of teacherRows) {
+        ;(trainersByCourse[t.course_id] ||= []).push({
+          email: t.teacher_email,
+          name: nameByEmail[t.teacher_email] || '',
+        })
+      }
+
       const coursesWithCounts = (courses || []).map((c: { id: string }) => ({
         ...c,
         student_count: studentCounts[c.id] || 0,
         lesson_count: lessonCounts[c.id] || 0,
+        trainers: trainersByCourse[c.id] || [],
+        student_emails: studentEmailsByCourse[c.id] || [],
       }))
 
       return NextResponse.json({ courses: coursesWithCounts })
@@ -568,6 +599,46 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase
         .from('courses')
         .update(updateData)
+        .eq('id', course_id)
+
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Archive course (teachers can archive their own) ──
+    if (action === 'archive-course') {
+      const { course_id } = body
+      if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+
+      // Verify caller has access to this course (mirror update-course)
+      const courseIds = await getTeacherCourseIds(email, role as 'teacher')
+      if (!courseIds.includes(course_id)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const { error } = await supabase
+        .from('courses')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', course_id)
+
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Restore course (teachers can restore their own) ──
+    if (action === 'restore-course') {
+      const { course_id } = body
+      if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+
+      // Verify caller has access to this course (mirror update-course)
+      const courseIds = await getTeacherCourseIds(email, role as 'teacher')
+      if (!courseIds.includes(course_id)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const { error } = await supabase
+        .from('courses')
+        .update({ archived_at: null })
         .eq('id', course_id)
 
       if (error) throw error

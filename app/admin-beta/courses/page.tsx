@@ -28,7 +28,7 @@ export default function CoursesBetaPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin?action=my-courses')
+      const res = await fetch('/api/admin?action=my-courses&include_archived=true')
       const data = await res.json()
       setCourses(data.courses || [])
     } catch { /* swallow */ }
