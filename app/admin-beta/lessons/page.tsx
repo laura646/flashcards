@@ -108,7 +108,6 @@ function LessonsBetaBody() {
         currentUserEmail=""
         onOpenLesson={() => {}}
         onNewLesson={() => {}}
-        onNewTemplate={() => {}}
         onAssign={async () => ({ ok: false })}
         onOpenSchoolLibrary={() => {}}
       />
@@ -222,7 +221,6 @@ function LessonsBetaBody() {
           currentUserEmail={session?.user?.email || ''}
           onOpenLesson={(id) => router.push(`/admin-beta/lessons?id=${id}`)}
           onNewLesson={() => editor.startNewLesson()}
-          onNewTemplate={() => router.push('/admin-beta/lessons?mode=content-bank')}
           onOpenSchoolLibrary={() => router.push('/admin-beta/content-bank')}
           onAssign={async (lessonId, courseId) => {
             const res = await fetch('/api/lessons', {

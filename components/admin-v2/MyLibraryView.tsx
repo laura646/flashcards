@@ -49,7 +49,6 @@ export default function MyLibraryView({
   currentUserEmail,
   onOpenLesson,
   onNewLesson,
-  onNewTemplate,
   onAssign,
   onOpenSchoolLibrary,
 }: {
@@ -58,7 +57,6 @@ export default function MyLibraryView({
   currentUserEmail: string
   onOpenLesson: (id: string) => void
   onNewLesson: () => void
-  onNewTemplate: () => void
   onAssign: (lessonId: string, courseId: string) => Promise<{ ok: boolean; error?: string }>
   onOpenSchoolLibrary: () => void
 }) {
@@ -141,9 +139,6 @@ export default function MyLibraryView({
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="primary" size="md" onClick={onNewLesson}>
               ＋ New Lesson
-            </Button>
-            <Button variant="secondary" size="md" onClick={onNewTemplate}>
-              New reusable content
             </Button>
             <Button variant="textLink" size="sm" className="ml-auto" onClick={onOpenSchoolLibrary}>
               Browse School Library →
