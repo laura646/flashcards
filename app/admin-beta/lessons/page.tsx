@@ -127,6 +127,12 @@ function LessonsBetaBody() {
           onDateChange={editor.setLessonDate}
           onTypeChange={editor.setLessonType}
           onSummaryChange={editor.setSummary}
+          isTemplate={editor.isTemplate}
+          contentBankMode={editor.contentBankMode}
+          templateCategory={editor.templateCategory}
+          templateLevel={editor.templateLevel}
+          onCategoryChange={editor.setTemplateCategory}
+          onLevelChange={editor.setTemplateLevel}
           currentLessonStatus={editor.currentLessonStatus}
           editingLessonId={editor.editingLessonId}
           editingAuthorName={editor.editingAuthorName}
@@ -178,6 +184,7 @@ function LessonsBetaBody() {
               editor.appendGeneratedBlock(b.block_type as BlockType, b.title, b.content),
             )
           }}
+          onNotify={setToast}
           onFetchCourseVocabulary={ai.fetchCourseVocabulary}
           onSuggestExercisesFromReading={ai.suggestExercisesFromReading}
           aiError={ai.aiError}

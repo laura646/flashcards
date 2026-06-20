@@ -17,7 +17,7 @@
 // ImagePickerModal mounted here. AI generation is DEFERRED everywhere.
 
 import { useRef, useState } from 'react'
-import { Button, Card, TextField, SegmentedControl, EmptyState, InlineError } from '@/components/student-ui'
+import { Button, Card, Pill, TextField, SegmentedControl, EmptyState, InlineError } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import ContentItemCard from '@/components/admin-v2/lesson-editors/ContentItemCard'
 import ImagePickerModal from '@/components/ImagePickerModal'
@@ -28,9 +28,11 @@ import ReadingAiForm, { type ReadingAiFormValues } from '@/components/admin-v2/l
 import ImportDocModal, { type ImportApplyOptions } from '@/components/admin-v2/lesson-editors/ai/ImportDocModal'
 import VocabPickerModal, { type VocabPickerLesson } from '@/components/admin-v2/lesson-editors/ai/VocabPickerModal'
 import ContentBankPickerModal from '@/components/admin-v2/lesson-editors/ai/ContentBankPickerModal'
+import SaveToBankModal from '@/components/admin-v2/lesson-editors/ai/SaveToBankModal'
 import {
   BLOCK_CONFIG,
   EXERCISE_TYPES,
+  CEFR_OPTIONS,
   type ContentItem,
   type BlockType,
   type Exercise,
@@ -131,6 +133,12 @@ export function LessonEditorView({
   onDateChange,
   onTypeChange,
   onSummaryChange,
+  isTemplate,
+  contentBankMode,
+  templateCategory,
+  templateLevel,
+  onCategoryChange,
+  onLevelChange,
   currentLessonStatus,
   editingLessonId,
   editingAuthorName,
@@ -155,6 +163,7 @@ export function LessonEditorView({
   onImportGoogleDoc,
   onApplyImport,
   onAddFromBank,
+  onNotify,
   onFetchCourseVocabulary,
   onSuggestExercisesFromReading,
   aiError,
@@ -182,6 +191,16 @@ export function LessonEditorView({
   onDateChange: (v: string) => void
   onTypeChange: (v: string) => void
   onSummaryChange: (v: string) => void
+  // Content-bank template mode. When contentBankMode (or isTemplate) is true the
+  // editor renders a required Category + Level panel; the saveLesson guard blocks
+  // the save until both are set. All optional so the normal lesson editor + the
+  // preview harness are unaffected (they render nothing new).
+  isTemplate?: boolean
+  contentBankMode?: boolean
+  templateCategory?: string
+  templateLevel?: string
+  onCategoryChange?: (v: string) => void
+  onLevelChange?: (v: string) => void
   currentLessonStatus: 'draft' | 'published'
   editingLessonId: string | null
   editingAuthorName: string | null
@@ -219,6 +238,9 @@ export function LessonEditorView({
     exercises: Exercise[]
     blocks: { block_type: string; title: string; content: unknown }[]
   }) => void
+  // Phase 7: surface a transient toast (e.g. after Save-to-Bank). Optional so
+  // the preview harness can omit it.
+  onNotify?: (msg: string) => void
   // Task C: lazy-loads the course's saved flashcard words for the vocab picker.
   // Resolves { ok, data?: { lessons } }; the view owns the picker modal + the
   // promise that resolves the teacher's chosen words back into the AI form.
@@ -246,6 +268,12 @@ export function LessonEditorView({
   const inFlight = saving || publishing
   const isNew = !editingLessonId
   const headingTitle = title.trim() || (isNew ? 'New Lesson' : 'Untitled lesson')
+
+  // Content-bank template mode — drives the required Category + Level panel.
+  // Mirrors the saveLesson guard (contentBankMode && isTemplate), but we render
+  // the panel whenever EITHER flag is set so an existing template opened for
+  // editing (isTemplate true, contentBankMode false) still shows its fields.
+  const templateMode = Boolean(contentBankMode || isTemplate)
 
   // Local UI state — not part of the editor data contract.
   const [showDeleteIndex, setShowDeleteIndex] = useState<number | null>(null)
@@ -275,6 +303,11 @@ export function LessonEditorView({
   // bankOpen toggles the in-editor content-bank picker modal. It self-fetches
   // and hands the chosen items back via onAddFromBank.
   const [bankOpen, setBankOpen] = useState(false)
+
+  // ── Save-to-bank modal (Phase 7) ──
+  // saveBankOpen toggles the Save-to-Content-Bank wizard. It reads the current
+  // contentItems and writes selected content OUT to the bank as a template.
+  const [saveBankOpen, setSaveBankOpen] = useState(false)
 
   // ── Course-vocabulary picker (task C) ──
   // The AI forms call onPickVocab() and await the chosen words. We open the
@@ -477,7 +510,12 @@ export function LessonEditorView({
         {/* ── Metadata card ── */}
         <Card padding="lg" className="mb-6">
           <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-            <h2 className="font-bold text-ink-black">Lesson details</h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="font-bold text-ink-black">
+                {templateMode ? 'Template details' : 'Lesson details'}
+              </h2>
+              {templateMode && <Pill variant="status">📚 Content Bank template</Pill>}
+            </div>
             {!isNew && (editingAuthorName || editingCreatedAt) && (
               <p className="text-xs text-ink-muted">
                 Created by {editingAuthorName || 'Unknown'}
@@ -525,6 +563,40 @@ export function LessonEditorView({
               className="w-full h-24 text-[15px] font-medium text-ink-body bg-white rounded-tile p-3.5 resize-none border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors placeholder:text-[#b6bac2]"
             />
           </label>
+
+          {/* ── Content Bank template panel ── Only in template mode. A required
+              Category (free text) + Level (CEFR) — the saveLesson guard blocks
+              the save until both are set, so we flag both as required. */}
+          {templateMode && (
+            <div className="mt-5 rounded-tile border-[1.5px] border-sky-border bg-sky-wash p-4">
+              <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-sky-text mb-3">
+                Content Bank template
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <TextField
+                  label="Category"
+                  required
+                  value={templateCategory ?? ''}
+                  onChange={(e) => onCategoryChange?.(e.target.value)}
+                  placeholder="e.g. Business English, Travel, Grammar"
+                />
+                <div>
+                  <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
+                    Level<span className="text-incorrect-fg ml-0.5">*</span>
+                  </span>
+                  <SegmentedControl
+                    segments={CEFR_OPTIONS.map((c) => ({ value: c, label: c }))}
+                    value={(templateLevel as (typeof CEFR_OPTIONS)[number]) || ('' as (typeof CEFR_OPTIONS)[number])}
+                    onChange={(v) => onLevelChange?.(v)}
+                    className="flex-wrap"
+                  />
+                </div>
+              </div>
+              <p className="text-[12px] text-ink-muted mt-3">
+                Both Category and Level are required before this template can be saved.
+              </p>
+            </div>
+          )}
         </Card>
 
         {/* ── Lesson content (live) — header with the Add-content menu on the right ── */}
@@ -546,6 +618,17 @@ export function LessonEditorView({
             onClick={openBank}
           >
             📚 Add from Content Bank
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={contentItems.length === 0}
+            onClick={() => {
+              setAddMenuOpen(false)
+              setSaveBankOpen(true)
+            }}
+          >
+            💾 Save to Content Bank
           </Button>
           <Button
             variant="secondary"
@@ -853,6 +936,16 @@ export function LessonEditorView({
             onAddFromBank(picked)
             setBankOpen(false)
           }}
+        />
+      )}
+
+      {/* ── Save-to-bank wizard (Phase 7) — save selected lesson content OUT to
+          the Content Bank as a template. Self-contained POSTs + GETs. ── */}
+      {saveBankOpen && (
+        <SaveToBankModal
+          items={contentItems}
+          onClose={() => setSaveBankOpen(false)}
+          onSaved={(msg) => onNotify?.(msg)}
         />
       )}
     </div>

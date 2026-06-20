@@ -180,7 +180,7 @@ const INITIAL_ITEMS: ContentItem[] = [
 ]
 
 export default function LessonEditorV2Preview() {
-  const [tab, setTab] = useState<'list' | 'editor' | 'empty'>('editor')
+  const [tab, setTab] = useState<'list' | 'editor' | 'empty' | 'template'>('editor')
   const [query, setQuery] = useState('')
 
   // Editor mock state (so fields are actually interactive in the preview).
@@ -188,6 +188,10 @@ export default function LessonEditorV2Preview() {
   const [lessonDate, setLessonDate] = useState('2026-06-10')
   const [lessonType, setLessonType] = useState('lesson')
   const [summary, setSummary] = useState('Airport, hotel and direction words.')
+
+  // Template-mode mock state (content-bank template tab).
+  const [tplCategory, setTplCategory] = useState('')
+  const [tplLevel, setTplLevel] = useState('')
 
   // Live content state — mirrors the hook's contentItems + flashcardsPublished.
   const [contentItems, setContentItems] = useState<ContentItem[]>(INITIAL_ITEMS)
@@ -274,7 +278,7 @@ export default function LessonEditorV2Preview() {
     <div className="font-rubik">
       {/* Harness switcher */}
       <div className="sticky top-0 z-50 bg-white border-b border-hairline px-4 py-2 flex gap-2">
-        {(['list', 'editor', 'empty'] as const).map((t) => (
+        {(['list', 'editor', 'empty', 'template'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -282,7 +286,13 @@ export default function LessonEditorV2Preview() {
               tab === t ? 'bg-sky text-white' : 'bg-sky-wash text-ink-body'
             }`}
           >
-            {t === 'list' ? 'List' : t === 'editor' ? 'Editor (with content)' : 'Editor (empty)'}
+            {t === 'list'
+              ? 'List'
+              : t === 'editor'
+                ? 'Editor (with content)'
+                : t === 'empty'
+                  ? 'Editor (empty)'
+                  : 'Editor (template mode)'}
           </button>
         ))}
       </div>
@@ -424,6 +434,66 @@ export default function LessonEditorV2Preview() {
           onTogglePublished={(i) => console.log('toggle published', i)}
           onToggleFlashcardsPublished={() => console.log('toggle flashcards published')}
           onToggleCollapse={(i) => console.log('toggle collapse', i)}
+        />
+      )}
+
+      {tab === 'template' && (
+        <LessonEditorView
+          title={title}
+          lessonDate={lessonDate}
+          lessonType={lessonType}
+          summary={summary}
+          onTitleChange={setTitle}
+          onDateChange={setLessonDate}
+          onTypeChange={setLessonType}
+          onSummaryChange={setSummary}
+          isTemplate
+          contentBankMode
+          templateCategory={tplCategory}
+          templateLevel={tplLevel}
+          onCategoryChange={setTplCategory}
+          onLevelChange={setTplLevel}
+          currentLessonStatus="draft"
+          editingLessonId={null}
+          editingAuthorName={null}
+          editingCreatedAt={null}
+          contentItems={contentItems}
+          isItemPublished={isItemPublished}
+          flashcardsPublished={flashcardsPublished}
+          saving={false}
+          publishing={false}
+          error={null}
+          onSave={(s) => console.log('save template', s)}
+          onBack={() => setTab('list')}
+          onAddFlashcards={addFlashcards}
+          onAddExercise={addExercise}
+          onAddBlock={addBlock}
+          onGenerateFlashcards={async (text) => { console.log('AI flashcards', text); return { ok: true } }}
+          onGenerateExercises={async (input) => { console.log('AI exercises', input); return { ok: true } }}
+          onGenerateBlock={async (type, input) => { console.log('AI block', type, input); return { ok: true } }}
+          onGenerateGrammar={async (form) => { console.log('AI grammar', form); return { ok: true } }}
+          onGenerateReading={async (form) => { console.log('AI reading', form); return { ok: true } }}
+          onImportGoogleDoc={async (url) => { console.log('import doc', url); return { ok: true } }}
+          onApplyImport={(result, opts) => console.log('apply import', result, opts)}
+          onAddFromBank={(picked) => console.log('add from bank', picked)}
+          onFetchCourseVocabulary={async () => { console.log('fetch course vocabulary'); return { ok: true, data: { lessons: [] } } }}
+          onSuggestExercisesFromReading={async (articleText, types, count) => { console.log('suggest exercises', { articleText, types, count }); return { ok: true, exercises: [] } }}
+          aiError={null}
+          onClearAiError={() => {}}
+          generatingFlashcards={false}
+          generatingExercises={false}
+          generatingBlock={false}
+          generatingGrammar={false}
+          generatingReading={false}
+          generatingImport={false}
+          generatingVocab={false}
+          generatingSuggestEx={false}
+          onUpdateItem={updateItem}
+          onMoveItem={moveItem}
+          onRemoveItem={removeItem}
+          onTogglePublished={togglePublished}
+          onToggleFlashcardsPublished={() => setFlashcardsPublished((v) => !v)}
+          onToggleCollapse={toggleCollapse}
         />
       )}
     </div>
