@@ -198,14 +198,65 @@ export function LessonEditorView({
           </label>
         </Card>
 
-        {/* ── Lesson content (live) ── */}
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <h2 className="font-bold text-ink-black">Lesson content</h2>
-          {contentItems.length > 0 && (
-            <span className="text-xs text-ink-muted">
-              {contentItems.length} {contentItems.length === 1 ? 'item' : 'items'}
-            </span>
-          )}
+        {/* ── Lesson content (live) — header with the Add-content menu on the right ── */}
+        <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-baseline gap-2">
+            <h2 className="font-bold text-ink-black">Lesson content</h2>
+            {contentItems.length > 0 && (
+              <span className="text-xs text-ink-muted">
+                {contentItems.length} {contentItems.length === 1 ? 'item' : 'items'}
+              </span>
+            )}
+          </div>
+
+          {/* + Add content menu (top-right) */}
+          <div className="relative">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setAddMenuOpen((v) => !v)}
+              aria-expanded={addMenuOpen}
+            >
+              + Add content
+            </Button>
+            {addMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setAddMenuOpen(false)} aria-hidden="true" />
+                <div className="absolute right-0 mt-2 z-20 w-64 bg-white rounded-card border border-hairline shadow-lg overflow-hidden">
+                  {canAddFlashcards && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onAddFlashcards()
+                        setAddMenuOpen(false)
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
+                    >
+                      <span aria-hidden="true">{BLOCK_CONFIG.flashcards.icon}</span>
+                      <span>{BLOCK_CONFIG.flashcards.label}</span>
+                    </button>
+                  )}
+                  {ADDABLE_BLOCKS.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        onAddBlock(type)
+                        setAddMenuOpen(false)
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
+                    >
+                      <span aria-hidden="true">{BLOCK_CONFIG[type].icon}</span>
+                      <span>{BLOCK_CONFIG[type].label}</span>
+                    </button>
+                  ))}
+                  <p className="px-4 py-2.5 text-[11px] text-ink-muted italic border-t border-hairline bg-surface">
+                    More content types coming soon
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {contentItems.length === 0 ? (
@@ -238,60 +289,6 @@ export function LessonEditorView({
           </div>
         )}
 
-        {/* ── + Add content menu ── */}
-        <div className="relative mt-4">
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => setAddMenuOpen((v) => !v)}
-            aria-expanded={addMenuOpen}
-          >
-            + Add content
-          </Button>
-
-          {addMenuOpen && (
-            <>
-              {/* Click-away backdrop */}
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setAddMenuOpen(false)}
-                aria-hidden="true"
-              />
-              <div className="absolute left-0 mt-2 z-20 w-64 bg-white rounded-card border border-hairline shadow-lg overflow-hidden">
-                {canAddFlashcards && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onAddFlashcards()
-                      setAddMenuOpen(false)
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
-                  >
-                    <span aria-hidden="true">{BLOCK_CONFIG.flashcards.icon}</span>
-                    <span>{BLOCK_CONFIG.flashcards.label}</span>
-                  </button>
-                )}
-                {ADDABLE_BLOCKS.map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => {
-                      onAddBlock(type)
-                      setAddMenuOpen(false)
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
-                  >
-                    <span aria-hidden="true">{BLOCK_CONFIG[type].icon}</span>
-                    <span>{BLOCK_CONFIG[type].label}</span>
-                  </button>
-                ))}
-                <p className="px-4 py-2.5 text-[11px] text-ink-muted italic border-t border-hairline bg-surface">
-                  More content types coming soon
-                </p>
-              </div>
-            </>
-          )}
-        </div>
       </div>
 
       {/* ── Sticky save bar ── */}
