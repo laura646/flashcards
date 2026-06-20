@@ -87,6 +87,18 @@ function LessonsBetaBody() {
     return () => clearTimeout(t)
   }, [toast])
 
+  // Warn before leaving (tab close / reload / external nav) with unsaved edits.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (editor.view === 'editor' && editor.dirty) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [editor.view, editor.dirty])
+
   if (status === 'loading') {
     return <LessonsListView lessons={[]} loading query="" onQueryChange={() => {}} onOpenLesson={() => {}} onNewLesson={() => {}} />
   }
@@ -123,9 +135,11 @@ function LessonsBetaBody() {
           flashcardsPublished={editor.flashcardsPublished}
           saving={editor.saving}
           publishing={editor.publishing}
+          dirty={editor.dirty}
           error={editor.error}
           onSave={handleSave}
           onBack={() => {
+            if (editor.dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return
             editor.backToList()
             router.push('/admin-beta/lessons')
           }}

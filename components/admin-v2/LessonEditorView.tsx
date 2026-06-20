@@ -138,6 +138,7 @@ export function LessonEditorView({
   flashcardsPublished,
   saving,
   publishing,
+  dirty,
   error,
   onSave,
   onBack,
@@ -187,6 +188,7 @@ export function LessonEditorView({
   flashcardsPublished: boolean
   saving: boolean
   publishing: boolean
+  dirty?: boolean
   error: string | null
   onSave: (status: 'draft' | 'published') => void
   onBack: () => void
@@ -615,6 +617,11 @@ export function LessonEditorView({
       <div className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-hairline">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
           {error && <InlineError message={error} className="flex-1 min-w-[200px]" />}
+          {dirty && !error && (
+            <span className="text-xs font-medium text-[#b45309] flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#f59e0b] inline-block" aria-hidden="true" /> Unsaved changes
+            </span>
+          )}
           <div className="flex items-center gap-2 ml-auto">
             <Button variant="secondary" size="md" disabled={inFlight} onClick={() => onSave('draft')}>
               {saving ? 'Saving…' : 'Save draft'}

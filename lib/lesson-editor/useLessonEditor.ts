@@ -11,7 +11,7 @@
 // group_sort / MCQ-validation / payload logic is preserved verbatim.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   type Lesson,
   type Flashcard,
@@ -86,6 +86,39 @@ export function useLessonEditor() {
       (l.summary || '').toLowerCase().includes(q),
     )
   }, [lessons, lessonQuery])
+
+  // ── Unsaved-changes tracking ──
+  // dirty = the current editable state differs from the baseline captured at the
+  // last load/save. pendingBaseline defers capturing the baseline until the
+  // state has settled (load sets several fields). `collapsed` is excluded (it's
+  // UI-only, not persisted) so expanding/collapsing a block never marks dirty.
+  const [dirty, setDirty] = useState(false)
+  const [pendingBaseline, setPendingBaseline] = useState(true)
+  const baselineRef = useRef('')
+  const editSignature = useMemo(
+    () =>
+      JSON.stringify({
+        title,
+        lessonDate,
+        lessonType,
+        summary,
+        isTemplate,
+        templateCategory,
+        templateLevel,
+        flashcardsPublished,
+        items: contentItems.map((i) => ({ type: i.type, data: i.data, order_index: i.order_index })),
+      }),
+    [title, lessonDate, lessonType, summary, isTemplate, templateCategory, templateLevel, flashcardsPublished, contentItems],
+  )
+  useEffect(() => {
+    if (pendingBaseline) {
+      baselineRef.current = editSignature
+      setPendingBaseline(false)
+      setDirty(false)
+      return
+    }
+    setDirty(editSignature !== baselineRef.current)
+  }, [pendingBaseline, editSignature])
 
   // ── Load list (legacy page.tsx 893-904) ──
   const loadLessons = useCallback(async () => {
@@ -195,6 +228,7 @@ export function useLessonEditor() {
       })
 
       setContentItems(items)
+      setPendingBaseline(true)
     } catch {
       setError('Failed to load lesson data')
     }
@@ -225,6 +259,7 @@ export function useLessonEditor() {
     setCurrentLessonStatus('draft')
     setFlashcardsPublished(true)
     setView('editor')
+    setPendingBaseline(true)
   }, [])
 
   // ── Save (PORTED VERBATIM from legacy page.tsx 2251-2403) ──
@@ -385,6 +420,7 @@ export function useLessonEditor() {
 
       // legacy showToast(success) — handled by caller; reload list (verbatim).
       await loadLessons()
+      setPendingBaseline(true)
     } catch (err) {
       console.error(err)
       const msg = 'Failed to save lesson'
@@ -595,6 +631,9 @@ export function useLessonEditor() {
   return {
     // view
     view,
+
+    // unsaved-changes flag (true when edits differ from the last load/save)
+    dirty,
 
     // list
     lessons,
