@@ -166,7 +166,7 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
 
         {/* Dense filter / search header */}
         {!loading && courses.length > 0 && (
-          <div className="bg-white rounded-card border border-hairline p-3 mb-4 flex flex-col gap-3">
+          <div className="bg-sky-wash rounded-card border border-sky-border p-3 mb-4 flex flex-col gap-3">
             {/* Row 1: search + status + sort */}
             <div className="flex flex-wrap items-end gap-3">
               <TextField
