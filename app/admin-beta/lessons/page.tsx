@@ -14,11 +14,12 @@
 //   ?mode=content-bank              -> start a new content-bank template
 //   (none)                          -> the lessons list
 
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import MyLibraryView from '@/components/admin-v2/MyLibraryView'
+import MyLibraryView, { type MyLibraryFolderHandlers } from '@/components/admin-v2/MyLibraryView'
 import LessonEditorView from '@/components/admin-v2/LessonEditorView'
+import type { Folder } from '@/components/admin-v2/FolderTree'
 import { useLessonEditor } from '@/lib/lesson-editor/useLessonEditor'
 import { useLessonAi } from '@/lib/lesson-editor/useLessonAi'
 import type { BlockType } from '@/lib/lesson-editor/types'
@@ -46,6 +47,80 @@ function LessonsBetaBody() {
   const [toast, setToast] = useState<string | null>(null)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
+
+  // ── Personal folders for My Library (created_by-scoped via &mine=true) ──
+  const [folders, setFolders] = useState<Folder[]>([])
+
+  const loadFolders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/content-bank?action=list-folders&mine=true')
+      if (!res.ok) return
+      const data = await res.json()
+      setFolders(data.folders || [])
+    } catch {
+      /* silent — folder panel just shows empty */
+    }
+  }, [])
+
+  useEffect(() => {
+    if (status === 'authenticated' && isAdmin) void loadFolders()
+  }, [status, isAdmin, loadFolders])
+
+  // Folder + membership mutations. Each returns ok and refreshes the data the
+  // UI reads from (folders for the tree, lessons for the per-lesson folder_ids).
+  const folderApi: MyLibraryFolderHandlers = {
+    folders,
+    onCreateFolder: async (name, parentId) => {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create-folder', name, parent_id: parentId }),
+      })
+      if (!res.ok) return false
+      await loadFolders()
+      return true
+    },
+    onRenameFolder: async (folderId, name) => {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rename-folder', folder_id: folderId, name }),
+      })
+      if (!res.ok) return false
+      await loadFolders()
+      return true
+    },
+    onDeleteFolder: async (folderId) => {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-folder', folder_id: folderId }),
+      })
+      if (!res.ok) return false
+      await Promise.all([loadFolders(), editor.loadLessons?.()])
+      return true
+    },
+    onAssignToFolder: async (lessonId, folderId) => {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'assign-to-folder', lesson_id: lessonId, folder_id: folderId }),
+      })
+      if (!res.ok) return false
+      await editor.loadLessons?.()
+      return true
+    },
+    onRemoveFromFolder: async (lessonId, folderId) => {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove-from-folder', lesson_id: lessonId, folder_id: folderId }),
+      })
+      if (!res.ok) return false
+      await editor.loadLessons?.()
+      return true
+    },
+  }
 
   // URL params
   const idParam = params.get('id')
@@ -110,6 +185,14 @@ function LessonsBetaBody() {
         onNewLesson={() => {}}
         onAssign={async () => ({ ok: false })}
         onOpenSchoolLibrary={() => {}}
+        folderApi={{
+          folders: [],
+          onCreateFolder: async () => false,
+          onRenameFolder: async () => false,
+          onDeleteFolder: async () => false,
+          onAssignToFolder: async () => false,
+          onRemoveFromFolder: async () => false,
+        }}
       />
     )
   }
@@ -222,6 +305,7 @@ function LessonsBetaBody() {
           onOpenLesson={(id) => router.push(`/admin-beta/lessons?id=${id}`)}
           onNewLesson={() => editor.startNewLesson()}
           onOpenSchoolLibrary={() => router.push('/admin-beta/content-bank')}
+          folderApi={folderApi}
           onAssign={async (lessonId, courseId) => {
             const res = await fetch('/api/lessons', {
               method: 'POST',

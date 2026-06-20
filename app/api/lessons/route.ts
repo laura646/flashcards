@@ -145,12 +145,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ lessons: [] })
     }
 
-    const [flashcardCountsRes, exerciseCountsRes, blockCountsRes, exerciseIdsRes] = await Promise.all([
+    const [flashcardCountsRes, exerciseCountsRes, blockCountsRes, exerciseIdsRes, folderLinksRes] = await Promise.all([
       supabase.from('lesson_flashcards').select('lesson_id').in('lesson_id', lessonIds),
       supabase.from('lesson_exercises').select('lesson_id, is_mandatory').in('lesson_id', lessonIds),
       supabase.from('lesson_blocks').select('lesson_id, block_type').in('lesson_id', lessonIds),
       // Pre-fetch exercise IDs for progress query (students only, but cheap to run always)
       supabase.from('lesson_exercises').select('id, lesson_id, is_mandatory').in('lesson_id', lessonIds),
+      // Folder membership for My Library: bulk lesson→folder links, grouped
+      // client-side into folder_ids[] per lesson (avoids per-lesson N+1).
+      supabase.from('lesson_folders').select('lesson_id, folder_id').in('lesson_id', lessonIds),
     ])
 
     const flashcardCounts: Record<string, number> = {}
@@ -173,6 +176,13 @@ export async function GET(req: NextRequest) {
     ;(blockCountsRes.data || []).forEach((b: { lesson_id: string; block_type: string }) => {
       if (!blockCounts[b.lesson_id]) blockCounts[b.lesson_id] = {}
       blockCounts[b.lesson_id][b.block_type] = (blockCounts[b.lesson_id][b.block_type] || 0) + 1
+    })
+
+    // Group folder links into folder_ids[] per lesson for My Library.
+    const folderIdsByLesson: Record<string, string[]> = {}
+    ;(folderLinksRes.data || []).forEach((l: { lesson_id: string; folder_id: string }) => {
+      if (!folderIdsByLesson[l.lesson_id]) folderIdsByLesson[l.lesson_id] = []
+      folderIdsByLesson[l.lesson_id].push(l.folder_id)
     })
 
     // For students, also fetch their progress to show completion indicators
@@ -265,6 +275,7 @@ export async function GET(req: NextRequest) {
       mandatory_exercise_count: mandatoryExerciseCounts[lesson.id] || 0,
       bonus_exercise_count: bonusExerciseCounts[lesson.id] || 0,
       block_counts: blockCounts[lesson.id] || {},
+      folder_ids: folderIdsByLesson[lesson.id] || [],
       exercises_completed: exerciseCompletedCounts[lesson.id] || 0,
       mandatory_completed: mandatoryCompletedCounts[lesson.id] || 0,
       bonus_completed: bonusCompletedCounts[lesson.id] || 0,

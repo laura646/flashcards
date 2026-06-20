@@ -1,6 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { requireRole, getAccessibleCourseIds } from '@/lib/roles'
+import { requireRole, getAccessibleCourseIds, type UserRole } from '@/lib/roles'
+
+// Owner/access gate for filing a lesson into a folder (assign / remove).
+// Superadmins bypass. Teachers must (a) own the lesson OR have access to its
+// course, AND (b) own the target folder — folders are personal per teacher.
+// Returns a NextResponse to short-circuit on denial, or null when allowed.
+async function checkFolderAssignAccess(
+  user: { email: string; role: UserRole },
+  lessonId: string,
+  folderId: string
+): Promise<NextResponse | null> {
+  if (user.role === 'superadmin') return null
+
+  const [{ data: lesson }, { data: folder }] = await Promise.all([
+    supabase.from('lessons').select('created_by, course_id').eq('id', lessonId).single(),
+    supabase.from('content_bank_folders').select('created_by').eq('id', folderId).single(),
+  ])
+
+  if (!lesson) return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+  if (!folder) return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
+
+  // Must own the destination folder.
+  if (folder.created_by !== user.email) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Must own the lesson or have access to its course.
+  const accessible = await getAccessibleCourseIds(user.email, user.role)
+  const lessonOk =
+    lesson.created_by === user.email ||
+    (lesson.course_id && accessible.includes(lesson.course_id))
+  if (!lessonOk) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  return null
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -99,12 +135,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ templates: templatesWithCounts })
     }
 
-    // ── List all folders (tree structure) ──
+    // ── List folders (tree structure) ──
+    // Default: returns ALL folders (legacy content-bank behaviour, unchanged).
+    // With ?mine=true: returns ONLY the caller's own folders (created_by =
+    // session email). My Library uses mine=true so folders are personal per
+    // teacher. Applies to superadmins too — "mine" means the caller's folders.
     if (action === 'list-folders') {
-      const { data: folders, error } = await supabase
+      const mine = req.nextUrl.searchParams.get('mine') === 'true'
+
+      let folderQuery = supabase
         .from('content_bank_folders')
         .select('id, name, parent_id, created_by, created_at')
         .order('name')
+
+      if (mine) folderQuery = folderQuery.eq('created_by', user.email)
+
+      const { data: folders, error } = await folderQuery
 
       if (error) throw error
 
@@ -504,10 +550,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    // ── Assign template to folder ──
+    // ── Assign a lesson to a folder (any lesson: draft / assigned / published /
+    // template — NOT restricted to is_template). Owner/access-gated for teachers:
+    // they must own the lesson (created_by) or have access to its course, AND
+    // own the target folder (folders are personal). Superadmins bypass. ──
     if (action === 'assign-to-folder') {
       const { lesson_id, folder_id } = body
       if (!lesson_id || !folder_id) return NextResponse.json({ error: 'Lesson ID and folder ID required' }, { status: 400 })
+
+      const denied = await checkFolderAssignAccess(user, lesson_id, folder_id)
+      if (denied) return denied
 
       // Check if already assigned
       const { data: existing } = await supabase
@@ -528,10 +580,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    // ── Remove template from folder ──
+    // ── Remove a lesson from a folder. Same owner/access gate as assign. ──
     if (action === 'remove-from-folder') {
       const { lesson_id, folder_id } = body
       if (!lesson_id || !folder_id) return NextResponse.json({ error: 'Lesson ID and folder ID required' }, { status: 400 })
+
+      const denied = await checkFolderAssignAccess(user, lesson_id, folder_id)
+      if (denied) return denied
 
       const { error } = await supabase
         .from('lesson_folders')

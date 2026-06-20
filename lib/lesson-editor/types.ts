@@ -39,6 +39,11 @@ export interface Lesson {
   // payload (the query uses .select('*')); used by My Library to filter
   // "mine". May be missing on older rows — treat absent as not-mine.
   created_by?: string | null
+  // IDs of the personal folders this lesson is filed under (many-to-many via
+  // lesson_folders). Added by GET /api/lessons so My Library can place each
+  // lesson under its folder(s) client-side without an N+1 lookup. Empty array
+  // when the lesson is in no folder.
+  folder_ids?: string[]
 }
 
 // (legacy page.tsx 50-61)
