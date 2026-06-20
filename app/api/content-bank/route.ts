@@ -43,11 +43,17 @@ export async function GET(req: NextRequest) {
     const user = await requireRole('superadmin', 'teacher')
     const action = req.nextUrl.searchParams.get('action') || 'list'
 
-    // ── List all templates (with optional filters) ──
+    // ── List content (with optional filters + scope) ──
+    // scope controls WHICH content is listed:
+    //   'school' (DEFAULT) → is_shared = true. The School Library page.
+    //   'mine'             → created_by = session email (the caller's own content).
+    //   'all'              → legacy behaviour: is_template = true (flat template lib).
+    // folder_id / level / category filters apply on top of the scope.
     if (action === 'list') {
       const level = req.nextUrl.searchParams.get('level')
       const category = req.nextUrl.searchParams.get('category')
       const folderId = req.nextUrl.searchParams.get('folder_id')
+      const scope = req.nextUrl.searchParams.get('scope') || 'school'
 
       // If filtering by folder, get lesson IDs in that folder first
       let folderLessonIds: string[] | null = null
@@ -64,9 +70,13 @@ export async function GET(req: NextRequest) {
 
       let query = supabase
         .from('lessons')
-        .select('id, title, lesson_date, lesson_type, summary, is_template, template_category, template_level, created_at, updated_at, created_by')
-        .eq('is_template', true)
+        .select('id, title, lesson_date, lesson_type, summary, is_template, is_shared, template_category, template_level, created_at, updated_at, created_by')
         .order('updated_at', { ascending: false })
+
+      // Scope filter
+      if (scope === 'mine') query = query.eq('created_by', user.email)
+      else if (scope === 'all') query = query.eq('is_template', true)
+      else query = query.eq('is_shared', true) // 'school' (default)
 
       if (level) query = query.eq('template_level', level)
       if (category) query = query.eq('template_category', category)
@@ -271,6 +281,55 @@ export async function POST(req: NextRequest) {
       }
 
       const { error } = await supabase.from('lessons').update(updateData).eq('id', lesson_id)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Share own content to the School Library ──
+    // Gate: caller must OWN the content (created_by === session email) OR be a
+    // superadmin. Any trainer can share THEIR OWN content. 403 otherwise.
+    if (action === 'share-to-school') {
+      const { lesson_id } = body
+      if (!lesson_id) return NextResponse.json({ error: 'Lesson ID required' }, { status: 400 })
+
+      const { data: lesson } = await supabase
+        .from('lessons')
+        .select('created_by')
+        .eq('id', lesson_id)
+        .single()
+      if (!lesson) return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+      if (user.role !== 'superadmin' && lesson.created_by !== user.email) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const { error } = await supabase
+        .from('lessons')
+        .update({ is_shared: true })
+        .eq('id', lesson_id)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Unshare content from the School Library ──
+    // Gate: owner (created_by === session email) OR superadmin. 403 otherwise.
+    if (action === 'unshare-from-school') {
+      const { lesson_id } = body
+      if (!lesson_id) return NextResponse.json({ error: 'Lesson ID required' }, { status: 400 })
+
+      const { data: lesson } = await supabase
+        .from('lessons')
+        .select('created_by')
+        .eq('id', lesson_id)
+        .single()
+      if (!lesson) return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+      if (user.role !== 'superadmin' && lesson.created_by !== user.email) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const { error } = await supabase
+        .from('lessons')
+        .update({ is_shared: false })
+        .eq('id', lesson_id)
       if (error) throw error
       return NextResponse.json({ ok: true })
     }

@@ -86,6 +86,8 @@ export default function MyLibraryView({
   onOpenLesson,
   onNewLesson,
   onAssign,
+  onShareToSchool,
+  onUnshareFromSchool,
   onOpenSchoolLibrary,
   folderApi,
 }: {
@@ -95,6 +97,8 @@ export default function MyLibraryView({
   onOpenLesson: (id: string) => void
   onNewLesson: () => void
   onAssign: (lessonId: string, courseId: string) => Promise<{ ok: boolean; error?: string }>
+  onShareToSchool: (lessonId: string) => Promise<{ ok: boolean; error?: string }>
+  onUnshareFromSchool: (lessonId: string) => Promise<{ ok: boolean; error?: string }>
   onOpenSchoolLibrary: () => void
   folderApi: MyLibraryFolderHandlers
 }) {
@@ -203,6 +207,10 @@ export default function MyLibraryView({
       return true
     })
   }, [myLessons, selectedFolderId, statusFilter, levelFilter, courseFilter, lessonTypeFilter, categoryFilter, search])
+
+  // ── Optimistic share state ── lessonId -> is_shared override, applied on top
+  // of lesson.is_shared so the pill + action flip instantly before props refresh.
+  const [sharedOverride, setSharedOverride] = useState<Record<string, boolean>>({})
 
   // ── Transient toast ──
   const [toast, setToast] = useState<string | null>(null)
@@ -551,25 +559,53 @@ export default function MyLibraryView({
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 gap-3">
-                {visible.map((lesson) => (
-                  <ContentCard
-                    key={lesson.id}
-                    lesson={lesson}
-                    kind={classifyLesson(lesson)}
-                    courseName={lesson.course_id ? courseNameById[lesson.course_id] : undefined}
-                    courses={courses}
-                    coursesLoading={coursesLoading}
-                    onOpenLesson={onOpenLesson}
-                    onMove={() => setMovingLesson(lesson)}
-                    onAssign={async (courseId) => {
-                      const res = await onAssign(lesson.id, courseId)
-                      if (res.ok) {
-                        setToast(`Assigned to ${courseNameById[courseId] || 'course'}`)
-                      }
-                      return res
-                    }}
-                  />
-                ))}
+                {visible.map((lesson) => {
+                  const isShared =
+                    lesson.id in sharedOverride ? sharedOverride[lesson.id] : !!lesson.is_shared
+                  return (
+                    <ContentCard
+                      key={lesson.id}
+                      lesson={lesson}
+                      kind={classifyLesson(lesson)}
+                      courseName={lesson.course_id ? courseNameById[lesson.course_id] : undefined}
+                      courses={courses}
+                      coursesLoading={coursesLoading}
+                      isShared={isShared}
+                      onOpenLesson={onOpenLesson}
+                      onMove={() => setMovingLesson(lesson)}
+                      onAssign={async (courseId) => {
+                        const res = await onAssign(lesson.id, courseId)
+                        if (res.ok) {
+                          setToast(`Assigned to ${courseNameById[courseId] || 'course'}`)
+                        }
+                        return res
+                      }}
+                      onShare={async () => {
+                        // Optimistic flip, then reconcile/revert on the result.
+                        setSharedOverride((prev) => ({ ...prev, [lesson.id]: true }))
+                        const res = await onShareToSchool(lesson.id)
+                        if (res.ok) {
+                          setToast('Shared to School Library')
+                        } else {
+                          setSharedOverride((prev) => ({ ...prev, [lesson.id]: false }))
+                          setToast(res.error || 'Could not share')
+                        }
+                        return res
+                      }}
+                      onUnshare={async () => {
+                        setSharedOverride((prev) => ({ ...prev, [lesson.id]: false }))
+                        const res = await onUnshareFromSchool(lesson.id)
+                        if (res.ok) {
+                          setToast('Removed from School Library')
+                        } else {
+                          setSharedOverride((prev) => ({ ...prev, [lesson.id]: true }))
+                          setToast(res.error || 'Could not unshare')
+                        }
+                        return res
+                      }}
+                    />
+                  )
+                })}
               </div>
             )}
           </div>
@@ -711,21 +747,28 @@ function ContentCard({
   courseName,
   courses,
   coursesLoading,
+  isShared,
   onOpenLesson,
   onMove,
   onAssign,
+  onShare,
+  onUnshare,
 }: {
   lesson: Lesson
   kind: ItemKind
   courseName?: string
   courses: CourseLite[]
   coursesLoading: boolean
+  isShared: boolean
   onOpenLesson: (id: string) => void
   onMove: () => void
   onAssign: (courseId: string) => Promise<{ ok: boolean; error?: string }>
+  onShare: () => Promise<{ ok: boolean; error?: string }>
+  onUnshare: () => Promise<{ ok: boolean; error?: string }>
 }) {
   const [selectedCourseId, setSelectedCourseId] = useState('')
   const [assigning, setAssigning] = useState(false)
+  const [sharing, setSharing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const blocks = blockTotal(lesson.block_counts)
@@ -741,6 +784,14 @@ function ContentCard({
       setAssigning(false)
     }
     // On ok the parent refreshes and the card re-labels itself "In: <course>".
+  }
+
+  const handleShareToggle = async () => {
+    if (sharing) return
+    setSharing(true)
+    if (isShared) await onUnshare()
+    else await onShare()
+    setSharing(false)
   }
 
   // The status/location pill.
@@ -762,9 +813,16 @@ function ContentCard({
           <p className="text-sm font-bold text-ink-black leading-snug line-clamp-2">
             {lesson.title || 'Untitled lesson'}
           </p>
-          <Pill variant={label.variant} className="shrink-0 whitespace-nowrap max-w-[140px] truncate">
-            {label.text}
-          </Pill>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <Pill variant={label.variant} className="whitespace-nowrap max-w-[140px] truncate">
+              {label.text}
+            </Pill>
+            {isShared && (
+              <Pill variant="status" className="whitespace-nowrap">
+                🏫 Shared
+              </Pill>
+            )}
+          </div>
         </div>
         <span className="text-xs text-ink-muted">{formatDate(lesson.lesson_date)}</span>
         <div className="flex items-center gap-5 pt-2.5 border-t border-hairline">
@@ -805,12 +863,21 @@ function ContentCard({
             {error}
           </p>
         )}
-        <button
-          onClick={onMove}
-          className="self-start text-[12px] font-bold text-sky-text hover:underline"
-        >
-          {(lesson.folder_ids || []).length > 0 ? '🗂 Move to folder' : '🗂 Add to folder'}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onMove}
+            className="text-[12px] font-bold text-sky-text hover:underline"
+          >
+            {(lesson.folder_ids || []).length > 0 ? '🗂 Move to folder' : '🗂 Add to folder'}
+          </button>
+          <button
+            onClick={handleShareToggle}
+            disabled={sharing}
+            className="text-[12px] font-bold text-sky-text hover:underline disabled:opacity-50"
+          >
+            {isShared ? '↩ Unshare' : '🏫 Share to School'}
+          </button>
+        </div>
       </div>
     </div>
   )

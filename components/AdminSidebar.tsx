@@ -73,7 +73,7 @@ const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/admin-beta/content-bank',
-    label: 'Content Bank',
+    label: 'School Library',
     icon: '🗃️',
     match: (p) =>
       (p?.startsWith('/admin-beta/content-bank') ?? false) ||

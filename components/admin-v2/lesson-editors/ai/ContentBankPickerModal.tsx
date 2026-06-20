@@ -22,6 +22,7 @@ import {
   EmptyState,
   InlineError,
   Pill,
+  SegmentedControl,
   Skeleton,
   Spinner,
 } from '@/components/student-ui'
@@ -79,6 +80,9 @@ interface Props {
   onAdd: (picked: PickedContent) => void
 }
 
+// Library scope for the list fetch — appended as &scope= to /api/content-bank.
+type LibraryScope = 'mine' | 'school' | 'all'
+
 // Sums every block-type count into one number for the card meta line.
 function totalBlocks(counts: Record<string, number>): number {
   return Object.values(counts || {}).reduce((a, b) => a + b, 0)
@@ -102,6 +106,8 @@ export default function ContentBankPickerModal({ onClose, onAdd }: Props) {
 
   const [folderId, setFolderId] = useState<string>('') // '' = all folders
   const [search, setSearch] = useState('')
+  // Library scope for the list fetch. Defaults to the School Library.
+  const [scope, setScope] = useState<LibraryScope>('school')
 
   // ── Detail state ──
   const [selectedTemplate, setSelectedTemplate] = useState<CbTemplate | null>(null)
@@ -122,9 +128,9 @@ export default function ContentBankPickerModal({ onClose, onAdd }: Props) {
     setBrowseLoading(true)
     setBrowseError(null)
 
-    const listUrl = folderId
-      ? `/api/content-bank?action=list&folder_id=${encodeURIComponent(folderId)}`
-      : '/api/content-bank?action=list'
+    const listUrl =
+      `/api/content-bank?action=list&scope=${scope}` +
+      (folderId ? `&folder_id=${encodeURIComponent(folderId)}` : '')
 
     Promise.all([
       fetch('/api/content-bank?action=list-folders').then((r) => {
@@ -152,7 +158,7 @@ export default function ContentBankPickerModal({ onClose, onAdd }: Props) {
     return () => {
       cancelled = true
     }
-  }, [folderId])
+  }, [folderId, scope])
 
   // ── Detail fetch (mirror legacy openCbTemplate) ──
   const openTemplate = async (tpl: CbTemplate) => {
@@ -273,16 +279,16 @@ export default function ContentBankPickerModal({ onClose, onAdd }: Props) {
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Add from content bank"
+        aria-label="Add from library"
       >
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4 shrink-0">
           <div className="min-w-0">
             <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-sky">
-              🏦 Content bank
+              📚 Library
             </p>
             <h3 className="text-base font-extrabold text-ink-black mt-0.5 truncate">
-              {inDetail ? selectedTemplate!.title || 'Untitled template' : 'Add from a template'}
+              {inDetail ? selectedTemplate!.title || 'Untitled template' : 'Add from library'}
             </h3>
           </div>
           <button
@@ -454,6 +460,22 @@ export default function ContentBankPickerModal({ onClose, onAdd }: Props) {
         ) : (
           // ════════════════════ BROWSE VIEW ════════════════════
           <>
+            {/* Scope switch — which library to browse */}
+            <div className="px-6 pb-3 shrink-0">
+              <SegmentedControl<LibraryScope>
+                segments={[
+                  { value: 'mine', label: 'My Library' },
+                  { value: 'school', label: 'School Library' },
+                  { value: 'all', label: 'All' },
+                ]}
+                value={scope}
+                onChange={(v) => {
+                  setScope(v)
+                  setFolderId('')
+                }}
+              />
+            </div>
+
             {/* Filters */}
             <div className="px-6 pb-3 shrink-0 flex flex-col sm:flex-row gap-2.5">
               <select

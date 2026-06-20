@@ -184,6 +184,8 @@ function LessonsBetaBody() {
         onOpenLesson={() => {}}
         onNewLesson={() => {}}
         onAssign={async () => ({ ok: false })}
+        onShareToSchool={async () => ({ ok: false })}
+        onUnshareFromSchool={async () => ({ ok: false })}
         onOpenSchoolLibrary={() => {}}
         folderApi={{
           folders: [],
@@ -318,6 +320,32 @@ function LessonsBetaBody() {
               return { ok: true }
             }
             return { ok: false, error: data.error || 'Failed to assign' }
+          }}
+          onShareToSchool={async (lessonId) => {
+            const res = await fetch('/api/content-bank', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'share-to-school', lesson_id: lessonId }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && data.ok) {
+              void editor.loadLessons?.()
+              return { ok: true }
+            }
+            return { ok: false, error: data.error || 'Failed to share' }
+          }}
+          onUnshareFromSchool={async (lessonId) => {
+            const res = await fetch('/api/content-bank', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'unshare-from-school', lesson_id: lessonId }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && data.ok) {
+              void editor.loadLessons?.()
+              return { ok: true }
+            }
+            return { ok: false, error: data.error || 'Failed to unshare' }
           }}
         />
       )}

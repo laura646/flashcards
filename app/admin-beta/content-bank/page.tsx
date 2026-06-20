@@ -1,16 +1,18 @@
 'use client'
 
-// 10B redesign — Content Bank LIBRARY manager (Phase 1, "new beside old").
+// 10B redesign — SCHOOL LIBRARY (Phase 2 of the locked Library model).
 //
-// Faithful COPY of the live app/admin/content-bank/page.tsx: ALL state,
-// handlers, fetch calls, API actions/payloads, modals and role-gating are
-// byte-faithful — only the JSX is restyled to the 10B kit + tokens and made
-// COMPACT/DENSE (Laura's "less blank space" rule). The live page is left 100%
-// untouched. Lives at a NEW route (/admin-beta/content-bank); an
-// app/admin-beta/layout.tsx will provide the nav, so this renders content only.
+// This page is the School Library: SHARED content from across the school
+// (lessons with is_shared = true), reusable by any trainer. It is separate
+// from each teacher's "My Library" (created_by = me, at /admin-beta/lessons).
 //
-// Internal links to the editor are repointed /admin/lessons -> /admin-beta/lessons
-// (the new editor exists). All API paths are unchanged.
+// Loads templates with scope=school (is_shared = true). Everyone can browse,
+// "Add to Lesson" and "Clone to Course" (both COPY into the caller's own
+// lesson/course). Owner-only (created_by === me) OR superadmin can "Unshare"
+// an item from the school + edit it; non-owners can reuse but not edit.
+//
+// Internal links to the editor point at /admin-beta/lessons. All API paths
+// are unchanged; scope=school is the API default.
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
@@ -18,6 +20,7 @@ import { useRouter } from 'next/navigation'
 import ExercisePreview from '@/components/ExercisePreview'
 import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
 import { Button, Card, Pill, EmptyState, Skeleton } from '@/components/student-ui'
+import FolderTree, { getFolderDepth, type Folder } from '@/components/admin-v2/FolderTree'
 
 // ── Types ──
 
@@ -27,6 +30,8 @@ interface Template {
   lesson_date: string
   lesson_type: string
   summary: string | null
+  is_template: boolean
+  is_shared: boolean
   template_category: string | null
   template_level: string | null
   created_at: string
@@ -82,15 +87,6 @@ interface Course {
   name: string
 }
 
-interface Folder {
-  id: string
-  name: string
-  parent_id: string | null
-  created_by: string
-  created_at: string
-  template_count: number
-}
-
 const CATEGORIES = ['General English', 'Business English']
 
 const LEVELS = [
@@ -138,120 +134,6 @@ const LESSON_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
 const inputClass =
   'w-full px-3 py-2 text-sm text-ink-body bg-white border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky transition-colors placeholder:text-[#b6bac2]'
 
-// ── Folder Tree Component ──
-
-function FolderTree({
-  folders,
-  parentId,
-  selectedFolderId,
-  expandedFolders,
-  onSelectFolder,
-  onToggleExpand,
-  onCreateSubfolder,
-  onRenameFolder,
-  onDeleteFolder,
-  depth = 0,
-}: {
-  folders: Folder[]
-  parentId: string | null
-  selectedFolderId: string | null
-  expandedFolders: Set<string>
-  onSelectFolder: (id: string | null) => void
-  onToggleExpand: (id: string) => void
-  onCreateSubfolder: (parentId: string) => void
-  onRenameFolder: (folder: Folder) => void
-  onDeleteFolder: (folder: Folder) => void
-  depth?: number
-}) {
-  const children = folders.filter(f => f.parent_id === parentId)
-  if (children.length === 0) return null
-
-  return (
-    <div>
-      {children.map(folder => {
-        const hasChildren = folders.some(f => f.parent_id === folder.id)
-        const isExpanded = expandedFolders.has(folder.id)
-        const isSelected = selectedFolderId === folder.id
-
-        return (
-          <div key={folder.id}>
-            <div
-              className={`group flex items-center gap-1 px-2 py-1.5 rounded-tile cursor-pointer text-sm transition-colors ${
-                isSelected
-                  ? 'bg-sky-wash text-sky-text font-semibold'
-                  : 'text-ink-body hover:bg-surface'
-              }`}
-              style={{ paddingLeft: `${depth * 16 + 8}px` }}
-            >
-              {/* Expand/collapse arrow */}
-              <button
-                onClick={e => { e.stopPropagation(); onToggleExpand(folder.id) }}
-                className="w-4 h-4 flex items-center justify-center text-ink-muted hover:text-sky-text shrink-0"
-              >
-                {hasChildren ? (isExpanded ? '▾' : '▸') : ''}
-              </button>
-
-              {/* Folder name */}
-              <button
-                onClick={() => onSelectFolder(isSelected ? null : folder.id)}
-                className="flex-1 text-left truncate"
-              >
-                {folder.name}
-              </button>
-
-              {/* Count badge */}
-              {folder.template_count > 0 && (
-                <span className="text-xs text-ink-muted shrink-0">{folder.template_count}</span>
-              )}
-
-              {/* Context actions (visible on hover) */}
-              <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                <button
-                  onClick={e => { e.stopPropagation(); onCreateSubfolder(folder.id) }}
-                  className="w-5 h-5 flex items-center justify-center text-ink-muted hover:text-sky-text text-xs"
-                  title="Add subfolder"
-                >
-                  +
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onRenameFolder(folder) }}
-                  className="w-5 h-5 flex items-center justify-center text-ink-muted hover:text-sky-text text-xs"
-                  title="Rename"
-                >
-                  &#9998;
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onDeleteFolder(folder) }}
-                  className="w-5 h-5 flex items-center justify-center text-ink-muted hover:text-incorrect-fg text-xs"
-                  title="Delete"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-
-            {/* Children */}
-            {hasChildren && isExpanded && (
-              <FolderTree
-                folders={folders}
-                parentId={folder.id}
-                selectedFolderId={selectedFolderId}
-                expandedFolders={expandedFolders}
-                onSelectFolder={onSelectFolder}
-                onToggleExpand={onToggleExpand}
-                onCreateSubfolder={onCreateSubfolder}
-                onRenameFolder={onRenameFolder}
-                onDeleteFolder={onDeleteFolder}
-                depth={depth + 1}
-              />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 // ── Main Component ──
 
 export default function ContentBankBetaPage() {
@@ -277,10 +159,6 @@ export default function ContentBankBetaPage() {
 
   // Assign to folder modal
   const [assigningTemplate, setAssigningTemplate] = useState<Template | null>(null)
-
-  // Delete template
-  const [deletingTemplate, setDeletingTemplate] = useState<Template | null>(null)
-  const [deleteInProgress, setDeleteInProgress] = useState(false)
 
   // Detail view
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
@@ -325,6 +203,11 @@ export default function ContentBankBetaPage() {
 
   const role = session?.user?.role
   const isAdmin = role === 'superadmin' || role === 'teacher'
+  const isSuperadmin = role === 'superadmin'
+  const myEmail = session?.user?.email || ''
+  // Owner-or-superadmin gate: who may edit / unshare a shared item.
+  const canManage = (t: { author_email: string | null } | null) =>
+    !!t && (isSuperadmin || (!!t.author_email && t.author_email === myEmail))
 
   // ── Load folders ──
   const loadFolders = useCallback(async () => {
@@ -342,7 +225,8 @@ export default function ContentBankBetaPage() {
   const loadTemplates = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ action: 'list' })
+      // scope=school → only content shared to the School Library (is_shared=true).
+      const params = new URLSearchParams({ action: 'list', scope: 'school' })
       if (filterLevel) params.set('level', filterLevel)
       if (filterCategory) params.set('category', filterCategory)
       if (selectedFolderId) params.set('folder_id', selectedFolderId)
@@ -636,27 +520,6 @@ export default function ContentBankBetaPage() {
     }
   }
 
-  const deleteTemplate = async (template: Template) => {
-    setDeleteInProgress(true)
-    try {
-      const res = await fetch('/api/lessons', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lessonId: template.id }),
-      })
-      if (!res.ok) throw new Error('Failed')
-      showToast('Template deleted')
-      setDeletingTemplate(null)
-      setSelectedTemplate(null)
-      setFlashcards([]); setExercises([]); setBlocks([])
-      loadTemplates()
-      loadFolders()
-    } catch {
-      showToast('Failed to delete template')
-    }
-    setDeleteInProgress(false)
-  }
-
   const assignToFolder = async (template: Template, folderId: string) => {
     try {
       const res = await fetch('/api/content-bank', {
@@ -695,6 +558,31 @@ export default function ContentBankBetaPage() {
       loadTemplates()
     } catch {
       showToast('Failed to remove from folder')
+    }
+  }
+
+  // ── Unshare from the School Library (owner or superadmin only) ──
+  // Sets is_shared=false. The item leaves the School Library but stays in the
+  // owner's My Library. Closes the detail view if the unshared item is open.
+  const unshareFromSchool = async (template: Template) => {
+    try {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'unshare-from-school',
+          lesson_id: template.id,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast('Removed from School Library')
+      if (selectedTemplate?.id === template.id) {
+        setSelectedTemplate(null)
+        setFlashcards([]); setExercises([]); setBlocks([])
+      }
+      loadTemplates()
+    } catch {
+      showToast('Failed to unshare')
     }
   }
 
@@ -973,35 +861,6 @@ export default function ContentBankBetaPage() {
         </div>
       )}
 
-      {/* Delete confirmation modal */}
-      {deletingTemplate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-sm shadow-xl">
-            <h3 className="font-bold text-ink-black mb-1">Delete Template?</h3>
-            <p className="text-xs text-ink-muted mb-4">
-              This will permanently delete &ldquo;{deletingTemplate.title}&rdquo; and all its content. This cannot be undone.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <Button
-                variant="neutral"
-                size="sm"
-                onClick={() => setDeletingTemplate(null)}
-                disabled={deleteInProgress}
-              >
-                Cancel
-              </Button>
-              <button
-                onClick={() => deleteTemplate(deletingTemplate)}
-                disabled={deleteInProgress}
-                className="px-4 py-2 bg-incorrect-fg text-white text-xs font-extrabold rounded-tile hover:brightness-95 transition-all disabled:opacity-50"
-              >
-                {deleteInProgress ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </Card>
-        </div>
-      )}
-
       {/* ══════════ DETAIL VIEW ══════════ */}
       {selectedTemplate ? (
         <div className="max-w-5xl mx-auto">
@@ -1010,13 +869,14 @@ export default function ContentBankBetaPage() {
             onClick={() => { setSelectedTemplate(null); setFlashcards([]); setExercises([]); setBlocks([]) }}
             className="text-xs text-ink-muted hover:text-sky-text transition-colors mb-2"
           >
-            &larr; Back to Content Bank
+            &larr; Back to School Library
           </button>
 
           <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
             <div>
               <h1 className="text-2xl font-bold text-brandblue">{selectedTemplate.title}</h1>
               <div className="flex gap-2 mt-2 flex-wrap">
+                <Pill variant="correct">✓ Shared</Pill>
                 {selectedTemplate.template_level && (
                   <Pill variant="level">{selectedTemplate.template_level}</Pill>
                 )}
@@ -1029,24 +889,35 @@ export default function ContentBankBetaPage() {
                   </Pill>
                 )}
               </div>
+              <p className="text-xs text-ink-muted mt-2">
+                Shared by {selectedTemplate.author_name || 'Unknown'}
+              </p>
               {selectedTemplate.summary && (
                 <p className="text-sm text-ink-muted mt-2">{selectedTemplate.summary}</p>
               )}
             </div>
             <div className="flex gap-2 shrink-0 flex-wrap">
-              <button
-                onClick={() => setDeletingTemplate(selectedTemplate)}
-                className="px-3 py-2 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors"
-              >
-                Delete
-              </button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => router.push(`/admin-beta/lessons?id=${selectedTemplate.id}`)}
-              >
-                Edit Template
-              </Button>
+              {/* Owner-destructive actions: only the owner (or superadmin). */}
+              {canManage(selectedTemplate) && (
+                <>
+                  <button
+                    onClick={() => unshareFromSchool(selectedTemplate)}
+                    className="px-3 py-2 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors"
+                    title="Remove this content from the School Library (stays in your library)"
+                  >
+                    Unshare
+                  </button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => router.push(`/admin-beta/lessons?id=${selectedTemplate.id}`)}
+                  >
+                    Edit
+                  </Button>
+                </>
+              )}
+              {/* Reuse actions: available to everyone (they COPY into your own
+                  lesson/course/folder — they don't mutate the shared item). */}
               <Button variant="secondary" size="sm" onClick={() => setAssigningTemplate(selectedTemplate)}>
                 Add to Folder
               </Button>
@@ -1144,7 +1015,9 @@ export default function ContentBankBetaPage() {
                                 >
                                   ▶ Preview
                                 </button>
-                                {!isEditing ? (
+                                {/* Editing a shared item mutates it for everyone,
+                                    so Edit/Delete are owner-or-superadmin only. */}
+                                {canManage(selectedTemplate) && (!isEditing ? (
                                   <button
                                     onClick={() => setEditingExercise({ ...ex, questions: ex.questions })}
                                     className="px-3 py-1.5 bg-sky text-white text-xs font-extrabold rounded-tile hover:bg-[#0099d6] transition-colors"
@@ -1167,13 +1040,15 @@ export default function ContentBankBetaPage() {
                                       Cancel
                                     </button>
                                   </>
+                                ))}
+                                {canManage(selectedTemplate) && (
+                                  <button
+                                    onClick={() => setConfirmExerciseDelete(ex.id)}
+                                    className="px-3 py-1.5 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors ml-auto"
+                                  >
+                                    Delete
+                                  </button>
                                 )}
-                                <button
-                                  onClick={() => setConfirmExerciseDelete(ex.id)}
-                                  className="px-3 py-1.5 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors ml-auto"
-                                >
-                                  Delete
-                                </button>
                               </div>
 
                               {/* Editable fields */}
@@ -1367,16 +1242,9 @@ export default function ContentBankBetaPage() {
           {/* Header */}
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-brandblue">Content Bank</h1>
-              <p className="text-xs text-ink-muted mt-1">Browse shared lesson templates. Clone or cherry-pick content into your lessons.</p>
+              <h1 className="text-2xl font-bold text-brandblue">School Library</h1>
+              <p className="text-xs text-ink-muted mt-1">Shared content from across the school — reuse it in your lessons.</p>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => router.push('/admin-beta/lessons?mode=content-bank')}
-            >
-              ＋ Create Template
-            </Button>
           </div>
 
           <div className="flex gap-4">
@@ -1425,7 +1293,7 @@ export default function ContentBankBetaPage() {
                   </div>
                 )}
 
-                {/* "All Templates" option */}
+                {/* "All Shared Content" option */}
                 <button
                   onClick={() => setSelectedFolderId(null)}
                   className={`w-full text-left px-2 py-1.5 rounded-tile text-sm mb-1 transition-colors ${
@@ -1434,7 +1302,7 @@ export default function ContentBankBetaPage() {
                       : 'text-ink-body hover:bg-surface'
                   }`}
                 >
-                  All Templates
+                  All Shared Content
                 </button>
 
                 {/* Folder tree */}
@@ -1479,7 +1347,7 @@ export default function ContentBankBetaPage() {
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search templates…"
+                    placeholder="Search shared content…"
                     className="w-full pl-9 pr-9 py-2 text-sm text-ink-body bg-white border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky transition-colors placeholder:text-[#b6bac2]"
                   />
                   {search && (
@@ -1564,11 +1432,11 @@ export default function ContentBankBetaPage() {
                   return (
                     <div className="bg-white rounded-card border border-hairline">
                       <EmptyState
-                        icon={filtersActive ? '🔍' : '🗂️'}
-                        title={filtersActive ? 'No templates match the current filters.' : 'No templates found.'}
+                        icon={filtersActive ? '🔍' : '🏫'}
+                        title={filtersActive ? 'No shared content matches the current filters.' : 'Nothing shared to the school yet.'}
                         hint={filtersActive
                           ? 'Try clearing a filter to see more.'
-                          : 'Create a template with the button above, or mark an existing lesson as "Share as Template" in the Lesson Manager.'}
+                          : 'Share content from your own library to make it reusable across the school.'}
                       />
                     </div>
                   )
@@ -1588,6 +1456,7 @@ export default function ContentBankBetaPage() {
                           {t.title}
                         </h3>
                         <div className="flex flex-wrap gap-1.5 mb-2">
+                          <Pill variant="correct">✓ Shared</Pill>
                           {t.template_level && (
                             <Pill variant="level">{t.template_level}</Pill>
                           )}
@@ -1604,11 +1473,11 @@ export default function ContentBankBetaPage() {
                         )}
                       </button>
                       <p className="text-xs text-ink-muted mt-2">
-                        Created by{' '}
+                        Shared by{' '}
                         <button
                           onClick={(e) => { e.stopPropagation(); setFilterAuthor(t.author_name || 'Unknown') }}
                           className="hover:text-sky-text hover:underline"
-                          title={`Show only ${t.author_name || 'Unknown'}'s templates`}
+                          title={`Show only ${t.author_name || 'Unknown'}'s content`}
                         >
                           {t.author_name || 'Unknown'}
                         </button>
@@ -1621,10 +1490,20 @@ export default function ContentBankBetaPage() {
                         <button
                           onClick={e => { e.stopPropagation(); setAssigningTemplate(t) }}
                           className="px-2 py-1 bg-white border border-hairline rounded-tile text-xs text-ink-muted hover:text-sky-text hover:border-sky"
-                          title="Add to folder"
+                          title="Add to one of your folders"
                         >
                           Folder
                         </button>
+                        {/* Unshare: owner or superadmin only. */}
+                        {canManage(t) && (
+                          <button
+                            onClick={e => { e.stopPropagation(); unshareFromSchool(t) }}
+                            className="px-2 py-1 bg-white border border-hairline rounded-tile text-xs text-ink-muted hover:text-incorrect-fg hover:border-incorrect-border"
+                            title="Remove from the School Library"
+                          >
+                            Unshare
+                          </button>
+                        )}
                         {selectedFolderId && (
                           <button
                             onClick={e => { e.stopPropagation(); removeFromFolder(t.id) }}
@@ -1653,15 +1532,4 @@ export default function ContentBankBetaPage() {
       )}
     </div>
   )
-}
-
-// Helper: get folder depth for indentation in flat list
-function getFolderDepth(folders: Folder[], folderId: string): number {
-  let depth = 0
-  let current = folders.find(f => f.id === folderId)
-  while (current?.parent_id) {
-    depth++
-    current = folders.find(f => f.id === current!.parent_id)
-  }
-  return depth
 }

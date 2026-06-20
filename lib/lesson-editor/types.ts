@@ -32,6 +32,10 @@ export interface Lesson {
   block_counts?: Record<string, number>
   lesson_type?: string
   is_template?: boolean
+  // True when this content has been shared to the School Library (Phase 2).
+  // Present on the content-bank list payload so the UI can show a "Shared"
+  // badge and gate the unshare action. Absent on older rows → treat as false.
+  is_shared?: boolean
   template_category?: string | null
   template_level?: string | null
   course_id?: string | null
