@@ -40,6 +40,7 @@ import {
   ArticleEditor,
 } from './MediaBlockEditors'
 import GrammarEditor from './GrammarEditor'
+import type { SuggestExResult } from '@/lib/lesson-editor/useLessonAi'
 
 interface Props {
   item: ContentItem
@@ -55,6 +56,12 @@ interface Props {
   onToggleCollapse: () => void
   onPickImage: (word: string, apply: (url: string) => void) => void
   onPreview: (exercise: Exercise) => void
+  // Task D: suggest-exercises-from-reading for the Article editor. Threaded
+  // from the page (useLessonAi). Optional — omitted in read-only harness paths.
+  onSuggestExercises?: (articleText: string, types: string[], count: number) => Promise<SuggestExResult>
+  generatingSuggest?: boolean
+  suggestError?: string | null
+  onClearSuggestError?: () => void
 }
 
 // Small square icon button for the header controls.
@@ -100,6 +107,10 @@ export default function ContentItemCard({
   onToggleCollapse,
   onPickImage,
   onPreview,
+  onSuggestExercises,
+  generatingSuggest,
+  suggestError,
+  onClearSuggestError,
 }: Props) {
   const cfg = BLOCK_CONFIG[item.type as ContentItemType]
   const icon = cfg?.icon || '📄'
@@ -239,6 +250,10 @@ export default function ContentItemCard({
           <ArticleEditor
             block={item.data as ContentBlock}
             onChange={(block) => onUpdate(block)}
+            onSuggestExercises={onSuggestExercises}
+            generatingSuggest={generatingSuggest}
+            suggestError={suggestError}
+            onClearSuggestError={onClearSuggestError}
           />
         )
       case 'grammar':

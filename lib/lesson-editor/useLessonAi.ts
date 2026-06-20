@@ -22,7 +22,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useState } from 'react'
-import type { Flashcard, Exercise, BlockType } from './types'
+import type { Flashcard, Exercise, BlockType, Mistake } from './types'
+import type { AttachedExercise } from '@/lib/attached-exercise'
 import { fileToBase64, mimeFromFilename, isImageFile } from './fileToBase64'
 
 // ── Public form shapes ──
@@ -84,6 +85,42 @@ export interface GenerateBlockInput {
 
 export type AiResult = { ok: boolean; error?: string }
 
+// Parsed result of an import-google-doc call (server route.ts L1162-1264).
+// Surfaced as `data` on the AiResult so the ImportDocModal can preview the
+// suggested title / summary / vocabulary / mistakes BEFORE the teacher applies
+// any of them to the lesson.
+export interface ImportDocResult {
+  suggestedTitle?: string
+  flashcards: Flashcard[]
+  summary: string
+  mistakes: Mistake[]
+  docText: string
+}
+
+export type ImportDocAiResult = { ok: boolean; error?: string; data?: ImportDocResult }
+
+// One lesson's worth of saved flashcard words, grouped under its title/date.
+// Returned by fetchCourseVocabulary (server action 'course-vocabulary',
+// route.ts L718-755) and consumed by the VocabPickerModal (task C).
+export interface CourseVocabLesson {
+  lesson_id: string
+  lesson_title: string
+  lesson_date: string
+  words: string[]
+}
+
+export type CourseVocabResult = {
+  ok: boolean
+  error?: string
+  data?: { lessons: CourseVocabLesson[] }
+}
+
+// Result of suggestExercisesFromReading (server action
+// 'suggest-exercises-from-reading', route.ts L761-839). The server already
+// stamps ids + per-question ids and returns the exact AttachedExercise shape,
+// so the mapping is a near-passthrough. (task D)
+export type SuggestExResult = { ok: boolean; error?: string; exercises?: AttachedExercise[] }
+
 // The slice of useLessonEditor this hook needs to apply generated content.
 export interface LessonAiActions {
   appendGeneratedFlashcards: (cards: Flashcard[], suggestedTitle?: string) => void
@@ -140,7 +177,12 @@ export function useLessonAi(actions: LessonAiActions) {
   const [generatingBlock, setGeneratingBlock] = useState(false)
   const [generatingGrammar, setGeneratingGrammar] = useState(false)
   const [generatingReading, setGeneratingReading] = useState(false)
+  const [generatingImport, setGeneratingImport] = useState(false)
+  const [generatingVocab, setGeneratingVocab] = useState(false)
+  const [generatingSuggestEx, setGeneratingSuggestEx] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+
+  const { courseId } = actions
 
   const level = courseLevel || undefined
 
@@ -387,6 +429,135 @@ export function useLessonAi(actions: LessonAiActions) {
     }
   }, [level, appendGeneratedBlock])
 
+  // ── Google-Doc import (legacy importFromGoogleDoc, page.tsx L2017-2070) ──
+  // POST { action: 'import-google-doc', url, level? } -> the server fetches the
+  // publicly-shared doc and returns { suggestedTitle, flashcards, summary,
+  // mistakes, docText }. Unlike the other actions this does NOT apply anything
+  // itself — it parses + returns the result as `data` so the ImportDocModal can
+  // preview it, and the caller applies the chosen parts via the editor hook.
+  const importGoogleDoc = useCallback(async (url: string): Promise<ImportDocAiResult> => {
+    setAiError(null)
+    if (!url.trim()) {
+      const msg = 'Please paste a Google Docs link'
+      setAiError(msg)
+      return { ok: false, error: msg }
+    }
+    setGeneratingImport(true)
+    try {
+      const { ok, data, error } = await postGenerate({
+        action: 'import-google-doc',
+        url: url.trim(),
+        level,
+      })
+      if (!ok) {
+        setAiError(error || null)
+        return { ok: false, error }
+      }
+      const rawCards = (data.flashcards as Array<Record<string, unknown>>) || []
+      const flashcards: Flashcard[] = rawCards.map((fc, i) => ({
+        word: (fc.word as string) || '',
+        phonetic: (fc.phonetic as string) || '',
+        meaning: (fc.meaning as string) || '',
+        example: (fc.example as string) || '',
+        notes: (fc.notes as string) || '',
+        order_index: i,
+      }))
+      const rawMistakes = (data.mistakes as Array<Record<string, unknown>>) || []
+      const mistakes: Mistake[] = rawMistakes.map((m) => ({
+        original: (m.original as string) || '',
+        correction: (m.correction as string) || '',
+        explanation: (m.explanation as string) || '',
+        practice: (m.practice as Mistake['practice']) || [],
+      }))
+      const result: ImportDocResult = {
+        suggestedTitle: (data.suggestedTitle as string) || undefined,
+        flashcards,
+        summary: (data.summary as string) || '',
+        mistakes,
+        docText: (data.docText as string) || '',
+      }
+      return { ok: true, data: result }
+    } finally {
+      setGeneratingImport(false)
+    }
+  }, [level])
+
+  // ── Course vocabulary (task C; legacy openVocabPicker, page.tsx L1388-1420) ──
+  // POST { action: 'course-vocabulary', course_id } -> { lessons: [{ lesson_id,
+  // lesson_title, lesson_date, words: string[] }] }. Needs a saved course; the
+  // editor only has a courseId once the lesson is attached to a course.
+  const fetchCourseVocabulary = useCallback(async (): Promise<CourseVocabResult> => {
+    setAiError(null)
+    if (!courseId) {
+      return { ok: false, error: 'Save the lesson to a course first' }
+    }
+    setGeneratingVocab(true)
+    try {
+      const { ok, data, error } = await postGenerate({
+        action: 'course-vocabulary',
+        course_id: courseId,
+      })
+      if (!ok) {
+        setAiError(error || null)
+        return { ok: false, error }
+      }
+      const rawLessons = (data.lessons as Array<Record<string, unknown>>) || []
+      const lessons: CourseVocabLesson[] = rawLessons.map((l) => ({
+        lesson_id: (l.lesson_id as string) || '',
+        lesson_title: (l.lesson_title as string) || 'Untitled lesson',
+        lesson_date: (l.lesson_date as string) || '',
+        words: Array.isArray(l.words) ? (l.words as string[]).filter(Boolean) : [],
+      }))
+      return { ok: true, data: { lessons } }
+    } finally {
+      setGeneratingVocab(false)
+    }
+  }, [courseId])
+
+  // ── Suggest exercises from a reading body (task D; legacy
+  // suggestExercisesForBlock, page.tsx L1513-1559) ──
+  // POST { action: 'suggest-exercises-from-reading', article_text,
+  //   exercise_types[], count_per_type } -> { exercises: AttachedExercise[] }.
+  // The server stamps ids + per-question ids, so we pass the shape through.
+  const suggestExercisesFromReading = useCallback(
+    async (articleText: string, types: string[], count: number): Promise<SuggestExResult> => {
+      setAiError(null)
+      if (!articleText.trim()) {
+        const msg = 'Add reading text first'
+        setAiError(msg)
+        return { ok: false, error: msg }
+      }
+      if (types.length === 0) {
+        const msg = 'Pick at least one exercise type'
+        setAiError(msg)
+        return { ok: false, error: msg }
+      }
+      setGeneratingSuggestEx(true)
+      try {
+        const { ok, data, error } = await postGenerate({
+          action: 'suggest-exercises-from-reading',
+          article_text: articleText,
+          exercise_types: types,
+          count_per_type: count,
+        })
+        if (!ok) {
+          setAiError(error || null)
+          return { ok: false, error }
+        }
+        const exercises = (data.exercises as AttachedExercise[]) || []
+        if (exercises.length === 0) {
+          const msg = 'No exercises could be generated from the reading'
+          setAiError(msg)
+          return { ok: false, error: msg }
+        }
+        return { ok: true, exercises }
+      } finally {
+        setGeneratingSuggestEx(false)
+      }
+    },
+    [],
+  )
+
   const generating =
     generatingFlashcards || generatingExercises || generatingBlock || generatingGrammar || generatingReading
 
@@ -398,6 +569,9 @@ export function useLessonAi(actions: LessonAiActions) {
     generatingBlock,
     generatingGrammar,
     generatingReading,
+    generatingImport,
+    generatingVocab,
+    generatingSuggestEx,
     aiError,
     setAiError,
 
@@ -407,6 +581,9 @@ export function useLessonAi(actions: LessonAiActions) {
     generateBlock,
     generateGrammar,
     generateReading,
+    importGoogleDoc,
+    fetchCourseVocabulary,
+    suggestExercisesFromReading,
   }
 }
 

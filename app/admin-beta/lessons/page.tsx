@@ -137,6 +137,27 @@ function LessonsBetaBody() {
           onGenerateBlock={ai.generateBlock}
           onGenerateGrammar={ai.generateGrammar}
           onGenerateReading={ai.generateReading}
+          onImportGoogleDoc={ai.importGoogleDoc}
+          onApplyImport={(result, opts) => {
+            // Apply each chosen section via the editor hook. Title/summary
+            // overwrite the metadata fields; flashcards/mistakes append as items.
+            if (opts.title && result.suggestedTitle) {
+              editor.setTitle(result.suggestedTitle)
+            }
+            if (opts.summary && result.summary) {
+              editor.setSummary(result.summary)
+            }
+            if (opts.flashcards && result.flashcards.length > 0) {
+              editor.appendGeneratedFlashcards(result.flashcards, undefined)
+            }
+            if (opts.mistakes && result.mistakes.length > 0) {
+              editor.appendGeneratedBlock('mistakes', 'Common Mistakes', {
+                mistakes: result.mistakes,
+              })
+            }
+          }}
+          onFetchCourseVocabulary={ai.fetchCourseVocabulary}
+          onSuggestExercisesFromReading={ai.suggestExercisesFromReading}
           aiError={ai.aiError}
           onClearAiError={() => ai.setAiError(null)}
           generatingFlashcards={ai.generatingFlashcards}
@@ -144,6 +165,9 @@ function LessonsBetaBody() {
           generatingBlock={ai.generatingBlock}
           generatingGrammar={ai.generatingGrammar}
           generatingReading={ai.generatingReading}
+          generatingImport={ai.generatingImport}
+          generatingVocab={ai.generatingVocab}
+          generatingSuggestEx={ai.generatingSuggestEx}
           onUpdateItem={editor.updateItemData}
           onMoveItem={editor.moveItem}
           onRemoveItem={editor.removeItem}

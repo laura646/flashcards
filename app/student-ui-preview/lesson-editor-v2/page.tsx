@@ -328,6 +328,31 @@ export default function LessonEditorV2Preview() {
           onGenerateBlock={async (type, input) => { console.log('AI block', type, input); return { ok: true } }}
           onGenerateGrammar={async (form) => { console.log('AI grammar', form); return { ok: true } }}
           onGenerateReading={async (form) => { console.log('AI reading', form); return { ok: true } }}
+          onImportGoogleDoc={async (url) => { console.log('import doc', url); return { ok: true } }}
+          onApplyImport={(result, opts) => console.log('apply import', result, opts)}
+          onFetchCourseVocabulary={async () => {
+            console.log('fetch course vocabulary')
+            return {
+              ok: true,
+              data: {
+                lessons: [
+                  { lesson_id: 'cv1', lesson_title: 'Week 3 - At the airport', lesson_date: '2026-05-28', words: ['gate', 'departure', 'arrival', 'customs'] },
+                  { lesson_id: 'cv2', lesson_title: 'Week 4 - Hotels', lesson_date: '2026-06-04', words: ['reception', 'check-in', 'suite', 'concierge'] },
+                ],
+              },
+            }
+          }}
+          onSuggestExercisesFromReading={async (articleText, types, count) => {
+            console.log('suggest exercises', { articleText, types, count })
+            return {
+              ok: true,
+              exercises: types.map((type) => ({
+                id: `mock-${type}-${Math.random().toString(36).slice(2, 7)}`,
+                type: type as never,
+                questions: [],
+              })),
+            }
+          }}
           aiError={null}
           onClearAiError={() => {}}
           generatingFlashcards={false}
@@ -335,6 +360,9 @@ export default function LessonEditorV2Preview() {
           generatingBlock={false}
           generatingGrammar={false}
           generatingReading={false}
+          generatingImport={false}
+          generatingVocab={false}
+          generatingSuggestEx={false}
           onUpdateItem={updateItem}
           onMoveItem={moveItem}
           onRemoveItem={removeItem}
@@ -374,6 +402,10 @@ export default function LessonEditorV2Preview() {
           onGenerateBlock={async (type, input) => { console.log('AI block', type, input); return { ok: true } }}
           onGenerateGrammar={async (form) => { console.log('AI grammar', form); return { ok: true } }}
           onGenerateReading={async (form) => { console.log('AI reading', form); return { ok: true } }}
+          onImportGoogleDoc={async (url) => { console.log('import doc', url); return { ok: true } }}
+          onApplyImport={(result, opts) => console.log('apply import', result, opts)}
+          onFetchCourseVocabulary={async () => { console.log('fetch course vocabulary'); return { ok: false, error: 'Save the lesson to a course first' } }}
+          onSuggestExercisesFromReading={async (articleText, types, count) => { console.log('suggest exercises', { articleText, types, count }); return { ok: true, exercises: [] } }}
           aiError={null}
           onClearAiError={() => {}}
           generatingFlashcards={false}
@@ -381,6 +413,9 @@ export default function LessonEditorV2Preview() {
           generatingBlock={false}
           generatingGrammar={false}
           generatingReading={false}
+          generatingImport={false}
+          generatingVocab={false}
+          generatingSuggestEx={false}
           onUpdateItem={(i, d) => console.log('update', i, d)}
           onMoveItem={(i, dir) => console.log('move', i, dir)}
           onRemoveItem={(i) => console.log('remove', i)}

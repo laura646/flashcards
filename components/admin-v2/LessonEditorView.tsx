@@ -16,16 +16,17 @@
 // behind a local confirm modal; image picking is bridged through a single
 // ImagePickerModal mounted here. AI generation is DEFERRED everywhere.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button, Card, TextField, SegmentedControl, EmptyState, InlineError } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
-import CreateChooser from '@/components/student-ui/CreateChooser'
 import ContentItemCard from '@/components/admin-v2/lesson-editors/ContentItemCard'
 import ImagePickerModal from '@/components/ImagePickerModal'
 import ExercisePreview from '@/components/ExercisePreview'
 import AiGenerateModal, { type AiGenerateInput, type AiSource } from '@/components/admin-v2/lesson-editors/ai/AiGenerateModal'
 import GrammarAiForm, { type GrammarAiFormValues } from '@/components/admin-v2/lesson-editors/ai/GrammarAiForm'
 import ReadingAiForm, { type ReadingAiFormValues } from '@/components/admin-v2/lesson-editors/ai/ReadingAiForm'
+import ImportDocModal, { type ImportApplyOptions } from '@/components/admin-v2/lesson-editors/ai/ImportDocModal'
+import VocabPickerModal, { type VocabPickerLesson } from '@/components/admin-v2/lesson-editors/ai/VocabPickerModal'
 import {
   BLOCK_CONFIG,
   EXERCISE_TYPES,
@@ -39,6 +40,9 @@ import type {
   GenerateBlockInput,
   GrammarForm,
   ReadingForm,
+  ImportDocResult,
+  CourseVocabResult,
+  SuggestExResult,
 } from '@/lib/lesson-editor/useLessonAi'
 
 // The set of content types the two-door add flow can create. Mirrors the
@@ -86,7 +90,8 @@ const AI_ENABLED_TYPES = new Set<AddType>([
   'article',
 ])
 
-// Human-facing label for a content type (drives CreateChooser's itemLabel).
+// Human-facing label for a content type (drives the two-door chooser heading
+// and the AI modal titles).
 function typeLabel(type: AddType): string {
   return BLOCK_CONFIG[type]?.label ?? type
 }
@@ -144,6 +149,10 @@ export function LessonEditorView({
   onGenerateBlock,
   onGenerateGrammar,
   onGenerateReading,
+  onImportGoogleDoc,
+  onApplyImport,
+  onFetchCourseVocabulary,
+  onSuggestExercisesFromReading,
   aiError,
   onClearAiError,
   generatingFlashcards,
@@ -151,6 +160,9 @@ export function LessonEditorView({
   generatingBlock,
   generatingGrammar,
   generatingReading,
+  generatingImport,
+  generatingVocab,
+  generatingSuggestEx,
   onUpdateItem,
   onMoveItem,
   onRemoveItem,
@@ -188,6 +200,19 @@ export function LessonEditorView({
   onGenerateBlock: (blockType: BlockType, input: GenerateBlockInput) => Promise<AiResult>
   onGenerateGrammar: (form: GrammarForm) => Promise<AiResult>
   onGenerateReading: (form: ReadingForm) => Promise<AiResult>
+  // Google-Doc import. onImportGoogleDoc fetches + parses the doc and returns
+  // the parsed result (or an error); the view holds it in local state to drive
+  // the ImportDocModal preview. onApplyImport applies the teacher's chosen
+  // sections via the editor hook.
+  onImportGoogleDoc: (url: string) => Promise<{ ok: boolean; error?: string; data?: ImportDocResult }>
+  onApplyImport: (result: ImportDocResult, opts: ImportApplyOptions) => void
+  // Task C: lazy-loads the course's saved flashcard words for the vocab picker.
+  // Resolves { ok, data?: { lessons } }; the view owns the picker modal + the
+  // promise that resolves the teacher's chosen words back into the AI form.
+  onFetchCourseVocabulary: () => Promise<CourseVocabResult>
+  // Task D: suggest-exercises-from-reading. Threaded down to each Article
+  // editor card so the teacher can generate follow-up exercises from the body.
+  onSuggestExercisesFromReading: (articleText: string, types: string[], count: number) => Promise<SuggestExResult>
   aiError: string | null
   onClearAiError: () => void
   generatingFlashcards: boolean
@@ -195,6 +220,9 @@ export function LessonEditorView({
   generatingBlock: boolean
   generatingGrammar: boolean
   generatingReading: boolean
+  generatingImport: boolean
+  generatingVocab: boolean
+  generatingSuggestEx: boolean
   onUpdateItem: (index: number, data: ContentItem['data']) => void
   onMoveItem: (index: number, dir: 'up' | 'down') => void
   onRemoveItem: (index: number) => void
@@ -216,10 +244,29 @@ export function LessonEditorView({
   } | null>(null)
 
   // ── Two-door add flow ──
-  // Step 1: chooserType set -> CreateChooser modal open for that content type.
-  // Step 2 (AI door): aiFlow set -> the right AI UI open for that type.
+  // Step 1: chooserType set -> the small inline two-button chooser is open for
+  // that content type ("Build it myself" / "Generate with AI").
+  // Step 2 (AI door): aiFlow set -> the dedicated AI UI for that type opens
+  // DIRECTLY (it collects the source itself), so the source is asked exactly
+  // ONCE — no redundant CreateChooser source step.
   const [chooserType, setChooserType] = useState<AddType | null>(null)
   const [aiFlow, setAiFlow] = useState<AddType | null>(null)
+
+  // ── Google-Doc import ──
+  // importOpen toggles the modal; importResult holds the parsed doc once it
+  // arrives so the modal can preview it before the teacher applies sections.
+  const [importOpen, setImportOpen] = useState(false)
+  const [importResult, setImportResult] = useState<ImportDocResult | null>(null)
+
+  // ── Course-vocabulary picker (task C) ──
+  // The AI forms call onPickVocab() and await the chosen words. We open the
+  // modal, lazy-load the lessons (cached across opens), and stash the promise
+  // resolver so the modal's "Add"/close can resolve the awaited words back to
+  // the form. Resolving with [] (on cancel/close) is a no-op merge in the form.
+  const [vocabOpen, setVocabOpen] = useState(false)
+  const [vocabLessons, setVocabLessons] = useState<VocabPickerLesson[] | null>(null)
+  const [vocabLoading, setVocabLoading] = useState(false)
+  const vocabResolverRef = useRef<((words: string[]) => void) | null>(null)
 
   const hasFlashcards = contentItems.some((i) => i.type === 'flashcards')
   const canAddFlashcards = lessonType === 'lesson' && !hasFlashcards
@@ -331,6 +378,58 @@ export function LessonEditorView({
     if (result.ok) closeAi()
   }
 
+  // ── Google-Doc import handlers ──
+  const openImport = () => {
+    setAddMenuOpen(false)
+    onClearAiError()
+    setImportResult(null)
+    setImportOpen(true)
+  }
+
+  const closeImport = () => {
+    setImportOpen(false)
+    setImportResult(null)
+    onClearAiError()
+  }
+
+  const handleImport = async (url: string) => {
+    const res = await onImportGoogleDoc(url)
+    if (res.ok && res.data) setImportResult(res.data)
+  }
+
+  const handleApplyImport = (opts: ImportApplyOptions) => {
+    if (!importResult) return
+    onApplyImport(importResult, opts)
+    closeImport()
+  }
+
+  // ── Course-vocabulary picker handlers (task C) ──
+  // Opens the picker and returns a promise that resolves with the teacher's
+  // chosen words (or [] if they cancel). Lazy-loads the lessons on first open
+  // and caches them across opens.
+  const openVocabPicker = (): Promise<string[]> => {
+    onClearAiError()
+    setVocabOpen(true)
+    if (vocabLessons === null) {
+      setVocabLoading(true)
+      void onFetchCourseVocabulary().then((res) => {
+        setVocabLessons(res.ok && res.data ? res.data.lessons : [])
+        setVocabLoading(false)
+      })
+    }
+    return new Promise<string[]>((resolve) => {
+      vocabResolverRef.current = resolve
+    })
+  }
+
+  // Resolve the pending promise exactly once, then close. close() with no words
+  // resolves [] so the awaiting form simply merges nothing.
+  const settleVocab = (words: string[]) => {
+    vocabResolverRef.current?.(words)
+    vocabResolverRef.current = null
+    setVocabOpen(false)
+  }
+
   // The publish-eye on a flashcards item toggles the top-level boolean; for any
   // other item it flips that item's own published flag.
   const handleTogglePublished = (index: number) => {
@@ -414,7 +513,15 @@ export function LessonEditorView({
             )}
           </div>
 
-          {/* + Add content menu (top-right) */}
+          {/* Action buttons (top-right): Import from Google Doc + Add content */}
+          <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={openImport}
+          >
+            📄 Import from Google Doc
+          </Button>
           <div className="relative">
             <Button
               variant="secondary"
@@ -464,6 +571,7 @@ export function LessonEditorView({
               </>
             )}
           </div>
+          </div>
         </div>
 
         {contentItems.length === 0 ? (
@@ -492,6 +600,10 @@ export function LessonEditorView({
                 onToggleCollapse={() => onToggleCollapse(idx)}
                 onPickImage={handlePickImage}
                 onPreview={setPreviewExercise}
+                onSuggestExercises={onSuggestExercisesFromReading}
+                generatingSuggest={generatingSuggestEx}
+                suggestError={aiError}
+                onClearSuggestError={onClearAiError}
               />
             ))}
           </div>
@@ -568,7 +680,10 @@ export function LessonEditorView({
         />
       )}
 
-      {/* ── Two-door create chooser (Manual vs. Generate with AI) ── */}
+      {/* ── Two-door create chooser (Build it myself vs. Generate with AI) ──
+          CLEAN: no source step here. "Generate with AI" routes straight to the
+          dedicated AI UI for the type, which collects the source itself, so the
+          teacher is asked for the source exactly once. ── */}
       {chooserType && (
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
@@ -594,11 +709,33 @@ export function LessonEditorView({
                 ✕
               </button>
             </div>
-            <CreateChooser
-              itemLabel={typeLabel(chooserType)}
-              onManual={() => handleManual(chooserType)}
-              onGenerate={() => handleGenerateDoor(chooserType)}
-            />
+            <p className="text-[13px] text-ink-muted mb-3">
+              How do you want to create {typeLabel(chooserType)}?
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleManual(chooserType)}
+                className="flex-1 min-w-[180px] text-left border border-hairline rounded-card p-4 hover:border-sky transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40"
+              >
+                <div className="text-2xl mb-1.5" aria-hidden="true">✍️</div>
+                <div className="text-sm font-bold text-ink-black">Build it myself</div>
+                <div className="text-[12px] text-ink-muted mt-0.5 leading-relaxed">
+                  Start with a blank editor. Full control.
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleGenerateDoor(chooserType)}
+                className="flex-1 min-w-[180px] text-left border-[1.5px] border-sky-border bg-sky-wash rounded-card p-4 hover:border-sky transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40"
+              >
+                <div className="text-2xl mb-1.5" aria-hidden="true">✨</div>
+                <div className="text-sm font-bold text-sky-text">Generate with AI</div>
+                <div className="text-[12px] text-ink-body mt-0.5 leading-relaxed">
+                  From material you already have. Drafts it for you to tweak.
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -627,6 +764,7 @@ export function LessonEditorView({
           onSubmit={(form) => {
             void handleGrammarSubmit(form)
           }}
+          onPickVocab={openVocabPicker}
         />
       )}
 
@@ -639,6 +777,33 @@ export function LessonEditorView({
           onSubmit={(form) => {
             void handleReadingSubmit(form)
           }}
+          onPickVocab={openVocabPicker}
+        />
+      )}
+
+      {/* ── Course-vocabulary picker (task C). Sits ABOVE the AI forms (z-[60])
+          so it overlays the grammar / reading modal while the form awaits the
+          chosen words. ── */}
+      {vocabOpen && (
+        <VocabPickerModal
+          lessons={vocabLessons ?? []}
+          loading={vocabLoading || generatingVocab}
+          onClose={() => settleVocab([])}
+          onAdd={(words) => settleVocab(words)}
+        />
+      )}
+
+      {/* ── Google-Doc import ── */}
+      {importOpen && (
+        <ImportDocModal
+          generating={generatingImport}
+          error={aiError}
+          result={importResult}
+          onImport={(url) => {
+            void handleImport(url)
+          }}
+          onApply={handleApplyImport}
+          onClose={closeImport}
         />
       )}
     </div>

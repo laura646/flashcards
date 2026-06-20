@@ -37,6 +37,20 @@ interface Props {
   error?: string | null
   onClose: () => void
   onSubmit: (form: GrammarAiFormValues) => void
+  // Task C: opens the course-vocabulary picker (owned by LessonEditorView) and
+  // resolves the teacher's chosen words. The form merges them (deduped) into
+  // the vocabulary string. Optional — omit to hide the picker button.
+  onPickVocab?: () => Promise<string[]>
+}
+
+// Merge picked words into an existing comma string, trimming + de-duping
+// case-sensitively (mirrors legacy applyVocabPicker, page.tsx L1429-1437).
+function mergeVocab(existing: string, picked: string[]): string {
+  const current = existing
+    .split(',')
+    .map((w) => w.trim())
+    .filter(Boolean)
+  return Array.from(new Set([...current, ...picked])).join(', ')
 }
 
 const EXERCISE_TYPES: { value: string; label: string }[] = [
@@ -83,7 +97,7 @@ function TextInput({
   )
 }
 
-export default function GrammarAiForm({ generating, error, onClose, onSubmit }: Props) {
+export default function GrammarAiForm({ generating, error, onClose, onSubmit, onPickVocab }: Props) {
   const [topic, setTopic] = useState('')
   const [knownGrammar, setKnownGrammar] = useState('')
   const [vocabulary, setVocabulary] = useState('')
@@ -96,6 +110,12 @@ export default function GrammarAiForm({ generating, error, onClose, onSubmit }: 
     setExerciseTypes((prev) =>
       prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value],
     )
+  }
+
+  const pickVocab = async () => {
+    if (!onPickVocab) return
+    const picked = await onPickVocab()
+    if (picked.length > 0) setVocabulary((prev) => mergeVocab(prev, picked))
   }
 
   const canGenerate = topic.trim().length > 0 && exerciseTypes.length > 0
@@ -171,7 +191,19 @@ export default function GrammarAiForm({ generating, error, onClose, onSubmit }: 
 
           {/* Target vocabulary (comma textarea) */}
           <div>
-            <FieldLabel>Target vocabulary (optional)</FieldLabel>
+            <div className="flex items-center justify-between mb-1.5">
+              <FieldLabel>Target vocabulary (optional)</FieldLabel>
+              {onPickVocab && (
+                <button
+                  type="button"
+                  onClick={() => void pickVocab()}
+                  disabled={generating}
+                  className="text-[11px] font-bold text-sky hover:text-sky-text transition-colors disabled:opacity-60"
+                >
+                  + Pick from course vocabulary
+                </button>
+              )}
+            </div>
             <textarea
               value={vocabulary}
               onChange={(e) => setVocabulary(e.target.value)}
