@@ -43,7 +43,7 @@ export function AttendanceView(p: {
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex flex-wrap items-center gap-3 mb-5">
           <h1 className="text-2xl font-bold text-brandblue mr-auto">Attendance</h1>
           <select value={p.selectedCourseId} onChange={(e) => p.onSelectCourse(e.target.value)} aria-label="Course" className={selectCls}>

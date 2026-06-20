@@ -114,7 +114,7 @@ export function LessonEditorView({
 
   return (
     <div className="font-rubik min-h-screen bg-surface pb-28">
-      <div className="max-w-3xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6">
         {/* Breadcrumb */}
         <PageHeader
           className="mb-5"
@@ -219,7 +219,7 @@ export function LessonEditorView({
 
       {/* ── Sticky save bar ── */}
       <div className="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur border-t border-hairline">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
           {error && <InlineError message={error} className="flex-1 min-w-[200px]" />}
           <div className="flex items-center gap-2 ml-auto">
             <Button variant="secondary" size="md" disabled={inFlight} onClick={() => onSave('draft')}>

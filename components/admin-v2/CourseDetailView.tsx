@@ -215,7 +215,7 @@ export function CourseDetailView({
   if (loading || !course) {
     return (
       <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <Skeleton className="h-4 w-40 mb-5" />
           <div className="bg-white rounded-card border border-hairline p-5 mb-4">
             <Skeleton className="h-6 w-52 mb-2" />
@@ -235,7 +235,7 @@ export function CourseDetailView({
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <PageHeader
           crumbs={[
             { label: 'My Courses', onClick: onBack },

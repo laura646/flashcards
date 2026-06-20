@@ -40,7 +40,7 @@ export function StudentsView({ students, loading, onOpenStudent }: {
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
           <h1 className="text-2xl font-bold text-brandblue">Students</h1>
           <input

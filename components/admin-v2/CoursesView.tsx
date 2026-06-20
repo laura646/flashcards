@@ -43,7 +43,7 @@ export function CoursesView({ courses, loading, onOpenCourse, onNewCourse }: {
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold text-brandblue mb-5">Courses</h1>
 
         {/* Summary strip */}

@@ -87,7 +87,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   if (!s) {
     return (
       <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
             <h1 className="text-2xl font-bold text-brandblue">Reports</h1>
             <span className="text-[12px] text-ink-muted">{courseName} · last 30 days</span>
@@ -118,7 +118,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <button onClick={() => setSel(null)} className="text-[13px] font-bold text-sky-text mb-4 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40">‹ Back to all students</button>
         <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 rounded-full bg-sky-wash text-sky-text flex items-center justify-center font-bold" aria-hidden="true">{s.name[0]}</div>

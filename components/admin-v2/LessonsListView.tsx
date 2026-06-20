@@ -70,7 +70,7 @@ export function LessonsListView({
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
           <h1 className="text-2xl font-bold text-brandblue">Lesson Manager</h1>
