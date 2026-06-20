@@ -8,8 +8,8 @@
 //
 // Phase 2 editable types: flashcards + the 4 simple blocks (writing /
 // pronunciation / mistakes / dialogue). Phase 4 adds the 3 media blocks
-// (video / audio / article). Only grammar remains a read-only "coming soon"
-// placeholder.
+// (video / audio / article). Phase 5 adds grammar. Every block type now has a
+// real editor — no read-only placeholders remain.
 //
 // All mutations flow OUT via the callback props — this component owns no editor
 // state. The parent (LessonEditorView) owns the delete-confirm modal and the
@@ -39,6 +39,7 @@ import {
   AudioEditor,
   ArticleEditor,
 } from './MediaBlockEditors'
+import GrammarEditor from './GrammarEditor'
 
 interface Props {
   item: ContentItem
@@ -240,6 +241,13 @@ export default function ContentItemCard({
             onChange={(block) => onUpdate(block)}
           />
         )
+      case 'grammar':
+        return (
+          <GrammarEditor
+            block={item.data as ContentBlock}
+            onChange={(block) => onUpdate(block)}
+          />
+        )
       case 'exercise':
         return (
           <ExerciseEditor
@@ -249,20 +257,7 @@ export default function ContentItemCard({
           />
         )
       default:
-        // grammar — read-only placeholder.
-        return (
-          <div className="flex items-start gap-3 bg-sky-wash rounded-tile p-4 border border-hairline">
-            <div className="text-xl leading-none shrink-0" aria-hidden="true">
-              {icon}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-ink-black">{label}</p>
-              <p className="text-xs text-ink-muted mt-1 italic">
-                Editing this here is coming soon — use the current editor for now.
-              </p>
-            </div>
-          </div>
-        )
+        return null
     }
   }
 }

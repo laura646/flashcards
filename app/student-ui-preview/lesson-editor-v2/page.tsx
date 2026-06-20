@@ -144,13 +144,39 @@ const MOCK_ARTICLE_BLOCK: ContentBlock = {
   published: true,
 }
 
+// Grammar block carrying only the LEGACY `exercises` MCQ array (no
+// `practice_exercises`), so the grammar editor's practice migration is
+// exercised in the sandbox: it should surface these MCQs as a Multiple Choice
+// attached exercise. Also includes a couple of examples, a target structure
+// and two pitfalls to exercise the always-rendered Pitfalls section.
+const MOCK_GRAMMAR_BLOCK: ContentBlock = {
+  block_type: 'grammar',
+  title: 'Grammar: Present Perfect vs. Past Simple',
+  content: {
+    explanation: 'Use the present perfect for experiences and unfinished time; use the past simple for finished actions at a specific past time.',
+    examples: ['I have visited Paris three times.', 'I visited Paris in 2019.'],
+    target_structure: 'have / has + past participle',
+    exercises: [
+      { id: 'gq1', prompt: 'I ___ my homework already.', options: ['have finished', 'finished', 'finishing'], correctIndex: 0 },
+      { id: 'gq2', prompt: 'She ___ to London last summer.', options: ['has gone', 'went', 'goes'], correctIndex: 1 },
+    ],
+    pitfalls: [
+      { mistake: 'I have went to the shop.', correct: 'I have gone to the shop.', tip: 'Use the past participle "gone", not the past simple "went", after "have".' },
+      { mistake: 'I have seen him yesterday.', correct: 'I saw him yesterday.', tip: 'Use the past simple with a finished time like "yesterday".' },
+    ],
+  },
+  order_index: 5,
+  published: true,
+}
+
 const INITIAL_ITEMS: ContentItem[] = [
   { type: 'flashcards', data: MOCK_FLASHCARDS, collapsed: false, order_index: 0 },
   { type: 'writing', data: MOCK_WRITING_BLOCK, collapsed: false, order_index: 1 },
   { type: 'dialogue', data: MOCK_DIALOGUE_BLOCK, collapsed: true, order_index: 2 },
   { type: 'video', data: MOCK_VIDEO_BLOCK, collapsed: false, order_index: 3 },
   { type: 'article', data: MOCK_ARTICLE_BLOCK, collapsed: true, order_index: 4 },
-  { type: 'exercise', data: MOCK_EXERCISE, collapsed: true, order_index: 5 },
+  { type: 'grammar', data: MOCK_GRAMMAR_BLOCK, collapsed: false, order_index: 5 },
+  { type: 'exercise', data: MOCK_EXERCISE, collapsed: true, order_index: 6 },
 ]
 
 export default function LessonEditorV2Preview() {
