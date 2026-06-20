@@ -323,6 +323,18 @@ export default function LessonEditorV2Preview() {
           onAddFlashcards={addFlashcards}
           onAddExercise={addExercise}
           onAddBlock={addBlock}
+          onGenerateFlashcards={async (text) => { console.log('AI flashcards', text); return { ok: true } }}
+          onGenerateExercises={async (input) => { console.log('AI exercises', input); return { ok: true } }}
+          onGenerateBlock={async (type, input) => { console.log('AI block', type, input); return { ok: true } }}
+          onGenerateGrammar={async (form) => { console.log('AI grammar', form); return { ok: true } }}
+          onGenerateReading={async (form) => { console.log('AI reading', form); return { ok: true } }}
+          aiError={null}
+          onClearAiError={() => {}}
+          generatingFlashcards={false}
+          generatingExercises={false}
+          generatingBlock={false}
+          generatingGrammar={false}
+          generatingReading={false}
           onUpdateItem={updateItem}
           onMoveItem={moveItem}
           onRemoveItem={removeItem}
@@ -357,6 +369,18 @@ export default function LessonEditorV2Preview() {
           onAddFlashcards={() => console.log('add flashcards')}
           onAddExercise={() => console.log('add exercise')}
           onAddBlock={(t) => console.log('add block', t)}
+          onGenerateFlashcards={async (text) => { console.log('AI flashcards', text); return { ok: true } }}
+          onGenerateExercises={async (input) => { console.log('AI exercises', input); return { ok: true } }}
+          onGenerateBlock={async (type, input) => { console.log('AI block', type, input); return { ok: true } }}
+          onGenerateGrammar={async (form) => { console.log('AI grammar', form); return { ok: true } }}
+          onGenerateReading={async (form) => { console.log('AI reading', form); return { ok: true } }}
+          aiError={null}
+          onClearAiError={() => {}}
+          generatingFlashcards={false}
+          generatingExercises={false}
+          generatingBlock={false}
+          generatingGrammar={false}
+          generatingReading={false}
           onUpdateItem={(i, d) => console.log('update', i, d)}
           onMoveItem={(i, dir) => console.log('move', i, dir)}
           onRemoveItem={(i) => console.log('remove', i)}

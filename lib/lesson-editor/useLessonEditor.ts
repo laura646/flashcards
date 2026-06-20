@@ -519,6 +519,70 @@ export function useLessonEditor() {
     })
   }, [])
 
+  // ── AI insert actions ──
+  // These mirror the legacy AI-merge logic so the new editor's AI flow inserts
+  // generated content exactly as the old editor did. All use functional
+  // setContentItems so order_index is derived from the live array, never a
+  // stale closure.
+
+  // (legacy generateFlashcards merge 1727-1745) — if a flashcards item exists,
+  // append cards to it (re-indexing order_index = existing.length + i); else
+  // create a new flashcards item. When the title is empty and the AI suggested
+  // one, fill it in.
+  const appendGeneratedFlashcards = useCallback((cards: Flashcard[], suggestedTitle?: string) => {
+    setContentItems((prev) => {
+      const idx = prev.findIndex((i) => i.type === 'flashcards')
+      if (idx >= 0) {
+        const existing = prev[idx].data as Flashcard[]
+        const appended = cards.map((c, i) => ({ ...c, order_index: existing.length + i }))
+        const next = [...prev]
+        next[idx] = { ...next[idx], data: [...existing, ...appended] }
+        return next
+      }
+      const reindexed = cards.map((c, i) => ({ ...c, order_index: i }))
+      return [
+        ...prev,
+        { type: 'flashcards', data: reindexed, collapsed: false, order_index: prev.length },
+      ]
+    })
+    if (!title.trim() && suggestedTitle) setTitle(suggestedTitle)
+  }, [title])
+
+  // (legacy aiExGenerateFromFiles inserts 1929-1932 / 1959-1967 / 2000-2003) —
+  // append each generated exercise as its own content item at the end, stamping
+  // order_index and the publish default from the current lesson status.
+  const appendGeneratedExercises = useCallback((exercises: Exercise[]) => {
+    setContentItems((prev) => {
+      const published = currentLessonStatus !== 'published'
+      const newItems: ContentItem[] = exercises.map((ex, i) => {
+        const order_index = prev.length + i
+        return {
+          type: 'exercise',
+          data: { ...ex, order_index, published },
+          collapsed: false,
+          order_index,
+        }
+      })
+      return [...prev, ...newItems]
+    })
+  }, [currentLessonStatus])
+
+  // (legacy AI block insert 1655-1668; also reading 1493-1504, grammar 1592-1603) —
+  // append a single AI-generated content block of the given type.
+  const appendGeneratedBlock = useCallback((blockType: BlockType, title: string, content: unknown) => {
+    setContentItems((prev) => {
+      const order_index = prev.length
+      const block: ContentBlock = {
+        block_type: blockType,
+        title,
+        content: content as ContentBlock['content'],
+        order_index,
+        published: currentLessonStatus !== 'published',
+      }
+      return [...prev, { type: blockType, data: block, collapsed: false, order_index }]
+    })
+  }, [currentLessonStatus])
+
   // ── Back to list ──
   const backToList = useCallback(() => {
     setEditingLessonId(null)
@@ -593,6 +657,11 @@ export function useLessonEditor() {
     togglePublished,
     isItemPublished,
     toggleCollapse,
+
+    // AI insert actions
+    appendGeneratedFlashcards,
+    appendGeneratedExercises,
+    appendGeneratedBlock,
   }
 }
 

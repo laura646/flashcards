@@ -19,15 +19,77 @@
 import { useState } from 'react'
 import { Button, Card, TextField, SegmentedControl, EmptyState, InlineError } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
+import CreateChooser from '@/components/student-ui/CreateChooser'
 import ContentItemCard from '@/components/admin-v2/lesson-editors/ContentItemCard'
 import ImagePickerModal from '@/components/ImagePickerModal'
 import ExercisePreview from '@/components/ExercisePreview'
+import AiGenerateModal, { type AiGenerateInput, type AiSource } from '@/components/admin-v2/lesson-editors/ai/AiGenerateModal'
+import GrammarAiForm, { type GrammarAiFormValues } from '@/components/admin-v2/lesson-editors/ai/GrammarAiForm'
+import ReadingAiForm, { type ReadingAiFormValues } from '@/components/admin-v2/lesson-editors/ai/ReadingAiForm'
 import {
   BLOCK_CONFIG,
+  EXERCISE_TYPES,
   type ContentItem,
   type BlockType,
   type Exercise,
 } from '@/lib/lesson-editor/types'
+import type {
+  AiResult,
+  GenerateExercisesInput,
+  GenerateBlockInput,
+  GrammarForm,
+  ReadingForm,
+} from '@/lib/lesson-editor/useLessonAi'
+
+// The set of content types the two-door add flow can create. Mirrors the
+// add-menu entries: flashcards, a standalone exercise, or any addable block.
+type AddType = 'flashcards' | 'exercise' | BlockType
+
+// Comma textarea -> string[] (the AI forms emit raw comma strings per the
+// pass-1 contract; the hook wants a pre-split array).
+function splitVocab(raw: string | undefined): string[] {
+  return (raw || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+// Exercise-type options for the AiGenerateModal preferred-type select.
+const EXERCISE_TYPE_OPTIONS = EXERCISE_TYPES.map((t) => ({ value: t.value, label: t.label }))
+
+// Which AiGenerateModal sources each source-based type offers.
+//  - flashcards: paste only (the summary / pasted text).
+//  - exercise:   paste / upload / image (+ preferred-type select).
+//  - the 4 simple blocks: paste / upload (server skips non-image files, so
+//    paste is the reliable path, but uploads are still forwarded).
+const SOURCE_MODAL_SOURCES: Partial<Record<AddType, AiSource[]>> = {
+  flashcards: ['paste'],
+  exercise: ['paste', 'upload', 'image'],
+  mistakes: ['paste', 'upload'],
+  dialogue: ['paste', 'upload'],
+  writing: ['paste', 'upload'],
+  pronunciation: ['paste', 'upload'],
+}
+
+// Types that have an AI door (a generate fn wired through useLessonAi). Other
+// types (video / audio) have no AI path in this pass, so they skip the chooser
+// and add directly. grammar -> GrammarAiForm, article -> ReadingAiForm, the
+// rest -> AiGenerateModal.
+const AI_ENABLED_TYPES = new Set<AddType>([
+  'flashcards',
+  'exercise',
+  'mistakes',
+  'dialogue',
+  'writing',
+  'pronunciation',
+  'grammar',
+  'article',
+])
+
+// Human-facing label for a content type (drives CreateChooser's itemLabel).
+function typeLabel(type: AddType): string {
+  return BLOCK_CONFIG[type]?.label ?? type
+}
 
 // Lesson-type options (mirrors legacy LESSON_TYPES, page.tsx 140-145).
 const LESSON_TYPE_SEGMENTS: { value: string; label: string }[] = [
@@ -77,6 +139,18 @@ export function LessonEditorView({
   onAddFlashcards,
   onAddExercise,
   onAddBlock,
+  onGenerateFlashcards,
+  onGenerateExercises,
+  onGenerateBlock,
+  onGenerateGrammar,
+  onGenerateReading,
+  aiError,
+  onClearAiError,
+  generatingFlashcards,
+  generatingExercises,
+  generatingBlock,
+  generatingGrammar,
+  generatingReading,
   onUpdateItem,
   onMoveItem,
   onRemoveItem,
@@ -107,6 +181,20 @@ export function LessonEditorView({
   onAddFlashcards: () => void
   onAddExercise: () => void
   onAddBlock: (type: BlockType) => void
+  // AI generate actions (from useLessonAi). Each resolves to { ok, error? };
+  // the view closes the relevant modal only on ok.
+  onGenerateFlashcards: (text: string) => Promise<AiResult>
+  onGenerateExercises: (input: GenerateExercisesInput) => Promise<AiResult>
+  onGenerateBlock: (blockType: BlockType, input: GenerateBlockInput) => Promise<AiResult>
+  onGenerateGrammar: (form: GrammarForm) => Promise<AiResult>
+  onGenerateReading: (form: ReadingForm) => Promise<AiResult>
+  aiError: string | null
+  onClearAiError: () => void
+  generatingFlashcards: boolean
+  generatingExercises: boolean
+  generatingBlock: boolean
+  generatingGrammar: boolean
+  generatingReading: boolean
   onUpdateItem: (index: number, data: ContentItem['data']) => void
   onMoveItem: (index: number, dir: 'up' | 'down') => void
   onRemoveItem: (index: number) => void
@@ -127,11 +215,120 @@ export function LessonEditorView({
     apply: (url: string) => void
   } | null>(null)
 
+  // ── Two-door add flow ──
+  // Step 1: chooserType set -> CreateChooser modal open for that content type.
+  // Step 2 (AI door): aiFlow set -> the right AI UI open for that type.
+  const [chooserType, setChooserType] = useState<AddType | null>(null)
+  const [aiFlow, setAiFlow] = useState<AddType | null>(null)
+
   const hasFlashcards = contentItems.some((i) => i.type === 'flashcards')
   const canAddFlashcards = lessonType === 'lesson' && !hasFlashcards
 
   const handlePickImage = (word: string, apply: (url: string) => void) => {
     setImagePickerState({ word, apply })
+  }
+
+  // Open the two-door chooser for a content type (replaces the old direct add).
+  // Types with no AI door (video / audio) skip the chooser and add directly.
+  const openChooser = (type: AddType) => {
+    setAddMenuOpen(false)
+    onClearAiError()
+    if (!AI_ENABLED_TYPES.has(type)) {
+      handleManual(type)
+      return
+    }
+    setChooserType(type)
+  }
+
+  const closeChooser = () => {
+    setChooserType(null)
+  }
+
+  const closeAi = () => {
+    setAiFlow(null)
+    onClearAiError()
+  }
+
+  // Manual door — run the existing add for the chosen type, then close.
+  const handleManual = (type: AddType) => {
+    if (type === 'flashcards') onAddFlashcards()
+    else if (type === 'exercise') onAddExercise()
+    else onAddBlock(type)
+    closeChooser()
+  }
+
+  // AI door — swap the chooser for the right AI UI for the chosen type.
+  const handleGenerateDoor = (type: AddType) => {
+    onClearAiError()
+    setChooserType(null)
+    setAiFlow(type)
+  }
+
+  // Per-type generating flag for the open AI UI.
+  const aiGenerating =
+    aiFlow === 'flashcards'
+      ? generatingFlashcards
+      : aiFlow === 'exercise'
+        ? generatingExercises
+        : aiFlow === 'grammar'
+          ? generatingGrammar
+          : aiFlow === 'article'
+            ? generatingReading
+            : generatingBlock
+
+  // Source-modal submit (flashcards / exercise / the 4 simple blocks).
+  const handleSourceSubmit = async (type: AddType, input: AiGenerateInput) => {
+    let result: AiResult
+    if (type === 'flashcards') {
+      result = await onGenerateFlashcards(input.text || '')
+    } else if (type === 'exercise') {
+      result = await onGenerateExercises({
+        text: input.text,
+        file: input.file,
+        files: input.files,
+        preferredType: input.preferredType,
+      })
+    } else {
+      // mistakes / dialogue / writing / pronunciation
+      result = await onGenerateBlock(type as BlockType, {
+        text: input.text,
+        files: input.files,
+      })
+    }
+    if (result.ok) closeAi()
+  }
+
+  const handleGrammarSubmit = async (form: GrammarAiFormValues) => {
+    const result = await onGenerateGrammar({
+      topic: form.topic,
+      level: form.level,
+      known_grammar: form.known_grammar,
+      num_exercises: form.num_exercises,
+      exercise_types: form.exercise_types,
+      vocabulary: splitVocab(form.vocabulary),
+      explanation_length: form.explanation_length,
+      include_pitfalls: form.include_pitfalls,
+    })
+    if (result.ok) closeAi()
+  }
+
+  const handleReadingSubmit = async (form: ReadingAiFormValues) => {
+    const result = await onGenerateReading({
+      mode: form.mode,
+      level: form.level,
+      length_words: form.length_words,
+      style: form.style,
+      source_text: form.source_text,
+      source_url: form.source_url,
+      source_image: form.source_image,
+      reading_type: form.reading_type,
+      plot: form.plot,
+      vocabulary: splitVocab(form.vocabulary),
+      narrator_pov: form.narrator_pov,
+      characters: form.characters,
+      grammar_focus: form.grammar_focus,
+    })
+    if (result.ok) closeAi()
   }
 
   // The publish-eye on a flashcards item toggles the top-level boolean; for any
@@ -234,10 +431,7 @@ export function LessonEditorView({
                   {canAddFlashcards && (
                     <button
                       type="button"
-                      onClick={() => {
-                        onAddFlashcards()
-                        setAddMenuOpen(false)
-                      }}
+                      onClick={() => openChooser('flashcards')}
                       className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
                     >
                       <span aria-hidden="true">{BLOCK_CONFIG.flashcards.icon}</span>
@@ -246,10 +440,7 @@ export function LessonEditorView({
                   )}
                   <button
                     type="button"
-                    onClick={() => {
-                      onAddExercise()
-                      setAddMenuOpen(false)
-                    }}
+                    onClick={() => openChooser('exercise')}
                     className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
                   >
                     <span aria-hidden="true">{BLOCK_CONFIG.exercise.icon}</span>
@@ -259,10 +450,7 @@ export function LessonEditorView({
                     <button
                       key={type}
                       type="button"
-                      onClick={() => {
-                        onAddBlock(type)
-                        setAddMenuOpen(false)
-                      }}
+                      onClick={() => openChooser(type)}
                       className="w-full flex items-center gap-2.5 px-4 py-3 text-left text-sm font-bold text-ink-body hover:bg-sky-wash transition-colors"
                     >
                       <span aria-hidden="true">{BLOCK_CONFIG[type].icon}</span>
@@ -376,6 +564,80 @@ export function LessonEditorView({
           onPick={(url) => {
             imagePickerState.apply(url)
             setImagePickerState(null)
+          }}
+        />
+      )}
+
+      {/* ── Two-door create chooser (Manual vs. Generate with AI) ── */}
+      {chooserType && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={closeChooser}
+          role="presentation"
+        >
+          <div
+            className="bg-white rounded-card shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Add ${typeLabel(chooserType)}`}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-base font-extrabold text-ink-black">
+                Add {typeLabel(chooserType)}
+              </h3>
+              <button
+                onClick={closeChooser}
+                aria-label="Close"
+                className="text-ink-muted hover:text-ink-black transition-colors shrink-0 px-1 -mt-1"
+              >
+                ✕
+              </button>
+            </div>
+            <CreateChooser
+              itemLabel={typeLabel(chooserType)}
+              onManual={() => handleManual(chooserType)}
+              onGenerate={() => handleGenerateDoor(chooserType)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── AI: source-based modal (flashcards / exercise / simple blocks) ── */}
+      {aiFlow && aiFlow !== 'grammar' && aiFlow !== 'article' && (
+        <AiGenerateModal
+          title={typeLabel(aiFlow)}
+          sources={SOURCE_MODAL_SOURCES[aiFlow] ?? ['paste']}
+          preferredTypeOptions={aiFlow === 'exercise' ? EXERCISE_TYPE_OPTIONS : undefined}
+          generating={aiGenerating}
+          error={aiError}
+          onClose={closeAi}
+          onSubmit={(input) => {
+            void handleSourceSubmit(aiFlow, input)
+          }}
+        />
+      )}
+
+      {/* ── AI: grammar form ── */}
+      {aiFlow === 'grammar' && (
+        <GrammarAiForm
+          generating={generatingGrammar}
+          error={aiError}
+          onClose={closeAi}
+          onSubmit={(form) => {
+            void handleGrammarSubmit(form)
+          }}
+        />
+      )}
+
+      {/* ── AI: reading / article form ── */}
+      {aiFlow === 'article' && (
+        <ReadingAiForm
+          generating={generatingReading}
+          error={aiError}
+          onClose={closeAi}
+          onSubmit={(form) => {
+            void handleReadingSubmit(form)
           }}
         />
       )}

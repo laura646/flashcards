@@ -20,6 +20,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import LessonsListView from '@/components/admin-v2/LessonsListView'
 import LessonEditorView from '@/components/admin-v2/LessonEditorView'
 import { useLessonEditor } from '@/lib/lesson-editor/useLessonEditor'
+import { useLessonAi } from '@/lib/lesson-editor/useLessonAi'
 
 function LessonsBetaBody() {
   const { data: session, status } = useSession()
@@ -27,6 +28,20 @@ function LessonsBetaBody() {
   const params = useSearchParams()
 
   const editor = useLessonEditor()
+
+  // AI orchestration brain — wired to the editor's insert actions. The course
+  // level is not part of the editor's loaded state; the only level the editor
+  // knows is templateLevel (content-bank templates), so we pass that as a hint
+  // and otherwise let useLessonAi send no level. (Deriving a real course CEFR
+  // would require an extra fetch — deferred.)
+  const ai = useLessonAi({
+    appendGeneratedFlashcards: editor.appendGeneratedFlashcards,
+    appendGeneratedExercises: editor.appendGeneratedExercises,
+    appendGeneratedBlock: editor.appendGeneratedBlock,
+    courseId: editor.courseId,
+    courseLevel: editor.templateLevel || undefined,
+  })
+
   const [toast, setToast] = useState<string | null>(null)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
@@ -117,6 +132,18 @@ function LessonsBetaBody() {
           onAddFlashcards={editor.addFlashcardsItem}
           onAddExercise={editor.addExercise}
           onAddBlock={editor.addBlock}
+          onGenerateFlashcards={ai.generateFlashcards}
+          onGenerateExercises={ai.generateExercises}
+          onGenerateBlock={ai.generateBlock}
+          onGenerateGrammar={ai.generateGrammar}
+          onGenerateReading={ai.generateReading}
+          aiError={ai.aiError}
+          onClearAiError={() => ai.setAiError(null)}
+          generatingFlashcards={ai.generatingFlashcards}
+          generatingExercises={ai.generatingExercises}
+          generatingBlock={ai.generatingBlock}
+          generatingGrammar={ai.generatingGrammar}
+          generatingReading={ai.generatingReading}
           onUpdateItem={editor.updateItemData}
           onMoveItem={editor.moveItem}
           onRemoveItem={editor.removeItem}
