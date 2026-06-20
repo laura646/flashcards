@@ -203,15 +203,141 @@ export interface ShortAnswerGroup extends BaseGroup {
   }[]
 }
 
+/**
+ * Type 4 — Matching information.
+ * Each statement names the passage paragraph (A, B, C…) that contains it.
+ * Paragraphs CAN be reused; some are never used (distractors). Unlike matching
+ * headings, there is no one-to-one constraint — the same letter may answer many
+ * statements (spec §4: "Allow reuse").
+ */
+export interface MatchingInformationGroup extends BaseGroup {
+  kind: 'matching_information'
+  /** The reusable paragraph-letter bank shown in each dropdown (A, B, C…). */
+  options: LetteredOption[]
+  items: {
+    number: number
+    /** The statement to locate in the passage. */
+    text: string
+    /** The correct paragraph letter from `options`. */
+    correct: string
+  }[]
+}
+
+/**
+ * Type 6 — Matching features.
+ * Each statement is linked to a short lettered "feature" (a person/thing/date/
+ * place). Features CAN be reused or stay unused (spec §6: "You may use any
+ * letter more than once.").
+ */
+export interface MatchingFeaturesGroup extends BaseGroup {
+  kind: 'matching_features'
+  /** The lettered features bank (people/things), reusable across items. */
+  features: LetteredOption[]
+  items: {
+    number: number
+    /** The statement to attribute to a feature. */
+    text: string
+    /** The correct feature id from `features`. */
+    correct: string
+  }[]
+}
+
+/**
+ * Type 7 — Matching sentence endings.
+ * Numbered sentence beginnings are matched to longer lettered endings. There
+ * are MORE endings than beginnings (distractors stay unused) and each ending is
+ * used at most ONCE — a one-to-one match like matching headings (spec §7).
+ */
+export interface MatchingSentenceEndingsGroup extends BaseGroup {
+  kind: 'matching_sentence_endings'
+  /** The full endings bank, lettered (more endings than beginnings). */
+  endings: LetteredOption[]
+  items: {
+    number: number
+    /** The sentence beginning shown on the left. */
+    beginning: string
+    /** The correct ending id from `endings`. */
+    correct: string
+  }[]
+}
+
+/**
+ * Type 11 — Table completion.
+ * A grid (rows × cols) where some cells are gaps (typed in) and the rest are
+ * read-only labels. `header` is an optional first row rendered as column
+ * headings. Each cell is either static text or a gap (accepted answers + word
+ * limit, like the other completion types).
+ */
+export interface TableCompletionGroup extends BaseGroup {
+  kind: 'table_completion'
+  /** Default word limit for every gap in the table (per-gap can override). */
+  wordLimit?: number
+  /** Optional column headings rendered as a bold header row. */
+  header?: string[]
+  /** Body rows, top to bottom; each is a left-to-right list of cells. */
+  rows: TableCell[][]
+}
+
+/** One table cell: a read-only label, or a typed-in gap. */
+export type TableCell =
+  | { type: 'text'; text: string }
+  | {
+      type: 'gap'
+      number: number
+      acceptedAnswers: string[]
+      wordLimit?: number
+    }
+
+/**
+ * Type 12 — Flow-chart completion.
+ * A vertical sequence of connected step boxes (arrow connectors between them),
+ * some boxes containing gaps. Two sub-variants (spec §12):
+ *   • 'passage'   — type words from the passage into each gap,
+ *   • 'word_bank' — choose from a provided box of words (more words than gaps).
+ * Each step box is text segments interleaved with gaps, rendered in order.
+ */
+export interface FlowChartCompletionGroup extends BaseGroup {
+  kind: 'flow_chart_completion'
+  variant: 'passage' | 'word_bank'
+  wordLimit?: number
+  /** Provided words (lettered) for the 'word_bank' variant; omit for 'passage'. */
+  wordBank?: LetteredOption[]
+  /** The step boxes, top to bottom; connected by downward arrows. */
+  steps: FlowChartStep[]
+}
+
+/** One step box in the flow chart: prose segments interleaved with gaps. */
+export interface FlowChartStep {
+  segments: FlowChartSegment[]
+}
+
+/** One piece of a flow-chart step: either static prose or a gap. */
+export type FlowChartSegment =
+  | { type: 'text'; text: string }
+  | {
+      type: 'gap'
+      number: number
+      /** For 'passage' variant: accepted typed answers + optional word limit. */
+      acceptedAnswers?: string[]
+      wordLimit?: number
+      /** For 'word_bank' variant: the correct option id from `wordBank`. */
+      correctOptionId?: string
+    }
+
 /** The discriminated union of every supported Reading question group. */
 export type ReadingQuestionGroup =
   | McqGroup
   | TfngGroup
   | YnngGroup
   | MatchingHeadingsGroup
+  | MatchingInformationGroup
+  | MatchingFeaturesGroup
+  | MatchingSentenceEndingsGroup
   | SentenceCompletionGroup
   | NoteCompletionGroup
   | SummaryCompletionGroup
+  | TableCompletionGroup
+  | FlowChartCompletionGroup
   | ShortAnswerGroup
 
 /** The `kind` discriminant values, for registries / exhaustive switches. */

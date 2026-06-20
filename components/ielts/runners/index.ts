@@ -17,7 +17,17 @@ export type { ReadingYnngRunnerProps } from './ReadingYnngRunner'
 export { ReadingMatchingHeadingsRunner } from './ReadingMatchingHeadingsRunner'
 export type { ReadingMatchingHeadingsRunnerProps } from './ReadingMatchingHeadingsRunner'
 
-// Completion / short-answer runners (Reading types 8, 9, 10, 14).
+// Letter-match runners (Reading types 4, 6, 7).
+export { ReadingMatchingInformationRunner } from './ReadingMatchingInformationRunner'
+export type { ReadingMatchingInformationRunnerProps } from './ReadingMatchingInformationRunner'
+
+export { ReadingMatchingFeaturesRunner } from './ReadingMatchingFeaturesRunner'
+export type { ReadingMatchingFeaturesRunnerProps } from './ReadingMatchingFeaturesRunner'
+
+export { ReadingMatchingSentenceEndingsRunner } from './ReadingMatchingSentenceEndingsRunner'
+export type { ReadingMatchingSentenceEndingsRunnerProps } from './ReadingMatchingSentenceEndingsRunner'
+
+// Completion / short-answer runners (Reading types 8, 9, 10, 11, 12, 14).
 export { ReadingSentenceCompletionRunner } from './ReadingSentenceCompletionRunner'
 export type { ReadingSentenceCompletionRunnerProps } from './ReadingSentenceCompletionRunner'
 
@@ -26,6 +36,12 @@ export type { ReadingNoteCompletionRunnerProps } from './ReadingNoteCompletionRu
 
 export { ReadingSummaryCompletionRunner } from './ReadingSummaryCompletionRunner'
 export type { ReadingSummaryCompletionRunnerProps } from './ReadingSummaryCompletionRunner'
+
+export { ReadingTableCompletionRunner } from './ReadingTableCompletionRunner'
+export type { ReadingTableCompletionRunnerProps } from './ReadingTableCompletionRunner'
+
+export { ReadingFlowChartCompletionRunner } from './ReadingFlowChartCompletionRunner'
+export type { ReadingFlowChartCompletionRunnerProps } from './ReadingFlowChartCompletionRunner'
 
 export { ReadingShortAnswerRunner } from './ReadingShortAnswerRunner'
 export type { ReadingShortAnswerRunnerProps } from './ReadingShortAnswerRunner'

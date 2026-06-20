@@ -150,6 +150,69 @@ export const IELTS_READING_REGISTRY: IeltsRegistryEntry[] = [
       }),
   },
   {
+    value: 'ielts_reading_matching_information',
+    kind: 'matching_information',
+    label: 'IELTS Reading — Matching Information',
+    icon: '🔎',
+    group: 'ielts',
+    enabled: IELTS_ENABLED,
+    defaultData: () =>
+      seed('Which paragraph contains the following information? Write the correct letter, A–E. You may use any letter more than once.', {
+        kind: 'matching_information',
+        id: gid(),
+        instruction:
+          'Which paragraph contains the following information? Write the correct letter, A–E. You may use any letter more than once.',
+        options: [
+          { id: 'A', text: '' },
+          { id: 'B', text: '' },
+          { id: 'C', text: '' },
+        ],
+        items: [{ number: 1, text: '', correct: 'A' }],
+      }),
+  },
+  {
+    value: 'ielts_reading_matching_features',
+    kind: 'matching_features',
+    label: 'IELTS Reading — Matching Features',
+    icon: '🔗',
+    group: 'ielts',
+    enabled: IELTS_ENABLED,
+    defaultData: () =>
+      seed('Match each statement with the correct person, A–C. You may use any letter more than once.', {
+        kind: 'matching_features',
+        id: gid(),
+        instruction:
+          'Match each statement with the correct person, A–C. You may use any letter more than once.',
+        features: [
+          { id: 'A', text: '' },
+          { id: 'B', text: '' },
+          { id: 'C', text: '' },
+        ],
+        items: [{ number: 1, text: '', correct: 'A' }],
+      }),
+  },
+  {
+    value: 'ielts_reading_matching_sentence_endings',
+    kind: 'matching_sentence_endings',
+    label: 'IELTS Reading — Matching Sentence Endings',
+    icon: '🧷',
+    group: 'ielts',
+    enabled: IELTS_ENABLED,
+    defaultData: () =>
+      seed('Complete each sentence with the correct ending, A–D.', {
+        kind: 'matching_sentence_endings',
+        id: gid(),
+        instruction: 'Complete each sentence with the correct ending, A–D.',
+        endings: [
+          { id: 'A', text: '' },
+          { id: 'B', text: '' },
+          { id: 'C', text: '' },
+          { id: 'D', text: '' },
+        ],
+        items: [{ number: 1, beginning: '', correct: 'A' }],
+      }),
+  },
+  {
     value: 'ielts_reading_sentence_completion',
     kind: 'sentence_completion',
     label: 'IELTS Reading — Sentence Completion',
@@ -206,6 +269,55 @@ export const IELTS_READING_REGISTRY: IeltsRegistryEntry[] = [
           { type: 'text', text: '' },
           { type: 'gap', number: 1, acceptedAnswers: [''] },
           { type: 'text', text: '' },
+        ],
+      }),
+  },
+  {
+    value: 'ielts_reading_table_completion',
+    kind: 'table_completion',
+    label: 'IELTS Reading — Table Completion',
+    icon: '📊',
+    group: 'ielts',
+    enabled: IELTS_ENABLED,
+    defaultData: () =>
+      seed('Complete the table below. Choose NO MORE THAN TWO WORDS from the passage for each answer.', {
+        kind: 'table_completion',
+        id: gid(),
+        instruction:
+          'Complete the table below. Choose NO MORE THAN TWO WORDS from the passage for each answer.',
+        wordLimit: 2,
+        header: ['', ''],
+        rows: [
+          [
+            { type: 'text', text: '' },
+            { type: 'gap', number: 1, acceptedAnswers: [''] },
+          ],
+        ],
+      }),
+  },
+  {
+    value: 'ielts_reading_flow_chart_completion',
+    kind: 'flow_chart_completion',
+    label: 'IELTS Reading — Flow-Chart Completion',
+    icon: '🔁',
+    group: 'ielts',
+    enabled: IELTS_ENABLED,
+    defaultData: () =>
+      seed('Complete the flow-chart below. Choose NO MORE THAN TWO WORDS from the passage for each answer.', {
+        kind: 'flow_chart_completion',
+        id: gid(),
+        instruction:
+          'Complete the flow-chart below. Choose NO MORE THAN TWO WORDS from the passage for each answer.',
+        variant: 'passage',
+        wordLimit: 2,
+        steps: [
+          {
+            segments: [
+              { type: 'text', text: '' },
+              { type: 'gap', number: 1, acceptedAnswers: [''] },
+              { type: 'text', text: '' },
+            ],
+          },
         ],
       }),
   },

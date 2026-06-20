@@ -28,9 +28,14 @@ import {
   ReadingTfngRunner,
   ReadingYnngRunner,
   ReadingMatchingHeadingsRunner,
+  ReadingMatchingInformationRunner,
+  ReadingMatchingFeaturesRunner,
+  ReadingMatchingSentenceEndingsRunner,
   ReadingSentenceCompletionRunner,
   ReadingNoteCompletionRunner,
   ReadingSummaryCompletionRunner,
+  ReadingTableCompletionRunner,
+  ReadingFlowChartCompletionRunner,
   ReadingShortAnswerRunner,
 } from '@/components/ielts/runners'
 
@@ -40,9 +45,14 @@ import type {
   TfngGroup,
   YnngGroup,
   MatchingHeadingsGroup,
+  MatchingInformationGroup,
+  MatchingFeaturesGroup,
+  MatchingSentenceEndingsGroup,
   SentenceCompletionGroup,
   NoteCompletionGroup,
   SummaryCompletionGroup,
+  TableCompletionGroup,
+  FlowChartCompletionGroup,
   ShortAnswerGroup,
 } from '@/lib/ielts/types'
 
@@ -188,6 +198,66 @@ const MATCHING_HEADINGS_GROUP: MatchingHeadingsGroup = {
   ],
 }
 
+// Type 4 — Matching information (paragraph letters; reusable, some unused).
+const MATCHING_INFORMATION_GROUP: MatchingInformationGroup = {
+  id: 'demo-matching-information',
+  kind: 'matching_information',
+  instruction:
+    'Which paragraph contains the following information? Write the correct letter, A–E. You may use any letter more than once.',
+  options: [
+    { id: 'A', text: '' },
+    { id: 'B', text: '' },
+    { id: 'C', text: '' },
+    { id: 'D', text: '' },
+    { id: 'E', text: '' },
+  ],
+  items: [
+    { number: 14, text: 'a comparison between intensive farming and the variety found in cities', correct: 'B' },
+    { number: 15, text: 'a warning that one type of bee may crowd out others', correct: 'D' },
+    { number: 16, text: 'an example of a small feature a resident can add to a garden', correct: 'E' },
+    { number: 17, text: 'a reference to bees being active for longer because of warmth', correct: 'C' },
+  ],
+}
+
+// Type 6 — Matching features (statements → short lettered people; reusable).
+const MATCHING_FEATURES_GROUP: MatchingFeaturesGroup = {
+  id: 'demo-matching-features',
+  kind: 'matching_features',
+  instruction:
+    'Match each statement with the correct group, A–C. You may use any letter more than once.',
+  features: [
+    { id: 'A', text: 'Researchers' },
+    { id: 'B', text: 'Critics' },
+    { id: 'C', text: 'Conservationists' },
+  ],
+  items: [
+    { number: 18, text: 'warn that too many urban hives may harm wild bees', correct: 'B' },
+    { number: 19, text: 'recommend planting nectar-rich flowers over adding hives', correct: 'C' },
+    { number: 20, text: 'call the joined-up garden habitats an "unintentional nature reserve"', correct: 'A' },
+  ],
+}
+
+// Type 7 — Matching sentence endings (beginnings → longer endings; one-to-one,
+// more endings than beginnings so some stay unused).
+const MATCHING_SENTENCE_ENDINGS_GROUP: MatchingSentenceEndingsGroup = {
+  id: 'demo-matching-sentence-endings',
+  kind: 'matching_sentence_endings',
+  instruction: 'Complete each sentence with the correct ending, A–E.',
+  endings: [
+    { id: 'A', text: 'because something is almost always in bloom across a long season.' },
+    { id: 'B', text: 'so bees can emerge earlier in spring and forage later into autumn.' },
+    { id: 'C', text: 'because cities have no flowers at all for most of the year.' },
+    { id: 'D', text: 'which can compete with wild bees for the same limited flowers.' },
+    { id: 'E', text: 'that together form a network stretching across the whole city.' },
+  ],
+  items: [
+    { number: 21, beginning: 'The patchwork of green spaces in cities helps bees', correct: 'A' },
+    { number: 22, beginning: 'The urban heat island effect extends the active season', correct: 'B' },
+    { number: 23, beginning: 'A sharp rise in managed honeybee hives creates pressure', correct: 'D' },
+    { number: 24, beginning: 'Thousands of tiny private habitats join up', correct: 'E' },
+  ],
+}
+
 // Type 8 — Sentence completion (type words from the passage).
 const SENTENCE_COMPLETION_GROUP: SentenceCompletionGroup = {
   id: 'demo-sentence-completion',
@@ -272,6 +342,73 @@ const SUMMARY_WORD_BANK_GROUP: SummaryCompletionGroup = {
   ],
 }
 
+// Type 11 — Table completion (read-only label cells + typed-in gap cells).
+const TABLE_COMPLETION_GROUP: TableCompletionGroup = {
+  id: 'demo-table-completion',
+  kind: 'table_completion',
+  instruction: 'Complete the table below. Choose NO MORE THAN TWO WORDS from the passage for each answer.',
+  wordLimit: 2,
+  header: ['Factor', 'How it helps urban bees'],
+  rows: [
+    [
+      { type: 'text', text: 'Food supply' },
+      {
+        type: 'gap',
+        number: 25,
+        acceptedAnswers: ['patchwork'],
+      },
+    ],
+    [
+      { type: 'text', text: 'Temperature' },
+      {
+        type: 'gap',
+        number: 26,
+        acceptedAnswers: ['heat island', 'urban heat island', 'heat-island'],
+      },
+    ],
+    [
+      {
+        type: 'gap',
+        number: 27,
+        acceptedAnswers: ['residents', 'ordinary residents'],
+      },
+      { type: 'text', text: 'add window boxes, clover patches and small ponds' },
+    ],
+  ],
+}
+
+// Type 12 — Flow-chart completion (vertical step boxes; passage type-in variant).
+const FLOW_CHART_COMPLETION_GROUP: FlowChartCompletionGroup = {
+  id: 'demo-flow-chart-completion',
+  kind: 'flow_chart_completion',
+  variant: 'passage',
+  instruction: 'Complete the flow-chart below. Choose NO MORE THAN TWO WORDS from the passage for each answer.',
+  wordLimit: 2,
+  steps: [
+    {
+      segments: [
+        { type: 'text', text: 'Cities provide a' },
+        { type: 'gap', number: 28, acceptedAnswers: ['patchwork'] },
+        { type: 'text', text: 'of green spaces.' },
+      ],
+    },
+    {
+      segments: [
+        { type: 'text', text: 'Something is almost always in' },
+        { type: 'gap', number: 29, acceptedAnswers: ['bloom'] },
+        { type: 'text', text: ', giving a steady food supply.' },
+      ],
+    },
+    {
+      segments: [
+        { type: 'text', text: 'Warmth extends the active' },
+        { type: 'gap', number: 30, acceptedAnswers: ['season'] },
+        { type: 'text', text: 'at both ends of the year.' },
+      ],
+    },
+  ],
+}
+
 // Type 14 — Short-answer questions (open, a few words from the passage).
 const SHORT_ANSWER_GROUP: ShortAnswerGroup = {
   id: 'demo-short-answer',
@@ -340,6 +477,29 @@ const SECTIONS: DemoSection[] = [
     render: () => <ReadingMatchingHeadingsRunner group={MATCHING_HEADINGS_GROUP} />,
   },
   {
+    anchor: 'matching-information',
+    short: 'Match info',
+    title: 'Type 4 — Matching information',
+    withPassage: true,
+    render: () => <ReadingMatchingInformationRunner group={MATCHING_INFORMATION_GROUP} />,
+  },
+  {
+    anchor: 'matching-features',
+    short: 'Features',
+    title: 'Type 6 — Matching features',
+    withPassage: true,
+    render: () => <ReadingMatchingFeaturesRunner group={MATCHING_FEATURES_GROUP} />,
+  },
+  {
+    anchor: 'matching-sentence-endings',
+    short: 'Endings',
+    title: 'Type 7 — Matching sentence endings',
+    withPassage: true,
+    render: () => (
+      <ReadingMatchingSentenceEndingsRunner group={MATCHING_SENTENCE_ENDINGS_GROUP} />
+    ),
+  },
+  {
     anchor: 'sentence-completion',
     short: 'Sentences',
     title: 'Type 8 — Sentence completion',
@@ -359,6 +519,20 @@ const SECTIONS: DemoSection[] = [
     title: 'Type 9 — Summary completion (word bank)',
     withPassage: true,
     render: () => <ReadingSummaryCompletionRunner group={SUMMARY_WORD_BANK_GROUP} />,
+  },
+  {
+    anchor: 'table-completion',
+    short: 'Table',
+    title: 'Type 11 — Table completion',
+    withPassage: true,
+    render: () => <ReadingTableCompletionRunner group={TABLE_COMPLETION_GROUP} />,
+  },
+  {
+    anchor: 'flow-chart-completion',
+    short: 'Flow chart',
+    title: 'Type 12 — Flow-chart completion',
+    withPassage: true,
+    render: () => <ReadingFlowChartCompletionRunner group={FLOW_CHART_COMPLETION_GROUP} />,
   },
   {
     anchor: 'short-answer',
