@@ -17,7 +17,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import LessonBuilderView from '@/components/admin-v2/LessonBuilderView'
+import MyLibraryView from '@/components/admin-v2/MyLibraryView'
 import LessonEditorView from '@/components/admin-v2/LessonEditorView'
 import { useLessonEditor } from '@/lib/lesson-editor/useLessonEditor'
 import { useLessonAi } from '@/lib/lesson-editor/useLessonAi'
@@ -102,13 +102,15 @@ function LessonsBetaBody() {
 
   if (status === 'loading') {
     return (
-      <LessonBuilderView
+      <MyLibraryView
         lessons={[]}
         loading
+        currentUserEmail=""
         onOpenLesson={() => {}}
         onNewLesson={() => {}}
         onNewTemplate={() => {}}
-        onOpenCourse={() => {}}
+        onAssign={async () => ({ ok: false })}
+        onOpenSchoolLibrary={() => {}}
       />
     )
   }
@@ -214,17 +216,27 @@ function LessonsBetaBody() {
           onToggleCollapse={editor.toggleCollapse}
         />
       ) : (
-        <LessonBuilderView
+        <MyLibraryView
           lessons={editor.lessons}
           loading={editor.loading}
+          currentUserEmail={session?.user?.email || ''}
           onOpenLesson={(id) => router.push(`/admin-beta/lessons?id=${id}`)}
-          onNewLesson={(cid, cname) =>
-            cid
-              ? router.push(`/admin-beta/lessons?course_id=${cid}&course_name=${encodeURIComponent(cname || '')}`)
-              : editor.startNewLesson()
-          }
+          onNewLesson={() => editor.startNewLesson()}
           onNewTemplate={() => router.push('/admin-beta/lessons?mode=content-bank')}
-          onOpenCourse={(id) => router.push(`/admin-beta/courses/${id}`)}
+          onOpenSchoolLibrary={() => router.push('/admin-beta/content-bank')}
+          onAssign={async (lessonId, courseId) => {
+            const res = await fetch('/api/lessons', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'assign-course', lessonId, course_id: courseId }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && data.ok) {
+              void editor.loadLessons?.()
+              return { ok: true }
+            }
+            return { ok: false, error: data.error || 'Failed to assign' }
+          }}
         />
       )}
 

@@ -292,6 +292,46 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
+
+    // ── Lightweight ASSIGN action ──
+    // Sets ONLY course_id on an existing lesson (assign to a course, or
+    // unassign with null). Returns early so we never run the heavy
+    // create/update upsert that deletes + reinserts all child content.
+    if (body.action === 'assign-course') {
+      const { lessonId, course_id: targetCourseId } = body
+      if (!lessonId) {
+        return NextResponse.json({ error: 'Lesson ID required' }, { status: 400 })
+      }
+
+      // Access check: superadmin always allowed. Teacher allowed only if
+      // they own the lesson OR have access to the target course.
+      if (user.role === 'teacher') {
+        const { data: existing } = await supabase
+          .from('lessons')
+          .select('created_by')
+          .eq('id', lessonId)
+          .single()
+        if (!existing) {
+          return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+        }
+        const accessible = await getAccessibleCourseIds(user.email, user.role)
+        const hasAccess =
+          existing.created_by === user.email ||
+          (targetCourseId && accessible.includes(targetCourseId))
+        if (!hasAccess) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+
+      const { error } = await supabase
+        .from('lessons')
+        .update({ course_id: targetCourseId || null, updated_at: new Date().toISOString() })
+        .eq('id', lessonId)
+      if (error) throw error
+
+      return NextResponse.json({ ok: true })
+    }
+
     const {
       lessonId: existingLessonId,
       title,

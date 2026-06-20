@@ -35,6 +35,10 @@ export interface Lesson {
   template_category?: string | null
   template_level?: string | null
   course_id?: string | null
+  // Email of the teacher who created the lesson. Present on the GET list
+  // payload (the query uses .select('*')); used by My Library to filter
+  // "mine". May be missing on older rows — treat absent as not-mine.
+  created_by?: string | null
 }
 
 // (legacy page.tsx 50-61)

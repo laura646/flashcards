@@ -49,7 +49,7 @@ const PRIMARY_NAV: NavItem[] = [
   },
   {
     href: '/admin-beta/lessons',
-    label: 'Lessons',
+    label: 'My Library',
     icon: '📖',
     match: (p) =>
       (p?.startsWith('/admin-beta/lessons') ?? false) ||
