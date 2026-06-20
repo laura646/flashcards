@@ -99,6 +99,7 @@ interface CourseDetailViewProps {
   onOpenLesson: (id: string) => void
   onOpenStudent: (email: string) => void
   onCreateLesson: () => void
+  onAssignFromLibrary: () => void
   onSaveCourse: (form: CourseSaveForm) => Promise<{ ok: boolean; error?: string }>
   onSendTelegramTest: () => Promise<{ ok: boolean; error?: string }>
   onArchive: () => Promise<{ ok: boolean; error?: string }>
@@ -158,6 +159,7 @@ export function CourseDetailView({
   onOpenLesson,
   onOpenStudent,
   onCreateLesson,
+  onAssignFromLibrary,
   onSaveCourse,
   onSendTelegramTest,
   onArchive,
@@ -348,10 +350,19 @@ export function CourseDetailView({
           <div className="bg-white rounded-card border border-hairline overflow-hidden">
             <div className="px-5 py-4 border-b border-hairline flex items-center justify-between gap-3">
               <h2 className="font-bold text-ink-black">Lessons</h2>
-              <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from My Library</Button>
+                <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
+              </div>
             </div>
             {lessons.length === 0 ? (
-              <EmptyState icon="📖" title="No lessons yet" hint="Create one from scratch or import a ready-made plan from the content bank." />
+              <div className="py-2">
+                <EmptyState icon="📖" title="No lessons yet" hint="Create one from scratch or import a ready-made plan from the content bank." />
+                <div className="flex items-center justify-center gap-2 pb-8">
+                  <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
+                  <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from My Library</Button>
+                </div>
+              </div>
             ) : (
               <>
                 {/* Dense filter strip — search + status filter over the lessons prop */}

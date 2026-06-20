@@ -19,6 +19,7 @@ import CourseDetailView, {
   CourseSaveForm,
 } from '@/components/admin-v2/CourseDetailView'
 import ContentBankImportModal from '@/components/ContentBankImportModal'
+import AssignFromLibraryModal from '@/components/admin-v2/AssignFromLibraryModal'
 
 export default function CourseDetailBetaPage() {
   const { data: session, status } = useSession()
@@ -31,6 +32,7 @@ export default function CourseDetailBetaPage() {
   const [lessons, setLessons] = useState<CourseLessonRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showLessonChooser, setShowLessonChooser] = useState(false)
+  const [showAssignModal, setShowAssignModal] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
@@ -173,6 +175,7 @@ export default function CourseDetailBetaPage() {
         }
         onOpenStudent={(email) => router.push(`/admin-beta/students/${encodeURIComponent(email)}`)}
         onCreateLesson={() => setShowLessonChooser(true)}
+        onAssignFromLibrary={() => setShowAssignModal(true)}
         onSaveCourse={onSaveCourse}
         onSendTelegramTest={onSendTelegramTest}
         onArchive={onArchive}
@@ -194,6 +197,16 @@ export default function CourseDetailBetaPage() {
             router.push(`/admin-beta/lessons?course_id=${id}&course_name=${encodeURIComponent(course?.name || '')}`)
           }
           onImported={() => { setShowLessonChooser(false); load() }}
+        />
+      )}
+
+      {showAssignModal && (
+        <AssignFromLibraryModal
+          courseId={id}
+          courseName={course?.name || ''}
+          currentUserEmail={session?.user?.email || ''}
+          onClose={() => setShowAssignModal(false)}
+          onAssigned={() => { setShowAssignModal(false); load() }}
         />
       )}
     </>
