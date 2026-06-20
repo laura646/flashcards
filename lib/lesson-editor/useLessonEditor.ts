@@ -18,10 +18,12 @@ import {
   type Exercise,
   type ContentBlock,
   type ContentItem,
+  type BlockType,
   type View,
   type MistakesContent,
   type GrammarContent,
   type AttachedExercise,
+  createDefaultContent,
   normalizeExerciseType,
   validateMcqQuestion,
 } from './types'
@@ -400,6 +402,107 @@ export function useLessonEditor() {
     loadLessons,
   ])
 
+  // ── Content-edit actions ──
+  // Ported from the legacy editor's Content Item Management block. The legacy
+  // code read `contentItems.length` and `currentLessonStatus` directly; here we
+  // keep functional setContentItems where the new index is derived from the
+  // array, and read currentLessonStatus from state for the publish default.
+
+  // (legacy addContentItem flashcards branch 1302-1312) — append a single
+  // flashcards item; refuse if one already exists.
+  const addFlashcardsItem = useCallback(() => {
+    setError(null)
+    setContentItems((prev) => {
+      if (prev.find((i) => i.type === 'flashcards')) {
+        setError('Vocabulary block already exists in this lesson')
+        return prev
+      }
+      return [
+        ...prev,
+        { type: 'flashcards', data: [] as Flashcard[], collapsed: false, order_index: prev.length },
+      ]
+    })
+  }, [])
+
+  // (legacy addManualBlock 1342-1356 + defaultPublishedForNewBlock 1272) —
+  // append a new content block of the given type with default content.
+  const addBlock = useCallback((type: BlockType) => {
+    setContentItems((prev) => {
+      const len = prev.length
+      const block: ContentBlock = {
+        block_type: type,
+        title: '',
+        content: createDefaultContent(type),
+        order_index: len,
+        published: currentLessonStatus !== 'published',
+      }
+      return [...prev, { type, data: block, collapsed: false, order_index: len }]
+    })
+  }, [currentLessonStatus])
+
+  // (legacy updateContentItem 1699-1705) — replace only .data at index,
+  // preserving type / collapsed / order_index.
+  const updateItemData = useCallback((index: number, data: ContentItem['data']) => {
+    setContentItems((prev) => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], data }
+      return updated
+    })
+  }, [])
+
+  // (legacy moveItem 1687-1697) — swap with neighbour, then renumber order_index.
+  const moveItem = useCallback((index: number, dir: 'up' | 'down') => {
+    setContentItems((prev) => {
+      const newIndex = dir === 'up' ? index - 1 : index + 1
+      if (newIndex < 0 || newIndex >= prev.length) return prev
+      const updated = [...prev]
+      const temp = updated[index]
+      updated[index] = updated[newIndex]
+      updated[newIndex] = temp
+      return updated.map((item, i) => ({ ...item, order_index: i }))
+    })
+  }, [])
+
+  // (legacy removeContentItem 1675-1677) — drop the item, then renumber.
+  const removeItem = useCallback((index: number) => {
+    setContentItems((prev) => prev.filter((_, i) => i !== index).map((item, i) => ({ ...item, order_index: i })))
+  }, [])
+
+  // (legacy togglePublished 1274-1290) — flashcards toggle separately (no-op);
+  // exercise / block flip data.published.
+  const togglePublished = useCallback((index: number) => {
+    setContentItems((prev) => {
+      const next = [...prev]
+      const item = next[index]
+      if (item.type === 'flashcards') {
+        return prev
+      } else if (item.type === 'exercise') {
+        const ex = item.data as Exercise
+        next[index] = { ...item, data: { ...ex, published: ex.published === false ? true : false } }
+      } else {
+        const block = item.data as ContentBlock
+        next[index] = { ...item, data: { ...block, published: block.published === false ? true : false } }
+      }
+      return next
+    })
+  }, [])
+
+  // (legacy isItemPublished 1292-1296) — flashcards read the top-level boolean.
+  const isItemPublished = useCallback((item: ContentItem): boolean => {
+    if (item.type === 'flashcards') return flashcardsPublished
+    if (item.type === 'exercise') return (item.data as Exercise).published !== false
+    return (item.data as ContentBlock).published !== false
+  }, [flashcardsPublished])
+
+  // (legacy toggleCollapse 1679-1685) — flip the item's collapsed flag.
+  const toggleCollapse = useCallback((index: number) => {
+    setContentItems((prev) => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], collapsed: !updated[index].collapsed }
+      return updated
+    })
+  }, [])
+
   // ── Back to list ──
   const backToList = useCallback(() => {
     setEditingLessonId(null)
@@ -463,6 +566,16 @@ export function useLessonEditor() {
     startNewLesson,
     saveLesson,
     backToList,
+
+    // content-edit actions
+    addFlashcardsItem,
+    addBlock,
+    updateItemData,
+    moveItem,
+    removeItem,
+    togglePublished,
+    isItemPublished,
+    toggleCollapse,
   }
 }
 

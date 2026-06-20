@@ -1,16 +1,27 @@
 'use client'
 
-// Mock harness for the 10B Lesson editor views (Phase 1).
+// Mock harness for the 10B Lesson editor views (Phase 2).
 //
-// Renders LessonsListView + LessonEditorView with hardcoded mock data and stub
-// callbacks, so the presentational pieces are verifiable WITHOUT auth or the
-// API. Not part of the real app flow — purely a visual check page that lives
-// under the existing /student-ui-preview sandbox.
+// Renders LessonsListView + LessonEditorView with hardcoded mock data and
+// LOCAL state so the editor is actually editable WITHOUT auth or the API. The
+// "Editor (with content)" tab now wires the real Phase-2 content actions
+// (add / update / move / remove / publish-toggle / collapse) against a
+// useState-backed contentItems array, so flashcards + the simple blocks can be
+// edited live in the sandbox. Not part of the real app flow — purely a visual
+// check page under the existing /student-ui-preview sandbox.
 
 import { useState } from 'react'
 import LessonsListView from '@/components/admin-v2/LessonsListView'
 import LessonEditorView from '@/components/admin-v2/LessonEditorView'
-import type { Lesson, ContentItem, Flashcard, Exercise, ContentBlock } from '@/lib/lesson-editor/types'
+import {
+  type Lesson,
+  type ContentItem,
+  type Flashcard,
+  type Exercise,
+  type ContentBlock,
+  type BlockType,
+  createDefaultContent,
+} from '@/lib/lesson-editor/types'
 
 const MOCK_LESSONS: Lesson[] = [
   {
@@ -54,14 +65,11 @@ const MOCK_LESSONS: Lesson[] = [
   },
 ]
 
-const MOCK_FLASHCARDS: Flashcard[] = Array.from({ length: 18 }).map((_, i) => ({
-  word: `word ${i + 1}`,
-  phonetic: '',
-  meaning: '',
-  example: '',
-  notes: '',
-  order_index: i,
-}))
+const MOCK_FLASHCARDS: Flashcard[] = [
+  { word: 'itinerary', phonetic: '/aɪˈtɪnərəri/', meaning: 'a planned route or journey', example: 'Our itinerary includes three cities.', notes: '', image_url: '', order_index: 0 },
+  { word: 'boarding pass', phonetic: '', meaning: 'a document to board a plane', example: '', notes: '', image_url: '', order_index: 1 },
+  { word: 'layover', phonetic: '', meaning: 'a short stop between flights', example: '', notes: '', image_url: '', order_index: 2 },
+]
 
 const MOCK_EXERCISE: Exercise = {
   title: 'Match the directions',
@@ -70,24 +78,35 @@ const MOCK_EXERCISE: Exercise = {
   instructions: '',
   exercise_type: 'multiple_choice',
   questions: [],
+  order_index: 3,
+  published: true,
+}
+
+const MOCK_WRITING_BLOCK: ContentBlock = {
+  block_type: 'writing',
+  title: 'Writing: Postcard from abroad',
+  content: { prompt: 'Write a postcard to a friend describing your trip.', guidelines: 'Use past tense and at least 3 vocab words.', word_limit: 120 },
   order_index: 1,
+  published: true,
 }
 
-const MOCK_BLOCK: ContentBlock = {
-  block_type: 'video',
-  title: 'Asking for directions (YouTube)',
-  content: { youtube_url: '', questions: [] },
+const MOCK_DIALOGUE_BLOCK: ContentBlock = {
+  block_type: 'dialogue',
+  title: 'Practice: At the check-in desk',
+  content: { scenario: 'You are checking in for an international flight.', target_words: ['boarding pass', 'aisle', 'window seat'], starter_message: 'Good morning! May I see your passport, please?' },
   order_index: 2,
+  published: false,
 }
 
-const MOCK_ITEMS: ContentItem[] = [
-  { type: 'flashcards', data: MOCK_FLASHCARDS, collapsed: true, order_index: 0 },
-  { type: 'exercise', data: MOCK_EXERCISE, collapsed: true, order_index: 1 },
-  { type: 'video', data: MOCK_BLOCK, collapsed: true, order_index: 2 },
+const INITIAL_ITEMS: ContentItem[] = [
+  { type: 'flashcards', data: MOCK_FLASHCARDS, collapsed: false, order_index: 0 },
+  { type: 'writing', data: MOCK_WRITING_BLOCK, collapsed: false, order_index: 1 },
+  { type: 'dialogue', data: MOCK_DIALOGUE_BLOCK, collapsed: true, order_index: 2 },
+  { type: 'exercise', data: MOCK_EXERCISE, collapsed: true, order_index: 3 },
 ]
 
 export default function LessonEditorV2Preview() {
-  const [tab, setTab] = useState<'list' | 'editor' | 'empty'>('list')
+  const [tab, setTab] = useState<'list' | 'editor' | 'empty'>('editor')
   const [query, setQuery] = useState('')
 
   // Editor mock state (so fields are actually interactive in the preview).
@@ -95,6 +114,80 @@ export default function LessonEditorV2Preview() {
   const [lessonDate, setLessonDate] = useState('2026-06-10')
   const [lessonType, setLessonType] = useState('lesson')
   const [summary, setSummary] = useState('Airport, hotel and direction words.')
+
+  // Live content state — mirrors the hook's contentItems + flashcardsPublished.
+  const [contentItems, setContentItems] = useState<ContentItem[]>(INITIAL_ITEMS)
+  const [flashcardsPublished, setFlashcardsPublished] = useState(true)
+
+  // Stub actions mirroring the useLessonEditor contract (local-only versions).
+  const isItemPublished = (item: ContentItem): boolean => {
+    if (item.type === 'flashcards') return flashcardsPublished
+    if (item.type === 'exercise') return (item.data as Exercise).published !== false
+    return (item.data as ContentBlock).published !== false
+  }
+
+  const addFlashcards = () => {
+    setContentItems((prev) => {
+      if (prev.find((i) => i.type === 'flashcards')) return prev
+      return [...prev, { type: 'flashcards', data: [] as Flashcard[], collapsed: false, order_index: prev.length }]
+    })
+  }
+
+  const addBlock = (type: BlockType) => {
+    setContentItems((prev) => {
+      const len = prev.length
+      const block: ContentBlock = { block_type: type, title: '', content: createDefaultContent(type), order_index: len, published: true }
+      return [...prev, { type, data: block, collapsed: false, order_index: len }]
+    })
+  }
+
+  const updateItem = (index: number, data: ContentItem['data']) => {
+    setContentItems((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], data }
+      return next
+    })
+  }
+
+  const moveItem = (index: number, dir: 'up' | 'down') => {
+    setContentItems((prev) => {
+      const newIndex = dir === 'up' ? index - 1 : index + 1
+      if (newIndex < 0 || newIndex >= prev.length) return prev
+      const next = [...prev]
+      const tmp = next[index]
+      next[index] = next[newIndex]
+      next[newIndex] = tmp
+      return next.map((it, i) => ({ ...it, order_index: i }))
+    })
+  }
+
+  const removeItem = (index: number) => {
+    setContentItems((prev) => prev.filter((_, i) => i !== index).map((it, i) => ({ ...it, order_index: i })))
+  }
+
+  const togglePublished = (index: number) => {
+    setContentItems((prev) => {
+      const next = [...prev]
+      const item = next[index]
+      if (item.type === 'flashcards') return prev
+      if (item.type === 'exercise') {
+        const ex = item.data as Exercise
+        next[index] = { ...item, data: { ...ex, published: ex.published === false } }
+      } else {
+        const b = item.data as ContentBlock
+        next[index] = { ...item, data: { ...b, published: b.published === false } }
+      }
+      return next
+    })
+  }
+
+  const toggleCollapse = (index: number) => {
+    setContentItems((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], collapsed: !next[index].collapsed }
+      return next
+    })
+  }
 
   return (
     <div className="font-rubik">
@@ -138,12 +231,22 @@ export default function LessonEditorV2Preview() {
           editingLessonId="l1"
           editingAuthorName="Laura"
           editingCreatedAt="2026-06-01T10:00:00Z"
-          contentItems={MOCK_ITEMS}
+          contentItems={contentItems}
+          isItemPublished={isItemPublished}
+          flashcardsPublished={flashcardsPublished}
           saving={false}
           publishing={false}
           error={null}
           onSave={(s) => console.log('save', s)}
           onBack={() => setTab('list')}
+          onAddFlashcards={addFlashcards}
+          onAddBlock={addBlock}
+          onUpdateItem={updateItem}
+          onMoveItem={moveItem}
+          onRemoveItem={removeItem}
+          onTogglePublished={togglePublished}
+          onToggleFlashcardsPublished={() => setFlashcardsPublished((v) => !v)}
+          onToggleCollapse={toggleCollapse}
         />
       )}
 
@@ -162,11 +265,21 @@ export default function LessonEditorV2Preview() {
           editingAuthorName={null}
           editingCreatedAt={null}
           contentItems={[]}
+          isItemPublished={() => true}
+          flashcardsPublished={true}
           saving={false}
           publishing={false}
           error="Please enter a lesson title"
           onSave={(s) => console.log('save', s)}
           onBack={() => setTab('list')}
+          onAddFlashcards={() => console.log('add flashcards')}
+          onAddBlock={(t) => console.log('add block', t)}
+          onUpdateItem={(i, d) => console.log('update', i, d)}
+          onMoveItem={(i, dir) => console.log('move', i, dir)}
+          onRemoveItem={(i) => console.log('remove', i)}
+          onTogglePublished={(i) => console.log('toggle published', i)}
+          onToggleFlashcardsPublished={() => console.log('toggle flashcards published')}
+          onToggleCollapse={(i) => console.log('toggle collapse', i)}
         />
       )}
     </div>

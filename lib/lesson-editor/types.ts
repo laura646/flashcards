@@ -225,6 +225,48 @@ export const BLOCK_CONFIG: Record<ContentItemType, { label: string; icon: string
 
 // ── Helpers ──
 
+// (legacy page.tsx 380-399) — copied verbatim
+// Returns the canonical default content for a newly-created block of each type.
+export function createDefaultContent(type: BlockType): BlockContent {
+  switch (type) {
+    case 'mistakes':
+      return { mistakes: [{ original: '', correction: '', explanation: '', practice: [] }] }
+    case 'video':
+      return { youtube_url: '', questions: [] }
+    case 'audio':
+      return { audio_url: '', exercises: [] }
+    case 'article':
+      return { text: '', source: '', questions: [] }
+    case 'dialogue':
+      return { scenario: '', target_words: [], starter_message: '' }
+    case 'grammar':
+      return { explanation: '', examples: [''], exercises: [] }
+    case 'writing':
+      return { prompt: '', guidelines: '', word_limit: 150 }
+    case 'pronunciation':
+      return { words: [{ word: '', phonetic: '', tips: '' }] }
+  }
+}
+
+// (legacy page.tsx 3677-3692) — copied verbatim
+// Short one-line summary shown on a collapsed content item.
+export function getBlockSummary(item: ContentItem): string {
+  switch (item.type) {
+    case 'flashcards': {
+      const fc = item.data as Flashcard[]
+      return `${fc.length} flashcard${fc.length !== 1 ? 's' : ''}`
+    }
+    case 'exercise': {
+      const ex = item.data as Exercise
+      return ex.title || `${ex.questions.length} question${ex.questions.length !== 1 ? 's' : ''}`
+    }
+    default: {
+      const block = item.data as ContentBlock
+      return block.title || 'Untitled'
+    }
+  }
+}
+
 // (legacy page.tsx 417-420) — copied verbatim
 export function normalizeExerciseType(t: string | null | undefined): string {
   if (t === 'multiple-choice') return 'multiple_choice'

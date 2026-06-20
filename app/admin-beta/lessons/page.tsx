@@ -104,6 +104,8 @@ function LessonsBetaBody() {
           editingAuthorName={editor.editingAuthorName}
           editingCreatedAt={editor.editingCreatedAt}
           contentItems={editor.contentItems}
+          isItemPublished={editor.isItemPublished}
+          flashcardsPublished={editor.flashcardsPublished}
           saving={editor.saving}
           publishing={editor.publishing}
           error={editor.error}
@@ -112,6 +114,14 @@ function LessonsBetaBody() {
             editor.backToList()
             router.push('/admin-beta/lessons')
           }}
+          onAddFlashcards={editor.addFlashcardsItem}
+          onAddBlock={editor.addBlock}
+          onUpdateItem={editor.updateItemData}
+          onMoveItem={editor.moveItem}
+          onRemoveItem={editor.removeItem}
+          onTogglePublished={editor.togglePublished}
+          onToggleFlashcardsPublished={() => editor.setFlashcardsPublished((v) => !v)}
+          onToggleCollapse={editor.toggleCollapse}
         />
       ) : (
         <LessonsListView
