@@ -36,6 +36,7 @@ import {
   ReadingSummaryCompletionRunner,
   ReadingTableCompletionRunner,
   ReadingFlowChartCompletionRunner,
+  ReadingDiagramLabelRunner,
   ReadingShortAnswerRunner,
 } from '@/components/ielts/runners'
 
@@ -53,6 +54,7 @@ import type {
   SummaryCompletionGroup,
   TableCompletionGroup,
   FlowChartCompletionGroup,
+  DiagramLabelCompletionGroup,
   ShortAnswerGroup,
 } from '@/lib/ielts/types'
 
@@ -432,6 +434,47 @@ const SHORT_ANSWER_GROUP: ShortAnswerGroup = {
   ],
 }
 
+// Type 13 — Diagram label completion (AUTHENTIC: pinned blanks on an image).
+// Standalone (no reading passage): the diagram itself is the source. The image
+// is a public domain water-cycle diagram from Wikimedia Commons, loaded over a
+// plain <img> tag (no next/image domain allowlist needed). Pin x/y are PERCENT
+// of the image box, hand-placed over the relevant parts of the diagram.
+const DIAGRAM_LABEL_GROUP: DiagramLabelCompletionGroup = {
+  id: 'demo-diagram-label',
+  kind: 'diagram_label_completion',
+  instruction:
+    'Label the diagram below. Write ONE WORD ONLY for each answer.',
+  imageUrl:
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Water_cycle_blank.svg/640px-Water_cycle_blank.svg.png',
+  wordLimit: 1,
+  labels: [
+    {
+      number: 1,
+      x: 30,
+      y: 18,
+      acceptedAnswers: ['evaporation', 'evaporate'],
+    },
+    {
+      number: 2,
+      x: 58,
+      y: 22,
+      acceptedAnswers: ['condensation', 'condense'],
+    },
+    {
+      number: 3,
+      x: 70,
+      y: 55,
+      acceptedAnswers: ['precipitation', 'rain', 'rainfall'],
+    },
+    {
+      number: 4,
+      x: 40,
+      y: 80,
+      acceptedAnswers: ['collection', 'runoff', 'run-off'],
+    },
+  ],
+}
+
 // ════════════════════════════════════════════════════════════════
 // Section descriptor — drives both the jump-list and the rendering.
 // ════════════════════════════════════════════════════════════════
@@ -533,6 +576,13 @@ const SECTIONS: DemoSection[] = [
     title: 'Type 12 — Flow-chart completion',
     withPassage: true,
     render: () => <ReadingFlowChartCompletionRunner group={FLOW_CHART_COMPLETION_GROUP} />,
+  },
+  {
+    anchor: 'diagram-label',
+    short: 'Diagram',
+    title: 'Type 13 — Diagram label completion',
+    withPassage: false,
+    render: () => <ReadingDiagramLabelRunner group={DIAGRAM_LABEL_GROUP} />,
   },
   {
     anchor: 'short-answer',

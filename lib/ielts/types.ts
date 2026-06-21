@@ -324,6 +324,34 @@ export type FlowChartSegment =
       correctOptionId?: string
     }
 
+/**
+ * Type 13 — Diagram-label completion (AUTHENTIC exam version).
+ * A teacher-uploaded diagram image with numbered blanks POSITIONED at points on
+ * the image; the learner types the label at each point. `x`/`y` are PERCENTAGES
+ * (0–100) of the image width/height, so each label pin positions responsively
+ * regardless of the rendered image size. Each label carries accepted-answer
+ * variants + an optional per-label word limit (overriding the group default);
+ * matching reuses checkAccepted/checkGap — misspelling counts as wrong.
+ */
+export interface DiagramLabelCompletionGroup extends BaseGroup {
+  kind: 'diagram_label_completion'
+  /** The uploaded diagram image to label. */
+  imageUrl: string
+  /** Default word limit for every label in the set (per-label can override). */
+  wordLimit?: number
+  /** Numbered blanks pinned to the image at (x, y) percentage coordinates. */
+  labels: {
+    number: number
+    /** Horizontal pin position as a percentage (0–100) of image width. */
+    x: number
+    /** Vertical pin position as a percentage (0–100) of image height. */
+    y: number
+    acceptedAnswers: string[]
+    /** Overrides the group `wordLimit` for this label. */
+    wordLimit?: number
+  }[]
+}
+
 /** The discriminated union of every supported Reading question group. */
 export type ReadingQuestionGroup =
   | McqGroup
@@ -338,6 +366,7 @@ export type ReadingQuestionGroup =
   | SummaryCompletionGroup
   | TableCompletionGroup
   | FlowChartCompletionGroup
+  | DiagramLabelCompletionGroup
   | ShortAnswerGroup
 
 /** The `kind` discriminant values, for registries / exhaustive switches. */

@@ -32,6 +32,7 @@ import {
   ReadingSummaryCompletionRunner,
   ReadingTableCompletionRunner,
   ReadingFlowChartCompletionRunner,
+  ReadingDiagramLabelRunner,
   ReadingShortAnswerRunner,
 } from '@/components/ielts/runners'
 
@@ -84,6 +85,8 @@ function GroupRunner({
       return <ReadingTableCompletionRunner group={group} onScore={onScore} />
     case 'flow_chart_completion':
       return <ReadingFlowChartCompletionRunner group={group} onScore={onScore} />
+    case 'diagram_label_completion':
+      return <ReadingDiagramLabelRunner group={group} onScore={onScore} />
     case 'short_answer':
       return <ReadingShortAnswerRunner group={group} onScore={onScore} />
     default: {

@@ -322,6 +322,22 @@ export const IELTS_READING_REGISTRY: IeltsRegistryEntry[] = [
       }),
   },
   {
+    value: 'ielts_reading_diagram_label',
+    kind: 'diagram_label_completion',
+    label: 'Diagram label completion',
+    icon: '🖼️',
+    group: 'ielts',
+    enabled: IELTS_ENABLED,
+    defaultData: () =>
+      seed('Label the diagram below. Choose NO MORE THAN TWO WORDS from the passage for each answer.', {
+        kind: 'diagram_label_completion',
+        id: gid(),
+        instruction: '',
+        imageUrl: '',
+        labels: [],
+      }),
+  },
+  {
     value: 'ielts_reading_short_answer',
     kind: 'short_answer',
     label: 'IELTS Reading — Short-Answer Questions',

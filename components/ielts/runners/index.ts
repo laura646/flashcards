@@ -43,6 +43,9 @@ export type { ReadingTableCompletionRunnerProps } from './ReadingTableCompletion
 export { ReadingFlowChartCompletionRunner } from './ReadingFlowChartCompletionRunner'
 export type { ReadingFlowChartCompletionRunnerProps } from './ReadingFlowChartCompletionRunner'
 
+export { ReadingDiagramLabelRunner } from './ReadingDiagramLabelRunner'
+export type { ReadingDiagramLabelRunnerProps } from './ReadingDiagramLabelRunner'
+
 export { ReadingShortAnswerRunner } from './ReadingShortAnswerRunner'
 export type { ReadingShortAnswerRunnerProps } from './ReadingShortAnswerRunner'
 

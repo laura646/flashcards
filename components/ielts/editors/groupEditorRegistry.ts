@@ -41,6 +41,7 @@ import type {
   SummaryCompletionGroup,
   TableCompletionGroup,
   FlowChartCompletionGroup,
+  DiagramLabelCompletionGroup,
   ShortAnswerGroup,
 } from '@/lib/ielts/types'
 
@@ -56,6 +57,7 @@ import NoteCompletionGroupEditor from './groups/NoteCompletionGroupEditor'
 import SummaryCompletionGroupEditor from './groups/SummaryCompletionGroupEditor'
 import TableCompletionGroupEditor from './groups/TableCompletionGroupEditor'
 import FlowChartCompletionGroupEditor from './groups/FlowChartCompletionGroupEditor'
+import DiagramLabelGroupEditor from './groups/DiagramLabelGroupEditor'
 import ShortAnswerGroupEditor from './groups/ShortAnswerGroupEditor'
 
 /** A per-kind editor's props: its specific group + a typed onChange. */
@@ -250,6 +252,16 @@ const defaultFlowChartCompletion = (): FlowChartCompletionGroup => ({
   ],
 })
 
+const defaultDiagramLabelCompletion = (): DiagramLabelCompletionGroup => ({
+  kind: 'diagram_label_completion',
+  id: gid('diagram_label_completion'),
+  instruction:
+    'Label the diagram below. Choose NO MORE THAN TWO WORDS from the passage for each answer.',
+  imageUrl: '',
+  wordLimit: 2,
+  labels: [],
+})
+
 // ── The registry ───────────────────────────────────────────────────────────────
 //
 // Typed as a mapped type so each kind's entry is generic over its OWN group
@@ -349,6 +361,12 @@ export const GROUP_EDITOR_REGISTRY: Registry = {
     defaultGroup: defaultFlowChartCompletion,
     Editor: editorFor<FlowChartCompletionGroup>(FlowChartCompletionGroupEditor),
   },
+  diagram_label_completion: {
+    label: 'Diagram label completion',
+    editable: true,
+    defaultGroup: defaultDiagramLabelCompletion,
+    Editor: editorFor<DiagramLabelCompletionGroup>(DiagramLabelGroupEditor),
+  },
 }
 
 /** Ordered list of kinds for the "+ Add question set" menu. */
@@ -365,6 +383,7 @@ export const GROUP_EDITOR_KINDS: ReadingQuestionKind[] = [
   'summary_completion',
   'table_completion',
   'flow_chart_completion',
+  'diagram_label_completion',
   'short_answer',
 ]
 
