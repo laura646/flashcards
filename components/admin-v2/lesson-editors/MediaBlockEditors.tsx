@@ -30,6 +30,7 @@ import { useState } from 'react'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
 import BlockExercisesEditor from './BlockExercisesEditor'
+import RichTextEditor from './RichTextEditor'
 import { Button, InlineError, SegmentedControl, Spinner } from '@/components/student-ui'
 import { isImageFile } from '@/lib/lesson-editor/fileToBase64'
 import { legacyMcqToAttached, type AttachedExercise } from '@/lib/attached-exercise'
@@ -408,11 +409,13 @@ export function ArticleEditor({
 
       <div>
         <FieldLabel>Article text</FieldLabel>
-        <TextArea
-          value={content.text}
-          onChange={(text) => updateContent({ text })}
-          placeholder="Paste the article text here..."
-          heightClass="h-40"
+        {/* Rich-text passage: stored as HTML in content.text, rendered sanitized
+            for students. Plain-text passages still render (plain text is valid
+            HTML). The toolbar gives bold/italic/underline/highlight/colour. */}
+        <RichTextEditor
+          value={content.text || ''}
+          onChange={(html) => updateContent({ text: html })}
+          placeholder="Paste or write the reading passage…"
         />
       </div>
 

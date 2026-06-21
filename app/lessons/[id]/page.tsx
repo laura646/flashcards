@@ -12,6 +12,7 @@ import { legacyMcqToAttached } from '@/lib/attached-exercise'
 import type { ReadingExercise } from '@/lib/ielts/types'
 import type { Exercise } from '@/lib/lesson-editor/types'
 import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
+import { sanitizeRichText, looksLikeHtml } from '@/lib/html'
 
 // Lazy load exercise runners — only loaded when student opens an exercise
 const FlipMode = lazy(() => import('@/components/FlipMode'))
@@ -1924,9 +1925,23 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           </div>
 
           <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-6 mb-6">
-            <div className="text-sm text-ink-body leading-relaxed whitespace-pre-wrap">
-              {content.text}
-            </div>
+            {/* Passage is stored as rich-text HTML (content.text). Render it
+                sanitized at NORMAL weight (bold only where the teacher applied
+                it — fixes the old always-bold render). Legacy PLAIN-TEXT
+                passages have no tags, so we keep their literal line breaks with
+                whitespace-pre-wrap instead of HTML rendering. */}
+            {looksLikeHtml(content.text || '') ? (
+              <div
+                className="rte-prose text-sm font-normal text-ink-body leading-relaxed"
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeRichText(content.text || ''),
+                }}
+              />
+            ) : (
+              <div className="text-sm font-normal text-ink-body leading-relaxed whitespace-pre-wrap">
+                {content.text}
+              </div>
+            )}
             {content.source && (
               <p className="text-xs text-ink-muted mt-4 pt-3 border-t border-gray-100 italic">
                 Source: {content.source}
