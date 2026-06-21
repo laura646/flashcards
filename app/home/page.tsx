@@ -50,6 +50,10 @@ export default function HomePage() {
 
   const heroStreak = srsStreak
 
+  // Quick-actions row (Flip / Quiz / Add word) hidden per Laura — kept for later.
+  // Flip to true to restore.
+  const SHOW_QUICK_ACTIONS = false
+
   const role = session?.user?.role || 'student'
 
   useEffect(() => {
@@ -220,25 +224,27 @@ export default function HomePage() {
       </SkyHero>
 
       <div className="w-full max-w-lg mx-auto px-4 py-6">
-        {/* Quick actions */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {[
-            // Route into the REAL SRS trainer (the student's own due words),
-            // not the static demo deck. The trainer reads ?mode / ?action.
-            { emoji: '🔄', label: 'Flip', href: '/vocabulary?mode=flip' },
-            { emoji: '🎯', label: 'Quiz', href: '/vocabulary?mode=quiz' },
-            { emoji: '➕', label: 'Add word', href: '/vocabulary?action=add' },
-          ].map((qa) => (
-            <button
-              key={qa.label}
-              onClick={() => router.push(qa.href)}
-              className="flex flex-col items-center gap-1.5 bg-sky-wash rounded-tile py-4 hover:brightness-95 transition-all"
-            >
-              <span className="text-2xl">{qa.emoji}</span>
-              <span className="text-[12px] font-bold text-ink-body">{qa.label}</span>
-            </button>
-          ))}
-        </div>
+        {/* Quick actions — HIDDEN per Laura (kept for later); flip SHOW_QUICK_ACTIONS to true to restore */}
+        {SHOW_QUICK_ACTIONS && (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              // Route into the REAL SRS trainer (the student's own due words),
+              // not the static demo deck. The trainer reads ?mode / ?action.
+              { emoji: '🔄', label: 'Flip', href: '/vocabulary?mode=flip' },
+              { emoji: '🎯', label: 'Quiz', href: '/vocabulary?mode=quiz' },
+              { emoji: '➕', label: 'Add word', href: '/vocabulary?action=add' },
+            ].map((qa) => (
+              <button
+                key={qa.label}
+                onClick={() => router.push(qa.href)}
+                className="flex flex-col items-center gap-1.5 bg-sky-wash rounded-tile py-4 hover:brightness-95 transition-all"
+              >
+                <span className="text-2xl">{qa.emoji}</span>
+                <span className="text-[12px] font-bold text-ink-body">{qa.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Back to courses */}
         {courses.length > 1 && (
