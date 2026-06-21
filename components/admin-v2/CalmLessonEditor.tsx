@@ -286,6 +286,10 @@ export function CalmLessonEditor({
   const [activeIndex, setActiveIndex] = useState(0)
   const [editMode, setEditMode] = useState<'edit' | 'preview'>('edit')
 
+  // Lesson-details disclosure — collapsed by default to keep the top slim (the
+  // builder is the focus); open for templates since Level + Category are required.
+  const [detailsOpen, setDetailsOpen] = useState(templateMode)
+
   // Local UI state — not part of the editor data contract.
   const [showDeleteIndex, setShowDeleteIndex] = useState<number | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -709,107 +713,129 @@ export function CalmLessonEditor({
           crumbs={[{ label: 'Lessons', onClick: onBack }, { label: headingTitle }]}
         />
 
-        {/* ── Metadata card ── */}
-        <Card padding="lg" className="mb-6">
-          <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-bold text-ink-black">
-                {templateMode ? 'Template details' : 'Lesson details'}
-              </h2>
-              {templateMode && <Pill variant="status">📚 Content Bank template</Pill>}
+        {/* ── Lesson details (slim, collapsible) — title always visible, the
+            rest tucked behind a toggle so the builder stays the focus ── */}
+        <Card padding="md" className="mb-4">
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="flex-1 min-w-[220px]">
+              <TextField
+                label="Title"
+                required
+                value={title}
+                onChange={(e) => onTitleChange(e.target.value)}
+                placeholder="e.g. Week 5 - Travel Vocabulary"
+              />
             </div>
-            {!isNew && (editingAuthorName || editingCreatedAt) && (
-              <p className="text-xs text-ink-muted">
-                Created by {editingAuthorName || 'Unknown'}
-                {editingCreatedAt && ` · Added ${formatAddedDate(editingCreatedAt)}`}
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={() => setDetailsOpen((o) => !o)}
+              aria-expanded={detailsOpen}
+              className="h-[46px] px-3.5 shrink-0 rounded-tile border-[1.5px] border-[#e3e5e9] bg-white text-[13px] font-bold text-ink-body hover:bg-surface transition-colors flex items-center gap-1.5"
+            >
+              {detailsOpen ? 'Hide details' : 'Lesson details'}
+              <span aria-hidden="true" className={`text-[10px] transition-transform ${detailsOpen ? 'rotate-180' : ''}`}>▼</span>
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <TextField
-              label="Title"
-              required
-              value={title}
-              onChange={(e) => onTitleChange(e.target.value)}
-              placeholder="e.g. Week 5 - Travel Vocabulary"
-            />
-            <TextField
-              label="Date"
-              type="date"
-              value={lessonDate}
-              onChange={(e) => onDateChange(e.target.value)}
-            />
-          </div>
-
-          <div className="mt-4">
-            <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
-              Lesson type
-            </span>
-            <SegmentedControl
-              segments={LESSON_TYPE_SEGMENTS}
-              value={lessonType}
-              onChange={onTypeChange}
-              className="flex-wrap"
-            />
-          </div>
-
-          {/* ── Level + Category ── Shown for EVERY lesson so even course-free
-              drafts are filterable in My Library. Optional for normal lessons;
-              the required-guard for content-bank templates stays in the template
-              chrome below + the saveLesson guard. Bound to the existing
-              template_level / template_category columns. */}
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
-                Level{templateMode && <span className="text-incorrect-fg ml-0.5">*</span>}
-              </span>
-              <select
-                value={templateLevel ?? ''}
-                onChange={(e) => onLevelChange?.(e.target.value)}
-                className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 h-[46px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
-              >
-                <option value="">Not set</option>
-                {CEFR_OPTIONS.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
-                Category{templateMode && <span className="text-incorrect-fg ml-0.5">*</span>}
-              </span>
-              <select
-                value={templateCategory ?? ''}
-                onChange={(e) => onCategoryChange?.(e.target.value)}
-                className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 h-[46px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
-              >
-                <option value="">Not set</option>
-                {COURSE_CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <label className="block mt-4">
-            <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
-              Summary / Class notes
-            </span>
-            <textarea
-              value={summary}
-              onChange={(e) => onSummaryChange(e.target.value)}
-              placeholder="Paste class summary here (used for AI flashcard generation)…"
-              className="w-full h-24 text-[15px] font-medium text-ink-body bg-white rounded-tile p-3.5 resize-none border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors placeholder:text-[#b6bac2]"
-            />
-          </label>
-
-          {/* ── Content Bank template hint ── Template-only chrome. */}
-          {templateMode && (
-            <p className="text-[12px] text-sky-text mt-3 flex items-center gap-1.5">
-              <span aria-hidden="true">📚</span>
-              Both Level and Category are required before this template can be saved.
+          {/* Collapsed summary — what's set at a glance */}
+          {!detailsOpen && (
+            <p className="text-xs text-ink-muted mt-2.5 flex items-center gap-2 flex-wrap">
+              {templateMode && <Pill variant="status">📚 Template</Pill>}
+              <span>{LESSON_TYPE_SEGMENTS.find((s) => s.value === lessonType)?.label || 'Lesson'}</span>
+              {templateLevel && <span>· {templateLevel}</span>}
+              {templateCategory && (
+                <span>· {COURSE_CATEGORIES.find((c) => c.value === templateCategory)?.label || templateCategory}</span>
+              )}
+              {lessonDate && <span>· {lessonDate}</span>}
+              {templateMode && (!templateLevel || !templateCategory) && (
+                <span className="text-incorrect-fg font-bold">· Level + Category required to save</span>
+              )}
             </p>
+          )}
+
+          {/* Expanded details */}
+          {detailsOpen && (
+            <div className="mt-4 space-y-4">
+              {!isNew && (editingAuthorName || editingCreatedAt) && (
+                <p className="text-xs text-ink-muted">
+                  Created by {editingAuthorName || 'Unknown'}
+                  {editingCreatedAt && ` · Added ${formatAddedDate(editingCreatedAt)}`}
+                </p>
+              )}
+
+              <div>
+                <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
+                  Lesson type
+                </span>
+                <SegmentedControl
+                  segments={LESSON_TYPE_SEGMENTS}
+                  value={lessonType}
+                  onChange={onTypeChange}
+                  className="flex-wrap"
+                />
+              </div>
+
+              {/* Date + Level + Category — Level/Category shown for EVERY lesson so
+                  course-free drafts stay filterable in My Library; required only
+                  for content-bank templates (enforced in the save guard). */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <TextField
+                  label="Date"
+                  type="date"
+                  value={lessonDate}
+                  onChange={(e) => onDateChange(e.target.value)}
+                />
+                <div>
+                  <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
+                    Level{templateMode && <span className="text-incorrect-fg ml-0.5">*</span>}
+                  </span>
+                  <select
+                    value={templateLevel ?? ''}
+                    onChange={(e) => onLevelChange?.(e.target.value)}
+                    className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 h-[46px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
+                  >
+                    <option value="">Not set</option>
+                    {CEFR_OPTIONS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
+                    Category{templateMode && <span className="text-incorrect-fg ml-0.5">*</span>}
+                  </span>
+                  <select
+                    value={templateCategory ?? ''}
+                    onChange={(e) => onCategoryChange?.(e.target.value)}
+                    className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 h-[46px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
+                  >
+                    <option value="">Not set</option>
+                    {COURSE_CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">
+                  Summary / Class notes
+                </span>
+                <textarea
+                  value={summary}
+                  onChange={(e) => onSummaryChange(e.target.value)}
+                  placeholder="Paste class summary here (used for AI flashcard generation)…"
+                  className="w-full h-24 text-[15px] font-medium text-ink-body bg-white rounded-tile p-3.5 resize-none border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors placeholder:text-[#b6bac2]"
+                />
+              </label>
+
+              {templateMode && (
+                <p className="text-[12px] text-sky-text flex items-center gap-1.5">
+                  <span aria-hidden="true">📚</span>
+                  Both Level and Category are required before this template can be saved.
+                </p>
+              )}
+            </div>
           )}
         </Card>
 
