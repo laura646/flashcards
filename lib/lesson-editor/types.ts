@@ -129,15 +129,27 @@ export interface MCQuestion {
 
 export interface VideoContent {
   youtube_url: string
+  // Legacy MCQ-only follow-ups. Kept for backward-compat / migration only:
+  // migrateBlockExercises reads these when `exercises` is empty, and the
+  // VideoEditor clears them (questions: []) on first write to the new model.
   questions: MCQuestion[]
-  // Phase C will populate this for new content; legacy `questions` stays
-  // for backward compatibility.
-  exercises?: import('@/lib/attached-exercise').AttachedExercise[]
+  // 10B: Video follow-ups are now the FULL standalone Exercise shape (14 types),
+  // edited via the shared BlockExercisesSection + the real ExerciseEditor.
+  exercises?: Exercise[]
+  // 10B: plain-text transcript / script. Teacher aid for AI generation only —
+  // NOT shown to students. Used as the AI "generate from this" source.
+  transcript?: string
 }
 
 export interface AudioContent {
   audio_url: string
-  exercises: import('@/lib/attached-exercise').AttachedExercise[]
+  // 10B: Audio follow-ups are now the FULL standalone Exercise shape (14 types),
+  // edited via the shared BlockExercisesSection + the real ExerciseEditor.
+  // (Audio has no legacy MCQ `questions`, so no migration / clearing is needed.)
+  exercises: Exercise[]
+  // 10B: plain-text transcript / script. Teacher aid for AI generation only —
+  // NOT shown to students. Used as the AI "generate from this" source.
+  transcript?: string
 }
 
 export interface ArticleContent {

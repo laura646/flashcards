@@ -7,8 +7,6 @@ import AudioButton from '@/components/AudioButton'
 import AttachedExercisesRunner from '@/components/AttachedExercisesRunner'
 import LessonAudioPlayer from '@/components/student-ui/LessonAudioPlayer'
 import { detectUsedTargets } from '@/lib/word-detection'
-import type { AttachedExercise } from '@/lib/attached-exercise'
-import { legacyMcqToAttached } from '@/lib/attached-exercise'
 import type { ReadingExercise } from '@/lib/ielts/types'
 import type { Exercise } from '@/lib/lesson-editor/types'
 import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
@@ -229,12 +227,16 @@ interface MistakesContent {
 interface VideoContent {
   youtube_url: string
   questions: { id: number; prompt: string; options: string[]; correctIndex: number }[]
-  exercises?: AttachedExercise[]
+  // Unified model: video follow-ups are full standalone Exercise[] (migrated
+  // in at load via migrateBlockExercises). `questions` kept for migration only.
+  exercises?: Exercise[]
 }
 
 interface AudioContent {
   audio_url: string
-  exercises?: AttachedExercise[]
+  // Unified model: audio follow-ups are full standalone Exercise[] (migrated
+  // in at load via migrateBlockExercises).
+  exercises?: Exercise[]
 }
 
 interface ArticleContent {
@@ -1070,14 +1072,27 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               .sort(
                 (a: ContentBlock, b: ContentBlock) => a.order_index - b.order_index
               )
-              // Article-only: migrate follow-ups (legacy questions + bare
+              // Migrate media-block follow-ups (legacy questions + bare
               // AttachedExercise) onto the unified Exercise[] model at load so
-              // the article render is uniform. Video/audio left untouched.
+              // the article/video/audio renders are uniform. Video carries
+              // legacy MCQ via `questions`; audio has no legacy MCQ field.
               .map((b: ContentBlock) => {
-                if (b.block_type !== 'article') return b
-                const c = b.content as ArticleContent
-                const migrated = migrateBlockExercises(c.exercises, c.questions)
-                return { ...b, content: { ...c, exercises: migrated } }
+                if (b.block_type === 'article') {
+                  const c = b.content as ArticleContent
+                  const migrated = migrateBlockExercises(c.exercises, c.questions)
+                  return { ...b, content: { ...c, exercises: migrated } }
+                }
+                if (b.block_type === 'video') {
+                  const c = b.content as VideoContent
+                  const migrated = migrateBlockExercises(c.exercises, c.questions)
+                  return { ...b, content: { ...c, exercises: migrated } }
+                }
+                if (b.block_type === 'audio') {
+                  const c = b.content as AudioContent
+                  const migrated = migrateBlockExercises(c.exercises, undefined)
+                  return { ...b, content: { ...c, exercises: migrated } }
+                }
+                return b
               })
           )
           setLoading(false)
@@ -1848,15 +1863,18 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           )}
 
           {(() => {
-            const effective: AttachedExercise[] =
+            // Migrated in at load (setBlocks mapper), so content.exercises is
+            // already full Exercise[]. Fall back to runtime migration to stay
+            // robust if a block ever reaches here unmigrated.
+            const effective: Exercise[] =
               content.exercises && content.exercises.length > 0
                 ? content.exercises
-                : legacyMcqToAttached(content.questions)
+                : migrateBlockExercises(content.exercises, content.questions)
             if (effective.length === 0) return null
             return (
               <div>
                 <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
-                <AttachedExercisesRunner
+                <BlockExercisesRunner
                   exercises={effective}
                   onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
                 />
@@ -1894,15 +1912,25 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           )}
 
-          {content.exercises && content.exercises.length > 0 && (
-            <div>
-              <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
-              <AttachedExercisesRunner
-                exercises={content.exercises}
-                onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
-              />
-            </div>
-          )}
+          {(() => {
+            // Migrated in at load (setBlocks mapper), so content.exercises is
+            // already full Exercise[]. Fall back to runtime migration to stay
+            // robust if a block ever reaches here unmigrated.
+            const effective: Exercise[] =
+              content.exercises && content.exercises.length > 0
+                ? content.exercises
+                : migrateBlockExercises(content.exercises, undefined)
+            if (effective.length === 0) return null
+            return (
+              <div>
+                <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
+                <BlockExercisesRunner
+                  exercises={effective}
+                  onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+                />
+              </div>
+            )
+          })()}
         </main>
       )
     }

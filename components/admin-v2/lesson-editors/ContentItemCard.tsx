@@ -247,6 +247,12 @@ export default function ContentItemCard({
           <VideoEditor
             block={item.data as ContentBlock}
             onChange={(block) => onUpdate(block)}
+            onPreview={onPreview}
+            onGenerateExercisesFromText={onGenerateExercisesFromText}
+            onGenerateExercisesFromUpload={onGenerateExercisesFromUpload}
+            generatingExercises={generatingExercises}
+            exercisesError={exercisesError}
+            onClearExercisesError={onClearExercisesError}
           />
         )
       case 'audio':
@@ -254,6 +260,12 @@ export default function ContentItemCard({
           <AudioEditor
             block={item.data as ContentBlock}
             onChange={(block) => onUpdate(block)}
+            onPreview={onPreview}
+            onGenerateExercisesFromText={onGenerateExercisesFromText}
+            onGenerateExercisesFromUpload={onGenerateExercisesFromUpload}
+            generatingExercises={generatingExercises}
+            exercisesError={exercisesError}
+            onClearExercisesError={onClearExercisesError}
           />
         )
       case 'article':

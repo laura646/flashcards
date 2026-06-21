@@ -16,27 +16,23 @@
 // app/admin/lessons/page.tsx (renderVideoEditor 3152-3197, renderAudioEditor
 // 3201-3243, renderArticleEditor 3247-3304). Styling is the 10B kit
 // (@/components/student-ui) + tokens; the legacy admin colours are not reused.
-// The shared components AttachedExercisesEditor and AudioSourcePicker are
-// reused VERBATIM by Video / Audio (not forked).
+// AudioSourcePicker is reused VERBATIM by Audio (not forked).
 //
-// Task B: the ARTICLE editor is unified onto the REAL standalone Exercise model.
-// It renders BlockExercisesEditor (full 14-type ExerciseEditor per item) behind
-// a two-door (build-it-myself + generate-from-text), reading effective exercises
-// via migrateBlockExercises. The legacy AttachedExercisesEditor +
-// SuggestExercisesModal path is removed FROM ARTICLE ONLY — Video / Audio still
-// use the bare AttachedExercise shape and are intentionally left unchanged.
+// 10B: ALL THREE media editors (Reading / Video / Audio) are unified onto the
+// REAL standalone Exercise model. Their exercises surface (two-door
+// build-it-myself + generate-with-AI panel + full 14-type ExerciseEditor per
+// item) is the SHARED BlockExercisesSection; effective exercises are read via
+// migrateBlockExercises. Reading feeds sourceText={content.text}
+// sourceLabel="article"; Video / Audio gain a TRANSCRIPT textarea (teacher aid
+// for AI — not shown to students) and feed sourceText={content.transcript}
+// sourceLabel="transcript". The legacy AttachedExercisesEditor +
+// SuggestExercisesModal path is removed from all three.
 
-import { useState } from 'react'
-import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
-import BlockExercisesEditor from './BlockExercisesEditor'
+import BlockExercisesSection from './BlockExercisesSection'
 import RichTextEditor from './RichTextEditor'
-import { Button, InlineError, SegmentedControl, Spinner } from '@/components/student-ui'
-import { isImageFile } from '@/lib/lesson-editor/fileToBase64'
-import { legacyMcqToAttached, type AttachedExercise } from '@/lib/attached-exercise'
 import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
 import {
-  EXERCISE_TYPES,
   type ContentBlock,
   type VideoContent,
   type AudioContent,
@@ -44,25 +40,47 @@ import {
   type Exercise,
 } from '@/lib/lesson-editor/types'
 
-// A "sensible mix" of comprehension / vocabulary follow-up types that read well
-// for a general (non-IELTS) article. Used by the picker's "Sensible mix"
-// shortcut. Kept to a subset of EXERCISE_TYPES (audio-dependent types like
-// dictation / cloze_listening are excluded — they need an audio_url).
-const SENSIBLE_MIX_TYPES = [
-  'multiple_choice',
-  'true_or_false',
-  'type_answer',
-  'match_halves',
-]
+// Shared AI-prop bundle threaded into each media editor's follow-up exercises
+// surface (BlockExercisesSection). Identical to the Article callbacks; Video and
+// Audio receive them from ContentItemCard exactly the same way. Optional so the
+// read-only preview harness can omit them (the AI door hides itself).
+type MediaExerciseAiProps = {
+  // Routes a generated/edited exercise to the page-level ExercisePreview modal.
+  onPreview?: (ex: Exercise) => void
+  // AI-from-text generation (the article text / the transcript). When omitted,
+  // the "Generate with AI" door is hidden and only the manual editor shows.
+  onGenerateExercisesFromText?: (
+    text: string,
+    opts?: { types?: string[]; countPerType?: number },
+  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
+  // AI-from-UPLOAD generation (DOCX / PDF / screenshots). When omitted, the
+  // upload source options are hidden and the panel falls back to text-only.
+  onGenerateExercisesFromUpload?: (
+    files: File[],
+    opts?: { types?: string[]; countPerType?: number },
+  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
+  generatingExercises?: boolean
+  exercisesError?: string | null
+  onClearExercisesError?: () => void
+}
 
-// Where the AI reads its source material from. "text" steers off the pasted
-// article; "upload" off DOCX/PDF documents; "image" off screenshots. The chosen
-// type-picker + count apply identically to all three.
-type AiSource = 'text' | 'upload' | 'image'
-
-// accept strings for the two file pickers (model: ai/AiGenerateModal.tsx).
-const DOC_ACCEPT = '.pdf,.doc,.docx'
-const IMAGE_ACCEPT = '.jpg,.jpeg,.png,image/*'
+// Adapt the optional-opts AI callbacks (useLessonAi) to the required-opts shape
+// BlockExercisesSection expects. Returns undefined when the callback is absent
+// so the matching door stays hidden. Shared by all three media editors.
+function adaptFromText(
+  fn: MediaExerciseAiProps['onGenerateExercisesFromText'],
+) {
+  return fn
+    ? (text: string, opts: { types: string[]; countPerType: number }) => fn(text, opts)
+    : undefined
+}
+function adaptFromUpload(
+  fn: MediaExerciseAiProps['onGenerateExercisesFromUpload'],
+) {
+  return fn
+    ? (files: File[], opts: { types: string[]; countPerType: number }) => fn(files, opts)
+    : undefined
+}
 
 // ── Shared props ──
 
@@ -152,13 +170,33 @@ function TitleField({
 
 // ════════════════════════════════════════════════════════════════
 // VideoEditor (legacy renderVideoEditor, page.tsx 3152-3197)
-//   content: { youtube_url, questions (legacy MCQ), exercises? }
-//   Migration idiom: effective-read prefers `exercises`, else migrates the
-//   legacy MCQ `questions`; on write we persist `exercises` and CLEAR
-//   `questions: []` so the one-way migration completes. Do NOT omit the clear.
+//   content: { youtube_url, questions (legacy MCQ), exercises? (full Exercise[]),
+//              transcript? }
+//
+// 10B — Video is unified onto the REAL standalone Exercise model, mirroring
+// Reading:
+//   • Effective exercises are read via migrateBlockExercises(content.exercises,
+//     content.questions) -> full Exercise[] (legacy MCQ / bare AttachedExercise
+//     are upgraded in-memory on load).
+//   • The shared BlockExercisesSection owns the two-door + AI panel + per-item
+//     ExerciseEditor + merge. Video keeps youtube_url and gains a TRANSCRIPT
+//     textarea (teacher aid for AI — NOT shown to students); the transcript is
+//     the AI "generate from this" source (sourceLabel="transcript").
+//   • On write we persist Exercise[] and CLEAR the legacy MCQ array
+//     (questions: []) so the one-way migration completes. Do NOT omit the clear.
+//   The old AttachedExercisesEditor path is removed.
 // ════════════════════════════════════════════════════════════════
 
-export function VideoEditor({ block, onChange }: Props) {
+export function VideoEditor({
+  block,
+  onChange,
+  onPreview,
+  onGenerateExercisesFromText,
+  onGenerateExercisesFromUpload,
+  generatingExercises,
+  exercisesError,
+  onClearExercisesError,
+}: Props & MediaExerciseAiProps) {
   const content = block.content as VideoContent
 
   const updateContent = (partial: Partial<VideoContent>) => {
@@ -170,12 +208,19 @@ export function VideoEditor({ block, onChange }: Props) {
     ? content.youtube_url.match(/(?:v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
     : null
 
-  // Effective follow-up exercises: prefer the new shape; if the block only
-  // has the legacy MCQ-only `questions` array, migrate on the fly.
-  const effectiveExercises: AttachedExercise[] =
-    content.exercises && content.exercises.length > 0
-      ? content.exercises
-      : legacyMcqToAttached(content.questions)
+  // Effective exercises: full standalone Exercise[]. Legacy MCQ `questions` and
+  // any bare AttachedExercise entries are upgraded in-memory on read.
+  const effectiveExercises: Exercise[] = migrateBlockExercises(
+    content.exercises,
+    content.questions,
+  )
+
+  // Single write path: persist full Exercise[] and one-way clear the legacy MCQ
+  // array. Layered on top of BlockExercisesSection's onChange so the legacy-clear
+  // idiom stays a Video concern.
+  const writeExercises = (exercises: Exercise[]) => {
+    updateContent({ exercises, questions: [] })
+  }
 
   return (
     <div className="space-y-4">
@@ -198,29 +243,73 @@ export function VideoEditor({ block, onChange }: Props) {
         )}
       </div>
 
-      <div className="pt-4 border-t border-hairline">
-        <AttachedExercisesEditor
-          exercises={effectiveExercises}
-          onChange={(exercises) => updateContent({ exercises, questions: [] })}
+      <div>
+        <FieldLabel>Transcript / script (for AI — not shown to students)</FieldLabel>
+        <TextArea
+          value={content.transcript || ''}
+          onChange={(transcript) => updateContent({ transcript })}
+          placeholder="Paste the video transcript or script here. AI uses it to write exercises; students never see it."
         />
       </div>
+
+      {/* Shared follow-up exercises surface (heading + two-door + AI panel +
+          per-item ExerciseEditor + merge). Video feeds the transcript as the AI
+          source and writes Exercise[] while clearing the legacy MCQ array. */}
+      <BlockExercisesSection
+        exercises={effectiveExercises}
+        onChange={writeExercises}
+        onPreview={onPreview ?? (() => {})}
+        sourceText={content.transcript || ''}
+        sourceLabel="transcript"
+        onGenerateFromText={adaptFromText(onGenerateExercisesFromText)}
+        onGenerateFromUpload={adaptFromUpload(onGenerateExercisesFromUpload)}
+        generating={generatingExercises ?? false}
+        error={exercisesError}
+        onClearError={onClearExercisesError}
+      />
     </div>
   )
 }
 
 // ════════════════════════════════════════════════════════════════
 // AudioEditor (legacy renderAudioEditor, page.tsx 3201-3243)
-//   content: { audio_url, exercises }
-//   Audio has no legacy MCQ questions, so no migration / clearing is needed.
+//   content: { audio_url, exercises (full Exercise[]), transcript? }
+//
+// 10B — Audio is unified onto the REAL standalone Exercise model, mirroring
+// Reading / Video:
+//   • Audio has no legacy MCQ `questions`, so the effective read passes
+//     `undefined` as the legacy arg to migrateBlockExercises and there is no
+//     legacy-clear on write.
+//   • The shared BlockExercisesSection owns the two-door + AI panel + per-item
+//     ExerciseEditor + merge. Audio keeps its source picker and gains a
+//     TRANSCRIPT textarea (teacher aid for AI — NOT shown to students); the
+//     transcript is the AI "generate from this" source (sourceLabel="transcript").
 //   The AudioSourcePicker is reused verbatim (allowAi=false, empty getText).
+//   The old AttachedExercisesEditor path is removed.
 // ════════════════════════════════════════════════════════════════
 
-export function AudioEditor({ block, onChange }: Props) {
+export function AudioEditor({
+  block,
+  onChange,
+  onPreview,
+  onGenerateExercisesFromText,
+  onGenerateExercisesFromUpload,
+  generatingExercises,
+  exercisesError,
+  onClearExercisesError,
+}: Props & MediaExerciseAiProps) {
   const content = block.content as AudioContent
 
   const updateContent = (partial: Partial<AudioContent>) => {
     onChange({ ...block, content: { ...content, ...partial } })
   }
+
+  // Effective exercises: full standalone Exercise[]. Audio carries no legacy MCQ
+  // array, but any bare AttachedExercise entries are upgraded in-memory on read.
+  const effectiveExercises: Exercise[] = migrateBlockExercises(
+    content.exercises,
+    undefined,
+  )
 
   return (
     <div className="space-y-4">
@@ -243,12 +332,30 @@ export function AudioEditor({ block, onChange }: Props) {
         </p>
       </div>
 
-      <div className="pt-4 border-t border-hairline">
-        <AttachedExercisesEditor
-          exercises={content.exercises || []}
-          onChange={(exercises) => updateContent({ exercises })}
+      <div>
+        <FieldLabel>Transcript / script (for AI — not shown to students)</FieldLabel>
+        <TextArea
+          value={content.transcript || ''}
+          onChange={(transcript) => updateContent({ transcript })}
+          placeholder="Paste the audio transcript or script here. AI uses it to write exercises; students never see it."
         />
       </div>
+
+      {/* Shared follow-up exercises surface (heading + two-door + AI panel +
+          per-item ExerciseEditor + merge). Audio feeds the transcript as the AI
+          source and writes Exercise[] (no legacy MCQ array to clear). */}
+      <BlockExercisesSection
+        exercises={effectiveExercises}
+        onChange={(exercises) => updateContent({ exercises })}
+        onPreview={onPreview ?? (() => {})}
+        sourceText={content.transcript || ''}
+        sourceLabel="transcript"
+        onGenerateFromText={adaptFromText(onGenerateExercisesFromText)}
+        onGenerateFromUpload={adaptFromUpload(onGenerateExercisesFromUpload)}
+        generating={generatingExercises ?? false}
+        error={exercisesError}
+        onClearError={onClearExercisesError}
+      />
     </div>
   )
 }
@@ -261,16 +368,13 @@ export function AudioEditor({ block, onChange }: Props) {
 //   • Effective exercises are read via migrateBlockExercises(content.exercises,
 //     content.questions) -> full Exercise[] (legacy MCQ / bare AttachedExercise
 //     are upgraded in-memory on load).
-//   • Follow-ups are edited by BlockExercisesEditor (the real ExerciseEditor per
-//     item, all 14 types), threaded through to the page-level ExercisePreview
-//     modal via onPreview.
-//   • A TWO-DOOR sits above the list: "Build it myself" (the editor) and
-//     "Generate with AI", which calls generateExercisesFromText(content.text)
-//     and MERGES the returned full Exercise[] into the list.
-//   • On any exercise change we persist { ...content, exercises, questions: [] }
-//     — a one-way clear of the legacy MCQ array.
-//   The old AttachedExercisesEditor + SuggestExercisesModal path is removed FROM
-//   ARTICLE ONLY (Video / Audio still use them, unchanged).
+//   • The whole exercises surface (section heading + two-door + AI panel +
+//     BlockExercisesEditor + merge logic) lives in the SHARED
+//     BlockExercisesSection, now reused verbatim by Video / Audio too.
+//     ArticleEditor just feeds it sourceText={content.text} sourceLabel="article"
+//     and the AI callbacks, reads via migrateBlockExercises, and writes
+//     Exercise[] while clearing the legacy MCQ array (questions: []) on change.
+//   The old AttachedExercisesEditor + SuggestExercisesModal path is removed.
 // ════════════════════════════════════════════════════════════════
 
 export function ArticleEditor({
@@ -282,30 +386,7 @@ export function ArticleEditor({
   generatingExercises,
   exercisesError,
   onClearExercisesError,
-}: Props & {
-  // Routes a generated/edited exercise to the page-level ExercisePreview modal.
-  // ContentItemCard threads it from the page.
-  onPreview?: (ex: Exercise) => void
-  // Task B: AI-from-text generation. Present only in the live editor (threaded
-  // from useLessonAi). When omitted (read-only harness paths), the "Generate
-  // with AI" door is hidden and only the manual editor shows.
-  onGenerateExercisesFromText?: (
-    text: string,
-    opts?: { types?: string[]; countPerType?: number },
-  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
-  // AI-from-UPLOAD generation: the teacher's own DOCX/PDF/screenshots become the
-  // source instead of the pasted article text. Returns full Exercise[] (same
-  // shape as -fromText). Present only in the live editor; when omitted the
-  // "Upload a document" / "Upload screenshots" source options are hidden and the
-  // panel falls back to text-only.
-  onGenerateExercisesFromUpload?: (
-    files: File[],
-    opts?: { types?: string[]; countPerType?: number },
-  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
-  generatingExercises?: boolean
-  exercisesError?: string | null
-  onClearExercisesError?: () => void
-}) {
+}: Props & MediaExerciseAiProps) {
   const content = block.content as ArticleContent
 
   const updateContent = (partial: Partial<ArticleContent>) => {
@@ -319,85 +400,13 @@ export function ArticleEditor({
     content.questions,
   )
 
-  const hasText = !!content.text && content.text.trim().length > 0
-
-  // ── AI type-picker panel state ──
-  // The "Generate with AI" button no longer fires immediately; it opens a panel
-  // where the teacher chooses WHICH of the 13 exercise types to generate and how
-  // many of EACH. Selection seeds with the sensible mix so one click + Generate
-  // is the fast path.
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(SENSIBLE_MIX_TYPES)
-  const [countPerType, setCountPerType] = useState(1)
-  // SOURCE: where AI reads from. Defaults to the article text. Upload sources
-  // hold their own File[].
-  const [source, setSource] = useState<AiSource>('text')
-  const [docFiles, setDocFiles] = useState<File[]>([])
-  const [imageFiles, setImageFiles] = useState<File[]>([])
-
-  // The upload doors only appear when the page wired the upload callback.
-  const canUpload = !!onGenerateExercisesFromUpload
-  const sourceSegments: { value: AiSource; label: string }[] = [
-    { value: 'text', label: "This article's text" },
-    ...(canUpload
-      ? ([
-          { value: 'upload', label: 'Upload a document' },
-          { value: 'image', label: 'Upload screenshots' },
-        ] as { value: AiSource; label: string }[])
-      : []),
-  ]
-
-  const toggleType = (value: string) => {
-    setSelectedTypes((prev) =>
-      prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value],
-    )
-  }
-  const selectAll = () => setSelectedTypes(EXERCISE_TYPES.map((t) => t.value))
-  const selectMix = () => setSelectedTypes(SENSIBLE_MIX_TYPES)
-  const clearTypes = () => setSelectedTypes([])
-
   // Single write path for the follow-up list: persist full Exercise[] and
-  // one-way clear the legacy MCQ array.
+  // one-way clear the legacy MCQ array. Layered on top of BlockExercisesSection's
+  // onChange so the legacy-clear idiom stays a Reading concern (Video keeps its
+  // own questions; Audio has none).
   const writeExercises = (exercises: Exercise[]) => {
     updateContent({ exercises, questions: [] })
   }
-
-  // Files for the active upload source ([] for the text source).
-  const sourceFiles = source === 'upload' ? docFiles : source === 'image' ? imageFiles : []
-
-  // Is the active source ready to generate from?
-  const sourceReady =
-    source === 'text' ? hasText : sourceFiles.length > 0
-
-  // "Generate" inside the picker: build exercises constrained to the chosen
-  // types (countPerType each) FROM the active source, then MERGE the returned
-  // full Exercise[] onto the effective list (re-stamping order_index so the
-  // merged tail stays ordered). The type-picker + count apply to all sources.
-  const handleGenerate = async () => {
-    if (selectedTypes.length === 0 || !sourceReady) return
-    onClearExercisesError?.()
-    const opts = { types: selectedTypes, countPerType }
-    let res: { ok: boolean; exercises?: Exercise[]; error?: string }
-    if (source === 'text') {
-      if (!onGenerateExercisesFromText) return
-      res = await onGenerateExercisesFromText(content.text, opts)
-    } else {
-      if (!onGenerateExercisesFromUpload) return
-      res = await onGenerateExercisesFromUpload(sourceFiles, opts)
-    }
-    if (res.ok && res.exercises && res.exercises.length > 0) {
-      const merged = [...effectiveExercises, ...res.exercises].map((ex, i) => ({
-        ...ex,
-        order_index: i,
-      }))
-      writeExercises(merged)
-      setDocFiles([])
-      setImageFiles([])
-      setPickerOpen(false)
-    }
-  }
-
-  const estimatedCount = selectedTypes.length * countPerType
 
   return (
     <div className="space-y-4">
@@ -429,249 +438,21 @@ export function ArticleEditor({
         />
       </div>
 
-      <div className="pt-4 border-t border-hairline space-y-3">
-        <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-          Exercises
-        </p>
-
-        {/* TWO-DOOR: build manually (always) + generate with AI. "Generate with
-            AI" opens a panel where the teacher first picks a SOURCE (this
-            article's text, an uploaded DOCX/PDF, or screenshots) and then which
-            of the 13 types to make — the type-picker + count apply to all three
-            sources. */}
-        {onGenerateExercisesFromText && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  onClearExercisesError?.()
-                  setPickerOpen((o) => !o)
-                }}
-                disabled={generatingExercises ?? false}
-              >
-                {pickerOpen ? '✕ Close picker' : '✨ Generate with AI'}
-              </Button>
-            </div>
-
-            {pickerOpen && (
-              <div className="rounded-tile border-[1.5px] border-hairline bg-sky-wash p-3.5 space-y-3">
-                {/* SOURCE selector — only shown when uploads are wired (otherwise
-                    text is the only source and the segmented control is noise). */}
-                {sourceSegments.length > 1 && (
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-                      Source material
-                    </p>
-                    <SegmentedControl
-                      segments={sourceSegments}
-                      value={source}
-                      onChange={(next) => {
-                        onClearExercisesError?.()
-                        setSource(next)
-                      }}
-                      className="max-w-full overflow-x-auto"
-                    />
-
-                    {/* This article's text */}
-                    {source === 'text' && !hasText && (
-                      <p className="text-xs text-ink-muted">
-                        Add article text above to generate exercises from it.
-                      </p>
-                    )}
-
-                    {/* Upload a document (DOCX / PDF, single or multiple) */}
-                    {source === 'upload' && (
-                      <div>
-                        <label className="flex items-center justify-center gap-2 border border-dashed border-sky-border rounded-tile py-4 text-[13px] text-sky-text cursor-pointer hover:bg-white/60 transition-colors">
-                          <span aria-hidden="true">⬆️</span> Choose PDF or Word file(s)
-                          <input
-                            type="file"
-                            accept={DOC_ACCEPT}
-                            multiple
-                            disabled={generatingExercises ?? false}
-                            className="sr-only"
-                            onChange={(e) =>
-                              setDocFiles(Array.from(e.target.files ?? []))
-                            }
-                          />
-                        </label>
-                        {docFiles.length > 0 && (
-                          <ul className="mt-2 space-y-1">
-                            {docFiles.map((f, i) => (
-                              <li
-                                key={i}
-                                className="text-[12px] text-ink-muted truncate"
-                              >
-                                {f.name}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Upload screenshots (images, single or multiple) */}
-                    {source === 'image' && (
-                      <div>
-                        <label className="flex items-center justify-center gap-2 border border-dashed border-sky-border rounded-tile py-4 text-[13px] text-sky-text cursor-pointer hover:bg-white/60 transition-colors">
-                          <span aria-hidden="true">🖼️</span> Choose screenshot(s)
-                          <input
-                            type="file"
-                            accept={IMAGE_ACCEPT}
-                            multiple
-                            disabled={generatingExercises ?? false}
-                            className="sr-only"
-                            onChange={(e) =>
-                              setImageFiles(
-                                Array.from(e.target.files ?? []).filter(isImageFile),
-                              )
-                            }
-                          />
-                        </label>
-                        {imageFiles.length > 0 && (
-                          <ul className="mt-2 space-y-1">
-                            {imageFiles.map((f, i) => (
-                              <li
-                                key={i}
-                                className="text-[12px] text-ink-muted truncate"
-                              >
-                                {f.name}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Text-only fallback hint when uploads aren't wired. */}
-                {sourceSegments.length === 1 && !hasText && (
-                  <p className="text-xs text-ink-muted">
-                    Add article text above to generate exercises from it.
-                  </p>
-                )}
-
-                {/* Header + convenience selectors */}
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-                    Which exercises should AI write?
-                  </p>
-                  <div className="flex items-center gap-1.5 text-[12px] font-bold">
-                    <button
-                      type="button"
-                      onClick={selectMix}
-                      className="text-sky hover:underline"
-                    >
-                      Sensible mix
-                    </button>
-                    <span className="text-ink-muted">·</span>
-                    <button
-                      type="button"
-                      onClick={selectAll}
-                      className="text-sky hover:underline"
-                    >
-                      Select all
-                    </button>
-                    <span className="text-ink-muted">·</span>
-                    <button
-                      type="button"
-                      onClick={clearTypes}
-                      className="text-ink-muted hover:underline"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-
-                {/* Type checkboxes (all 13 types, label + icon) */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                  {EXERCISE_TYPES.map((t) => {
-                    const checked = selectedTypes.includes(t.value)
-                    return (
-                      <label
-                        key={t.value}
-                        className={`flex items-center gap-2 rounded-tile border-[1.5px] px-2.5 py-2 cursor-pointer transition-colors ${
-                          checked
-                            ? 'border-sky bg-white'
-                            : 'border-hairline bg-white/60 hover:border-sky'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleType(t.value)}
-                          className="accent-sky w-4 h-4 shrink-0"
-                        />
-                        <span className="text-[13px] font-semibold text-ink-body leading-tight">
-                          {t.icon} {t.label}
-                        </span>
-                      </label>
-                    )
-                  })}
-                </div>
-
-                {/* How many of each + Generate */}
-                <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
-                  <label className="flex items-center gap-2 text-[13px] font-semibold text-ink-body">
-                    How many of each?
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      value={countPerType}
-                      onChange={(e) =>
-                        setCountPerType(
-                          Math.max(1, Math.min(5, Number(e.target.value) || 1)),
-                        )
-                      }
-                      className="w-16 text-[14px] font-medium text-ink-body bg-white rounded-tile px-2.5 py-1.5 border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
-                    />
-                  </label>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => void handleGenerate()}
-                    disabled={
-                      selectedTypes.length === 0 ||
-                      !sourceReady ||
-                      (generatingExercises ?? false)
-                    }
-                  >
-                    {generatingExercises
-                      ? 'Generating…'
-                      : `Generate ${estimatedCount} exercise${estimatedCount === 1 ? '' : 's'}`}
-                  </Button>
-                </div>
-                {selectedTypes.length === 0 && (
-                  <p className="text-xs text-ink-muted">
-                    Pick at least one exercise type.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {generatingExercises && (
-              <div className="flex items-center gap-2 text-[13px] text-ink-muted">
-                <Spinner size={18} />
-                {source === 'text'
-                  ? 'Reading the article and writing exercises…'
-                  : 'Reading your upload and writing exercises…'}
-              </div>
-            )}
-            {exercisesError && <InlineError message={exercisesError} />}
-          </div>
-        )}
-
-        {/* Build it myself — the real 14-type ExerciseEditor per item. */}
-        <BlockExercisesEditor
-          exercises={effectiveExercises}
-          onChange={writeExercises}
-          onPreview={onPreview ?? (() => {})}
-        />
-      </div>
+      {/* Shared follow-up exercises surface (heading + two-door + AI panel +
+          per-item ExerciseEditor + merge). Reading feeds the article text as the
+          AI source and writes Exercise[] while clearing the legacy MCQ array. */}
+      <BlockExercisesSection
+        exercises={effectiveExercises}
+        onChange={writeExercises}
+        onPreview={onPreview ?? (() => {})}
+        sourceText={content.text || ''}
+        sourceLabel="article"
+        onGenerateFromText={adaptFromText(onGenerateExercisesFromText)}
+        onGenerateFromUpload={adaptFromUpload(onGenerateExercisesFromUpload)}
+        generating={generatingExercises ?? false}
+        error={exercisesError}
+        onClearError={onClearExercisesError}
+      />
     </div>
   )
 }
