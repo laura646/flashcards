@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; }
+  @keyframes ewlFlip { 0%,12%{transform:rotateY(0)} 44%,100%{transform:rotateY(180deg)} }
+  @keyframes ewlPulse { 0%,55%,100%{transform:scale(1); box-shadow:0 0 0 0 rgba(22,163,74,0)} 22%{transform:scale(1.05); box-shadow:0 0 0 7px rgba(22,163,74,.13)} }
+  @keyframes ewlShake { 0%,70%,100%{transform:translateX(0)} 10%{transform:translateX(-6px)} 24%{transform:translateX(5px)} 40%{transform:translateX(-4px)} 56%{transform:translateX(3px)} }
+  @keyframes ewlFill { 0%{width:0} 100%{width:var(--w,70%)} }
+  @keyframes ewlGrow { 0%{height:0} 100%{height:var(--h,40px)} }
+  @keyframes ewlDot { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-10px)} }
+  @keyframes ewlRoll { 0%,18%{transform:translateY(0)} 82%,100%{transform:translateY(-80%)} }
+  .ewl-fill{animation:ewlFill 1.4s cubic-bezier(.4,0,.2,1) forwards}
+  .ewl-grow{animation:ewlGrow 1s cubic-bezier(.4,0,.2,1) forwards}
+</style>
+</helmet>
+
+<div style="font-family:'Hanken Grotesk',sans-serif; background:#eceef2; min-height:100vh; padding:48px 44px 72px; color:#15161a;">
+  <div style="max-width:1480px; margin:0 auto;">
+    <div style="font-size:13px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#00aff0; margin-bottom:8px;">English with Laura · Student app — committed direction (10B)</div>
+    <h1 style="margin:0 0 6px; font-size:32px; font-weight:800; letter-spacing:-0.02em;">The student app</h1>
+    <p style="margin:0 0 44px; font-size:16px; font-weight:500; color:#6b7280; max-width:680px; line-height:1.5;">Solid sky <b style="color:#00aff0;">#00aff0</b> hero with the full white logo, Rubik, yellow streak pop. Gray text on light-blue surfaces (never dark blue). Green = correct, red = incorrect. Eight locked animations baked in.</p>
+
+    <div style="display:flex; flex-wrap:wrap; gap:30px; align-items:flex-start; font-family:'Rubik',sans-serif;">
+
+      <!-- ============ HOME ============ -->
+      <div data-screen-label="Home" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Home</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden;">
+            <div style="background:#00aff0; padding:14px 22px 26px; color:#fff;">
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px;">
+                <img src="assets/logo-onblue.png" style="height:54px;">
+                <span style="display:flex; align-items:center; gap:5px; font-size:12px; font-weight:800; color:#5a4b00; background:#ffeb00; padding:6px 11px; border-radius:99px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a4b00" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>1</span>
+              </div>
+              <div style="font-size:14px; font-weight:500; opacity:.9; margin-top:14px;">Welcome back, Anahit</div>
+              <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-top:12px;">
+                <div><div style="font-size:13px; font-weight:500; opacity:.85;">Words to review</div><div style="font-size:42px; font-weight:800; letter-spacing:-0.02em; line-height:1.05; margin-top:2px;">210</div></div>
+                <button style="border:none; font-family:inherit; cursor:pointer; background:#fff; color:#46464b; font-size:14px; font-weight:800; padding:12px 20px; border-radius:13px;">Start review</button>
+              </div>
+            </div>
+            <div style="display:flex; gap:10px; padding:18px 20px 0;">
+              <div style="flex:1; background:#e6f6fe; border-radius:14px; padding:13px 0; text-align:center;"><div style="display:flex; justify-content:center; margin-bottom:6px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="18" rx="2"/><path d="M8 3v18"/></svg></div><span style="font-size:12px; font-weight:700; color:#46464b;">Flip</span></div>
+              <div style="flex:1; background:#e6f6fe; border-radius:14px; padding:13px 0; text-align:center;"><div style="display:flex; justify-content:center; margin-bottom:6px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></div><span style="font-size:12px; font-weight:700; color:#46464b;">Quiz</span></div>
+              <div style="flex:1; background:#e6f6fe; border-radius:14px; padding:13px 0; text-align:center;"><div style="display:flex; justify-content:center; margin-bottom:6px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div><span style="font-size:12px; font-weight:700; color:#46464b;">Add word</span></div>
+            </div>
+            <div style="padding:22px 22px 0;"><div style="font-size:12px; font-weight:600; color:#8b8f98;">← My courses</div><div style="display:flex; align-items:center; gap:9px; margin-top:7px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg><span style="font-size:19px; font-weight:800; color:#416ebe;">A1.1-G2 · Sveta</span></div></div>
+            <div style="margin:14px 20px 0; border:1px solid #ececef; border-radius:18px; padding:15px 17px;">
+              <div style="display:flex; flex-wrap:wrap; gap:12px 18px; font-size:13px; font-weight:600; color:#46464b;">
+                <span style="display:flex; align-items:center; gap:7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7"/><rect x="13" y="7" width="3" height="11"/></svg>Beginner</span>
+                <span style="display:flex; align-items:center; gap:7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Tue · Thu · Fri</span>
+              </div>
+              <div style="display:flex; gap:18px; margin-top:12px;">
+                <span style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:#00aff0;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>Join lesson</span>
+                <span style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:#00aff0;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Telegram</span>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:24px 22px 12px;"><span style="font-size:16px; font-weight:800;">Recent lessons</span><span style="font-size:13px; font-weight:700; color:#00aff0;">All</span></div>
+            <div style="padding:0 20px; display:flex; flex-direction:column; gap:10px;">
+              <div style="border:1px solid #ececef; border-radius:18px; padding:15px 17px;">
+                <div style="display:flex; align-items:center; justify-content:space-between;"><div style="display:flex; align-items:center; gap:9px;"><span style="font-size:11px; font-weight:800; color:#fff; background:#00aff0; padding:3px 10px; border-radius:99px;">Lesson 9</span><span style="font-size:12px; font-weight:600; color:#8b8f98;">8 May 2026</span></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+                <div style="font-size:15px; font-weight:700; margin:9px 0 8px; color:#416ebe;">2C Numbers (part 1)</div>
+                <div style="font-size:12px; font-weight:600; color:#8b8f98; margin-bottom:8px;">33 words · 0/2 exercises</div>
+                <div style="height:6px; border-radius:99px; background:#eef1f6; overflow:hidden;"><div style="width:30%; height:100%; border-radius:99px; background:#00aff0;"></div></div>
+              </div>
+              <div style="border:1px solid #ececef; border-radius:18px; padding:15px 17px;">
+                <div style="display:flex; align-items:center; justify-content:space-between;"><div style="display:flex; align-items:center; gap:9px;"><span style="font-size:11px; font-weight:800; color:#fff; background:#00aff0; padding:3px 10px; border-radius:99px;">Lesson 8</span><span style="font-size:12px; font-weight:600; color:#8b8f98;">7 May 2026</span></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+                <div style="font-size:15px; font-weight:700; margin:9px 0 8px;">2B Everyday things (part 2)</div>
+                <div style="font-size:12px; font-weight:600; color:#8b8f98; margin-bottom:8px;">8 words · 0/4 exercises</div>
+                <div style="height:6px; border-radius:99px; background:#eef1f6; overflow:hidden;"><div style="width:0%; height:100%; border-radius:99px; background:#00aff0;"></div></div>
+              </div>
+            </div>
+            <div style="margin-top:22px; border-top:1px solid #f0f1f3; display:flex; justify-content:space-around; align-items:center; padding:13px 0 18px;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c8ccd4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="16" rx="2"/><path d="M8 5V3h13v14h-2"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c8ccd4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="4"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c8ccd4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ LESSON ============ -->
+      <div data-screen-label="Lesson detail" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Lesson detail</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="padding:16px 22px 4px;"><span style="font-size:14px; font-weight:600; color:#8b8f98;">← Back to lessons</span></div>
+            <div style="margin:8px 20px 0; border:1px solid #ececef; border-radius:20px; padding:18px;"><div style="font-size:12px; font-weight:600; color:#8b8f98;">8 May 2026</div><div style="font-size:21px; font-weight:800; color:#416ebe; margin:4px 0 5px; letter-spacing:-0.01em;">2C Numbers (part 1)</div><div style="font-size:14px; font-weight:500; color:#6b7280;">Numbers 1–100, and a little more.</div></div>
+            <div style="margin:12px 20px 0; border:1px solid #ececef; border-radius:20px; padding:16px 18px;"><div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:14px; font-weight:800;">Your progress</span><span style="font-size:14px; font-weight:800; color:#00aff0;">1 / 3</span></div><div style="display:flex; gap:6px; margin-top:11px;"><div style="flex:1; height:7px; border-radius:99px; background:#eef1f6; overflow:hidden;"><div class="ewl-fill" style="--w:100%; height:100%; border-radius:99px; background:#00aff0;"></div></div><div style="flex:1; height:7px; border-radius:99px; background:#eef1f6;"></div><div style="flex:1; height:7px; border-radius:99px; background:#eef1f6;"></div></div></div>
+            <div style="padding:22px 22px 10px; font-size:15px; font-weight:800;">Activities</div>
+            <div style="padding:0 20px; display:flex; flex-direction:column; gap:10px;">
+              <div style="border:1px solid #ececef; border-radius:18px; padding:15px 17px; display:flex; align-items:center; gap:13px;"><div style="width:42px; height:42px; border-radius:12px; background:#e6f6fe; display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg></div><div style="flex:1;"><div style="font-size:15px; font-weight:700;">New words</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">33 words to learn</div></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+              <div style="border:1px solid #ececef; border-radius:18px; padding:15px 17px; display:flex; align-items:center; gap:13px;"><div style="width:42px; height:42px; border-radius:12px; background:#e6f6fe; display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7h8M8 12h8M8 17h5"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg></div><div style="flex:1;"><div style="font-size:15px; font-weight:700;">Match numbers with words</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">Connect 11–20 with written forms</div></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#c8ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+              <div style="border:2px solid #00aff0; border-radius:18px; padding:15px 17px; display:flex; align-items:center; gap:13px;"><div style="width:42px; height:42px; border-radius:12px; background:#e6f6fe; display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div><div style="flex:1;"><div style="font-size:15px; font-weight:700; color:#416ebe;">Write number words</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">Complete the written forms · start here</div></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ TRAINER ============ -->
+      <div data-screen-label="Vocabulary Trainer" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Vocabulary Trainer</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="padding:16px 22px 4px;"><span style="font-size:14px; font-weight:600; color:#8b8f98;">← Back</span><div style="font-size:20px; font-weight:800; color:#416ebe; margin-top:4px;">Vocabulary Trainer</div></div>
+            <div style="margin:14px 20px 0; border:1px solid #ececef; border-radius:18px; padding:15px 17px; display:flex; align-items:center; gap:13px;"><div style="width:40px; height:40px; border-radius:12px; background:#e6f6fe; display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg></div><div><div style="font-size:15px; font-weight:800;">1-day streak</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">Reviewed today — keep it going tomorrow.</div></div></div>
+            <div style="margin:12px 20px 0; background:#00aff0; border-radius:20px; padding:20px; color:#fff;"><div style="font-size:13px; font-weight:500; opacity:.85;">Words due for review</div><div style="font-size:40px; font-weight:800; letter-spacing:-0.02em; line-height:1; margin-top:4px;">210</div><div style="display:flex; gap:10px; margin-top:16px;"><button style="flex:1; border:none; font-family:inherit; cursor:pointer; background:rgba(255,255,255,.18); color:#fff; font-size:13px; font-weight:700; padding:12px; border-radius:12px;">Flip review</button><button style="flex:1; border:none; font-family:inherit; cursor:pointer; background:#fff; color:#46464b; font-size:13px; font-weight:800; padding:12px; border-radius:12px;">Quiz review</button></div></div>
+            <div style="margin:12px 20px 0; border:1px solid #ececef; border-radius:20px; padding:17px;"><div style="font-size:12px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#8b8f98; margin-bottom:22px;">Your words — 257 total</div><div style="display:flex; gap:9px; align-items:flex-end; height:104px; padding-top:20px;">
+              <div style="flex:1; text-align:center; display:flex; flex-direction:column; justify-content:flex-end;"><div style="height:78px; display:flex; align-items:flex-end;"><div class="ewl-grow" style="--h:78px; width:100%; border-radius:9px; background:#e7eaf0;"></div></div><div style="font-size:14px; font-weight:900; margin-top:6px;">208</div><div style="font-size:9px; font-weight:600; color:#8b8f98;">New</div></div>
+              <div style="flex:1; text-align:center; display:flex; flex-direction:column; justify-content:flex-end;"><div style="height:78px; display:flex; align-items:flex-end;"><div class="ewl-grow" style="--h:30px; width:100%; border-radius:9px; background:#ffeb00; animation-delay:.1s;"></div></div><div style="font-size:14px; font-weight:900; margin-top:6px;">44</div><div style="font-size:9px; font-weight:600; color:#8b8f98;">Learning</div></div>
+              <div style="flex:1; text-align:center; display:flex; flex-direction:column; justify-content:flex-end;"><div style="height:78px; display:flex; align-items:flex-end;"><div class="ewl-grow" style="--h:18px; width:100%; border-radius:9px; background:#7fd4f5; animation-delay:.2s;"></div></div><div style="font-size:14px; font-weight:900; margin-top:6px;">5</div><div style="font-size:9px; font-weight:600; color:#8b8f98;">Familiar</div></div>
+              <div style="flex:1; text-align:center; display:flex; flex-direction:column; justify-content:flex-end;"><div style="height:78px; display:flex; align-items:flex-end;"><div class="ewl-grow" style="--h:11px; width:100%; border-radius:9px; background:#00aff0; animation-delay:.3s;"></div></div><div style="font-size:14px; font-weight:900; margin-top:6px;">0</div><div style="font-size:9px; font-weight:600; color:#8b8f98;">Known</div></div>
+              <div style="flex:1; text-align:center; display:flex; flex-direction:column; justify-content:flex-end;"><div style="height:78px; display:flex; align-items:flex-end;"><div class="ewl-grow" style="--h:7px; width:100%; border-radius:9px; background:#416ebe; animation-delay:.4s;"></div></div><div style="font-size:14px; font-weight:900; margin-top:6px;">0</div><div style="font-size:9px; font-weight:600; color:#8b8f98;">Mastered</div></div>
+            </div></div>
+            <div style="display:flex; gap:10px; padding:12px 20px 18px;"><button style="flex:1; border:none; font-family:inherit; cursor:pointer; background:#e6f6fe; color:#46464b; font-size:14px; font-weight:700; padding:13px; border-radius:14px;">Refresh</button><button style="flex:1; border:1.5px solid #e3e5e9; font-family:inherit; cursor:pointer; background:#fff; color:#15161a; font-size:14px; font-weight:700; padding:13px; border-radius:14px;">+ Add word</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ WORD LIST ============ -->
+      <div data-screen-label="Word list" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Word list</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="display:flex; align-items:center; gap:11px; padding:16px 22px 4px;"><span style="font-size:14px; font-weight:600; color:#8b8f98;">← Back</span><span style="font-size:18px; font-weight:800; color:#416ebe;">193 words</span></div>
+            <div style="padding:12px 20px 0;"><button style="width:100%; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:15px; font-weight:800; padding:14px; border-radius:16px;">Review these 193 words now</button></div>
+            <div style="margin:14px 20px 0; border:1px solid #ececef; border-radius:18px; overflow:hidden;">
+              <div style="padding:14px 16px; border-bottom:1px solid #f2f3f5;"><div style="display:flex; align-items:center; justify-content:space-between;"><div style="display:flex; align-items:center; gap:9px;"><span style="font-size:15px; font-weight:700;">bathroom</span><span style="width:28px; height:28px; border-radius:50%; border:1.5px solid #cfeafb; display:flex; align-items:center; justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19 12a4 4 0 0 0-1.5-3.1"/></svg></span></div><span style="font-size:12px; font-weight:600; color:#c2c8d2;">Edit</span></div><div style="font-size:12px; font-weight:500; color:#6b7280; margin-top:5px;">A room with a toilet and usually a bath or shower.</div></div>
+              <div style="padding:14px 16px; border-bottom:1px solid #f2f3f5;"><div style="display:flex; align-items:center; justify-content:space-between;"><div style="display:flex; align-items:center; gap:9px;"><span style="font-size:15px; font-weight:700;">book</span><span style="width:28px; height:28px; border-radius:50%; border:1.5px solid #cfeafb; display:flex; align-items:center; justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19 12a4 4 0 0 0-1.5-3.1"/></svg></span></div><span style="font-size:12px; font-weight:600; color:#c2c8d2;">Edit</span></div><div style="font-size:12px; font-weight:500; color:#6b7280; margin-top:5px;">A set of printed pages bound together for reading.</div></div>
+              <div style="padding:14px 16px; border-bottom:1px solid #f2f3f5;"><div style="display:flex; align-items:center; justify-content:space-between;"><div style="display:flex; align-items:center; gap:9px;"><span style="font-size:15px; font-weight:700;">Brazil</span><span style="width:28px; height:28px; border-radius:50%; border:1.5px solid #cfeafb; display:flex; align-items:center; justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19 12a4 4 0 0 0-1.5-3.1"/></svg></span></div><span style="font-size:12px; font-weight:600; color:#c2c8d2;">Edit</span></div><div style="font-size:12px; font-weight:500; color:#6b7280; margin-top:5px;">A large country in South America.</div></div>
+              <div style="padding:14px 16px;"><div style="display:flex; align-items:center; justify-content:space-between;"><div style="display:flex; align-items:center; gap:9px;"><span style="font-size:15px; font-weight:700;">brother</span><span style="width:28px; height:28px; border-radius:50%; border:1.5px solid #cfeafb; display:flex; align-items:center; justify-content:center;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19 12a4 4 0 0 0-1.5-3.1"/></svg></span></div><span style="font-size:12px; font-weight:600; color:#c2c8d2;">Edit</span></div><div style="font-size:12px; font-weight:500; color:#6b7280; margin-top:5px;">A male who has the same parents as you.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ ADD WORD ============ -->
+      <div data-screen-label="Add a word" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Add a word</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="display:flex; align-items:center; gap:11px; padding:16px 22px 4px;"><span style="font-size:14px; font-weight:600; color:#8b8f98;">← Back</span><span style="font-size:18px; font-weight:800; color:#416ebe;">Add a word</span></div>
+            <div style="padding:16px 20px 0; display:flex; flex-direction:column; gap:16px;">
+              <div><div style="font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:#8b8f98; margin-bottom:8px;">Word *</div><div style="font-size:15px; font-weight:500; color:#b6bac2; padding:14px 16px; border:1.5px solid #e3e5e9; border-radius:14px;">e.g. ubiquitous</div></div>
+              <div><div style="font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:#00aff0; margin-bottom:8px;">Meaning</div><div style="font-size:15px; font-weight:600; color:#15161a; padding:14px 16px; border:1.5px solid #00aff0; border-radius:14px;">found everywhere<span style="color:#00aff0;">|</span></div></div>
+              <div><div style="font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:#8b8f98; margin-bottom:8px;">Phonetic</div><div style="font-size:15px; font-weight:500; color:#b6bac2; padding:14px 16px; border:1.5px solid #e3e5e9; border-radius:14px;">e.g. /juːˈbɪkwɪtəs/</div></div>
+              <div><div style="font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:#8b8f98; margin-bottom:8px;">Example sentence</div><div style="font-size:15px; font-weight:500; color:#b6bac2; padding:14px 16px; border:1.5px solid #e3e5e9; border-radius:14px;">e.g. Smartphones are ubiquitous.</div></div>
+              <button style="margin-top:4px; width:100%; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:15px; font-weight:800; padding:16px; border-radius:16px;">Add word</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ QUIZ ============ -->
+      <div data-screen-label="Quiz" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Quiz — answer feedback</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px 0;"><span style="font-size:14px; font-weight:600; color:#8b8f98;">← Back</span><span style="font-size:13px; font-weight:700; color:#8b8f98;">2 / 12</span></div>
+            <div style="padding:14px 22px 0;"><div style="height:5px; border-radius:99px; background:#f0f1f3; overflow:hidden;"><div class="ewl-fill" style="--w:17%; height:100%; background:#00aff0; border-radius:99px;"></div></div></div>
+            <div style="padding:28px 22px 0;"><div style="font-size:13px; font-weight:700; color:#8b8f98;">Question 2</div><div style="font-size:32px; font-weight:800; letter-spacing:-0.01em; margin-top:8px; color:#416ebe;">12 = ___</div></div>
+            <div style="padding:24px 20px 0; display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:12px; padding:15px 17px; border:1.5px solid #ececef; border-radius:15px; font-size:15px; font-weight:600;"><span style="font-weight:800; color:#b6bac2; width:16px;">a)</span><span style="flex:1;">twenty</span></div>
+              <div style="display:flex; align-items:center; gap:12px; padding:15px 17px; border:1.5px solid #c3ebd4; background:#e7f7ee; border-radius:15px; font-size:15px; font-weight:700; color:#16a34a; animation:ewlPulse 1.5s ease-in-out infinite;"><span style="font-weight:800; width:16px;">b)</span><span style="flex:1;">twelve</span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <div style="display:flex; align-items:center; gap:12px; padding:15px 17px; border:1.5px solid #f6cdcf; background:#fdecec; border-radius:15px; font-size:15px; font-weight:700; color:#e5484d; animation:ewlShake 1.5s ease-in-out infinite;"><span style="font-weight:800; width:16px;">c)</span><span style="flex:1;">two</span><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e5484d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div>
+              <div style="display:flex; align-items:center; gap:12px; padding:15px 17px; border:1.5px solid #ececef; border-radius:15px; font-size:15px; font-weight:600;"><span style="font-weight:800; color:#b6bac2; width:16px;">d)</span><span style="flex:1;">thirteen</span></div>
+            </div>
+            <div style="margin:20px 20px 0; padding:13px 16px; background:#fdecec; border-radius:13px; display:flex; align-items:center; gap:10px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#e5484d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg><span style="font-size:13px; font-weight:600;">Not quite — <b style="color:#16a34a;">twelve</b> is the answer.</span></div>
+            <div style="padding:20px 20px 24px;"><button style="width:100%; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:15px; font-weight:700; padding:15px; border-radius:14px;">Next →</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ RESULTS ============ -->
+      <div data-screen-label="Quiz results" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Quiz results</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="text-align:center; padding:34px 24px 0;"><div style="width:60px; height:60px; border-radius:18px; background:#e6f6fe; display:flex; align-items:center; justify-content:center; margin:0 auto;"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H6a2 2 0 0 0-2 2v14l4-2 4 2 4-2 4 2V6a2 2 0 0 0-2-2h-1"/><path d="M9 9h6M9 13h4"/></svg></div><div style="font-size:23px; font-weight:900; color:#416ebe; margin-top:14px;">Keep practising!</div><div style="font-size:15px; font-weight:600; color:#8b8f98; margin-top:4px;">You scored 9 / 12 (75%)</div></div>
+            <div style="padding:22px 20px 0; display:flex; flex-direction:column; gap:10px;">
+              <div style="border:1.5px solid #f6cdcf; border-radius:16px; padding:14px 16px;"><div style="display:flex; align-items:center; gap:9px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e5484d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg><span style="font-size:16px; font-weight:700;">12 = ___</span></div><div style="font-size:14px; font-weight:600; margin-top:6px; padding-left:25px;"><span style="color:#e5484d; text-decoration:line-through;">two</span> <span style="color:#c2c8d2;">→</span> <span style="color:#16a34a;">twelve</span></div></div>
+              <div style="border:1.5px solid #f6cdcf; border-radius:16px; padding:14px 16px;"><div style="display:flex; align-items:center; gap:9px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e5484d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg><span style="font-size:16px; font-weight:700;">100 = ___</span></div><div style="font-size:14px; font-weight:600; margin-top:6px; padding-left:25px;"><span style="color:#e5484d; text-decoration:line-through;">one thousand</span> <span style="color:#c2c8d2;">→</span> <span style="color:#16a34a;">a hundred</span></div></div>
+            </div>
+            <div style="display:flex; gap:10px; padding:22px 20px 24px;"><button style="flex:1; border:1.5px solid #e3e5e9; font-family:inherit; cursor:pointer; background:#fff; color:#15161a; font-size:14px; font-weight:700; padding:14px; border-radius:14px;">Start again</button><button style="flex:1; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:14px; font-weight:800; padding:14px; border-radius:14px;">Back to lesson</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ REVIEW ============ -->
+      <div data-screen-label="Vocabulary Review" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Vocabulary Review (flip)</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px 0;"><span style="font-size:14px; font-weight:600; color:#8b8f98;">← Back</span><span style="font-size:13px; font-weight:700; color:#8b8f98;">1 / 15</span></div>
+            <div style="padding:14px 22px 0;"><div style="height:5px; border-radius:99px; background:#f0f1f3; overflow:hidden;"><div class="ewl-fill" style="--w:7%; height:100%; background:#00aff0; border-radius:99px;"></div></div></div>
+            <div style="margin:18px 20px 0; perspective:1000px; height:230px;">
+              <div style="position:relative; width:100%; height:100%; transform-style:preserve-3d; animation:ewlFlip 3.6s ease-in-out infinite alternate;">
+                <div style="position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; border:2px solid #00aff0; border-radius:22px; padding:24px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                  <span style="font-size:11px; font-weight:800; color:#fff; background:#00aff0; padding:4px 12px; border-radius:99px;">Learning</span>
+                  <div style="font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#00aff0; margin-top:16px;">Word</div>
+                  <div style="display:flex; align-items:center; gap:10px; margin-top:8px;"><span style="font-size:28px; font-weight:800; color:#416ebe;">sailing</span><span style="width:34px; height:34px; border-radius:50%; border:1.5px solid #cfeafb; display:flex; align-items:center; justify-content:center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19 12a4 4 0 0 0-1.5-3.1"/></svg></span></div>
+                  <div style="font-family:ui-monospace,monospace; font-size:13px; color:#8b8f98; margin-top:8px;">SAYL-ing</div>
+                  <div style="font-size:12px; font-weight:500; color:#b9c0cc; margin-top:14px;">Tap to reveal meaning</div>
+                </div>
+                <div style="position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; transform:rotateY(180deg); border:2px solid #00aff0; border-radius:22px; padding:24px; background:#ffffff; display:flex; flex-direction:column; justify-content:center;">
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;"><span style="font-size:11px; font-weight:800; color:#fff; background:#00aff0; padding:4px 12px; border-radius:99px;">Learning</span><span style="font-size:18px; font-weight:800; color:#416ebe;">sailing</span></div>
+                  <div style="font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#00aff0;">Meaning</div>
+                  <div style="font-size:16px; font-weight:600; color:#15161a; margin-top:8px; line-height:1.4;">Travelling on water using a boat with sails.</div>
+                  <div style="height:1px; background:#ececef; margin:16px 0;"></div>
+                  <div style="font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#416ebe;">Example</div>
+                  <div style="font-size:14px; font-weight:500; font-style:italic; color:#8b8f98; margin-top:8px; line-height:1.5;">They went sailing on the lake last weekend.</div>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:9px; padding:18px 20px 24px;">
+              <button style="border:none; font-family:inherit; cursor:pointer; background:#f1f2f4; border-radius:14px; padding:13px 2px; text-align:center;"><div style="font-size:13px; font-weight:800; color:#6b7280;">Again</div><div style="font-size:9px; font-weight:600; color:#aeb3bd;">forgot</div></button>
+              <button style="border:none; font-family:inherit; cursor:pointer; background:#eef0fb; border-radius:14px; padding:13px 2px; text-align:center;"><div style="font-size:13px; font-weight:800; color:#6a6fb0;">Hard</div><div style="font-size:9px; font-weight:600; color:#9a9fce;">barely</div></button>
+              <button style="border:none; font-family:inherit; cursor:pointer; background:#e6f6fe; border-radius:14px; padding:13px 2px; text-align:center;"><div style="font-size:13px; font-weight:800; color:#0089c4;">Good</div><div style="font-size:9px; font-weight:600; color:#7bbdd8;">got it</div></button>
+              <button style="border:none; font-family:inherit; cursor:pointer; background:#00aff0; border-radius:14px; padding:13px 2px; text-align:center;"><div style="font-size:13px; font-weight:800; color:#fff;">Easy</div><div style="font-size:9px; font-weight:600; color:rgba(255,255,255,.75);">too easy</div></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ LOADING ============ -->
+      <div data-screen-label="Loading" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Loading</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; height:680px; background:#00aff0; border-radius:34px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px;">
+            <img src="assets/logo-onblue.png" style="height:64px;">
+            <div style="display:flex; gap:9px;">
+              <span style="width:11px; height:11px; border-radius:50%; background:#fff; animation:ewlDot 1.2s ease-in-out infinite;"></span>
+              <span style="width:11px; height:11px; border-radius:50%; background:#fff; animation:ewlDot 1.2s ease-in-out .15s infinite;"></span>
+              <span style="width:11px; height:11px; border-radius:50%; background:#fff; animation:ewlDot 1.2s ease-in-out .3s infinite;"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ MATCH (drag) ============ -->
+      <div data-screen-label="Match exercise" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Match verbs with objects</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="display:flex; align-items:center; gap:11px; padding:16px 22px 4px;"><span style="font-size:14px; font-weight:600; color:#8b8f98;">← Back</span><span style="font-size:17px; font-weight:800; color:#416ebe;">Match verbs with objects</span></div>
+            <div style="padding:8px 22px 0; font-size:13px; font-weight:500; font-style:italic; color:#8b8f98; line-height:1.45;">Drag each verb to the correct object to form common expressions.</div>
+            <div style="margin:14px 20px 0; border:1px solid #ececef; border-radius:18px; padding:16px;">
+              <div style="font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#00aff0; margin-bottom:13px;">Tap or drag to match</div>
+              <div style="display:flex; flex-wrap:wrap; gap:9px;">
+                <span style="font-size:14px; font-weight:700; color:#46464b; background:#e6f6fe; border:1.5px solid #cfeafb; padding:9px 16px; border-radius:12px;">see</span>
+                <span style="font-size:14px; font-weight:700; color:#46464b; background:#e6f6fe; border:1.5px solid #cfeafb; padding:9px 16px; border-radius:12px;">take</span>
+                <span style="font-size:14px; font-weight:700; color:#46464b; background:#e6f6fe; border:1.5px solid #cfeafb; padding:9px 16px; border-radius:12px;">go to</span>
+                <span style="font-size:14px; font-weight:700; color:#46464b; background:#e6f6fe; border:1.5px solid #cfeafb; padding:9px 16px; border-radius:12px;">try</span>
+                <span style="font-size:14px; font-weight:700; color:#46464b; background:#e6f6fe; border:1.5px solid #cfeafb; padding:9px 16px; border-radius:12px;">visit</span>
+                <span style="font-size:14px; font-weight:700; color:#46464b; background:#e6f6fe; border:1.5px solid #cfeafb; padding:9px 16px; border-radius:12px;">drink</span>
+              </div>
+            </div>
+            <div style="padding:14px 20px 0; display:flex; flex-direction:column; gap:10px;">
+              <div style="border:1px solid #ececef; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:14px;"><span style="width:78px; height:40px; border:1.5px dashed #c8d2e0; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#c8ccd4; font-weight:700;">—</span><span style="font-size:15px; font-weight:600; color:#15161a;">English tea</span></div>
+              <div style="border:1px solid #ececef; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:14px;"><span style="width:78px; height:40px; border:1.5px dashed #c8d2e0; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#c8ccd4; font-weight:700;">—</span><span style="font-size:15px; font-weight:600; color:#15161a;">a photo</span></div>
+              <div style="border:1px solid #ececef; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:14px;"><span style="width:78px; height:40px; border:1.5px dashed #c8d2e0; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#c8ccd4; font-weight:700;">—</span><span style="font-size:15px; font-weight:600; color:#15161a;">a show</span></div>
+              <div style="border:1px solid #ececef; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:14px;"><span style="width:78px; height:40px; border:1.5px dashed #c8d2e0; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#c8ccd4; font-weight:700;">—</span><span style="font-size:15px; font-weight:600; color:#15161a;">Indian food</span></div>
+              <div style="border:1px solid #ececef; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:14px;"><span style="width:78px; height:40px; border:1.5px dashed #c8d2e0; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#c8ccd4; font-weight:700;">—</span><span style="font-size:15px; font-weight:600; color:#15161a;">Greenwich</span></div>
+              <div style="border:1px solid #ececef; border-radius:16px; padding:12px 14px; display:flex; align-items:center; gap:14px;"><span style="width:78px; height:40px; border:1.5px dashed #c8d2e0; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#c8ccd4; font-weight:700;">—</span><span style="font-size:15px; font-weight:600; color:#15161a;">the British Museum</span></div>
+            </div>
+            <div style="padding:16px 20px 22px;"><button style="width:100%; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:15px; font-weight:800; padding:15px; border-radius:16px;">Submit answers</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ READ ============ -->
+      <div data-screen-label="Read &amp; Understand" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Read &amp; Understand</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="text-align:center; padding:14px 22px 0; font-size:13px; font-weight:600; color:#8b8f98;">← Back to lesson</div>
+            <div style="display:flex; align-items:center; gap:11px; padding:12px 22px 0;"><span style="width:34px; height:34px; border-radius:10px; background:#e6f6fe; display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg></span><div><div style="font-size:19px; font-weight:800; color:#416ebe; line-height:1.1;">Read &amp; Understand</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">4C Dos and don'ts (part 1)</div></div></div>
+            <div style="margin:14px 20px 0; border:1px solid #ececef; border-radius:20px; padding:18px; font-size:14px; font-weight:500; color:#46464b; line-height:1.6;">Lydia has a work trip to London next week. Her friends give her advice. Ben says don't go to Oxford Street because it is very busy. Carla says visit the British Museum — it is really interesting. Vitor says don't take taxis because they are expensive. Jemima says go to Greenwich and take photos.</div>
+            <div style="padding:20px 22px 12px; font-size:16px; font-weight:800; color:#416ebe;">Comprehension exercises</div>
+            <div style="margin:0 20px 22px; border:1px solid #ececef; border-radius:20px; padding:16px;">
+              <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#00aff0; margin-bottom:14px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 12l3 3 5-6"/></svg>True or false</div>
+              <div style="background:#f6f8fb; border-radius:16px; padding:15px; margin-bottom:12px;">
+                <div style="font-size:14px; font-weight:600; color:#15161a; margin-bottom:11px;">1. Lydia has a holiday in London.</div>
+                <div style="display:flex; gap:10px;"><div style="flex:1; border:1.5px solid #cfeafb; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#46464b;">✓ True</div><div style="flex:1; border:1.5px solid #cfeafb; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#46464b;">✗ False</div></div>
+                <button style="margin-top:11px; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:12px; font-weight:700; padding:8px 16px; border-radius:10px;">Check</button>
+              </div>
+              <div style="background:#f6f8fb; border-radius:16px; padding:15px;">
+                <div style="font-size:14px; font-weight:600; color:#15161a; margin-bottom:11px;">2. Ben says Oxford Street is very busy.</div>
+                <div style="display:flex; gap:10px;"><div style="flex:1; border:1.5px solid #c3ebd4; background:#e7f7ee; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#16a34a;">✓ True</div><div style="flex:1; border:1.5px solid #cfeafb; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#46464b;">✗ False</div></div>
+                <div style="margin-top:11px; font-size:12px; font-weight:700; color:#16a34a;">Correct!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ LISTEN ============ -->
+      <div data-screen-label="Listen &amp; Understand" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">Listen &amp; Understand</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="text-align:center; padding:14px 22px 0; font-size:13px; font-weight:600; color:#8b8f98;">← Back to lesson</div>
+            <div style="display:flex; align-items:center; gap:11px; padding:12px 22px 0;"><span style="width:34px; height:34px; border-radius:10px; background:#e6f6fe; display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-3a9 9 0 0 1 18 0v3"/><path d="M21 16.5a2.5 2.5 0 0 1-2.5 2.5H17v-6h1.5A2.5 2.5 0 0 1 21 15.5zM3 16.5A2.5 2.5 0 0 0 5.5 19H7v-6H5.5A2.5 2.5 0 0 0 3 15.5z"/></svg></span><div><div style="font-size:19px; font-weight:800; color:#416ebe; line-height:1.1;">Listen &amp; Understand</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">4C Dos and don'ts (part 1)</div></div></div>
+            <div style="margin:14px 20px 0; border:1px solid #ececef; border-radius:20px; padding:18px;">
+              <div style="display:flex; align-items:center; gap:13px;">
+                <span style="width:40px; height:40px; border-radius:50%; background:#00aff0; display:flex; align-items:center; justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M7 5l12 7-12 7z"/></svg></span>
+                <span style="font-size:13px; font-weight:700; color:#46464b;">0:00 / 0:44</span>
+                <div style="flex:1; height:5px; border-radius:99px; background:#e6f6fe; overflow:hidden;"><div style="width:18%; height:100%; background:#00aff0; border-radius:99px;"></div></div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b8f98" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg>
+              </div>
+            </div>
+            <div style="padding:20px 22px 12px; font-size:16px; font-weight:800; color:#416ebe;">Comprehension exercises</div>
+            <div style="margin:0 20px 22px; border:1px solid #ececef; border-radius:20px; padding:16px;">
+              <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#00aff0; margin-bottom:14px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 12l3 3 5-6"/></svg>True or false</div>
+              <div style="background:#f6f8fb; border-radius:16px; padding:15px; margin-bottom:12px;">
+                <div style="font-size:14px; font-weight:600; color:#15161a; margin-bottom:11px;">1. Anna is going to London for a holiday.</div>
+                <div style="display:flex; gap:10px;"><div style="flex:1; border:1.5px solid #cfeafb; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#46464b;">✓ True</div><div style="flex:1; border:1.5px solid #cfeafb; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#46464b;">✗ False</div></div>
+                <button style="margin-top:11px; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:12px; font-weight:700; padding:8px 16px; border-radius:10px;">Check</button>
+              </div>
+              <div style="background:#f6f8fb; border-radius:16px; padding:15px;">
+                <div style="font-size:14px; font-weight:600; color:#15161a; margin-bottom:11px;">2. Tom says take taxis because they are cheap.</div>
+                <div style="display:flex; gap:10px;"><div style="flex:1; border:1.5px solid #cfeafb; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#46464b;">✓ True</div><div style="flex:1; border:1.5px solid #f6cdcf; background:#fdecec; border-radius:12px; padding:11px; text-align:center; font-size:14px; font-weight:700; color:#e5484d;">✗ False</div></div>
+                <div style="margin-top:11px; font-size:12px; font-weight:700; color:#e5484d;">Not quite — it's false.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ NEW WORDS · WORD ============ -->
+      <div data-screen-label="New Words (flip front)" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">New Words · flip (word)</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:14px 22px 0;"><div><div style="font-size:13px; font-weight:600; color:#8b8f98;">← Back to lesson</div><div style="font-size:21px; font-weight:800; color:#416ebe; margin-top:3px;">New Words</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">4C Dos and don'ts (part 1)</div></div><span style="font-size:11px; font-weight:700; color:#46464b; background:#e6f6fe; padding:5px 11px; border-radius:99px;">7 words</span></div>
+            <div style="margin:16px 20px 0; background:#e6f6fe; border-radius:16px; padding:5px; display:flex; gap:4px;">
+              <div style="flex:1; background:#fff; border-radius:12px; padding:10px 4px; text-align:center; box-shadow:0 2px 6px -3px rgba(0,0,0,.2);"><div style="font-size:14px; font-weight:800; color:#416ebe;">Flip</div><div style="font-size:10px; font-weight:500; color:#8b8f98;">Tap to reveal</div></div>
+              <div style="flex:1; padding:10px 4px; text-align:center;"><div style="font-size:14px; font-weight:700; color:#46464b;">Self-Assess</div><div style="font-size:10px; font-weight:500; color:#8b8f98;">Know it or not?</div></div>
+              <div style="flex:1; padding:10px 4px; text-align:center;"><div style="font-size:14px; font-weight:700; color:#46464b;">Quiz</div><div style="font-size:10px; font-weight:500; color:#8b8f98;">Multiple choice</div></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; padding:18px 22px 0;"><div style="flex:1; height:6px; border-radius:99px; background:#e6f6fe; overflow:hidden;"><div style="width:14%; height:100%; background:#00aff0; border-radius:99px;"></div></div><span style="font-size:12px; font-weight:700; color:#8b8f98;">1 / 7</span></div>
+            <div style="margin:16px 20px 0; border:2px solid #00aff0; border-radius:22px; padding:28px 24px; text-align:center; min-height:240px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+              <span style="font-size:11px; font-weight:800; color:#fff; background:#00aff0; padding:4px 12px; border-radius:99px;">New</span>
+              <div style="font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#00aff0; margin-top:16px;">Word</div>
+              <div style="font-size:40px; font-weight:900; color:#416ebe; margin-top:8px; letter-spacing:-0.01em;">try</div>
+              <div style="display:flex; align-items:center; gap:10px; margin-top:12px;"><span style="font-size:14px; font-weight:700; color:#8b8f98;">TRY</span><span style="width:36px; height:36px; border-radius:50%; border:1.5px solid #cfeafb; display:flex; align-items:center; justify-content:center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19 12a4 4 0 0 0-1.5-3.1"/></svg></span></div>
+              <div style="font-size:13px; font-weight:500; color:#b9c0cc; margin-top:18px;">tap to flip</div>
+            </div>
+            <div style="padding:18px 20px 22px;"><button style="width:100%; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:15px; font-weight:800; padding:15px; border-radius:16px;">Next →</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ NEW WORDS · MEANING ============ -->
+      <div data-screen-label="New Words (flip back)" style="display:flex; flex-direction:column; gap:13px;">
+        <div style="font-size:13px; font-weight:800; font-family:'Hanken Grotesk',sans-serif;">New Words · flip (meaning)</div>
+        <div style="width:372px; background:#fff; border-radius:44px; padding:11px; box-shadow:0 30px 70px -34px rgba(30,40,70,.4), 0 0 0 1px rgba(20,30,60,.04);">
+          <div style="width:100%; background:#fff; border-radius:34px; overflow:hidden; min-height:680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 22px 0; font-size:12px; font-weight:700;"><span>9:41</span><span style="font-size:10px;">●●● ▾ 100%</span></div>
+            <div style="display:flex; align-items:flex-start; justify-content:space-between; padding:14px 22px 0;"><div><div style="font-size:13px; font-weight:600; color:#8b8f98;">← Back to lesson</div><div style="font-size:21px; font-weight:800; color:#416ebe; margin-top:3px;">New Words</div><div style="font-size:12px; font-weight:500; color:#8b8f98;">4C Dos and don'ts (part 1)</div></div><span style="font-size:11px; font-weight:700; color:#46464b; background:#e6f6fe; padding:5px 11px; border-radius:99px;">7 words</span></div>
+            <div style="margin:16px 20px 0; background:#e6f6fe; border-radius:16px; padding:5px; display:flex; gap:4px;">
+              <div style="flex:1; background:#fff; border-radius:12px; padding:10px 4px; text-align:center; box-shadow:0 2px 6px -3px rgba(0,0,0,.2);"><div style="font-size:14px; font-weight:800; color:#416ebe;">Flip</div><div style="font-size:10px; font-weight:500; color:#8b8f98;">Tap to reveal</div></div>
+              <div style="flex:1; padding:10px 4px; text-align:center;"><div style="font-size:14px; font-weight:700; color:#46464b;">Self-Assess</div><div style="font-size:10px; font-weight:500; color:#8b8f98;">Know it or not?</div></div>
+              <div style="flex:1; padding:10px 4px; text-align:center;"><div style="font-size:14px; font-weight:700; color:#46464b;">Quiz</div><div style="font-size:10px; font-weight:500; color:#8b8f98;">Multiple choice</div></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; padding:18px 22px 0;"><div style="flex:1; height:6px; border-radius:99px; background:#e6f6fe; overflow:hidden;"><div style="width:14%; height:100%; background:#00aff0; border-radius:99px;"></div></div><span style="font-size:12px; font-weight:700; color:#8b8f98;">1 / 7</span></div>
+            <div style="margin:16px 20px 0; border:2px solid #00aff0; border-radius:22px; padding:24px; min-height:240px; display:flex; flex-direction:column; justify-content:center;">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;"><span style="font-size:11px; font-weight:800; color:#fff; background:#00aff0; padding:4px 12px; border-radius:99px;">New</span><span style="font-size:18px; font-weight:800; color:#416ebe;">try</span></div>
+              <div style="font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#00aff0;">Meaning</div>
+              <div style="font-size:18px; font-weight:600; color:#15161a; margin-top:8px; line-height:1.4;">To attempt to do something or test something for the first time.</div>
+              <div style="height:1px; background:#ececef; margin:18px 0;"></div>
+              <div style="font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#416ebe;">Example</div>
+              <div style="font-size:14px; font-weight:500; font-style:italic; color:#8b8f98; margin-top:8px; line-height:1.5;">"You should try the local food when you visit a new country."</div>
+              <span style="width:38px; height:38px; border-radius:50%; border:1.5px solid #cfeafb; display:flex; align-items:center; justify-content:center; margin-top:14px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00aff0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M19 12a4 4 0 0 0-1.5-3.1"/></svg></span>
+            </div>
+            <div style="padding:18px 20px 22px;"><button style="width:100%; border:none; font-family:inherit; cursor:pointer; background:#00aff0; color:#fff; font-size:15px; font-weight:800; padding:15px; border-radius:16px;">Next →</button></div>
+          </div>
+        </div>
+      </div>
+
+
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
