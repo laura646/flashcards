@@ -137,13 +137,13 @@ export default function VocabDueCard({ external }: Props = {}) {
   return (
     <button
       onClick={() => router.push('/vocabulary')}
-      className="w-full bg-sky rounded-card shadow-sm p-5 mb-3 text-left transition-all hover:brightness-[0.97] group"
+      className="w-full bg-sky-wash border border-sky-border rounded-card shadow-sm p-5 mb-3 text-left transition-colors hover:bg-[#d6f1fc] group"
     >
       <div className="flex items-center gap-4">
         <div className="text-3xl">🧠</div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-white">
+            <h3 className="text-sm font-bold text-ink-black">
               {due} {due === 1 ? 'word' : 'words'} due for review
             </h3>
             {streak > 0 && (
@@ -152,13 +152,13 @@ export default function VocabDueCard({ external }: Props = {}) {
               </span>
             )}
           </div>
-          <p className="text-xs text-white mt-0.5">
+          <p className="text-xs text-ink-body mt-0.5">
             {streak > 0 && !reviewedToday
               ? `Review now to keep your ${streak}-day streak alive`
               : `A quick ${due <= 10 ? '2-minute' : '5-minute'} review keeps them in your memory`}
           </p>
         </div>
-        <span className="bg-white/25 text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+        <span className="bg-sky text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
           Review →
         </span>
       </div>

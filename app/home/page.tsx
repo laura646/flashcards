@@ -48,7 +48,6 @@ export default function HomePage() {
   const [srsReviewedToday, setSrsReviewedToday] = useState(false)
   const [srsLoading, setSrsLoading] = useState(true)
 
-  const heroDue = srsStats ? (srsStats.review_due ?? srsStats.due ?? 0) : null
   const heroStreak = srsStreak
 
   const role = session?.user?.role || 'student'
@@ -217,17 +216,6 @@ export default function HomePage() {
             )}
           </div>
           <p className="text-white mt-3 text-sm">Welcome back, {studentName}!</p>
-          <div className="flex items-end justify-between mt-3">
-            <div>
-              <p className="text-white text-sm">Words to review</p>
-              {heroDue === null ? (
-                <span className="inline-block mt-1 h-9 w-16 rounded-lg bg-white/25 animate-pulse" />
-              ) : (
-                <p className="text-[42px] leading-none font-extrabold tracking-hero">{heroDue}</p>
-              )}
-            </div>
-            <Button variant="onHeroWhite" onClick={() => router.push('/vocabulary')}>Start review</Button>
-          </div>
         </div>
       </SkyHero>
 
