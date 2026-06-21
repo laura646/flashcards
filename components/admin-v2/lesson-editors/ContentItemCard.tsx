@@ -61,6 +61,13 @@ interface Props {
   // read-only harness paths, where the AI door is hidden.
   onGenerateExercisesFromText?: (
     text: string,
+    opts?: { types?: string[]; countPerType?: number },
+  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
+  // Companion to the above for the Article editor's UPLOAD sources (DOCX / PDF /
+  // screenshots). Returns full Exercise[]; threaded from the page (useLessonAi).
+  onGenerateExercisesFromUpload?: (
+    files: File[],
+    opts?: { types?: string[]; countPerType?: number },
   ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
   generatingExercises?: boolean
   exercisesError?: string | null
@@ -111,6 +118,7 @@ export default function ContentItemCard({
   onPickImage,
   onPreview,
   onGenerateExercisesFromText,
+  onGenerateExercisesFromUpload,
   generatingExercises,
   exercisesError,
   onClearExercisesError,
@@ -255,6 +263,7 @@ export default function ContentItemCard({
             onChange={(block) => onUpdate(block)}
             onPreview={onPreview}
             onGenerateExercisesFromText={onGenerateExercisesFromText}
+            onGenerateExercisesFromUpload={onGenerateExercisesFromUpload}
             generatingExercises={generatingExercises}
             exercisesError={exercisesError}
             onClearExercisesError={onClearExercisesError}

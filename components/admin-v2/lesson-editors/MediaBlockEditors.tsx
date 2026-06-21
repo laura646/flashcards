@@ -30,16 +30,38 @@ import { useState } from 'react'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
 import BlockExercisesEditor from './BlockExercisesEditor'
-import { Button, InlineError, Spinner } from '@/components/student-ui'
+import { Button, InlineError, SegmentedControl, Spinner } from '@/components/student-ui'
+import { isImageFile } from '@/lib/lesson-editor/fileToBase64'
 import { legacyMcqToAttached, type AttachedExercise } from '@/lib/attached-exercise'
 import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
-import type {
-  ContentBlock,
-  VideoContent,
-  AudioContent,
-  ArticleContent,
-  Exercise,
+import {
+  EXERCISE_TYPES,
+  type ContentBlock,
+  type VideoContent,
+  type AudioContent,
+  type ArticleContent,
+  type Exercise,
 } from '@/lib/lesson-editor/types'
+
+// A "sensible mix" of comprehension / vocabulary follow-up types that read well
+// for a general (non-IELTS) article. Used by the picker's "Sensible mix"
+// shortcut. Kept to a subset of EXERCISE_TYPES (audio-dependent types like
+// dictation / cloze_listening are excluded — they need an audio_url).
+const SENSIBLE_MIX_TYPES = [
+  'multiple_choice',
+  'true_or_false',
+  'type_answer',
+  'match_halves',
+]
+
+// Where the AI reads its source material from. "text" steers off the pasted
+// article; "upload" off DOCX/PDF documents; "image" off screenshots. The chosen
+// type-picker + count apply identically to all three.
+type AiSource = 'text' | 'upload' | 'image'
+
+// accept strings for the two file pickers (model: ai/AiGenerateModal.tsx).
+const DOC_ACCEPT = '.pdf,.doc,.docx'
+const IMAGE_ACCEPT = '.jpg,.jpeg,.png,image/*'
 
 // ── Shared props ──
 
@@ -255,6 +277,7 @@ export function ArticleEditor({
   onChange,
   onPreview,
   onGenerateExercisesFromText,
+  onGenerateExercisesFromUpload,
   generatingExercises,
   exercisesError,
   onClearExercisesError,
@@ -267,6 +290,16 @@ export function ArticleEditor({
   // with AI" door is hidden and only the manual editor shows.
   onGenerateExercisesFromText?: (
     text: string,
+    opts?: { types?: string[]; countPerType?: number },
+  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
+  // AI-from-UPLOAD generation: the teacher's own DOCX/PDF/screenshots become the
+  // source instead of the pasted article text. Returns full Exercise[] (same
+  // shape as -fromText). Present only in the live editor; when omitted the
+  // "Upload a document" / "Upload screenshots" source options are hidden and the
+  // panel falls back to text-only.
+  onGenerateExercisesFromUpload?: (
+    files: File[],
+    opts?: { types?: string[]; countPerType?: number },
   ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
   generatingExercises?: boolean
   exercisesError?: string | null
@@ -287,27 +320,83 @@ export function ArticleEditor({
 
   const hasText = !!content.text && content.text.trim().length > 0
 
+  // ── AI type-picker panel state ──
+  // The "Generate with AI" button no longer fires immediately; it opens a panel
+  // where the teacher chooses WHICH of the 13 exercise types to generate and how
+  // many of EACH. Selection seeds with the sensible mix so one click + Generate
+  // is the fast path.
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(SENSIBLE_MIX_TYPES)
+  const [countPerType, setCountPerType] = useState(1)
+  // SOURCE: where AI reads from. Defaults to the article text. Upload sources
+  // hold their own File[].
+  const [source, setSource] = useState<AiSource>('text')
+  const [docFiles, setDocFiles] = useState<File[]>([])
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+
+  // The upload doors only appear when the page wired the upload callback.
+  const canUpload = !!onGenerateExercisesFromUpload
+  const sourceSegments: { value: AiSource; label: string }[] = [
+    { value: 'text', label: "This article's text" },
+    ...(canUpload
+      ? ([
+          { value: 'upload', label: 'Upload a document' },
+          { value: 'image', label: 'Upload screenshots' },
+        ] as { value: AiSource; label: string }[])
+      : []),
+  ]
+
+  const toggleType = (value: string) => {
+    setSelectedTypes((prev) =>
+      prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value],
+    )
+  }
+  const selectAll = () => setSelectedTypes(EXERCISE_TYPES.map((t) => t.value))
+  const selectMix = () => setSelectedTypes(SENSIBLE_MIX_TYPES)
+  const clearTypes = () => setSelectedTypes([])
+
   // Single write path for the follow-up list: persist full Exercise[] and
   // one-way clear the legacy MCQ array.
   const writeExercises = (exercises: Exercise[]) => {
     updateContent({ exercises, questions: [] })
   }
 
-  // "Generate with AI" door: build exercises from the article text, then MERGE
-  // the returned full Exercise[] onto the effective list (re-stamping
-  // order_index so the merged tail stays ordered).
+  // Files for the active upload source ([] for the text source).
+  const sourceFiles = source === 'upload' ? docFiles : source === 'image' ? imageFiles : []
+
+  // Is the active source ready to generate from?
+  const sourceReady =
+    source === 'text' ? hasText : sourceFiles.length > 0
+
+  // "Generate" inside the picker: build exercises constrained to the chosen
+  // types (countPerType each) FROM the active source, then MERGE the returned
+  // full Exercise[] onto the effective list (re-stamping order_index so the
+  // merged tail stays ordered). The type-picker + count apply to all sources.
   const handleGenerate = async () => {
-    if (!onGenerateExercisesFromText) return
+    if (selectedTypes.length === 0 || !sourceReady) return
     onClearExercisesError?.()
-    const res = await onGenerateExercisesFromText(content.text)
+    const opts = { types: selectedTypes, countPerType }
+    let res: { ok: boolean; exercises?: Exercise[]; error?: string }
+    if (source === 'text') {
+      if (!onGenerateExercisesFromText) return
+      res = await onGenerateExercisesFromText(content.text, opts)
+    } else {
+      if (!onGenerateExercisesFromUpload) return
+      res = await onGenerateExercisesFromUpload(sourceFiles, opts)
+    }
     if (res.ok && res.exercises && res.exercises.length > 0) {
       const merged = [...effectiveExercises, ...res.exercises].map((ex, i) => ({
         ...ex,
         order_index: i,
       }))
       writeExercises(merged)
+      setDocFiles([])
+      setImageFiles([])
+      setPickerOpen(false)
     }
   }
+
+  const estimatedCount = selectedTypes.length * countPerType
 
   return (
     <div className="space-y-4">
@@ -342,28 +431,231 @@ export function ArticleEditor({
           Exercises
         </p>
 
-        {/* TWO-DOOR: build manually (always) + generate from the article text. */}
+        {/* TWO-DOOR: build manually (always) + generate with AI. "Generate with
+            AI" opens a panel where the teacher first picks a SOURCE (this
+            article's text, an uploaded DOCX/PDF, or screenshots) and then which
+            of the 13 types to make — the type-picker + count apply to all three
+            sources. */}
         {onGenerateExercisesFromText && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => void handleGenerate()}
-                disabled={!hasText || (generatingExercises ?? false)}
+                onClick={() => {
+                  onClearExercisesError?.()
+                  setPickerOpen((o) => !o)
+                }}
+                disabled={generatingExercises ?? false}
               >
-                {generatingExercises ? 'Generating…' : '✨ Generate with AI'}
+                {pickerOpen ? '✕ Close picker' : '✨ Generate with AI'}
               </Button>
-              {!hasText && (
-                <span className="text-xs text-ink-muted">
-                  Add article text above to generate exercises from it.
-                </span>
-              )}
             </div>
+
+            {pickerOpen && (
+              <div className="rounded-tile border-[1.5px] border-hairline bg-sky-wash p-3.5 space-y-3">
+                {/* SOURCE selector — only shown when uploads are wired (otherwise
+                    text is the only source and the segmented control is noise). */}
+                {sourceSegments.length > 1 && (
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
+                      Source material
+                    </p>
+                    <SegmentedControl
+                      segments={sourceSegments}
+                      value={source}
+                      onChange={(next) => {
+                        onClearExercisesError?.()
+                        setSource(next)
+                      }}
+                      className="max-w-full overflow-x-auto"
+                    />
+
+                    {/* This article's text */}
+                    {source === 'text' && !hasText && (
+                      <p className="text-xs text-ink-muted">
+                        Add article text above to generate exercises from it.
+                      </p>
+                    )}
+
+                    {/* Upload a document (DOCX / PDF, single or multiple) */}
+                    {source === 'upload' && (
+                      <div>
+                        <label className="flex items-center justify-center gap-2 border border-dashed border-sky-border rounded-tile py-4 text-[13px] text-sky-text cursor-pointer hover:bg-white/60 transition-colors">
+                          <span aria-hidden="true">⬆️</span> Choose PDF or Word file(s)
+                          <input
+                            type="file"
+                            accept={DOC_ACCEPT}
+                            multiple
+                            disabled={generatingExercises ?? false}
+                            className="sr-only"
+                            onChange={(e) =>
+                              setDocFiles(Array.from(e.target.files ?? []))
+                            }
+                          />
+                        </label>
+                        {docFiles.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {docFiles.map((f, i) => (
+                              <li
+                                key={i}
+                                className="text-[12px] text-ink-muted truncate"
+                              >
+                                {f.name}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Upload screenshots (images, single or multiple) */}
+                    {source === 'image' && (
+                      <div>
+                        <label className="flex items-center justify-center gap-2 border border-dashed border-sky-border rounded-tile py-4 text-[13px] text-sky-text cursor-pointer hover:bg-white/60 transition-colors">
+                          <span aria-hidden="true">🖼️</span> Choose screenshot(s)
+                          <input
+                            type="file"
+                            accept={IMAGE_ACCEPT}
+                            multiple
+                            disabled={generatingExercises ?? false}
+                            className="sr-only"
+                            onChange={(e) =>
+                              setImageFiles(
+                                Array.from(e.target.files ?? []).filter(isImageFile),
+                              )
+                            }
+                          />
+                        </label>
+                        {imageFiles.length > 0 && (
+                          <ul className="mt-2 space-y-1">
+                            {imageFiles.map((f, i) => (
+                              <li
+                                key={i}
+                                className="text-[12px] text-ink-muted truncate"
+                              >
+                                {f.name}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Text-only fallback hint when uploads aren't wired. */}
+                {sourceSegments.length === 1 && !hasText && (
+                  <p className="text-xs text-ink-muted">
+                    Add article text above to generate exercises from it.
+                  </p>
+                )}
+
+                {/* Header + convenience selectors */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
+                    Which exercises should AI write?
+                  </p>
+                  <div className="flex items-center gap-1.5 text-[12px] font-bold">
+                    <button
+                      type="button"
+                      onClick={selectMix}
+                      className="text-sky hover:underline"
+                    >
+                      Sensible mix
+                    </button>
+                    <span className="text-ink-muted">·</span>
+                    <button
+                      type="button"
+                      onClick={selectAll}
+                      className="text-sky hover:underline"
+                    >
+                      Select all
+                    </button>
+                    <span className="text-ink-muted">·</span>
+                    <button
+                      type="button"
+                      onClick={clearTypes}
+                      className="text-ink-muted hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* Type checkboxes (all 13 types, label + icon) */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {EXERCISE_TYPES.map((t) => {
+                    const checked = selectedTypes.includes(t.value)
+                    return (
+                      <label
+                        key={t.value}
+                        className={`flex items-center gap-2 rounded-tile border-[1.5px] px-2.5 py-2 cursor-pointer transition-colors ${
+                          checked
+                            ? 'border-sky bg-white'
+                            : 'border-hairline bg-white/60 hover:border-sky'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleType(t.value)}
+                          className="accent-sky w-4 h-4 shrink-0"
+                        />
+                        <span className="text-[13px] font-semibold text-ink-body leading-tight">
+                          {t.icon} {t.label}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+
+                {/* How many of each + Generate */}
+                <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+                  <label className="flex items-center gap-2 text-[13px] font-semibold text-ink-body">
+                    How many of each?
+                    <input
+                      type="number"
+                      min={1}
+                      max={5}
+                      value={countPerType}
+                      onChange={(e) =>
+                        setCountPerType(
+                          Math.max(1, Math.min(5, Number(e.target.value) || 1)),
+                        )
+                      }
+                      className="w-16 text-[14px] font-medium text-ink-body bg-white rounded-tile px-2.5 py-1.5 border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
+                    />
+                  </label>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void handleGenerate()}
+                    disabled={
+                      selectedTypes.length === 0 ||
+                      !sourceReady ||
+                      (generatingExercises ?? false)
+                    }
+                  >
+                    {generatingExercises
+                      ? 'Generating…'
+                      : `Generate ${estimatedCount} exercise${estimatedCount === 1 ? '' : 's'}`}
+                  </Button>
+                </div>
+                {selectedTypes.length === 0 && (
+                  <p className="text-xs text-ink-muted">
+                    Pick at least one exercise type.
+                  </p>
+                )}
+              </div>
+            )}
+
             {generatingExercises && (
               <div className="flex items-center gap-2 text-[13px] text-ink-muted">
                 <Spinner size={18} />
-                Reading the article and writing exercises…
+                {source === 'text'
+                  ? 'Reading the article and writing exercises…'
+                  : 'Reading your upload and writing exercises…'}
               </div>
             )}
             {exercisesError && <InlineError message={exercisesError} />}

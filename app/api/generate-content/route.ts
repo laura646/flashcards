@@ -107,6 +107,61 @@ For all other types, set groupData to null.
 Here is the exercise document:
 `
 
+// The 14 exercise types the editor supports. Kept in sync with EXERCISE_TYPES
+// in lib/lesson-editor/types.ts (the picker the teacher chooses from). Used to
+// validate the optional `exercise_types` steer on generate-exercises-from-text.
+const KNOWN_EXERCISE_TYPES = [
+  'multiple_choice',
+  'match_halves',
+  'true_or_false',
+  'hangman',
+  'type_answer',
+  'group_sort',
+  'dictation',
+  'error_correction',
+  'rank_order',
+  'text_sequencing',
+  'anagram',
+  'cloze_listening',
+  'odd_one_out',
+] as const
+
+// Build the optional type-constraint preamble shared by every action that
+// accepts the teacher's type-picker (generate-exercises-from-text, the upload
+// action, and the image path of generate-exercises). Returns the steer string +
+// the validated type list + the clamped per-type count.
+//
+// When the teacher picked specific types we STEER the prompt: prepend an
+// explicit instruction to produce exactly `perType` of EACH chosen type and to
+// use ONLY those exercise_type values. The base prompt (with its per-type JSON
+// shapes + rules) still follows, so the model has the schema for every
+// requested type. When no valid types are given, `steer` is '' and callers keep
+// their current free-mix behaviour.
+function buildTypeSteer(
+  exercise_types: unknown,
+  count_per_type: unknown,
+): { steer: string; types: string[]; perType: number } {
+  // Validate the requested types against the 13 known types; drop unknowns.
+  const types = Array.isArray(exercise_types)
+    ? (exercise_types as unknown[]).filter(
+        (t): t is (typeof KNOWN_EXERCISE_TYPES)[number] =>
+          typeof t === 'string' && (KNOWN_EXERCISE_TYPES as readonly string[]).includes(t),
+      )
+    : []
+  const perType = Math.max(1, Math.min(5, Number(count_per_type) || 2))
+  if (types.length === 0) {
+    return { steer: '', types, perType }
+  }
+  const steer = `IMPORTANT — TYPE CONSTRAINT (overrides the type-selection guidance below):
+Generate EXACTLY ${perType} exercise${perType === 1 ? '' : 's'} of EACH of these exercise types, and NO other types: ${types.join(', ')}.
+Total exercises returned: ${types.length * perType}.
+Every exercise's "exercise_type" MUST be one of: ${types.join(', ')}.
+Base every exercise on the content provided. Use the matching per-type JSON shape and rules described next.
+
+`
+  return { steer, types, perType }
+}
+
 function parseExercisesResponse(text: string) {
   try {
     const exercises = JSON.parse(text)
@@ -216,10 +271,51 @@ ${summary}`
 
     // Generate exercises from screenshot image or text
     if (action === 'generate-exercises') {
-      const { image, imageType, text: inputText, preferredType, level } = body
+      const { image, imageType, text: inputText, preferredType, level, exercise_types, count_per_type } = body
       if (!image && !inputText) {
         return NextResponse.json({ error: 'Image or text content required' }, { status: 400 })
       }
+
+      // Type-picker steer (optional): when the teacher chose specific types,
+      // route the IMAGE through the same bulk EXERCISE_GEN_PROMPT + steer that
+      // generate-exercises-from-text / -from-upload use. That prompt knows the
+      // JSON shape for all 13 types and returns an ARRAY, so a screenshot can
+      // honour the chosen types AND return `count_per_type` of each. Returns
+      // { exercises: [...] }. When no types are picked we keep the original
+      // single-exercise image path below (returns { exercise }) unchanged.
+      if (image) {
+        const { steer: imageTypeSteer } = buildTypeSteer(exercise_types, count_per_type)
+        if (imageTypeSteer) {
+          const levelLineBulk = levelInstruction(level) ? levelInstruction(level) + '\n\n' : ''
+          const mediaType = (imageType || 'image/png') as 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'
+          const bulkContent: Anthropic.Messages.ContentBlockParam[] = [
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: mediaType, data: image },
+            },
+            {
+              type: 'text',
+              text: levelLineBulk + imageTypeSteer + EXERCISE_GEN_PROMPT +
+                '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.',
+            },
+          ]
+          const bulkMessage = await client.messages.create({
+            model: HAIKU_MODEL,
+            max_tokens: 8192,
+            messages: [{ role: 'user', content: bulkContent }],
+          })
+          const bulkText = bulkMessage.content.find(c => c.type === 'text')
+          if (!bulkText || bulkText.type !== 'text') {
+            return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+          }
+          const bulkParsed = parseExercisesResponse(bulkText.text)
+          if (!bulkParsed) {
+            return NextResponse.json({ error: 'Failed to parse AI response', raw: bulkText.text }, { status: 500 })
+          }
+          return NextResponse.json(bulkParsed)
+        }
+      }
+
       const levelLine = levelInstruction(level)
 
       const exerciseTypeGuide = `
@@ -1011,19 +1107,33 @@ ${spec.shape}`
       return NextResponse.json({ block_type, title, content })
     }
 
-    // Generate multiple FULL exercises (all 14 types) directly from pasted text.
+    // Generate multiple FULL exercises directly from pasted text.
     // Same model path as generate-exercises-from-doc, minus the Google Doc fetch.
+    //
+    // Type-picker steer (optional): when `exercise_types` (a subset of the 13
+    // known types) is provided, the prompt is constrained to generate exactly
+    // those types, `count_per_type` exercises of EACH (default 2, clamped 1-5).
+    // When absent, behaviour is unchanged — the free-mixing EXERCISE_GEN_PROMPT
+    // picks types itself (today that skews to MCQ / TF).
     if (action === 'generate-exercises-from-text') {
-      const { text, level } = body
+      const { text, level, exercise_types, count_per_type } = body as {
+        text?: string
+        level?: string
+        exercise_types?: string[]
+        count_per_type?: number
+      }
       if (!text || typeof text !== 'string' || !text.trim()) {
         return NextResponse.json({ error: 'Text content required' }, { status: 400 })
       }
       const levelLine = levelInstruction(level) ? levelInstruction(level) + '\n\n' : ''
 
+      // Optional type-picker steer (validates + clamps + builds the preamble).
+      const { steer: typeSteer } = buildTypeSteer(exercise_types, count_per_type)
+
       const message = await client.messages.create({
         model: HAIKU_MODEL,
         max_tokens: 8192,
-        messages: [{ role: 'user', content: levelLine + EXERCISE_GEN_PROMPT + text }]
+        messages: [{ role: 'user', content: levelLine + typeSteer + EXERCISE_GEN_PROMPT + text }]
       })
 
       const textContent = message.content.find(c => c.type === 'text')
@@ -1099,6 +1209,9 @@ ${spec.shape}`
       const files: { data: string; type: string }[] = body.files || (body.fileData ? [{ data: body.fileData, type: body.fileType }] : [])
       const level = body.level as string | undefined
       const levelLine = levelInstruction(level) ? levelInstruction(level) + '\n\n' : ''
+      // Optional type-picker steer: same preamble generate-exercises-from-text
+      // uses, so an uploaded DOCX/PDF/screenshot honours the chosen types too.
+      const { steer: typeSteer } = buildTypeSteer(body.exercise_types, body.count_per_type)
       if (files.length === 0) {
         return NextResponse.json({ error: 'File data required' }, { status: 400 })
       }
@@ -1162,9 +1275,9 @@ ${spec.shape}`
 
       if (imageBlocks.length > 0) {
         messageContent.push(...imageBlocks)
-        messageContent.push({ type: 'text', text: levelLine + EXERCISE_GEN_PROMPT + (hasDocuments && docText ? '\n\nAdditionally, here is text extracted from uploaded documents:\n\n' + docText : '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.') })
+        messageContent.push({ type: 'text', text: levelLine + typeSteer + EXERCISE_GEN_PROMPT + (hasDocuments && docText ? '\n\nAdditionally, here is text extracted from uploaded documents:\n\n' + docText : '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.') })
       } else {
-        messageContent.push({ type: 'text', text: levelLine + EXERCISE_GEN_PROMPT + docText })
+        messageContent.push({ type: 'text', text: levelLine + typeSteer + EXERCISE_GEN_PROMPT + docText })
       }
 
       const message = await client.messages.create({

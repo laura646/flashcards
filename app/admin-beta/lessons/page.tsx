@@ -283,6 +283,7 @@ function LessonsBetaBody() {
           onNotify={setToast}
           onFetchCourseVocabulary={ai.fetchCourseVocabulary}
           onGenerateExercisesFromText={ai.generateExercisesFromText}
+          onGenerateExercisesFromUpload={ai.generateExercisesFromFiles}
           aiError={ai.aiError}
           onClearAiError={() => ai.setAiError(null)}
           generatingFlashcards={ai.generatingFlashcards}

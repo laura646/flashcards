@@ -224,11 +224,22 @@ export function useLessonAi(actions: LessonAiActions) {
   // Non-image file or multiple files -> generate-exercises-from-upload
   //   { files: [{ data, type }] } -> { exercises: [] }.
   // Text only -> generate-exercises { text } -> { exercise }.
-  const generateExercises = useCallback(async (input: GenerateExercisesInput): Promise<AiResult> => {
+  // opts (optional, from the Article editor's type-picker): `types` constrains
+  // generation to exactly those exercise types; `countPerType` sets how many of
+  // EACH type. They are forwarded as exercise_types + count_per_type on the
+  // upload/image POST bodies (the server steers the prompt the same way
+  // generate-exercises-from-text does). The text path keeps preferredType. Omit
+  // opts to keep the free-mixing default behaviour.
+  const generateExercises = useCallback(async (
+    input: GenerateExercisesInput,
+    opts?: { types?: string[]; countPerType?: number },
+  ): Promise<AiResult> => {
     setAiError(null)
     setGeneratingExercises(true)
     try {
       const { text, preferredType } = input
+      const exercise_types = opts?.types && opts.types.length > 0 ? opts.types : undefined
+      const count_per_type = opts?.countPerType
       // Normalise file inputs to a single list.
       const fileList: File[] = input.files && input.files.length > 0
         ? input.files
@@ -245,13 +256,22 @@ export function useLessonAi(actions: LessonAiActions) {
           image: base64,
           imageType: f.type || mimeFromFilename(f.name) || 'image/png',
           preferredType: preferredType || undefined,
+          exercise_types,
+          count_per_type,
           level,
         })
         if (!ok) {
           setAiError(error || null)
           return { ok: false, error }
         }
-        if (data.exercise) appendGeneratedExercises([mapExercise(data.exercise as Record<string, unknown>)])
+        // When types were picked the server returns { exercises: [...] }
+        // (count_per_type of each); otherwise the legacy single { exercise }.
+        const imgArray = (data.exercises as Array<Record<string, unknown>>) || []
+        if (imgArray.length > 0) {
+          appendGeneratedExercises(imgArray.map(mapExercise))
+        } else if (data.exercise) {
+          appendGeneratedExercises([mapExercise(data.exercise as Record<string, unknown>)])
+        }
         return { ok: true }
       }
 
@@ -266,6 +286,8 @@ export function useLessonAi(actions: LessonAiActions) {
         const { ok, data, error } = await postGenerate({
           action: 'generate-exercises-from-upload',
           files,
+          exercise_types,
+          count_per_type,
           level,
         })
         if (!ok) {
@@ -306,15 +328,23 @@ export function useLessonAi(actions: LessonAiActions) {
     }
   }, [level, appendGeneratedExercises])
 
-  // ── Exercises from text -> FULL Exercise[] (all 14 types) ──
-  // POST { action: 'generate-exercises-from-text', text, level? } ->
-  //   { exercises: [...] }. Unlike generateExercises (single exercise from a
-  //   short snippet), this runs the bulk EXERCISE_GEN_PROMPT over a larger body
-  //   of text and returns an ARRAY of full standalone exercises, mapped via the
-  //   shared mapExercise. Does NOT apply anything itself — the caller decides
-  //   what to do with the returned exercises (e.g. attach to a media block).
+  // ── Exercises from text -> FULL Exercise[] (any of the 13 types) ──
+  // POST { action: 'generate-exercises-from-text', text, level?, exercise_types?,
+  //   count_per_type? } -> { exercises: [...] }. Unlike generateExercises (single
+  //   exercise from a short snippet), this runs the bulk EXERCISE_GEN_PROMPT over
+  //   a larger body of text and returns an ARRAY of full standalone exercises,
+  //   mapped via the shared mapExercise. Does NOT apply anything itself — the
+  //   caller decides what to do with the returned exercises (e.g. attach to a
+  //   media block).
+  //
+  //   opts (optional, from the Article editor's type-picker): `types` constrains
+  //   generation to exactly those exercise types; `countPerType` sets how many of
+  //   EACH type. Omit opts to keep the free-mixing default behaviour.
   const generateExercisesFromText = useCallback(
-    async (text: string): Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }> => {
+    async (
+      text: string,
+      opts?: { types?: string[]; countPerType?: number },
+    ): Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }> => {
       setAiError(null)
       if (!text || !text.trim()) {
         const msg = 'Add some text first'
@@ -327,6 +357,8 @@ export function useLessonAi(actions: LessonAiActions) {
           action: 'generate-exercises-from-text',
           text: text.trim(),
           level,
+          exercise_types: opts?.types && opts.types.length > 0 ? opts.types : undefined,
+          count_per_type: opts?.countPerType,
         })
         if (!ok) {
           setAiError(error || null)
@@ -335,6 +367,98 @@ export function useLessonAi(actions: LessonAiActions) {
         const raw = (data.exercises as Array<Record<string, unknown>>) || []
         if (raw.length === 0) {
           const msg = 'No exercises could be generated from the text'
+          setAiError(msg)
+          return { ok: false, error: msg }
+        }
+        return { ok: true, exercises: raw.map(mapExercise) }
+      } finally {
+        setGeneratingExercises(false)
+      }
+    },
+    [level],
+  )
+
+  // ── Exercises from an UPLOAD -> FULL Exercise[] (any of the 13 types) ──
+  // The returning sibling of generateExercises for the Article editor's
+  // "Generate with AI" panel. Unlike generateExercises (which auto-applies the
+  // result as standalone lesson items via appendGeneratedExercises), this RETURNS
+  // the mapped Exercise[] so the caller can merge them into a specific block's
+  // follow-up list (content.exercises).
+  //
+  // Routing mirrors generateExercises: a single image file -> generate-exercises
+  // (image, steered) -> { exercises }; a non-image file or multiple files ->
+  // generate-exercises-from-upload -> { exercises }. opts.types / opts.countPerType
+  // are forwarded as exercise_types + count_per_type so the chosen 13-type subset
+  // is honoured (count_per_type of EACH). Applies nothing itself.
+  const generateExercisesFromFiles = useCallback(
+    async (
+      inputFiles: File[],
+      opts?: { types?: string[]; countPerType?: number },
+    ): Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }> => {
+      setAiError(null)
+      const fileList = inputFiles.filter(Boolean)
+      if (fileList.length === 0) {
+        const msg = 'Choose a file to generate from'
+        setAiError(msg)
+        return { ok: false, error: msg }
+      }
+      const exercise_types =
+        opts?.types && opts.types.length > 0 ? opts.types : undefined
+      const count_per_type = opts?.countPerType
+      setGeneratingExercises(true)
+      try {
+        // Single image -> steered image path; everything else -> bulk upload path.
+        if (fileList.length === 1 && isImageFile(fileList[0])) {
+          const f = fileList[0]
+          const base64 = await fileToBase64(f)
+          const { ok, data, error } = await postGenerate({
+            action: 'generate-exercises',
+            image: base64,
+            imageType: f.type || mimeFromFilename(f.name) || 'image/png',
+            exercise_types,
+            count_per_type,
+            level,
+          })
+          if (!ok) {
+            setAiError(error || null)
+            return { ok: false, error }
+          }
+          // Steered image path returns { exercises }; legacy returns { exercise }.
+          const arr = (data.exercises as Array<Record<string, unknown>>) || []
+          const mapped =
+            arr.length > 0
+              ? arr.map(mapExercise)
+              : data.exercise
+                ? [mapExercise(data.exercise as Record<string, unknown>)]
+                : []
+          if (mapped.length === 0) {
+            const msg = 'No exercises could be generated from the image'
+            setAiError(msg)
+            return { ok: false, error: msg }
+          }
+          return { ok: true, exercises: mapped }
+        }
+
+        const files = await Promise.all(
+          fileList.map(async (f) => ({
+            data: await fileToBase64(f),
+            type: f.type || mimeFromFilename(f.name) || 'application/pdf',
+          })),
+        )
+        const { ok, data, error } = await postGenerate({
+          action: 'generate-exercises-from-upload',
+          files,
+          exercise_types,
+          count_per_type,
+          level,
+        })
+        if (!ok) {
+          setAiError(error || null)
+          return { ok: false, error }
+        }
+        const raw = (data.exercises as Array<Record<string, unknown>>) || []
+        if (raw.length === 0) {
+          const msg = 'No exercises could be generated from the files'
           setAiError(msg)
           return { ok: false, error: msg }
         }
@@ -619,6 +743,7 @@ export function useLessonAi(actions: LessonAiActions) {
     generateFlashcards,
     generateExercises,
     generateExercisesFromText,
+    generateExercisesFromFiles,
     generateBlock,
     generateGrammar,
     generateReading,

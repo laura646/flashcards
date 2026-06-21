@@ -166,6 +166,7 @@ export function LessonEditorView({
   onNotify,
   onFetchCourseVocabulary,
   onGenerateExercisesFromText,
+  onGenerateExercisesFromUpload,
   aiError,
   onClearAiError,
   generatingFlashcards,
@@ -251,6 +252,13 @@ export function LessonEditorView({
   // flag + aiError below for in-flight / error state.
   onGenerateExercisesFromText: (
     text: string,
+    opts?: { types?: string[]; countPerType?: number },
+  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
+  // Companion to the above for the Article editor's UPLOAD sources (DOCX / PDF /
+  // screenshots). Returns full Exercise[]; reuses generatingExercises + aiError.
+  onGenerateExercisesFromUpload: (
+    files: File[],
+    opts?: { types?: string[]; countPerType?: number },
   ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
   aiError: string | null
   onClearAiError: () => void
@@ -734,6 +742,7 @@ export function LessonEditorView({
                 onPickImage={handlePickImage}
                 onPreview={setPreviewExercise}
                 onGenerateExercisesFromText={onGenerateExercisesFromText}
+                onGenerateExercisesFromUpload={onGenerateExercisesFromUpload}
                 generatingExercises={generatingExercises}
                 exercisesError={aiError}
                 onClearExercisesError={onClearAiError}
