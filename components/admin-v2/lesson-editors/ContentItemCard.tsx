@@ -40,6 +40,7 @@ import {
   ArticleEditor,
 } from './MediaBlockEditors'
 import GrammarEditor from './GrammarEditor'
+import IeltsReadingEditor, { type IeltsReadingBlock } from '@/components/ielts/editors/IeltsReadingEditor'
 import type { SuggestExResult } from '@/lib/lesson-editor/useLessonAi'
 
 interface Props {
@@ -261,6 +262,13 @@ export default function ContentItemCard({
           <GrammarEditor
             block={item.data as ContentBlock}
             onChange={(block) => onUpdate(block)}
+          />
+        )
+      case 'ielts_reading':
+        return (
+          <IeltsReadingEditor
+            block={item.data as unknown as IeltsReadingBlock}
+            onChange={(block) => onUpdate(block as unknown as ContentBlock)}
           />
         )
       case 'exercise':

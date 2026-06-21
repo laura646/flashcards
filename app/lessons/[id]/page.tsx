@@ -9,6 +9,7 @@ import LessonAudioPlayer from '@/components/student-ui/LessonAudioPlayer'
 import { detectUsedTargets } from '@/lib/word-detection'
 import type { AttachedExercise } from '@/lib/attached-exercise'
 import { legacyMcqToAttached } from '@/lib/attached-exercise'
+import type { ReadingExercise } from '@/lib/ielts/types'
 
 // Lazy load exercise runners — only loaded when student opens an exercise
 const FlipMode = lazy(() => import('@/components/FlipMode'))
@@ -28,6 +29,7 @@ const AnagramRunner = lazy(() => import('@/components/AnagramRunner'))
 const ClozeListeningRunner = lazy(() => import('@/components/ClozeListeningRunner'))
 const MatchHalvesRunner = lazy(() => import('@/components/MatchHalvesRunner'))
 const OddOneOutRunner = lazy(() => import('@/components/OddOneOutRunner'))
+const IeltsReadingBlockView = lazy(() => import('@/components/ielts/IeltsReadingBlockView'))
 
 const ExerciseLoadingFallback = () => (
   <div className="flex items-center justify-center py-12">
@@ -160,9 +162,9 @@ interface PronunciationContent {
 
 interface ContentBlock {
   id: string
-  block_type: 'mistakes' | 'video' | 'audio' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation'
+  block_type: 'mistakes' | 'video' | 'audio' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation' | 'ielts_reading'
   title: string
-  content: MistakesContent | VideoContent | AudioContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent
+  content: MistakesContent | VideoContent | AudioContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent | ReadingExercise
   order_index: number
 }
 
@@ -2120,6 +2122,33 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               </div>
             ))}
           </div>
+        </main>
+      )
+    }
+
+    // ── IELTS Reading Block ──
+    if (selectedBlock.block_type === 'ielts_reading') {
+      const content = selectedBlock.content as ReadingExercise
+
+      return (
+        <main className="min-h-screen flex flex-col px-4 py-8 max-w-5xl mx-auto">
+          <BackToLesson />
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-3xl">{meta.icon}</span>
+            <div>
+              <h1 className="text-xl font-bold text-brandblue">
+                {selectedBlock.title || meta.label}
+              </h1>
+              <p className="text-xs text-ink-muted">{lesson.title}</p>
+            </div>
+          </div>
+
+          <Suspense fallback={<ExerciseLoadingFallback />}>
+            <IeltsReadingBlockView
+              exercise={content}
+              onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+            />
+          </Suspense>
         </main>
       )
     }

@@ -113,7 +113,7 @@ const LESSON_TYPE_SEGMENTS: { value: string; label: string }[] = [
 // Phase 2: writing / pronunciation / mistakes / dialogue.
 // Phase 4: video / audio / article.
 // Phase 5: grammar.
-const ADDABLE_BLOCKS: BlockType[] = ['writing', 'pronunciation', 'mistakes', 'dialogue', 'grammar', 'video', 'audio', 'article']
+const ADDABLE_BLOCKS: BlockType[] = ['writing', 'pronunciation', 'mistakes', 'dialogue', 'grammar', 'video', 'audio', 'article', ...(process.env.NEXT_PUBLIC_IELTS === '1' ? (['ielts_reading'] as BlockType[]) : [])]
 
 // Formats a full ISO timestamp like "Mar 12, 2025" (legacy formatAddedDate,
 // page.tsx 488-494).

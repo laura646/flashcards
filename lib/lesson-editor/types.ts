@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { AttachedExercise } from '@/lib/attached-exercise'
+import type { ReadingExercise } from '@/lib/ielts/types'
 
 // validateMcqQuestion lives in the shared McqOptionsList component and is already
 // an exported function used by the legacy saveLesson sweep. Re-export it here so
@@ -189,10 +190,10 @@ export interface PronunciationContent {
 }
 
 // (legacy page.tsx 275)
-export type BlockContent = MistakesContent | VideoContent | AudioContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent
+export type BlockContent = MistakesContent | VideoContent | AudioContent | ArticleContent | DialogueContent | GrammarContent | WritingContent | PronunciationContent | ReadingExercise
 
 // (legacy page.tsx 277)
-export type BlockType = 'mistakes' | 'video' | 'audio' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation'
+export type BlockType = 'mistakes' | 'video' | 'audio' | 'article' | 'dialogue' | 'grammar' | 'writing' | 'pronunciation' | 'ielts_reading'
 
 // (legacy page.tsx 279-288)
 export interface ContentBlock {
@@ -234,6 +235,7 @@ export const BLOCK_CONFIG: Record<ContentItemType, { label: string; icon: string
   grammar: { label: 'Grammar', icon: '📖', color: '#8b5cf6' },
   writing: { label: 'Writing Task', icon: '✏️', color: '#f97316' },
   pronunciation: { label: 'Pronunciation', icon: '🔊', color: '#ec4899' },
+  ielts_reading: { label: 'IELTS Reading', icon: '📖', color: '#0d9488' },
 }
 
 // ── Helpers ──
@@ -258,6 +260,8 @@ export function createDefaultContent(type: BlockType): BlockContent {
       return { prompt: '', guidelines: '', word_limit: 150 }
     case 'pronunciation':
       return { words: [{ word: '', phonetic: '', tips: '' }] }
+    case 'ielts_reading':
+      return { passage: { paragraphs: [] }, instructions: '', questionGroups: [] }
   }
 }
 
