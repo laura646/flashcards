@@ -7,29 +7,35 @@
 // student page, or any shared file (we only IMPORT shared files here).
 //
 // Layout: LEFT = AdminSidebar (provided by app/admin-beta/layout.tsx, so this
-// view renders only the MAIN column). MAIN = a toolbar (lesson title + Preview
-// toggle) then 3 panes:
+// view renders only the MAIN column). MAIN = a toolbar (lesson title) then a
+// 2-pane layout:
 //   (1) OUTLINE  — the lesson content items as a selectable/reorderable list +
 //                  a "+ Add content" control offering ALL types (the SAME real
-//                  two-door add flow + chooser + AI modals as LessonEditorView).
-//   (2) EDIT     — the SELECTED item edited with its REAL editor (via the real
-//                  ContentItemCard, which dispatches to FlashcardsEditor /
-//                  ExerciseEditor [14 types] / the block editors incl.
-//                  BlockExercisesSection two-door+uploads / RichTextEditor /
-//                  GrammarEditor / IELTS reading).
-//   (3) PREVIEW  — {previewSlot} (the page passes a student-facing composer),
-//                  or a placeholder.
+//                  two-door add flow + chooser + AI modals as LessonEditorView)
+//                  + a direct "📚 Add from Content Bank" button. Wider now that
+//                  the always-on right preview pane is gone.
+//   (2) EDIT     — the SELECTED item, with a per-item "Edit | Preview" toggle:
+//                  • EDIT shows the SELECTED item edited with its REAL editor
+//                    (via the real ContentItemCard, which dispatches to
+//                    FlashcardsEditor / ExerciseEditor [14 types] / the block
+//                    editors incl. BlockExercisesSection two-door+uploads /
+//                    RichTextEditor / GrammarEditor / IELTS reading).
+//                  • PREVIEW shows THAT single item rendered as a student, via
+//                    LessonLivePreview (the real student renderers). On-demand
+//                    per item, so the preview no longer eats horizontal space.
 //
 // This component takes the SAME props as LessonEditorView (so the page wires it
-// identically) PLUS previewSlot. All the add-time AI machinery (chooser state,
+// identically). All the add-time AI machinery (chooser state,
 // openChooser / handleManual / handleGenerateDoor, AiGenerateModal,
 // GrammarAiForm, ReadingAiForm, ImportDocModal, VocabPickerModal, plus
 // ExercisePreview + ImagePicker + the Content-Bank picker / Save-to-Bank
 // wizard) is copied from LessonEditorView so every door + modal works for real.
+// The per-item student preview reuses LessonLivePreview (imported, not copied).
 
 import { useRef, useState } from 'react'
 import { Button, Card, Pill, TextField, SegmentedControl, EmptyState, InlineError } from '@/components/student-ui'
 import ContentItemCard from '@/components/admin-v2/lesson-editors/ContentItemCard'
+import LessonLivePreview from '@/components/admin-v2/calm-builder/LessonLivePreview'
 import ImagePickerModal from '@/components/ImagePickerModal'
 import ExercisePreview from '@/components/ExercisePreview'
 import AiGenerateModal, { type AiGenerateInput, type AiSource } from '@/components/admin-v2/lesson-editors/ai/AiGenerateModal'
@@ -145,7 +151,6 @@ export function CalmBuilderView({
   onTogglePublished,
   onToggleFlashcardsPublished,
   error,
-  previewSlot,
   activeIndex: activeIndexProp,
   onActiveIndexChange,
 }: {
@@ -201,12 +206,8 @@ export function CalmBuilderView({
   onTogglePublished: (index: number) => void
   onToggleFlashcardsPublished: () => void
   error?: string | null
-  // NEW (prototype-only): the student-facing composer for the PREVIEW pane.
-  // Pass a static node, OR a render fn that receives the currently-selected
-  // content item (so the preview tracks the outline selection live).
-  previewSlot?: React.ReactNode | ((activeItem: ContentItem | null) => React.ReactNode)
   // NEW (prototype-only): the outline selection can be CONTROLLED by the page,
-  // so a sibling preview (mounted in the page) can follow the same selection.
+  // so the selection survives across re-mounts / the page can react to it.
   // When omitted the view manages it internally (back-compat).
   activeIndex?: number
   onActiveIndexChange?: (index: number) => void
@@ -220,10 +221,10 @@ export function CalmBuilderView({
     if (onActiveIndexChange) onActiveIndexChange(index)
     else setActiveIndexInternal(index)
   }
-  // Mobile pane switch (Edit vs. Preview); the outline always shows on top.
-  const [mobilePane, setMobilePane] = useState<'edit' | 'preview'>('edit')
-  // Toolbar "Preview" toggle — collapses the preview pane on lg.
-  const [previewOn, setPreviewOn] = useState(true)
+  // Per-item EDIT vs. PREVIEW toggle inside the EDIT pane. Defaults to Edit;
+  // Preview renders the ACTIVE item alone as a student (on-demand), so it no
+  // longer needs an always-on column and the outline can be wider.
+  const [editMode, setEditMode] = useState<'edit' | 'preview'>('edit')
 
   const [showDeleteIndex, setShowDeleteIndex] = useState<number | null>(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -435,13 +436,13 @@ export function CalmBuilderView({
         tabIndex={0}
         onClick={() => {
           setActiveIndex(idx)
-          setMobilePane('edit')
+          setEditMode('edit')
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             setActiveIndex(idx)
-            setMobilePane('edit')
+            setEditMode('edit')
           }
         }}
         className={`group flex items-center gap-2.5 rounded-tile px-2.5 py-2 cursor-pointer select-none transition-colors ${
@@ -544,27 +545,21 @@ export function CalmBuilderView({
       />
     )
 
-  // ── PREVIEW pane: the page-supplied student composer, or a placeholder ──
-  const previewPane = (
-    <div className="rounded-card border border-hairline bg-white overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-hairline bg-surface">
-        <span className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-          Student preview
-        </span>
-      </div>
-      <div className="p-4">
-        {typeof previewSlot === 'function'
-          ? (previewSlot as (activeItem: ContentItem | null) => React.ReactNode)(activeItem)
-          : (previewSlot ?? (
-              <EmptyState
-                icon="👁"
-                title="Live preview"
-                hint="Select an item to see it exactly as a student would."
-              />
-            ))}
-      </div>
-    </div>
-  )
+  // ── PREVIEW (in-pane): the ACTIVE item alone, rendered as a real student ──
+  // Reuses LessonLivePreview (the real student renderers) for just the selected
+  // item, so the toggle's Preview tab matches the live student experience.
+  const previewPane =
+    activeItem === null ? (
+      <Card padding="lg">
+        <EmptyState
+          icon="👁"
+          title="Nothing to preview"
+          hint="Pick an item in the outline to see it exactly as a student would."
+        />
+      </Card>
+    ) : (
+      <LessonLivePreview items={contentItems} activeIndex={safeIndex} />
+    )
 
   // ── Add-content menu (shared between the outline header trigger) ──
   const addMenu = (
@@ -638,7 +633,7 @@ export function CalmBuilderView({
   return (
     <div className="font-rubik min-h-screen bg-surface">
       <div className="max-w-[1400px] mx-auto px-4 py-6">
-        {/* ── Toolbar: title + Save-to-bank + Preview toggle ── */}
+        {/* ── Toolbar: title + Save-to-bank ── */}
         <div className="mb-5 flex items-center gap-3 flex-wrap">
           <div className="flex-1 min-w-[220px]">
             <TextField
@@ -660,35 +655,15 @@ export function CalmBuilderView({
             >
               💾 Save to Content Bank
             </Button>
-            <SegmentedControl<'on' | 'off'>
-              segments={[
-                { value: 'on', label: '👁 Preview on' },
-                { value: 'off', label: 'Preview off' },
-              ]}
-              value={previewOn ? 'on' : 'off'}
-              onChange={(v) => setPreviewOn(v === 'on')}
-            />
           </div>
         </div>
 
         {error && <InlineError message={error} className="mb-4" />}
 
-        {/* ── Mobile pane switch (Edit / Preview). Outline always shows above. ── */}
-        <div className="lg:hidden mb-4 flex justify-center">
-          <SegmentedControl<'edit' | 'preview'>
-            segments={[
-              { value: 'edit', label: 'Edit' },
-              { value: 'preview', label: 'Preview' },
-            ]}
-            value={mobilePane}
-            onChange={setMobilePane}
-          />
-        </div>
-
-        {/* ── 3-col layout on lg; stacks on mobile ── */}
+        {/* ── 2-col layout on lg (wider outline | flex edit); stacks on mobile ── */}
         <div className="flex flex-col lg:flex-row gap-5 items-start">
-          {/* (1) OUTLINE pane */}
-          <aside className="w-full lg:w-[240px] lg:shrink-0">
+          {/* (1) OUTLINE pane — wider now the right preview column is gone */}
+          <aside className="w-full lg:w-[340px] lg:shrink-0">
             <Card padding="md">
               <div className="mb-2">
                 <h2 className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
@@ -706,33 +681,41 @@ export function CalmBuilderView({
                   ))}
                 </div>
               )}
-              {addMenu}
+              <div className="space-y-2">
+                {addMenu}
+                {/* Direct Content-Bank entry — opens the picker WITHOUT going
+                    through the "+ Add content" two-door first. */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
+                  onClick={openBank}
+                >
+                  📚 Add from Content Bank
+                </Button>
+              </div>
             </Card>
           </aside>
 
-          {/* (2) EDIT pane */}
-          <section className={`w-full lg:flex-1 lg:min-w-0 ${mobilePane === 'edit' ? '' : 'hidden lg:block'}`}>
-            <div className="mb-2 lg:mb-3">
+          {/* (2) EDIT pane — per-item Edit | Preview toggle (flex, takes the rest) */}
+          <section className="w-full lg:flex-1 lg:min-w-0">
+            <div className="mb-2 lg:mb-3 flex items-center justify-between gap-3">
               <h2 className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-                Edit
+                {editMode === 'edit' ? 'Edit' : 'Preview'}
               </h2>
+              {activeItem !== null && (
+                <SegmentedControl<'edit' | 'preview'>
+                  segments={[
+                    { value: 'edit', label: 'Edit' },
+                    { value: 'preview', label: '👁 Preview' },
+                  ]}
+                  value={editMode}
+                  onChange={setEditMode}
+                />
+              )}
             </div>
-            {editPane}
+            {editMode === 'edit' ? editPane : previewPane}
           </section>
-
-          {/* (3) PREVIEW pane */}
-          {previewOn && (
-            <section
-              className={`w-full lg:w-[360px] lg:shrink-0 ${mobilePane === 'preview' ? '' : 'hidden lg:block'}`}
-            >
-              <div className="mb-2 lg:mb-3">
-                <h2 className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-                  Preview
-                </h2>
-              </div>
-              {previewPane}
-            </section>
-          )}
         </div>
       </div>
 

@@ -3,27 +3,26 @@
 // 10B redesign — CALM LESSON BUILDER preview (clickable PROTOTYPE).
 //
 // 100% ADDITIVE. A NEW, unlinked, auth-gated route that lets Laura see ALL our
-// real builders + AI features arranged in the new 3-pane "calm builder" layout
-// (outline | edit | preview). It REUSES the real editor brain (useLessonEditor)
-// and the real AI brain (useLessonAi) exactly like /admin-beta/lessons, but
-// renders CalmBuilderView instead of LessonEditorView. The live editor, the
-// live student page, and every shared file are left 100% untouched (imported
-// only).
+// real builders + AI features arranged in the new 2-pane "calm builder" layout
+// (wider outline | edit, with a per-item Edit | Preview toggle inside the edit
+// pane). It REUSES the real editor brain (useLessonEditor) and the real AI brain
+// (useLessonAi) exactly like /admin-beta/lessons, but renders CalmBuilderView
+// instead of LessonEditorView. The live editor, the live student page, and every
+// shared file are left 100% untouched (imported only).
 //
 // AdminSidebar (the real menu) is supplied by app/admin-beta/layout.tsx, so this
 // page renders only the MAIN column. On mount the route SEEDS a sample lesson —
-// one of every builder — so every editor + AI door + the live student preview
-// are immediately visible without loading real data.
+// one of every builder — so every editor + AI door + the per-item student
+// preview are immediately visible without loading real data.
 //
-// The outline selection (activeIndex) is LIFTED here so the PREVIEW pane —
-// LessonLivePreview, mounted in this page — follows the same selected item the
-// CalmBuilderView outline highlights.
+// The outline selection (activeIndex) is LIFTED here for back-compat; the
+// per-item student preview now lives INSIDE the edit pane (CalmBuilderView owns
+// the toggle and renders LessonLivePreview for the active item itself).
 
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import CalmBuilderView from '@/components/admin-v2/calm-builder/CalmBuilderView'
-import LessonLivePreview from '@/components/admin-v2/calm-builder/LessonLivePreview'
 import { useLessonEditor } from '@/lib/lesson-editor/useLessonEditor'
 import { useLessonAi } from '@/lib/lesson-editor/useLessonAi'
 import type { BlockType, Exercise, Flashcard } from '@/lib/lesson-editor/types'
@@ -221,11 +220,12 @@ function BuilderPreviewBody() {
         onTogglePublished={editor.togglePublished}
         onToggleFlashcardsPublished={() => editor.setFlashcardsPublished((v) => !v)}
         error={editor.error}
-        // Outline selection is controlled here so the PREVIEW pane (below) tracks it.
+        // Outline selection is controlled here (kept lifted for back-compat /
+        // so the page can react to it). The per-item student preview now lives
+        // INSIDE the edit pane via the Edit | Preview toggle (CalmBuilderView
+        // owns it and renders LessonLivePreview for the active item itself).
         activeIndex={activeIndex}
         onActiveIndexChange={setActiveIndex}
-        // The PREVIEW pane: render the SELECTED item as a real student.
-        previewSlot={<LessonLivePreview items={editor.contentItems} activeIndex={activeIndex} />}
       />
 
       {toast && (
