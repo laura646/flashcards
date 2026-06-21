@@ -17,25 +17,29 @@
 // 3201-3243, renderArticleEditor 3247-3304). Styling is the 10B kit
 // (@/components/student-ui) + tokens; the legacy admin colours are not reused.
 // The shared components AttachedExercisesEditor and AudioSourcePicker are
-// reused VERBATIM (not forked).
+// reused VERBATIM by Video / Audio (not forked).
 //
-// Task D (Phase 6): the Article "✨ Suggest exercises with AI" button + its
-// modal (legacy 3282-3296) are now ported. The suggest fn is threaded in via
-// the optional onSuggestExercises prop (page -> ContentItemCard -> ArticleEditor);
-// when absent the editor renders exactly as it did in Phase 4.
+// Task B: the ARTICLE editor is unified onto the REAL standalone Exercise model.
+// It renders BlockExercisesEditor (full 14-type ExerciseEditor per item) behind
+// a two-door (build-it-myself + generate-from-text), reading effective exercises
+// via migrateBlockExercises. The legacy AttachedExercisesEditor +
+// SuggestExercisesModal path is removed FROM ARTICLE ONLY — Video / Audio still
+// use the bare AttachedExercise shape and are intentionally left unchanged.
 
 import { useState } from 'react'
 import AttachedExercisesEditor from '@/components/AttachedExercisesEditor'
 import AudioSourcePicker from '@/components/AudioSourcePicker'
+import BlockExercisesEditor from './BlockExercisesEditor'
 import { Button, InlineError, Spinner } from '@/components/student-ui'
 import { legacyMcqToAttached, type AttachedExercise } from '@/lib/attached-exercise'
+import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
 import type {
   ContentBlock,
   VideoContent,
   AudioContent,
   ArticleContent,
+  Exercise,
 } from '@/lib/lesson-editor/types'
-import type { SuggestExResult } from '@/lib/lesson-editor/useLessonAi'
 
 // ── Shared props ──
 
@@ -226,206 +230,82 @@ export function AudioEditor({ block, onChange }: Props) {
   )
 }
 
-// ── Suggest-exercises-from-reading (task D) ──
-// The exercise types the server supports for reading follow-ups (route.ts
-// L774 whitelist; matches legacy SUGGEST_EX_TYPES, page.tsx 348-355).
-const SUGGEST_EX_TYPES: { value: string; label: string }[] = [
-  { value: 'multiple_choice', label: 'Multiple Choice' },
-  { value: 'true_or_false', label: 'True or False' },
-  { value: 'type_answer', label: 'Type the Answer' },
-  { value: 'group_sort', label: 'Group Sort' },
-  { value: 'rank_order', label: 'Rank Order' },
-  { value: 'anagram', label: 'Unjumble' },
-]
-
-const SUGGEST_COUNT_OPTIONS = [3, 5, 8]
-
-// Small modal: pick exercise types + a per-type count, then generate. The
-// caller (ArticleEditor) merges the returned AttachedExercise[] into the block.
-function SuggestExercisesModal({
-  generating,
-  error,
-  onClose,
-  onGenerate,
-}: {
-  generating: boolean
-  error?: string | null
-  onClose: () => void
-  onGenerate: (types: string[], count: number) => void
-}) {
-  const [types, setTypes] = useState<string[]>(['multiple_choice'])
-  const [count, setCount] = useState(5)
-
-  const toggle = (value: string) => {
-    setTypes((prev) => (prev.includes(value) ? prev.filter((t) => t !== value) : [...prev, value]))
-  }
-
-  const canGenerate = types.length > 0
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="bg-white rounded-card shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Suggest exercises with AI"
-      >
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-sky">
-              ✨ Generate with AI
-            </p>
-            <h3 className="text-base font-extrabold text-ink-black mt-0.5">Suggest exercises from reading</h3>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-ink-muted hover:text-ink-black transition-colors shrink-0 px-1 -mt-1"
-          >
-            ✕
-          </button>
-        </div>
-
-        <p className="text-[13px] text-ink-muted mb-4">
-          The AI reads the article text and writes comprehension exercises tied to it.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <FieldLabel>Exercise types</FieldLabel>
-            <div className="grid grid-cols-2 gap-2">
-              {SUGGEST_EX_TYPES.map((t) => {
-                const checked = types.includes(t.value)
-                return (
-                  <label
-                    key={t.value}
-                    className={`flex items-center gap-2 text-[13px] font-medium rounded-tile px-3 py-2.5 border-[1.5px] cursor-pointer transition-colors ${
-                      checked
-                        ? 'border-sky bg-sky-wash text-sky-text'
-                        : 'border-[#e3e5e9] text-ink-body hover:border-sky-border'
-                    } ${generating ? 'opacity-60 pointer-events-none' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggle(t.value)}
-                      disabled={generating}
-                      className="accent-sky"
-                    />
-                    {t.label}
-                  </label>
-                )
-              })}
-            </div>
-          </div>
-
-          <div>
-            <FieldLabel>Questions per type</FieldLabel>
-            <select
-              value={count}
-              onChange={(e) => setCount(Number(e.target.value))}
-              disabled={generating}
-              className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 py-3 border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors disabled:opacity-60"
-            >
-              {SUGGEST_COUNT_OPTIONS.map((n) => (
-                <option key={n} value={n}>
-                  {n} questions
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {error && <InlineError message={error} />}
-
-          {generating && (
-            <div className="flex items-center gap-2 text-[13px] text-ink-muted">
-              <Spinner size={18} />
-              Generating… this can take a few seconds.
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-5">
-          <Button variant="secondary" size="md" onClick={onClose} disabled={generating}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => onGenerate(types, count)}
-            disabled={generating || !canGenerate}
-          >
-            {generating ? 'Generating…' : 'Generate'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ════════════════════════════════════════════════════════════════
 // ArticleEditor (legacy renderArticleEditor, page.tsx 3247-3304)
-//   content: { text, source, questions (legacy MCQ), exercises? }
-//   Same migration idiom as Video (effective-read + questions:[] clear).
-//   Task D: the "✨ Suggest exercises with AI" button + modal are now wired —
-//   when onSuggestExercises is provided, the generated AttachedExercise[] is
-//   MERGED into the block's effective exercises (questions cleared on write).
+//   content: { text, source, questions (legacy MCQ), exercises? (full Exercise[]) }
+//
+// Task B — Reading is now unified onto the REAL standalone Exercise model:
+//   • Effective exercises are read via migrateBlockExercises(content.exercises,
+//     content.questions) -> full Exercise[] (legacy MCQ / bare AttachedExercise
+//     are upgraded in-memory on load).
+//   • Follow-ups are edited by BlockExercisesEditor (the real ExerciseEditor per
+//     item, all 14 types), threaded through to the page-level ExercisePreview
+//     modal via onPreview.
+//   • A TWO-DOOR sits above the list: "Build it myself" (the editor) and
+//     "Generate with AI", which calls generateExercisesFromText(content.text)
+//     and MERGES the returned full Exercise[] into the list.
+//   • On any exercise change we persist { ...content, exercises, questions: [] }
+//     — a one-way clear of the legacy MCQ array.
+//   The old AttachedExercisesEditor + SuggestExercisesModal path is removed FROM
+//   ARTICLE ONLY (Video / Audio still use them, unchanged).
 // ════════════════════════════════════════════════════════════════
 
 export function ArticleEditor({
   block,
   onChange,
-  onSuggestExercises,
-  generatingSuggest,
-  suggestError,
-  onClearSuggestError,
+  onPreview,
+  onGenerateExercisesFromText,
+  generatingExercises,
+  exercisesError,
+  onClearExercisesError,
 }: Props & {
-  // Task D: present only in the live editor (the page threads it from
-  // useLessonAi). When omitted (e.g. the read-only harness paths), the suggest
-  // button is hidden and the editor stays exactly as before.
-  onSuggestExercises?: (articleText: string, types: string[], count: number) => Promise<SuggestExResult>
-  generatingSuggest?: boolean
-  suggestError?: string | null
-  onClearSuggestError?: () => void
+  // Routes a generated/edited exercise to the page-level ExercisePreview modal.
+  // ContentItemCard threads it from the page.
+  onPreview?: (ex: Exercise) => void
+  // Task B: AI-from-text generation. Present only in the live editor (threaded
+  // from useLessonAi). When omitted (read-only harness paths), the "Generate
+  // with AI" door is hidden and only the manual editor shows.
+  onGenerateExercisesFromText?: (
+    text: string,
+  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
+  generatingExercises?: boolean
+  exercisesError?: string | null
+  onClearExercisesError?: () => void
 }) {
   const content = block.content as ArticleContent
-  const [suggestOpen, setSuggestOpen] = useState(false)
 
   const updateContent = (partial: Partial<ArticleContent>) => {
     onChange({ ...block, content: { ...content, ...partial } })
   }
 
-  const effectiveExercises: AttachedExercise[] =
-    content.exercises && content.exercises.length > 0
-      ? content.exercises
-      : legacyMcqToAttached(content.questions)
+  // Effective exercises: full standalone Exercise[]. Legacy MCQ `questions` and
+  // any bare AttachedExercise entries are upgraded in-memory on read.
+  const effectiveExercises: Exercise[] = migrateBlockExercises(
+    content.exercises,
+    content.questions,
+  )
 
   const hasText = !!content.text && content.text.trim().length > 0
 
-  const openSuggest = () => {
-    onClearSuggestError?.()
-    setSuggestOpen(true)
+  // Single write path for the follow-up list: persist full Exercise[] and
+  // one-way clear the legacy MCQ array.
+  const writeExercises = (exercises: Exercise[]) => {
+    updateContent({ exercises, questions: [] })
   }
 
-  const closeSuggest = () => {
-    setSuggestOpen(false)
-    onClearSuggestError?.()
-  }
-
-  // Generate, then MERGE the returned exercises onto the effective list and
-  // persist via onChange (clearing legacy questions per the migration idiom).
-  const handleGenerate = async (types: string[], count: number) => {
-    if (!onSuggestExercises) return
-    const res = await onSuggestExercises(content.text, types, count)
-    if (res.ok && res.exercises) {
-      const merged = [...effectiveExercises, ...res.exercises]
-      updateContent({ exercises: merged, questions: [] })
-      closeSuggest()
+  // "Generate with AI" door: build exercises from the article text, then MERGE
+  // the returned full Exercise[] onto the effective list (re-stamping
+  // order_index so the merged tail stays ordered).
+  const handleGenerate = async () => {
+    if (!onGenerateExercisesFromText) return
+    onClearExercisesError?.()
+    const res = await onGenerateExercisesFromText(content.text)
+    if (res.ok && res.exercises && res.exercises.length > 0) {
+      const merged = [...effectiveExercises, ...res.exercises].map((ex, i) => ({
+        ...ex,
+        order_index: i,
+      }))
+      writeExercises(merged)
     }
   }
 
@@ -457,33 +337,46 @@ export function ArticleEditor({
         />
       </div>
 
-      <div className="pt-4 border-t border-hairline">
-        {onSuggestExercises && (
-          <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
-            <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-              Follow-up exercises
-            </p>
-            <Button variant="secondary" size="sm" onClick={openSuggest} disabled={!hasText}>
-              ✨ Suggest exercises with AI
-            </Button>
+      <div className="pt-4 border-t border-hairline space-y-3">
+        <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
+          Exercises
+        </p>
+
+        {/* TWO-DOOR: build manually (always) + generate from the article text. */}
+        {onGenerateExercisesFromText && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleGenerate()}
+                disabled={!hasText || (generatingExercises ?? false)}
+              >
+                {generatingExercises ? 'Generating…' : '✨ Generate with AI'}
+              </Button>
+              {!hasText && (
+                <span className="text-xs text-ink-muted">
+                  Add article text above to generate exercises from it.
+                </span>
+              )}
+            </div>
+            {generatingExercises && (
+              <div className="flex items-center gap-2 text-[13px] text-ink-muted">
+                <Spinner size={18} />
+                Reading the article and writing exercises…
+              </div>
+            )}
+            {exercisesError && <InlineError message={exercisesError} />}
           </div>
         )}
-        <AttachedExercisesEditor
+
+        {/* Build it myself — the real 14-type ExerciseEditor per item. */}
+        <BlockExercisesEditor
           exercises={effectiveExercises}
-          onChange={(exercises) => updateContent({ exercises, questions: [] })}
+          onChange={writeExercises}
+          onPreview={onPreview ?? (() => {})}
         />
       </div>
-
-      {suggestOpen && onSuggestExercises && (
-        <SuggestExercisesModal
-          generating={generatingSuggest ?? false}
-          error={suggestError}
-          onClose={closeSuggest}
-          onGenerate={(types, count) => {
-            void handleGenerate(types, count)
-          }}
-        />
-      )}
     </div>
   )
 }

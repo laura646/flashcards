@@ -47,7 +47,6 @@ import type {
   ReadingForm,
   ImportDocResult,
   CourseVocabResult,
-  SuggestExResult,
 } from '@/lib/lesson-editor/useLessonAi'
 
 // The set of content types the two-door add flow can create. Mirrors the
@@ -166,7 +165,7 @@ export function LessonEditorView({
   onAddFromBank,
   onNotify,
   onFetchCourseVocabulary,
-  onSuggestExercisesFromReading,
+  onGenerateExercisesFromText,
   aiError,
   onClearAiError,
   generatingFlashcards,
@@ -176,7 +175,6 @@ export function LessonEditorView({
   generatingReading,
   generatingImport,
   generatingVocab,
-  generatingSuggestEx,
   onUpdateItem,
   onMoveItem,
   onRemoveItem,
@@ -248,9 +246,12 @@ export function LessonEditorView({
   // Resolves { ok, data?: { lessons } }; the view owns the picker modal + the
   // promise that resolves the teacher's chosen words back into the AI form.
   onFetchCourseVocabulary: () => Promise<CourseVocabResult>
-  // Task D: suggest-exercises-from-reading. Threaded down to each Article
-  // editor card so the teacher can generate follow-up exercises from the body.
-  onSuggestExercisesFromReading: (articleText: string, types: string[], count: number) => Promise<SuggestExResult>
+  // Task B: generate full Exercise[] from the article text. Threaded down to each
+  // Article editor card's "Generate with AI" door. Reuses the generatingExercises
+  // flag + aiError below for in-flight / error state.
+  onGenerateExercisesFromText: (
+    text: string,
+  ) => Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }>
   aiError: string | null
   onClearAiError: () => void
   generatingFlashcards: boolean
@@ -260,7 +261,6 @@ export function LessonEditorView({
   generatingReading: boolean
   generatingImport: boolean
   generatingVocab: boolean
-  generatingSuggestEx: boolean
   onUpdateItem: (index: number, data: ContentItem['data']) => void
   onMoveItem: (index: number, dir: 'up' | 'down') => void
   onRemoveItem: (index: number) => void
@@ -733,10 +733,10 @@ export function LessonEditorView({
                 onToggleCollapse={() => onToggleCollapse(idx)}
                 onPickImage={handlePickImage}
                 onPreview={setPreviewExercise}
-                onSuggestExercises={onSuggestExercisesFromReading}
-                generatingSuggest={generatingSuggestEx}
-                suggestError={aiError}
-                onClearSuggestError={onClearAiError}
+                onGenerateExercisesFromText={onGenerateExercisesFromText}
+                generatingExercises={generatingExercises}
+                exercisesError={aiError}
+                onClearExercisesError={onClearAiError}
               />
             ))}
           </div>

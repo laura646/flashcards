@@ -143,10 +143,14 @@ export interface AudioContent {
 export interface ArticleContent {
   text: string
   source: string
+  // Legacy MCQ-only follow-ups. Kept for backward-compat / migration only:
+  // migrateBlockExercises reads these when `exercises` is empty, and the
+  // ArticleEditor clears them (questions: []) on first write to the new model.
   questions: MCQuestion[]
-  // Phase C addition: same shape as Video / Audio. Legacy `questions`
-  // is migrated on first save by the editor.
-  exercises?: import('@/lib/attached-exercise').AttachedExercise[]
+  // Task B: Reading follow-ups are now the FULL standalone Exercise shape
+  // (14 types), edited via BlockExercisesEditor + the real ExerciseEditor.
+  // (Video / Audio still use the bare AttachedExercise shape — unchanged.)
+  exercises?: Exercise[]
 }
 
 export interface DialogueContent {

@@ -315,7 +315,20 @@ export function useLessonEditor() {
         content.exercises?.forEach((q, qi) => {
           mcqIssues.push(...validateMcqQuestion(q, `${label} Grammar Q${qi + 1}`))
         })
-      } else if (item.type === 'audio' || item.type === 'video' || item.type === 'article') {
+      } else if (item.type === 'article') {
+        // Task B: Article follow-ups are now full standalone Exercise[] with
+        // `exercise_type`, so validate them like a standalone exercise (read
+        // ex.exercise_type, not the legacy AttachedExercise `type`).
+        const content = (item.data as ContentBlock).content as { exercises?: Exercise[] }
+        content.exercises?.forEach((ex, axi) => {
+          if (ex.exercise_type === 'multiple_choice' && Array.isArray(ex.questions)) {
+            ;(ex.questions as Array<{ options?: string[]; correctIndex?: number; correctIndices?: number[] }>).forEach((q, qi) => {
+              mcqIssues.push(...validateMcqQuestion(q, `${label} Follow-up ${axi + 1} Q${qi + 1}`))
+            })
+          }
+        })
+      } else if (item.type === 'audio' || item.type === 'video') {
+        // Video / Audio still use the bare AttachedExercise shape (read ax.type).
         const content = (item.data as ContentBlock).content as { exercises?: AttachedExercise[] }
         content.exercises?.forEach((ax, axi) => {
           if (ax.type === 'multiple_choice' && Array.isArray(ax.questions)) {

@@ -1011,6 +1011,33 @@ ${spec.shape}`
       return NextResponse.json({ block_type, title, content })
     }
 
+    // Generate multiple FULL exercises (all 14 types) directly from pasted text.
+    // Same model path as generate-exercises-from-doc, minus the Google Doc fetch.
+    if (action === 'generate-exercises-from-text') {
+      const { text, level } = body
+      if (!text || typeof text !== 'string' || !text.trim()) {
+        return NextResponse.json({ error: 'Text content required' }, { status: 400 })
+      }
+      const levelLine = levelInstruction(level) ? levelInstruction(level) + '\n\n' : ''
+
+      const message = await client.messages.create({
+        model: HAIKU_MODEL,
+        max_tokens: 8192,
+        messages: [{ role: 'user', content: levelLine + EXERCISE_GEN_PROMPT + text }]
+      })
+
+      const textContent = message.content.find(c => c.type === 'text')
+      if (!textContent || textContent.type !== 'text') {
+        return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+      }
+
+      const parsed = parseExercisesResponse(textContent.text)
+      if (!parsed) {
+        return NextResponse.json({ error: 'Failed to parse AI response', raw: textContent.text }, { status: 500 })
+      }
+      return NextResponse.json(parsed)
+    }
+
     // Generate multiple exercises from a Google Doc containing exercises/worksheets
     if (action === 'generate-exercises-from-doc') {
       const { url, level } = body

@@ -306,6 +306,46 @@ export function useLessonAi(actions: LessonAiActions) {
     }
   }, [level, appendGeneratedExercises])
 
+  // ── Exercises from text -> FULL Exercise[] (all 14 types) ──
+  // POST { action: 'generate-exercises-from-text', text, level? } ->
+  //   { exercises: [...] }. Unlike generateExercises (single exercise from a
+  //   short snippet), this runs the bulk EXERCISE_GEN_PROMPT over a larger body
+  //   of text and returns an ARRAY of full standalone exercises, mapped via the
+  //   shared mapExercise. Does NOT apply anything itself — the caller decides
+  //   what to do with the returned exercises (e.g. attach to a media block).
+  const generateExercisesFromText = useCallback(
+    async (text: string): Promise<{ ok: boolean; exercises?: Exercise[]; error?: string }> => {
+      setAiError(null)
+      if (!text || !text.trim()) {
+        const msg = 'Add some text first'
+        setAiError(msg)
+        return { ok: false, error: msg }
+      }
+      setGeneratingExercises(true)
+      try {
+        const { ok, data, error } = await postGenerate({
+          action: 'generate-exercises-from-text',
+          text: text.trim(),
+          level,
+        })
+        if (!ok) {
+          setAiError(error || null)
+          return { ok: false, error }
+        }
+        const raw = (data.exercises as Array<Record<string, unknown>>) || []
+        if (raw.length === 0) {
+          const msg = 'No exercises could be generated from the text'
+          setAiError(msg)
+          return { ok: false, error: msg }
+        }
+        return { ok: true, exercises: raw.map(mapExercise) }
+      } finally {
+        setGeneratingExercises(false)
+      }
+    },
+    [level],
+  )
+
   // ── Block (mistakes / dialogue / writing / pronunciation) ──
   // (legacy generateBlockWithAI L1635-1668)
   // POST { action: 'generate-block', block_type, subtype?, text?, files?, level? }
@@ -578,6 +618,7 @@ export function useLessonAi(actions: LessonAiActions) {
     // actions
     generateFlashcards,
     generateExercises,
+    generateExercisesFromText,
     generateBlock,
     generateGrammar,
     generateReading,

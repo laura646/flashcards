@@ -282,7 +282,7 @@ function LessonsBetaBody() {
           }}
           onNotify={setToast}
           onFetchCourseVocabulary={ai.fetchCourseVocabulary}
-          onSuggestExercisesFromReading={ai.suggestExercisesFromReading}
+          onGenerateExercisesFromText={ai.generateExercisesFromText}
           aiError={ai.aiError}
           onClearAiError={() => ai.setAiError(null)}
           generatingFlashcards={ai.generatingFlashcards}
@@ -292,7 +292,6 @@ function LessonsBetaBody() {
           generatingReading={ai.generatingReading}
           generatingImport={ai.generatingImport}
           generatingVocab={ai.generatingVocab}
-          generatingSuggestEx={ai.generatingSuggestEx}
           onUpdateItem={editor.updateItemData}
           onMoveItem={editor.moveItem}
           onRemoveItem={editor.removeItem}

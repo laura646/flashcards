@@ -10,6 +10,8 @@ import { detectUsedTargets } from '@/lib/word-detection'
 import type { AttachedExercise } from '@/lib/attached-exercise'
 import { legacyMcqToAttached } from '@/lib/attached-exercise'
 import type { ReadingExercise } from '@/lib/ielts/types'
+import type { Exercise } from '@/lib/lesson-editor/types'
+import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
 
 // Lazy load exercise runners — only loaded when student opens an exercise
 const FlipMode = lazy(() => import('@/components/FlipMode'))
@@ -36,6 +38,121 @@ const ExerciseLoadingFallback = () => (
     <div className="text-brandblue text-sm">Loading exercise...</div>
   </div>
 )
+
+// ── Standalone 14-type runner dispatch ──
+// Extracted verbatim from the exercise-runner view so the same dispatch can be
+// reused by media-block follow-ups (BlockExercisesRunner). Behaviour is
+// identical to the previous inline chain: derives exType/exProps from the
+// passed exercise and wires onComplete/onBack into each runner.
+interface StandaloneRunnerExercise {
+  title: string
+  subtitle: string
+  icon: string
+  instructions: string
+  exercise_type: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  questions: any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  groupData?: any
+  test_type?: string | null
+}
+
+function renderStandaloneRunner(
+  exercise: StandaloneRunnerExercise,
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[]) => void,
+  onBack: () => void
+): React.ReactNode {
+  const exType = exercise.exercise_type
+  const exProps = {
+    title: exercise.title,
+    instructions: exercise.instructions,
+    questions: exercise.questions,
+  }
+
+  if (exType === 'true_or_false') {
+    return <TrueOrFalseRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'hangman') {
+    return <HangmanRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'type_answer') {
+    return <TypeAnswerRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'complete_sentence') {
+    return <CompleteSentenceRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'group_sort') {
+    return <GroupSortRunner exercise={{ title: exProps.title, instructions: exProps.instructions, groupData: exercise.groupData || exercise.questions }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'dictation') {
+    return <DictationRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and type what you hear.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'error_correction') {
+    return <ErrorCorrectionRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find and correct the errors in each sentence.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'rank_order') {
+    return <RankOrderRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Drag or use arrows to rank the items in the correct order.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'text_sequencing') {
+    return <TextSequencingRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Arrange the segments in the correct order.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'anagram' || exType === 'unjumble') {
+    return <AnagramRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Unscramble the letters to form the correct word.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'cloze_listening') {
+    return <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'match_halves') {
+    return <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'odd_one_out') {
+    return <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={onComplete} onBack={onBack} />
+  } else {
+    // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
+    return <ExerciseRunner exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle, icon: exercise.icon, instructions: exercise.instructions, questions: exercise.questions, test_type: exercise.test_type }} onComplete={onComplete} onBack={onBack} />
+  }
+}
+
+// ── Block follow-up exercises runner (unified model) ──
+// Renders a media block's follow-up Exercise[] using the standalone 14-type
+// dispatch, aggregating per-exercise scores into a single onScore callback —
+// the same score-aggregation shell AttachedExercisesRunner uses. Each child's
+// onBack is a no-op (embedded, no nav).
+function BlockExercisesRunner({
+  exercises,
+  onScore,
+}: {
+  exercises: Exercise[]
+  onScore: (score: number, total: number) => void
+}) {
+  const [scores, setScores] = useState<Record<string, { score: number; total: number }>>({})
+
+  const reportScore = (exId: string, score: number, total: number) => {
+    setScores((prev) => {
+      const next = { ...prev, [exId]: { score, total } }
+      let s = 0
+      let t = 0
+      for (const v of Object.values(next)) {
+        s += v.score
+        t += v.total
+      }
+      onScore(s, t)
+      return next
+    })
+  }
+
+  if (exercises.length === 0) return null
+
+  return (
+    <div className="space-y-4">
+      {exercises.map((ex, i) => {
+        const key = ex.id || String(i)
+        return (
+          <div key={key} className="bg-white border border-sky-border rounded-card p-4">
+            <p className="text-[10px] font-bold text-brandblue uppercase tracking-wider mb-3">
+              {ex.icon} {ex.title}
+            </p>
+            <Suspense fallback={<ExerciseLoadingFallback />}>
+              {renderStandaloneRunner(
+                ex,
+                (s, t) => reportScore(key, s, t),
+                () => { /* embedded — no back nav */ }
+              )}
+            </Suspense>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ── Interfaces ──
 
@@ -123,7 +240,9 @@ interface ArticleContent {
   text: string
   source?: string
   questions: { id: number; prompt: string; options: string[]; correctIndex: number }[]
-  exercises?: AttachedExercise[]
+  // Unified model: article follow-ups are full standalone Exercise[] (migrated
+  // in at load via migrateBlockExercises). `questions` kept for migration only.
+  exercises?: Exercise[]
 }
 
 interface DialogueContent {
@@ -950,6 +1069,15 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               .sort(
                 (a: ContentBlock, b: ContentBlock) => a.order_index - b.order_index
               )
+              // Article-only: migrate follow-ups (legacy questions + bare
+              // AttachedExercise) onto the unified Exercise[] model at load so
+              // the article render is uniform. Video/audio left untouched.
+              .map((b: ContentBlock) => {
+                if (b.block_type !== 'article') return b
+                const c = b.content as ArticleContent
+                const migrated = migrateBlockExercises(c.exercises, c.questions)
+                return { ...b, content: { ...c, exercises: migrated } }
+              })
           )
           setLoading(false)
         })
@@ -1286,13 +1414,6 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       setView('overview')
     }
 
-    const exType = selectedExercise.exercise_type
-    const exProps = {
-      title: selectedExercise.title,
-      instructions: selectedExercise.instructions,
-      questions: selectedExercise.questions,
-    }
-
     let runnerContent: React.ReactNode = null
     const mainCls = "min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto"
 
@@ -1424,37 +1545,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     }
 
     if (!runnerContent) {
-
-    if (exType === 'true_or_false') {
-      runnerContent = <TrueOrFalseRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'hangman') {
-      runnerContent = <HangmanRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'type_answer') {
-      runnerContent = <TypeAnswerRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'complete_sentence') {
-      runnerContent = <CompleteSentenceRunner exercise={exProps} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'group_sort') {
-      runnerContent = <GroupSortRunner exercise={{ title: exProps.title, instructions: exProps.instructions, groupData: selectedExercise.groupData || selectedExercise.questions }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'dictation') {
-      runnerContent = <DictationRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and type what you hear.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'error_correction') {
-      runnerContent = <ErrorCorrectionRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find and correct the errors in each sentence.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'rank_order') {
-      runnerContent = <RankOrderRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Drag or use arrows to rank the items in the correct order.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'text_sequencing') {
-      runnerContent = <TextSequencingRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Arrange the segments in the correct order.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'anagram' || exType === 'unjumble') {
-      runnerContent = <AnagramRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Unscramble the letters to form the correct word.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'cloze_listening') {
-      runnerContent = <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'match_halves') {
-      runnerContent = <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else if (exType === 'odd_one_out') {
-      runnerContent = <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    } else {
-      // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
-      runnerContent = <ExerciseRunner exercise={{ id: 0, title: selectedExercise.title, subtitle: selectedExercise.subtitle, icon: selectedExercise.icon, instructions: selectedExercise.instructions, questions: selectedExercise.questions, test_type: selectedExercise.test_type }} onComplete={handleExerciseComplete} onBack={onBackToExercises} />
-    }
+      runnerContent = renderStandaloneRunner(selectedExercise, handleExerciseComplete, onBackToExercises)
     } // end of if (!runnerContent) — skip the runner-selection chain when
       // the test-lock branch above already produced runnerContent
 
@@ -1844,15 +1935,18 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           </div>
 
           {(() => {
-            const effective: AttachedExercise[] =
+            // Migrated in at load (setBlocks mapper), so content.exercises is
+            // already full Exercise[]. Fall back to runtime migration to stay
+            // robust if a block ever reaches here unmigrated.
+            const effective: Exercise[] =
               content.exercises && content.exercises.length > 0
                 ? content.exercises
-                : legacyMcqToAttached(content.questions)
+                : migrateBlockExercises(content.exercises, content.questions)
             if (effective.length === 0) return null
             return (
               <div>
                 <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
-                <AttachedExercisesRunner
+                <BlockExercisesRunner
                   exercises={effective}
                   onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
                 />
