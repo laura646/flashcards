@@ -127,6 +127,7 @@ function LessonsBetaBody() {
   const courseIdParam = params.get('course_id')
   const courseNameParam = params.get('course_name') || ''
   const modeParam = params.get('mode')
+  const shareParam = params.get('share')
 
   // Redirect unauthenticated users out (mirrors /admin-beta/courses).
   useEffect(() => {
@@ -138,14 +139,14 @@ function LessonsBetaBody() {
   const resolvedKey = useRef<string | null>(null)
   useEffect(() => {
     if (status !== 'authenticated' || !isAdmin) return
-    const key = `${idParam || ''}|${courseIdParam || ''}|${courseNameParam}|${modeParam || ''}`
+    const key = `${idParam || ''}|${courseIdParam || ''}|${courseNameParam}|${modeParam || ''}|${shareParam || ''}`
     if (resolvedKey.current === key) return
     resolvedKey.current = key
 
     if (idParam) {
       void editor.openLessonById(idParam)
     } else if (modeParam === 'content-bank') {
-      editor.startNewLesson({ contentBankMode: true })
+      editor.startNewLesson({ contentBankMode: true, shareToSchool: shareParam === 'school' })
     } else if (courseIdParam) {
       editor.startNewLesson({ courseId: courseIdParam, courseName: courseNameParam })
     } else {
@@ -154,7 +155,7 @@ function LessonsBetaBody() {
     // editor functions are stable (useCallback); intentionally excluded so this
     // runs on param/auth changes only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, isAdmin, idParam, courseIdParam, courseNameParam, modeParam])
+  }, [status, isAdmin, idParam, courseIdParam, courseNameParam, modeParam, shareParam])
 
   // Auto-dismiss the save toast.
   useEffect(() => {

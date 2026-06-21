@@ -33,6 +33,9 @@ export interface StartNewLessonOpts {
   courseId?: string | null
   courseName?: string
   contentBankMode?: boolean
+  // When true, the new content is flagged is_shared on save so it lands in the
+  // School Library (used by the School Library's "+ New" button).
+  shareToSchool?: boolean
 }
 
 export function useLessonEditor() {
@@ -68,6 +71,9 @@ export function useLessonEditor() {
   const [isTemplate, setIsTemplate] = useState(false)
   const [templateCategory, setTemplateCategory] = useState('')
   const [templateLevel, setTemplateLevel] = useState('')
+  // Whether this content is shared to the School Library (is_shared). Set on
+  // load (preserve when editing) and on startNewLesson (the "+ New" school flow).
+  const [isShared, setIsShared] = useState(false)
 
   // contentBankMode is a session flag the editor was opened with. It drives the
   // template-required guards in saveLesson and the default isTemplate in
@@ -162,6 +168,7 @@ export function useLessonEditor() {
       setLessonType(lesson.lesson_type || 'lesson')
       setSummary(lesson.summary || '')
       setIsTemplate(lesson.is_template || false)
+      setIsShared(lesson.is_shared || false)
       setTemplateCategory(lesson.template_category || '')
       setTemplateLevel(lesson.template_level || '')
       setCurrentLessonStatus(lesson.status === 'published' ? 'published' : 'draft')
@@ -254,6 +261,7 @@ export function useLessonEditor() {
     setSummary('')
     setContentItems([])
     setIsTemplate(optContentBankMode ? true : false)
+    setIsShared(opts.shareToSchool ?? false)
     setTemplateCategory('')
     setTemplateLevel('')
     setCurrentLessonStatus('draft')
@@ -393,6 +401,7 @@ export function useLessonEditor() {
           summary: summary.trim() || null,
           status: newStatus,
           is_template: isTemplate,
+          is_shared: isShared,
           template_category: templateCategory || null,
           template_level: templateLevel || null,
           course_id: courseId || null,
@@ -434,7 +443,7 @@ export function useLessonEditor() {
     setPublishing(false)
     return null
   }, [
-    title, lessonDate, contentItems, contentBankMode, isTemplate, templateCategory,
+    title, lessonDate, contentItems, contentBankMode, isTemplate, isShared, templateCategory,
     templateLevel, editingLessonId, lessonType, summary, courseId, flashcardsPublished,
     loadLessons,
   ])
@@ -668,6 +677,8 @@ export function useLessonEditor() {
     currentLessonStatus,
     isTemplate,
     setIsTemplate,
+    isShared,
+    setIsShared,
     templateCategory,
     setTemplateCategory,
     templateLevel,

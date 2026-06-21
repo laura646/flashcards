@@ -1245,6 +1245,13 @@ export default function ContentBankBetaPage() {
               <h1 className="text-2xl font-bold text-brandblue">School Library</h1>
               <p className="text-xs text-ink-muted mt-1">Shared content from across the school — reuse it in your lessons.</p>
             </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => router.push('/admin-beta/lessons?mode=content-bank&share=school')}
+            >
+              ＋ New
+            </Button>
           </div>
 
           <div className="flex gap-4">
