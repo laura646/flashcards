@@ -2,18 +2,27 @@
 
 // 10B redesign — CALM BUILDER preview slot (clickable PROTOTYPE, additive).
 //
-// Renders the SELECTED content item the way a student would see it, for the
-// PREVIEW pane of CalmBuilderView. There is no single shared "student lesson
-// composer" component in the repo (the live student lesson rendering is not
-// extracted), so this slot composes a faithful student-style view per type and,
-// for exercises, hands off to the REAL student runner (ExercisePreview, which
-// dispatches all 14 exercise types) via a "Play as a student" button.
+// Renders the SELECTED content item the way a student would see it. Phase 2:
+// every CONTENT BLOCK routes through the SHIPPED student renderer
+// (BlockStudentView, preview mode) — the SAME dispatcher the live student page
+// uses — so the preview is full fidelity for every type, not a mock:
+//   • flashcards -> read-only card list (passive preview).
+//   • exercise   -> the REAL student runner (ExercisePreview, all 14 types) via a
+//                   "Play as a student" button.
+//   • every block (mistakes / video / audio / article / dialogue / grammar /
+//     writing / pronunciation / ielts_reading) -> <BlockStudentView block preview
+//     onScore={no-op} /> so each block shows its real student layout (media
+//     blocks embed their real player + inline follow-up runners; writing is
+//     driven by local state; dialogue shows the static scaffold). All callbacks
+//     are no-ops so the preview never writes progress.
 //
 // Additive only: imports shared pieces, mutates nothing.
 
-import { useState } from 'react'
-import { Button, Card, EmptyState, Pill } from '@/components/student-ui'
+import { Suspense, useState } from 'react'
+import { Button, Card, EmptyState, Spinner } from '@/components/student-ui'
 import ExercisePreview from '@/components/ExercisePreview'
+import { BlockStudentView } from '@/components/lesson-render/BlockStudentView'
+import type { ContentBlock as RenderContentBlock } from '@/components/lesson-render/types'
 import {
   BLOCK_CONFIG,
   type ContentItem,
@@ -32,16 +41,12 @@ function PaneTitle({ icon, label }: { icon: string; label: string }) {
   )
 }
 
-// Reads the standalone exercises nested inside a media block (video / audio /
-// article all keep an `exercises: Exercise[]` array in 10B).
-function blockExercises(block: ContentBlock): Exercise[] {
-  const content = block.content as { exercises?: Exercise[] } | undefined
-  return Array.isArray(content?.exercises) ? content!.exercises! : []
-}
-
 export default function CalmPreviewSlot({ item }: { item: ContentItem | null }) {
   // The real student exercise runner is a full-screen modal; we open it on demand.
   const [playing, setPlaying] = useState<Exercise | null>(null)
+  // Writing block is controlled by BlockStudentView; drive its text from local
+  // state inside the preview so typing works, but never write progress.
+  const [writingValue, setWritingValue] = useState('')
 
   if (!item) {
     return (
@@ -56,13 +61,6 @@ export default function CalmPreviewSlot({ item }: { item: ContentItem | null }) 
   const cfg = BLOCK_CONFIG[item.type as ContentItemType]
   const icon = cfg?.icon || '📄'
   const label = cfg?.label || item.type
-
-  // Small button that launches the REAL student runner for an exercise.
-  const playButton = (exercise: Exercise, text = '▶ Play as a student') => (
-    <Button variant="primary" size="sm" fullWidth onClick={() => setPlaying(exercise)}>
-      {text}
-    </Button>
-  )
 
   let body: React.ReactNode
 
@@ -115,68 +113,39 @@ export default function CalmPreviewSlot({ item }: { item: ContentItem | null }) 
               {qCount} question{qCount !== 1 ? 's' : ''}
             </p>
           </div>
-          {playButton(exercise)}
+          <Button variant="primary" size="sm" fullWidth onClick={() => setPlaying(exercise)}>
+            ▶ Play as a student
+          </Button>
         </div>
       )
       break
     }
 
+    // ── Every content block → the REAL student renderer (preview mode) ──
+    case 'mistakes':
     case 'video':
     case 'audio':
-    case 'article': {
-      const block = item.data as ContentBlock
-      const exercises = blockExercises(block)
-      const content = block.content as { youtube_url?: string; audio_url?: string; text?: string }
-      body = (
-        <div>
-          <PaneTitle icon={icon} label={block.title || label} />
-          {item.type === 'video' && content.youtube_url && (
-            <p className="text-[12px] text-sky-text break-all mb-2">{content.youtube_url}</p>
-          )}
-          {item.type === 'audio' && content.audio_url && (
-            <p className="text-[12px] text-sky-text break-all mb-2">{content.audio_url}</p>
-          )}
-          {item.type === 'article' && content.text && (
-            <p className="text-[13px] text-ink-body whitespace-pre-wrap line-clamp-[12] mb-3">
-              {content.text}
-            </p>
-          )}
-          {exercises.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
-                Follow-up exercises
-              </p>
-              {exercises.map((ex, i) => (
-                <div key={i} className="rounded-tile border border-hairline bg-surface px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[13px] font-bold text-ink-black truncate">
-                      {ex.title || `Exercise ${i + 1}`}
-                    </span>
-                    <Pill variant="wash">{ex.exercise_type}</Pill>
-                  </div>
-                  {playButton(ex, '▶ Play')}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[13px] text-ink-muted">No follow-up exercises yet.</p>
-          )}
-        </div>
-      )
-      break
-    }
-
+    case 'article':
+    case 'dialogue':
+    case 'grammar':
+    case 'writing':
+    case 'pronunciation':
+    case 'ielts_reading':
     default: {
-      // mistakes / dialogue / grammar / writing / pronunciation / ielts_reading
       const block = item.data as ContentBlock
       body = (
         <div>
           <PaneTitle icon={icon} label={block.title || label} />
-          <p className="text-[13px] text-ink-muted">
-            This block renders for students in the live lesson. Edit it in the middle pane;
-            the student-facing layout for <span className="font-bold">{label}</span> appears here in
-            the live app.
-          </p>
+          <Suspense fallback={<Spinner label="Loading preview…" />}>
+            <BlockStudentView
+              block={block as RenderContentBlock}
+              preview
+              onScore={() => {}}
+              onComplete={() => {}}
+              writingValue={writingValue}
+              onWritingChange={setWritingValue}
+            />
+          </Suspense>
         </div>
       )
     }

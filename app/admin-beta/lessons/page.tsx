@@ -18,7 +18,12 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import MyLibraryView, { type MyLibraryFolderHandlers } from '@/components/admin-v2/MyLibraryView'
-import LessonEditorView from '@/components/admin-v2/LessonEditorView'
+// Phase 3: the REAL lesson editor is now the calm 3-pane CalmLessonEditor (outline
+// | edit | per-item preview). It keeps the same prop contract as the prior
+// LessonEditorView (chrome: save/publish bar, metadata, unsaved guard, all AI
+// modals, content-bank flows), so this is a drop-in swap. LessonEditorView is left
+// untouched for rollback; /admin/* imports neither, so it is unaffected.
+import CalmLessonEditor from '@/components/admin-v2/CalmLessonEditor'
 import type { Folder } from '@/components/admin-v2/FolderTree'
 import { useLessonEditor } from '@/lib/lesson-editor/useLessonEditor'
 import { useLessonAi } from '@/lib/lesson-editor/useLessonAi'
@@ -214,7 +219,7 @@ function LessonsBetaBody() {
   return (
     <>
       {editor.view === 'editor' ? (
-        <LessonEditorView
+        <CalmLessonEditor
           title={editor.title}
           lessonDate={editor.lessonDate}
           lessonType={editor.lessonType}
