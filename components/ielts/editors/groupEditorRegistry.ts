@@ -10,13 +10,11 @@
 //   • Editor       — the per-kind authoring component ({ group, onChange }).
 //
 // Coverage (this stage):
-//   FULLY EDITABLE (7):  mcq, tfng, ynng, matching_headings,
-//                        sentence_completion, note_completion, short_answer
-//   STUBBED (6):         matching_information, matching_features,
-//                        matching_sentence_endings, summary_completion,
-//                        table_completion, flow_chart_completion
-//                        → real defaultGroup (so they can be added + previewed)
-//                          but a "coming soon" placeholder Editor.
+//   FULLY EDITABLE (13 — all kinds):
+//     mcq, tfng, ynng, matching_headings, matching_information,
+//     matching_features, matching_sentence_endings, sentence_completion,
+//     note_completion, summary_completion, table_completion,
+//     flow_chart_completion, short_answer
 //
 // Every kind in the ReadingQuestionGroup union has an entry, so the registry is
 // exhaustive and the union is fully covered.
@@ -50,10 +48,15 @@ import McqGroupEditor from './groups/McqGroupEditor'
 import TfngGroupEditor from './groups/TfngGroupEditor'
 import YnngGroupEditor from './groups/YnngGroupEditor'
 import MatchingHeadingsGroupEditor from './groups/MatchingHeadingsGroupEditor'
+import MatchingInformationGroupEditor from './groups/MatchingInformationGroupEditor'
+import MatchingFeaturesGroupEditor from './groups/MatchingFeaturesGroupEditor'
+import MatchingSentenceEndingsGroupEditor from './groups/MatchingSentenceEndingsGroupEditor'
 import SentenceCompletionGroupEditor from './groups/SentenceCompletionGroupEditor'
 import NoteCompletionGroupEditor from './groups/NoteCompletionGroupEditor'
+import SummaryCompletionGroupEditor from './groups/SummaryCompletionGroupEditor'
+import TableCompletionGroupEditor from './groups/TableCompletionGroupEditor'
+import FlowChartCompletionGroupEditor from './groups/FlowChartCompletionGroupEditor'
 import ShortAnswerGroupEditor from './groups/ShortAnswerGroupEditor'
-import ComingSoonGroupEditor from './groups/ComingSoonGroupEditor'
 
 /** A per-kind editor's props: its specific group + a typed onChange. */
 export interface GroupEditorProps<G extends ReadingQuestionGroup> {
@@ -264,18 +267,6 @@ const editorFor = <G extends ReadingQuestionGroup>(
   Comp: ComponentType<GroupEditorProps<G>>,
 ): ComponentType<GroupEditorProps<G>> => Comp
 
-/**
- * Cast helper for the shared "coming soon" placeholder. Its `onChange` accepts
- * the wide ReadingQuestionGroup, which is contravariantly NOT assignable to a
- * kind-specific `(group: G) => void`. The placeholder never calls `onChange`,
- * so re-typing it to the narrow entry shape is safe — this cast just records
- * that intent for the registry below.
- */
-const stubEditorFor = <G extends ReadingQuestionGroup>(
-  Comp: ComponentType<GroupEditorProps<ReadingQuestionGroup>>,
-): ComponentType<GroupEditorProps<G>> =>
-  Comp as unknown as ComponentType<GroupEditorProps<G>>
-
 export const GROUP_EDITOR_REGISTRY: Registry = {
   mcq: {
     label: 'Multiple choice',
@@ -320,42 +311,43 @@ export const GROUP_EDITOR_REGISTRY: Registry = {
     Editor: editorFor<ShortAnswerGroup>(ShortAnswerGroupEditor),
   },
 
-  // ── Stubbed (valid seed + placeholder editor) ──
   matching_information: {
     label: 'Matching information',
-    editable: false,
+    editable: true,
     defaultGroup: defaultMatchingInformation,
-    Editor: stubEditorFor<MatchingInformationGroup>(ComingSoonGroupEditor),
+    Editor: editorFor<MatchingInformationGroup>(MatchingInformationGroupEditor),
   },
   matching_features: {
     label: 'Matching features',
-    editable: false,
+    editable: true,
     defaultGroup: defaultMatchingFeatures,
-    Editor: stubEditorFor<MatchingFeaturesGroup>(ComingSoonGroupEditor),
+    Editor: editorFor<MatchingFeaturesGroup>(MatchingFeaturesGroupEditor),
   },
   matching_sentence_endings: {
     label: 'Matching sentence endings',
-    editable: false,
+    editable: true,
     defaultGroup: defaultMatchingSentenceEndings,
-    Editor: stubEditorFor<MatchingSentenceEndingsGroup>(ComingSoonGroupEditor),
+    Editor: editorFor<MatchingSentenceEndingsGroup>(
+      MatchingSentenceEndingsGroupEditor,
+    ),
   },
   summary_completion: {
     label: 'Summary completion',
-    editable: false,
+    editable: true,
     defaultGroup: defaultSummaryCompletion,
-    Editor: stubEditorFor<SummaryCompletionGroup>(ComingSoonGroupEditor),
+    Editor: editorFor<SummaryCompletionGroup>(SummaryCompletionGroupEditor),
   },
   table_completion: {
     label: 'Table completion',
-    editable: false,
+    editable: true,
     defaultGroup: defaultTableCompletion,
-    Editor: stubEditorFor<TableCompletionGroup>(ComingSoonGroupEditor),
+    Editor: editorFor<TableCompletionGroup>(TableCompletionGroupEditor),
   },
   flow_chart_completion: {
     label: 'Flow-chart completion',
-    editable: false,
+    editable: true,
     defaultGroup: defaultFlowChartCompletion,
-    Editor: stubEditorFor<FlowChartCompletionGroup>(ComingSoonGroupEditor),
+    Editor: editorFor<FlowChartCompletionGroup>(FlowChartCompletionGroupEditor),
   },
 }
 
