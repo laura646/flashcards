@@ -13,7 +13,7 @@
 // code change.
 
 export const SONNET_MODEL =
-  process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-20250514'
+  process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-6'
 
 export const HAIKU_MODEL =
   process.env.CLAUDE_HAIKU_MODEL || 'claude-haiku-4-5'

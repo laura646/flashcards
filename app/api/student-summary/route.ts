@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
 import { requireRole, hasAccessToCourse } from '@/lib/roles'
+import { SONNET_MODEL } from '@/lib/ai-models'
 
 // ═══════════════════════════════════════════════════════════════
 // /api/student-summary
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
   try {
     const client = new Anthropic({ apiKey })
     const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: SONNET_MODEL,
       max_tokens: 220,
       system: [
         {

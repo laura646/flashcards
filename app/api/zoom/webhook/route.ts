@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '@/lib/supabase'
 import { downloadZoomFile, extractTranscriptUrl, parseCourseName } from '@/lib/zoom'
 import { parseVTT, normalizeTranscript } from '@/lib/transcript-parser'
+import { SONNET_MODEL } from '@/lib/ai-models'
 
 // Allow up to 60s for transcript download + AI processing
 export const maxDuration = 60
@@ -247,7 +248,7 @@ async function processClassSession(
   const client = new Anthropic({ apiKey })
 
   const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: SONNET_MODEL,
     max_tokens: 2000,
     system: TRANSCRIPT_ANALYSIS_PROMPT,
     messages: [
