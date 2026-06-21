@@ -213,7 +213,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
                 : 'border-red-400 bg-red-100 text-red-600 animate-pulse'
               : feedback !== null
               ? 'border-gray-200 bg-gray-50 text-[#c8ccd4] cursor-not-allowed'
-              : 'border-sky bg-sky-wash text-ink-body hover:bg-sky-border active:scale-95 cursor-pointer'
+              : 'border-[#e3e5e9] bg-white text-ink-body hover:border-sky hover:bg-sky-wash active:scale-95 cursor-pointer'
           }`}
         >
           <span className="text-3xl">✓</span>
@@ -231,7 +231,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
                 : 'border-red-400 bg-red-100 text-red-600 animate-pulse'
               : feedback !== null
               ? 'border-gray-200 bg-gray-50 text-[#c8ccd4] cursor-not-allowed'
-              : 'border-red-300 bg-red-50 text-red-500 hover:bg-red-100 active:scale-95 cursor-pointer'
+              : 'border-[#e3e5e9] bg-white text-ink-body hover:border-sky hover:bg-sky-wash active:scale-95 cursor-pointer'
           }`}
         >
           <span className="text-3xl">✗</span>
