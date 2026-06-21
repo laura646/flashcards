@@ -3,155 +3,28 @@
 import { useState, useEffect, useRef, use, lazy, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import AudioButton from '@/components/AudioButton'
-import AttachedExercisesRunner from '@/components/AttachedExercisesRunner'
-import LessonAudioPlayer from '@/components/student-ui/LessonAudioPlayer'
 import { detectUsedTargets } from '@/lib/word-detection'
 import type { ReadingExercise } from '@/lib/ielts/types'
 import type { Exercise } from '@/lib/lesson-editor/types'
 import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
-import { sanitizeRichText, looksLikeHtml } from '@/lib/html'
+import {
+  renderStandaloneRunner,
+  ExerciseLoadingFallback,
+} from '@/components/lesson-render/exerciseRunner'
+import { MistakesView } from '@/components/lesson-render/blocks/MistakesView'
+import { VideoView } from '@/components/lesson-render/blocks/VideoView'
+import { AudioView } from '@/components/lesson-render/blocks/AudioView'
+import { ArticleView } from '@/components/lesson-render/blocks/ArticleView'
+import { GrammarView } from '@/components/lesson-render/blocks/GrammarView'
+import { WritingView } from '@/components/lesson-render/blocks/WritingView'
+import { PronunciationView } from '@/components/lesson-render/blocks/PronunciationView'
 
-// Lazy load exercise runners — only loaded when student opens an exercise
+// Lazy load flashcard runners — only loaded when student opens flashcards.
+// The 14 exercise runners now live in components/lesson-render/exerciseRunner.
 const FlipMode = lazy(() => import('@/components/FlipMode'))
 const SelfAssessMode = lazy(() => import('@/components/SelfAssessMode'))
 const QuizMode = lazy(() => import('@/components/QuizMode'))
-const ExerciseRunner = lazy(() => import('@/components/ExerciseRunner'))
-const TrueOrFalseRunner = lazy(() => import('@/components/TrueOrFalseRunner'))
-const HangmanRunner = lazy(() => import('@/components/HangmanRunner'))
-const TypeAnswerRunner = lazy(() => import('@/components/TypeAnswerRunner'))
-const CompleteSentenceRunner = lazy(() => import('@/components/CompleteSentenceRunner'))
-const GroupSortRunner = lazy(() => import('@/components/GroupSortRunner'))
-const DictationRunner = lazy(() => import('@/components/DictationRunner'))
-const ErrorCorrectionRunner = lazy(() => import('@/components/ErrorCorrectionRunner'))
-const RankOrderRunner = lazy(() => import('@/components/RankOrderRunner'))
-const TextSequencingRunner = lazy(() => import('@/components/TextSequencingRunner'))
-const AnagramRunner = lazy(() => import('@/components/AnagramRunner'))
-const ClozeListeningRunner = lazy(() => import('@/components/ClozeListeningRunner'))
-const MatchHalvesRunner = lazy(() => import('@/components/MatchHalvesRunner'))
-const OddOneOutRunner = lazy(() => import('@/components/OddOneOutRunner'))
 const IeltsReadingBlockView = lazy(() => import('@/components/ielts/IeltsReadingBlockView'))
-
-const ExerciseLoadingFallback = () => (
-  <div className="flex items-center justify-center py-12">
-    <div className="text-brandblue text-sm">Loading exercise...</div>
-  </div>
-)
-
-// ── Standalone 14-type runner dispatch ──
-// Extracted verbatim from the exercise-runner view so the same dispatch can be
-// reused by media-block follow-ups (BlockExercisesRunner). Behaviour is
-// identical to the previous inline chain: derives exType/exProps from the
-// passed exercise and wires onComplete/onBack into each runner.
-interface StandaloneRunnerExercise {
-  title: string
-  subtitle: string
-  icon: string
-  instructions: string
-  exercise_type: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  questions: any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  groupData?: any
-  test_type?: string | null
-}
-
-function renderStandaloneRunner(
-  exercise: StandaloneRunnerExercise,
-  onComplete: (score: number, total: number, perQuestionResults?: boolean[]) => void,
-  onBack: () => void
-): React.ReactNode {
-  const exType = exercise.exercise_type
-  const exProps = {
-    title: exercise.title,
-    instructions: exercise.instructions,
-    questions: exercise.questions,
-  }
-
-  if (exType === 'true_or_false') {
-    return <TrueOrFalseRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'hangman') {
-    return <HangmanRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'type_answer') {
-    return <TypeAnswerRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'complete_sentence') {
-    return <CompleteSentenceRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'group_sort') {
-    return <GroupSortRunner exercise={{ title: exProps.title, instructions: exProps.instructions, groupData: exercise.groupData || exercise.questions }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'dictation') {
-    return <DictationRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and type what you hear.' }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'error_correction') {
-    return <ErrorCorrectionRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find and correct the errors in each sentence.' }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'rank_order') {
-    return <RankOrderRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Drag or use arrows to rank the items in the correct order.' }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'text_sequencing') {
-    return <TextSequencingRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Arrange the segments in the correct order.' }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'anagram' || exType === 'unjumble') {
-    return <AnagramRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Unscramble the letters to form the correct word.' }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'cloze_listening') {
-    return <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'match_halves') {
-    return <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={onComplete} onBack={onBack} />
-  } else if (exType === 'odd_one_out') {
-    return <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={onComplete} onBack={onBack} />
-  } else {
-    // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
-    return <ExerciseRunner exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle, icon: exercise.icon, instructions: exercise.instructions, questions: exercise.questions, test_type: exercise.test_type }} onComplete={onComplete} onBack={onBack} />
-  }
-}
-
-// ── Block follow-up exercises runner (unified model) ──
-// Renders a media block's follow-up Exercise[] using the standalone 14-type
-// dispatch, aggregating per-exercise scores into a single onScore callback —
-// the same score-aggregation shell AttachedExercisesRunner uses. Each child's
-// onBack is a no-op (embedded, no nav).
-function BlockExercisesRunner({
-  exercises,
-  onScore,
-}: {
-  exercises: Exercise[]
-  onScore: (score: number, total: number) => void
-}) {
-  const [scores, setScores] = useState<Record<string, { score: number; total: number }>>({})
-
-  const reportScore = (exId: string, score: number, total: number) => {
-    setScores((prev) => {
-      const next = { ...prev, [exId]: { score, total } }
-      let s = 0
-      let t = 0
-      for (const v of Object.values(next)) {
-        s += v.score
-        t += v.total
-      }
-      onScore(s, t)
-      return next
-    })
-  }
-
-  if (exercises.length === 0) return null
-
-  return (
-    <div className="space-y-4">
-      {exercises.map((ex, i) => {
-        const key = ex.id || String(i)
-        return (
-          <div key={key} className="bg-white border border-sky-border rounded-card p-4">
-            <p className="text-[10px] font-bold text-brandblue uppercase tracking-wider mb-3">
-              {ex.icon} {ex.title}
-            </p>
-            <Suspense fallback={<ExerciseLoadingFallback />}>
-              {renderStandaloneRunner(
-                ex,
-                (s, t) => reportScore(key, s, t),
-                () => { /* embedded — no back nav */ }
-              )}
-            </Suspense>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
 
 // ── Interfaces ──
 
@@ -315,116 +188,6 @@ const BLOCK_META: Record<string, { icon: string; label: string }> = {
   grammar: { icon: '📐', label: 'Grammar Focus' },
   writing: { icon: '✍️', label: 'Writing Task' },
   pronunciation: { icon: '🔊', label: 'Pronunciation Practice' },
-}
-
-// ── Inline Quiz Component ──
-
-function InlineQuiz({
-  questions,
-  onComplete,
-}: {
-  questions: { id?: number; prompt: string; options: string[]; correctIndex: number }[]
-  onComplete?: (score: number, total: number) => void
-}) {
-  const [selected, setSelected] = useState<Record<number, number>>({})
-  const [showResults, setShowResults] = useState(false)
-  const [completeFired, setCompleteFired] = useState(false)
-
-  const score = questions.reduce(
-    (acc, q, i) => acc + (selected[i] === q.correctIndex ? 1 : 0),
-    0
-  )
-  const allAnswered = Object.keys(selected).length === questions.length
-
-  const handleCheck = () => {
-    setShowResults(true)
-    if (!completeFired && onComplete) {
-      const s = questions.reduce((acc, q, i) => acc + (selected[i] === q.correctIndex ? 1 : 0), 0)
-      onComplete(s, questions.length)
-      setCompleteFired(true)
-    }
-  }
-
-  return (
-    <div className="space-y-4 mt-4">
-      {questions.map((q, qi) => {
-        const userAnswer = selected[qi]
-        const answered = userAnswer !== undefined
-        const isCorrect = userAnswer === q.correctIndex
-
-        return (
-          <div key={qi} className="bg-white rounded-xl border-[1.5px] border-sky-border p-4">
-            <p className="text-sm font-medium text-ink-body mb-3">{q.prompt}</p>
-            <div className="space-y-2">
-              {q.options.map((opt, oi) => {
-                let btnClass =
-                  'w-full text-left border-2 rounded-xl py-2.5 px-4 text-sm transition-all '
-                if (showResults && answered) {
-                  if (oi === q.correctIndex) {
-                    btnClass += 'border-green-400 bg-green-50 text-green-700 font-bold'
-                  } else if (oi === userAnswer && !isCorrect) {
-                    btnClass += 'border-red-300 bg-red-50 text-red-500 line-through'
-                  } else {
-                    btnClass += 'border-gray-200 text-ink-muted'
-                  }
-                } else if (userAnswer === oi) {
-                  btnClass += 'border-sky bg-sky-wash text-ink-body font-bold'
-                } else {
-                  btnClass += 'border-sky-border text-ink-body hover:border-sky bg-white'
-                }
-
-                return (
-                  <button
-                    key={oi}
-                    onClick={() => {
-                      if (showResults) return
-                      setSelected({ ...selected, [qi]: oi })
-                    }}
-                    className={btnClass}
-                  >
-                    <span className="text-ink-muted mr-2">
-                      {String.fromCharCode(97 + oi)})
-                    </span>
-                    {opt}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )
-      })}
-
-      {!showResults && (
-        <button
-          onClick={handleCheck}
-          disabled={!allAnswered}
-          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Check answers
-        </button>
-      )}
-
-      {showResults && (
-        <div className="text-center py-4">
-          <div className="text-3xl mb-2">
-            {score === questions.length ? '🌟' : score >= questions.length * 0.6 ? '👍' : '💪'}
-          </div>
-          <p className="text-sm font-bold text-brandblue">
-            {score}/{questions.length} correct
-          </p>
-          <button
-            onClick={() => {
-              setSelected({})
-              setShowResults(false)
-            }}
-            className="mt-3 text-xs text-brandblue hover:underline"
-          >
-            Try again
-          </button>
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ── Dialogue Chat Component ──
@@ -1402,14 +1165,6 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     </button>
   )
 
-  // ── Extract YouTube video ID ──
-  const getYouTubeId = (url: string) => {
-    const match = url.match(
-      /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?\s]+)/
-    )
-    return match ? match[1] : null
-  }
-
   // ══════════════════════════════════════
   //  EXERCISE RUNNER VIEW
   // ══════════════════════════════════════
@@ -1780,50 +1535,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          <div className="space-y-4">
-            {content.mistakes.map((m, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl border-[1.5px] border-sky-border p-5 space-y-3"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-red-400 uppercase tracking-wider">
-                        Incorrect
-                      </span>
-                    </div>
-                    <p className="text-sm bg-red-50 text-red-600 rounded-lg px-3 py-2 border border-red-200">
-                      {m.original}
-                    </p>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-green-500 uppercase tracking-wider">
-                        Correct
-                      </span>
-                    </div>
-                    <p className="text-sm bg-green-50 text-green-700 rounded-lg px-3 py-2 border border-green-200">
-                      {m.correction}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-sky-wash rounded-lg px-3 py-2">
-                  <p className="text-xs text-ink-body">
-                    <span className="font-bold text-brandblue">Why? </span>
-                    {m.explanation}
-                  </p>
-                </div>
-
-                {m.practice && m.practice.length > 0 && (
-                  <div className="pt-2 border-t border-gray-100">
-                    <p className="text-xs font-bold text-brandblue mb-2">Quick practice</p>
-                    <InlineQuiz questions={m.practice} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <MistakesView
+            content={content}
+            onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+          />
         </main>
       )
     }
@@ -1831,7 +1546,6 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     // ── Video Block ──
     if (selectedBlock.block_type === 'video') {
       const content = selectedBlock.content as VideoContent
-      const videoId = getYouTubeId(content.youtube_url)
 
       return (
         <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
@@ -1846,41 +1560,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          {videoId ? (
-            <div className="relative w-full pb-[56.25%] mb-6 rounded-2xl overflow-hidden bg-black">
-              <iframe
-                className="absolute inset-0 w-full h-full"
-                src={`https://www.youtube.com/embed/${videoId}`}
-                title="Video"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          ) : (
-            <div className="bg-gray-100 rounded-2xl p-8 text-center mb-6">
-              <p className="text-sm text-ink-muted">Video not available</p>
-            </div>
-          )}
-
-          {(() => {
-            // Migrated in at load (setBlocks mapper), so content.exercises is
-            // already full Exercise[]. Fall back to runtime migration to stay
-            // robust if a block ever reaches here unmigrated.
-            const effective: Exercise[] =
-              content.exercises && content.exercises.length > 0
-                ? content.exercises
-                : migrateBlockExercises(content.exercises, content.questions)
-            if (effective.length === 0) return null
-            return (
-              <div>
-                <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
-                <BlockExercisesRunner
-                  exercises={effective}
-                  onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
-                />
-              </div>
-            )
-          })()}
+          <VideoView
+            content={content}
+            onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+          />
         </main>
       )
     }
@@ -1902,35 +1585,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          {content.audio_url ? (
-            <div className="mb-6">
-              <LessonAudioPlayer src={content.audio_url} />
-            </div>
-          ) : (
-            <div className="bg-surface rounded-card p-8 text-center mb-6">
-              <p className="text-sm text-ink-muted">Audio not available</p>
-            </div>
-          )}
-
-          {(() => {
-            // Migrated in at load (setBlocks mapper), so content.exercises is
-            // already full Exercise[]. Fall back to runtime migration to stay
-            // robust if a block ever reaches here unmigrated.
-            const effective: Exercise[] =
-              content.exercises && content.exercises.length > 0
-                ? content.exercises
-                : migrateBlockExercises(content.exercises, undefined)
-            if (effective.length === 0) return null
-            return (
-              <div>
-                <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
-                <BlockExercisesRunner
-                  exercises={effective}
-                  onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
-                />
-              </div>
-            )
-          })()}
+          <AudioView
+            content={content}
+            onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+          />
         </main>
       )
     }
@@ -1952,50 +1610,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-6 mb-6">
-            {/* Passage is stored as rich-text HTML (content.text). Render it
-                sanitized at NORMAL weight (bold only where the teacher applied
-                it — fixes the old always-bold render). Legacy PLAIN-TEXT
-                passages have no tags, so we keep their literal line breaks with
-                whitespace-pre-wrap instead of HTML rendering. */}
-            {looksLikeHtml(content.text || '') ? (
-              <div
-                className="rte-prose text-sm font-normal text-ink-body leading-relaxed"
-                dangerouslySetInnerHTML={{
-                  __html: sanitizeRichText(content.text || ''),
-                }}
-              />
-            ) : (
-              <div className="text-sm font-normal text-ink-body leading-relaxed whitespace-pre-wrap">
-                {content.text}
-              </div>
-            )}
-            {content.source && (
-              <p className="text-xs text-ink-muted mt-4 pt-3 border-t border-gray-100 italic">
-                Source: {content.source}
-              </p>
-            )}
-          </div>
-
-          {(() => {
-            // Migrated in at load (setBlocks mapper), so content.exercises is
-            // already full Exercise[]. Fall back to runtime migration to stay
-            // robust if a block ever reaches here unmigrated.
-            const effective: Exercise[] =
-              content.exercises && content.exercises.length > 0
-                ? content.exercises
-                : migrateBlockExercises(content.exercises, content.questions)
-            if (effective.length === 0) return null
-            return (
-              <div>
-                <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
-                <BlockExercisesRunner
-                  exercises={effective}
-                  onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
-                />
-              </div>
-            )
-          })()}
+          <ArticleView
+            content={content}
+            onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+          />
         </main>
       )
     }
@@ -2042,87 +1660,10 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          {/* Rule explanation */}
-          <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-6 mb-4">
-            <h2 className="text-xs font-bold text-brandblue uppercase tracking-wider mb-3">
-              Rule
-            </h2>
-            <p className="text-sm text-ink-body leading-relaxed whitespace-pre-wrap">
-              {content.explanation}
-            </p>
-          </div>
-
-          {/* Examples — with target structure highlight + Listen audio */}
-          {content.examples && content.examples.length > 0 && (
-            <div className="bg-sky-wash rounded-2xl p-5 mb-4">
-              <h2 className="text-xs font-bold text-sky-dark uppercase tracking-wider mb-3">
-                Examples
-              </h2>
-              <ul className="space-y-2">
-                {content.examples.map((ex, i) => {
-                  // Highlight: prefer per-example highlight; fall back to target_structure global; else none.
-                  const hl = (content.example_highlights && content.example_highlights[i]) || content.target_structure || ''
-                  let body: React.ReactNode = ex
-                  if (hl && ex.toLowerCase().includes(hl.toLowerCase())) {
-                    const idx = ex.toLowerCase().indexOf(hl.toLowerCase())
-                    body = (
-                      <>
-                        {ex.slice(0, idx)}
-                        <strong className="text-brandblue">{ex.slice(idx, idx + hl.length)}</strong>
-                        {ex.slice(idx + hl.length)}
-                      </>
-                    )
-                  }
-                  return (
-                    <li
-                      key={i}
-                      className="flex items-center gap-2 text-sm text-ink-body bg-white rounded-lg px-3 py-2 border border-sky-border"
-                    >
-                      <span className="flex-1">{body}</span>
-                      <AudioButton text={ex} />
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )}
-
-          {/* Common pitfalls — opt-in section from AI generation */}
-          {content.pitfalls && content.pitfalls.length > 0 && (
-            <div className="bg-red-50 border border-red-100 rounded-2xl p-5 mb-4">
-              <h2 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-3">
-                Watch out for
-              </h2>
-              <ul className="space-y-3">
-                {content.pitfalls.map((p, i) => (
-                  <li key={i} className="text-sm text-ink-body">
-                    <div>
-                      <span className="text-red-400 line-through mr-1">{p.mistake}</span>
-                      <span className="mx-1 text-[#c8ccd4]">→</span>
-                      <span className="text-green-600 font-medium">{p.correct}</span>
-                    </div>
-                    {p.tip && <p className="text-[11px] text-ink-muted mt-0.5">{p.tip}</p>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Practice exercises — prefer new multi-type field; fall back to legacy MCQ */}
-          {content.practice_exercises && content.practice_exercises.length > 0 ? (
-            <div>
-              <h2 className="text-sm font-bold text-brandblue mb-3">Practice</h2>
-              <AttachedExercisesRunner
-                exercises={content.practice_exercises}
-                onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
-              />
-            </div>
-          ) : content.exercises && content.exercises.length > 0 ? (
-            <div>
-              <h2 className="text-sm font-bold text-brandblue mb-3">Practice</h2>
-              <InlineQuiz questions={content.exercises} onComplete={(s, t) => handleBlockComplete(selectedBlock.id, s, t)} />
-            </div>
-          ) : null}
+          <GrammarView
+            content={content}
+            onScore={(s, t) => handleBlockComplete(selectedBlock.id, s, t)}
+          />
         </main>
       )
     }
@@ -2130,7 +1671,6 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     // ── Writing Block ──
     if (selectedBlock.block_type === 'writing') {
       const content = selectedBlock.content as WritingContent
-      const wordCount = writingText.trim() ? writingText.trim().split(/\s+/).length : 0
 
       return (
         <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
@@ -2145,75 +1685,16 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          {/* Prompt */}
-          <div className="bg-white rounded-2xl border-[1.5px] border-sky-border p-6 mb-4">
-            <h2 className="text-xs font-bold text-brandblue uppercase tracking-wider mb-2">
-              Writing prompt
-            </h2>
-            <p className="text-sm text-ink-body leading-relaxed">{content.prompt}</p>
-          </div>
-
-          {/* Guidelines */}
-          {content.guidelines && (
-            <div className="bg-sky-wash rounded-xl p-4 mb-4">
-              <h2 className="text-xs font-bold text-brandblue mb-1">Guidelines</h2>
-              <p className="text-xs text-ink-body leading-relaxed whitespace-pre-wrap">
-                {content.guidelines}
-              </p>
-            </div>
-          )}
-
-          {/* Textarea */}
-          <div className="relative mb-2">
-            <textarea
-              value={writingText}
-              onChange={(e) => {
-                setWritingText(e.target.value)
-                setWritingSaved(false)
-              }}
-              placeholder="Start writing here..."
-              rows={10}
-              className="w-full border-[1.5px] border-sky-border rounded-2xl p-4 text-sm text-ink-body leading-relaxed resize-y focus:outline-none focus:border-sky transition-colors"
-            />
-          </div>
-
-          {/* Word count & submit */}
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <span
-                className={`text-xs font-bold ${
-                  content.word_limit && wordCount > content.word_limit
-                    ? 'text-red-500'
-                    : 'text-ink-muted'
-                }`}
-              >
-                {wordCount} {content.word_limit ? `/ ${content.word_limit}` : ''} words
-              </span>
-              {content.word_limit && (
-                <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      wordCount > content.word_limit ? 'bg-red-400' : 'bg-sky'
-                    }`}
-                    style={{
-                      width: `${Math.min((wordCount / content.word_limit) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-            {writingSaved && (
-              <span className="text-xs text-green-500 font-bold">Saved!</span>
-            )}
-          </div>
-
-          <button
-            onClick={handleWritingSubmit}
-            disabled={!writingText.trim() || writingSaved}
-            className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {writingSaved ? 'Submitted' : 'Submit writing'}
-          </button>
+          <WritingView
+            content={content}
+            value={writingText}
+            onChange={(v) => {
+              setWritingText(v)
+              setWritingSaved(false)
+            }}
+            saved={writingSaved}
+            onSubmit={handleWritingSubmit}
+          />
         </main>
       )
     }
@@ -2235,30 +1716,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             </div>
           </div>
 
-          <div className="space-y-3">
-            {content.words.map((w, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl border-[1.5px] border-sky-border p-5"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <AudioButton text={w.word} />
-                  <div>
-                    <h3 className="text-base font-bold text-brandblue">{w.word}</h3>
-                    <p className="text-xs text-ink-muted">{w.phonetic}</p>
-                  </div>
-                </div>
-                {w.tips && (
-                  <div className="bg-sky-wash rounded-lg px-3 py-2 mt-2">
-                    <p className="text-xs text-ink-body">
-                      <span className="font-bold text-brandblue">Tip: </span>
-                      {w.tips}
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <PronunciationView content={content} />
         </main>
       )
     }
