@@ -73,23 +73,23 @@ const STATUS_META: Record<
 > = {
   present: {
     label: 'Present',
-    active: 'bg-correct-bg text-correct-fg border-correct-border',
-    idle: 'bg-white text-ink-muted border-hairline hover:border-correct-border',
+    active: 'bg-[#e7f7ee] text-[#1a8f3c] border-[#bce6cd]',
+    idle: 'bg-white text-ink-muted border-hairline hover:border-[#bce6cd]',
   },
   late: {
     label: 'Late',
-    active: 'bg-streak-fill text-streak-ink border-[#e6cf3a]',
-    idle: 'bg-white text-ink-muted border-hairline hover:border-[#e6cf3a]',
+    active: 'bg-[#fdecd9] text-[#e8730c] border-[#f6d3a8]',
+    idle: 'bg-white text-ink-muted border-hairline hover:border-[#f6d3a8]',
   },
   absent: {
     label: 'Absent',
-    active: 'bg-incorrect-bg text-incorrect-fg border-incorrect-border',
-    idle: 'bg-white text-ink-muted border-hairline hover:border-incorrect-border',
+    active: 'bg-[#fdecec] text-[#d64545] border-[#f3c9c9]',
+    idle: 'bg-white text-ink-muted border-hairline hover:border-[#f3c9c9]',
   },
   excused: {
     label: 'Excused',
-    active: 'bg-sky-wash text-sky-text border-sky-border',
-    idle: 'bg-white text-ink-muted border-hairline hover:border-sky-border',
+    active: 'bg-[#e7f1fd] text-[#1f6fb2] border-[#c2dcf6]',
+    idle: 'bg-white text-ink-muted border-hairline hover:border-[#c2dcf6]',
   },
 }
 
@@ -117,6 +117,14 @@ function longDate(iso: string): string {
   if (!y || !m || !d) return iso
   const dt = new Date(y, m - 1, d)
   return dt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
+// Short date for the Date pill, e.g. "Mon, 23 Jun".
+function shortDateLabel(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return iso
+  const dt = new Date(y, m - 1, d)
+  return dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -214,6 +222,12 @@ const ClockIcon = (
     <path d="M12 7v5l3 2" />
   </svg>
 )
+const InfoIcon = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8h.01" />
+  </svg>
+)
 
 export default function MarkAttendanceModal({
   courseName,
@@ -300,21 +314,21 @@ export default function MarkAttendanceModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 font-rubik flex items-end sm:items-center justify-center bg-black/45 px-0 sm:px-4 py-0 sm:py-6">
-      <div className="bg-white w-full sm:max-w-lg sm:rounded-card rounded-t-card shadow-[0_24px_64px_rgba(15,22,40,0.28)] max-h-[94vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 font-rubik flex items-end sm:items-center justify-center bg-black/50 px-0 sm:px-4 py-0 sm:py-6">
+      <div className="bg-white w-full sm:max-w-lg sm:rounded-[20px] rounded-t-[20px] shadow-[0_24px_64px_rgba(15,22,40,0.28)] max-h-[94vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="px-5 pt-5 pb-4 border-b border-hairline flex items-start justify-between gap-3">
+        <div className="px-6 pt-6 pb-5 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-extrabold text-sky-text uppercase tracking-eyebrow">Mark attendance</p>
-            <h2 className="text-xl font-bold text-ink-black mt-1 leading-tight">{longDate(date)}</h2>
-            <p className="text-xs text-ink-muted mt-0.5 truncate">
+            <p className="text-[11px] font-bold text-brandblue uppercase tracking-eyebrow">Mark attendance</p>
+            <h2 className="text-[30px] font-extrabold text-ink-black mt-1.5 leading-[1.1] tracking-hero">{longDate(date)}</h2>
+            <p className="text-sm text-ink-muted mt-1.5 truncate">
               {courseName} · {roster.length} student{roster.length !== 1 ? 's' : ''}
             </p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="shrink-0 w-8 h-8 rounded-full hover:bg-surface text-ink-muted flex items-center justify-center text-lg leading-none"
+            className="shrink-0 w-9 h-9 rounded-full bg-surface hover:bg-hairline text-ink-muted flex items-center justify-center text-lg leading-none"
           >
             ✕
           </button>
@@ -327,50 +341,50 @@ export default function MarkAttendanceModal({
         ) : (
           <>
             {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
               {/* Pill controls */}
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 {/* Date */}
                 <div className="relative">
                   <button
                     onClick={() => setShowCal((v) => !v)}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-sky-border bg-sky-wash text-[13px] font-bold text-sky-text hover:border-sky transition-colors"
+                    className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-full border-[1.5px] border-hairline bg-white text-[13px] font-bold text-ink-black hover:border-sky-border transition-colors"
                   >
-                    <span className="text-sky">{CalIcon}</span>
-                    {longDate(date)}
+                    <span className="text-ink-muted">{CalIcon}</span>
+                    {shortDateLabel(date)}
                   </button>
                   {showCal && (
                     <CalendarPopup value={date} onPick={setDate} onClose={() => setShowCal(false)} />
                   )}
                 </div>
                 {/* Time */}
-                <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full border border-hairline bg-white text-[13px] font-bold text-ink-body focus-within:border-sky transition-colors">
+                <label className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-full border-[1.5px] border-hairline bg-white text-[13px] font-bold text-ink-black focus-within:border-sky-border transition-colors">
                   <span className="text-ink-muted">{ClockIcon}</span>
                   <input
                     type="time"
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
-                    className="bg-transparent outline-none w-[68px] text-ink-body"
+                    className="bg-transparent outline-none w-[68px] text-ink-black"
                     aria-label="Class time"
                   />
                 </label>
                 {/* Duration chips */}
-                <div className="inline-flex bg-surface rounded-full p-0.5">
-                  {DURATION_CHIPS.map((c) => {
-                    const active = duration === c.value
-                    return (
-                      <button
-                        key={c.value}
-                        onClick={() => setDuration(c.value)}
-                        className={`px-3 py-1.5 text-[12px] font-bold rounded-full transition-all ${
-                          active ? 'bg-sky text-white' : 'text-ink-muted hover:text-ink-body'
-                        }`}
-                      >
-                        {c.label}
-                      </button>
-                    )
-                  })}
-                </div>
+                {DURATION_CHIPS.map((c) => {
+                  const active = duration === c.value
+                  return (
+                    <button
+                      key={c.value}
+                      onClick={() => setDuration(c.value)}
+                      className={`px-3.5 py-2.5 text-[13px] font-bold rounded-full border-[1.5px] transition-all ${
+                        active
+                          ? 'bg-[#e7f1fd] text-brandblue border-[#c2dcf6]'
+                          : 'bg-white text-ink-muted border-hairline hover:border-sky-border'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  )
+                })}
               </div>
 
               {/* Topic */}
@@ -380,7 +394,7 @@ export default function MarkAttendanceModal({
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder="What did you cover today? (optional)"
-                  className="w-full text-sm text-ink-body bg-white border-[1.5px] border-hairline rounded-tile px-3.5 py-2.5 placeholder:text-[#b6bac2] focus:outline-none focus:border-sky transition-colors"
+                  className="w-full text-sm text-ink-body bg-white border-[1.5px] border-hairline rounded-[14px] px-4 py-3 placeholder:text-[#b6bac2] focus:outline-none focus:border-sky transition-colors"
                 />
               </div>
 
@@ -395,15 +409,16 @@ export default function MarkAttendanceModal({
               ) : (
                 <>
                   {/* Info bar */}
-                  <div className="flex items-center justify-between gap-3 bg-sky-wash border border-sky-border rounded-tile px-3.5 py-2.5 mb-3">
-                    <p className="text-xs text-sky-text font-medium leading-snug">
-                      Everyone starts <span className="font-bold">Present</span> — tap the exceptions.
+                  <div className="flex items-center justify-between gap-3 bg-[#e9f1fb] rounded-[14px] px-4 py-3 mb-3.5">
+                    <p className="flex items-center gap-2 text-xs text-ink-muted leading-snug">
+                      <span className="shrink-0 text-brandblue">{InfoIcon}</span>
+                      <span>Everyone starts <span className="font-bold text-ink-black">Present</span> — tap the exceptions.</span>
                     </p>
                     <button
                       onClick={markAllPresent}
-                      className="shrink-0 text-xs font-extrabold text-sky-text underline whitespace-nowrap"
+                      className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-brandblue hover:underline whitespace-nowrap"
                     >
-                      Mark all present
+                      <span aria-hidden="true">✓✓</span> Mark all present
                     </button>
                   </div>
 
@@ -415,14 +430,14 @@ export default function MarkAttendanceModal({
                       roster.map((s) => {
                         const r = rows[s.student_email]
                         return (
-                          <div key={s.student_email} className="rounded-card border border-hairline p-3">
+                          <div key={s.student_email} className="rounded-[14px] border border-hairline p-3.5">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 shrink-0 rounded-full bg-sky-wash text-sky-text font-bold flex items-center justify-center text-xs">
+                              <div className="w-9 h-9 shrink-0 rounded-full bg-[#cfe4fb] text-brandblue font-bold flex items-center justify-center text-xs">
                                 {initials(s.name, s.student_email)}
                               </div>
                               <p className="flex-1 min-w-0 text-sm font-bold text-ink-black truncate">{s.name}</p>
                             </div>
-                            <div className="grid grid-cols-4 gap-1.5 mt-2.5">
+                            <div className="grid grid-cols-4 gap-2 mt-3">
                               {(['present', 'late', 'absent', 'excused'] as AttStatus[]).map((st) => {
                                 const meta = STATUS_META[st]
                                 const active = r.status === st
@@ -430,7 +445,7 @@ export default function MarkAttendanceModal({
                                   <button
                                     key={st}
                                     onClick={() => setStatus(s.student_email, st)}
-                                    className={`py-1.5 rounded-tile border text-[12px] font-extrabold transition-colors ${
+                                    className={`py-2 rounded-[10px] border-[1.5px] text-[12px] font-bold transition-colors ${
                                       active ? meta.active : meta.idle
                                     }`}
                                   >
@@ -493,25 +508,31 @@ export default function MarkAttendanceModal({
             </div>
 
             {/* Footer */}
-            <div className="border-t border-hairline px-5 py-3.5">
+            <div className="bg-[#e9f1fb] px-6 py-4">
               {saveError && (
                 <div className="mb-2.5">
                   <InlineError message={saveError} />
                 </div>
               )}
-              {!cancelled && (
-                <p className="text-[11px] text-ink-muted mb-2.5 leading-snug">
-                  <span className="font-bold text-correct-fg">{tally.present} present</span> ·{' '}
-                  <span className="font-bold text-streak-ink">{tally.late} late</span> ·{' '}
-                  <span className="font-bold text-incorrect-fg">{tally.absent} absent</span> ·{' '}
-                  <span className="font-bold text-sky-text">{tally.excused} excused</span> ·{' '}
-                  <span className="font-bold text-ink-body">{drawnDown} drawn down</span>
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Button variant="primary" size="md" fullWidth onClick={handleSave} disabled={saving}>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                {!cancelled ? (
+                  <p className="text-[12px] text-ink-muted leading-snug">
+                    <span className="font-bold text-[#1a8f3c]">{tally.present} present</span> ·{' '}
+                    <span className="font-bold text-[#e8730c]">{tally.late} late</span> ·{' '}
+                    <span className="font-bold text-[#d64545]">{tally.absent} absent</span> ·{' '}
+                    <span className="font-bold text-[#1f6fb2]">{tally.excused} excused</span> ·{' '}
+                    <span className="font-bold text-ink-black">{drawnDown} drawn down</span>
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="shrink-0 inline-flex items-center justify-center bg-sky text-white font-bold text-[15px] px-7 py-3.5 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40 disabled:opacity-45 disabled:cursor-not-allowed"
+                >
                   {saving ? 'Saving…' : cancelled ? 'Save (cancelled)' : 'Save class'}
-                </Button>
+                </button>
               </div>
             </div>
           </>

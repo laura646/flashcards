@@ -170,14 +170,15 @@ interface CourseDetailViewProps {
   onSendTelegramTest: () => Promise<{ ok: boolean; error?: string }>
 }
 
-// Read-only label/value row for the Course Info card.
+// Read-only icon + value row for the Course Info card.
+// `label` is kept for accessibility (sr-only) — the screenshots show icon + value inline.
 function InfoRow({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="text-sky-text mt-0.5 shrink-0">{icon}</span>
+      <span className="text-ink-muted mt-0.5 shrink-0">{icon}</span>
       <div className="min-w-0">
-        <p className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow">{label}</p>
-        <div className="text-sm text-ink-black mt-0.5 break-words">{children}</div>
+        <span className="sr-only">{label}: </span>
+        <div className="text-sm text-ink-black break-words">{children}</div>
       </div>
     </div>
   )
@@ -342,32 +343,49 @@ export function CourseDetailView({
         />
 
         {/* Header card — name + description ONLY */}
-        <div className="bg-white rounded-card border border-hairline p-5 mb-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-bold text-brandblue">{course.name}</h1>
+        <div className="bg-white rounded-card border border-hairline p-6 mb-4">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-[30px] font-extrabold text-brandblue leading-tight tracking-hero">{course.name}</h1>
             {course.archived_at && <Pill variant="status">Archived</Pill>}
             {course.self_study && <Pill variant="level">Self-study</Pill>}
           </div>
-          <p className="text-sm text-ink-muted mt-1">{course.description || 'No description'}</p>
+          <p className="text-sm text-ink-muted mt-1.5">{course.description || 'No description'}</p>
         </div>
 
         {/* Two-column body */}
         <div className="grid grid-cols-1 md:grid-cols-[1fr,330px] gap-4 items-start">
           {/* ─── LEFT: tabs + list (the list is the only scroll area) ─── */}
           <div className="order-2 md:order-1 min-w-0">
-            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-              <SegmentedControl<Tab>
-                segments={[
-                  { value: 'lessons', label: `Lessons (${lessons.length})` },
-                  { value: 'students', label: `Students (${students.length})` },
-                ]}
-                value={tab}
-                onChange={setTab}
-              />
+            <div className="flex items-end justify-between gap-3 mb-3 flex-wrap border-b border-hairline">
+              <div className="flex items-center gap-6">
+                {([
+                  { value: 'lessons' as Tab, label: `Lessons (${lessons.length})` },
+                  { value: 'students' as Tab, label: `Students (${students.length})` },
+                ]).map((t) => {
+                  const active = tab === t.value
+                  return (
+                    <button
+                      key={t.value}
+                      onClick={() => setTab(t.value)}
+                      className={`relative pb-2.5 text-[15px] font-bold transition-colors ${
+                        active ? 'text-brandblue' : 'text-ink-muted hover:text-ink-body'
+                      }`}
+                    >
+                      {t.label}
+                      {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-brandblue" />}
+                    </button>
+                  )
+                })}
+              </div>
               {tab === 'lessons' && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 pb-2">
                   <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
-                  <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
+                  <button
+                    onClick={onCreateLesson}
+                    className="inline-flex items-center justify-center gap-1 rounded-full border-[1.5px] border-sky-border bg-white text-brandblue font-bold text-[12px] px-3.5 py-2 hover:border-sky transition-colors"
+                  >
+                    + Create
+                  </button>
                 </div>
               )}
             </div>
@@ -482,13 +500,13 @@ export function CourseDetailView({
           </div>
 
           {/* ─── RIGHT RAIL: Course info + Attendance (does not scroll) ─── */}
-          <div className="order-1 md:order-2 space-y-4">
+          <div className="order-1 md:order-2 space-y-4 rounded-card bg-[#e9f1fb] p-3.5">
             {/* Course info card */}
             <div className="bg-white rounded-card border border-hairline p-[18px]">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-ink-black">Course info</h3>
                 {!editing && (
-                  <button onClick={startEditing} className="text-xs font-extrabold text-sky-text hover:underline">Edit</button>
+                  <button onClick={startEditing} className="text-xs font-bold text-brandblue hover:underline">Edit</button>
                 )}
               </div>
 
@@ -637,27 +655,31 @@ export function CourseDetailView({
                   {course.self_study && !scheduleText && (
                     <InfoRow icon={IcCalendar} label="Schedule">Self-study (no fixed schedule)</InfoRow>
                   )}
-                  <InfoRow icon={IcClock} label="Started">{formatStartDate(course.start_date)}</InfoRow>
+                  <InfoRow icon={IcClock} label="Started">Started {formatStartDate(course.start_date)}</InfoRow>
                   <InfoRow icon={IcUser} label="Trainer · Level">
                     {(course.trainer_name || 'Unassigned')}{course.level ? ` · ${course.level}` : ''}
                   </InfoRow>
                   <InfoRow icon={IcKey} label="Invite code">
                     <span className="inline-flex items-center gap-2">
-                      <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
-                      <button onClick={handleCopyInvite} className="text-[11px] font-bold text-sky-text underline">
+                      <span>Invite <span className="font-mono font-bold text-brandblue">{course.invite_code}</span></span>
+                      <button onClick={handleCopyInvite} className="text-[11px] font-bold text-brandblue underline">
                         {copied ? 'Copied!' : 'Copy'}
                       </button>
                     </span>
                   </InfoRow>
-                  {course.lesson_link && (
-                    <InfoRow icon={IcVideo} label="Zoom">
-                      <a href={course.lesson_link} target="_blank" rel="noreferrer" className="text-sky-text font-bold hover:underline break-all">Open Zoom link</a>
-                    </InfoRow>
-                  )}
-                  {course.telegram_link && (
-                    <InfoRow icon={IcSend} label="Telegram">
-                      <a href={course.telegram_link} target="_blank" rel="noreferrer" className="text-sky-text font-bold hover:underline break-all">Open Telegram</a>
-                    </InfoRow>
+                  {(course.lesson_link || course.telegram_link) && (
+                    <div className="border-t border-hairline pt-3 flex items-center gap-5">
+                      {course.lesson_link && (
+                        <a href={course.lesson_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-brandblue font-bold text-sm hover:underline">
+                          <span>{IcVideo}</span> Zoom
+                        </a>
+                      )}
+                      {course.telegram_link && (
+                        <a href={course.telegram_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-brandblue font-bold text-sm hover:underline">
+                          <span>{IcSend}</span> Telegram
+                        </a>
+                      )}
+                    </div>
                   )}
                   {course.telegram_chat_id && (
                     <div className="pt-1">

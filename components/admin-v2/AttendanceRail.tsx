@@ -51,6 +51,13 @@ function shortDate(iso: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
+// Short date with weekday "Mon 23 Jun" from YYYY-MM-DD (parsed as local).
+function dayShortDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return iso
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
 // Current month name, e.g. "June".
 function monthName(): string {
   return new Date().toLocaleDateString('en-GB', { month: 'long' })
@@ -69,20 +76,20 @@ function CountBadge({ session }: { session: OverviewSession }) {
   const attended = c.present + c.late
   if (c.absent > 0) {
     return (
-      <span className="text-xs font-bold text-incorrect-fg">
+      <span className="text-xs font-bold text-[#d64545]">
         {attended} · {c.absent} absent
       </span>
     )
   }
   if (c.late > 0) {
     return (
-      <span className="text-xs font-bold text-streak-ink">
+      <span className="text-xs font-bold text-[#d6336c]">
         {attended} · {c.late} late
       </span>
     )
   }
   return (
-    <span className="text-xs font-bold text-correct-fg">
+    <span className="text-xs font-bold text-[#1a8f3c]">
       {c.present + c.late + c.excused}/{c.total}
     </span>
   )
@@ -90,9 +97,16 @@ function CountBadge({ session }: { session: OverviewSession }) {
 
 // ─── Icons ───
 const WarnIcon = (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
     <path d="M12 9v4M12 17h.01" />
+  </svg>
+)
+const ClipboardIcon = (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="8" y="3" width="8" height="4" rx="1" />
+    <path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" />
+    <path d="M9 12h6M9 16h4" />
   </svg>
 )
 
@@ -135,20 +149,25 @@ export default function AttendanceRail({
 
   return (
     <div className="bg-white rounded-card border border-hairline p-[18px]">
-      <h3 className="text-sm font-bold text-ink-black mb-3">Attendance</h3>
+      <h3 className="flex items-center gap-2 text-sm font-bold text-ink-black mb-3">
+        <span className="text-brandblue">{ClipboardIcon}</span> Attendance
+      </h3>
 
       {/* TODAY block */}
       {today.is_class_day && !today.marked ? (
-        <div className="rounded-card border border-sky-border bg-sky-wash p-3.5 mb-3">
-          <p className="text-[10px] font-extrabold text-sky-text uppercase tracking-eyebrow">
-            Today · {shortDate(todayInfoIso())}
+        <div className="rounded-card border border-hairline bg-white p-3.5 mb-3">
+          <p className="text-[11px] font-medium text-ink-muted">
+            Today · {dayShortDate(todayInfoIso())}
           </p>
-          <p className="text-xs font-bold text-incorrect-fg mt-1 flex items-center gap-1.5">
-            <span>{WarnIcon}</span> Not marked yet
+          <p className="text-sm font-bold text-ink-black mt-1.5 flex items-center gap-2">
+            <span className="text-[#e8730c]">{WarnIcon}</span> Not marked yet
           </p>
-          <Button variant="primary" size="sm" fullWidth className="mt-2.5" onClick={onMarkToday}>
+          <button
+            onClick={onMarkToday}
+            className="mt-3 w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3.5 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
+          >
             Mark attendance
-          </Button>
+          </button>
         </div>
       ) : today.is_class_day && today.marked && todaySession ? (
         <button
@@ -170,17 +189,14 @@ export default function AttendanceRail({
       )}
 
       {/* Rollup chips */}
-      <div className="flex flex-wrap gap-1.5 mb-3.5">
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[11px] font-bold text-ink-body">
-          {monthName()}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#e9f1fb] px-3 py-1.5 text-[11px] font-bold text-sky-dark">
+          {monthName()} · {rollups.classes_this_month}
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[11px] font-bold text-ink-body">
-          {rollups.classes_this_month} class{rollups.classes_this_month !== 1 ? 'es' : ''}
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-[11px] font-bold text-ink-body">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#e9f1fb] px-3 py-1.5 text-[11px] font-bold text-sky-dark">
           {rollups.hours_this_month}h
         </span>
-        <span className="inline-flex items-center gap-1 rounded-full bg-sky-wash px-2.5 py-1 text-[11px] font-bold text-sky-text">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#e7f7ee] px-3 py-1.5 text-[11px] font-bold text-[#1a8f3c]">
           avg {rollups.avg_pct}%
         </span>
       </div>
@@ -194,9 +210,9 @@ export default function AttendanceRail({
               <button
                 key={s.id}
                 onClick={() => onOpenSession(s.id)}
-                className="w-full flex items-center justify-between gap-2 py-2 text-left hover:bg-surface rounded-tile px-1.5 -mx-1.5 transition-colors"
+                className="w-full flex items-center justify-between gap-2 py-2.5 text-left hover:bg-surface rounded-tile px-1.5 -mx-1.5 transition-colors"
               >
-                <span className="text-xs font-bold text-ink-body">{shortDate(s.session_date)}</span>
+                <span className="text-xs font-bold text-ink-black">{shortDate(s.session_date)}</span>
                 <CountBadge session={s} />
               </button>
             ))}
@@ -207,7 +223,7 @@ export default function AttendanceRail({
       {/* All classes */}
       <button
         onClick={onViewAll}
-        className="text-xs font-extrabold text-sky-text hover:underline mt-1"
+        className="text-xs font-bold text-brandblue hover:underline mt-1"
       >
         All classes ›
       </button>
