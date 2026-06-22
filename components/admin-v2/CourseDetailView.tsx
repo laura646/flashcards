@@ -1,24 +1,31 @@
 'use client'
 
-// Wave 0 — redesigned COURSE DETAIL screen (10B), "new beside old".
+// ─────────────────────────────────────────────────────────────────
+// COURSE DETAIL (10B) — course-native restructure.
 //
-// Presentational only: all data arrives via props and every mutation /
-// navigation is a callback the real page owns (so this same component is
-// verifiable in a mock harness AND reused live). It MAY hold local UI state
-// (active tab, edit-mode toggle, the edit-form draft, inline save errors,
-// the telegram-test result) — but it never fetches, never uses the session,
-// and never touches the router. Tokens + kit match CoursesView /
-// StudentsView: Rubik, sky-text for values/links, sky-wash/sky-border info
-// tiles, hairline/rounded-card cards, Pill variant="level" honouring the
-// LOCKED rule (brandblue text NEVER on a sky-wash background).
+// Header: course name + description ONLY (Archive lives in Superadmin now).
+// Body is a two-column layout (desktop md+):
+//   LEFT  = tabs "Lessons (n)" | "Students (n)" + the + Create action; the
+//           list is the ONLY scroll area (its own max-height + overflow).
+//   RIGHT = a (non-scrolling) rail: a "Course info" card (displayed, with an
+//           Edit affordance) + the Attendance card (hidden when self_study).
+// On mobile the rail stacks on top.
+//
+// Presentational only: data via props, every mutation/navigation is a
+// callback the page owns. It MAY hold local UI state (active tab, edit-mode,
+// the edit-form draft, inline errors). It never fetches / uses the session /
+// touches the router.
+// ─────────────────────────────────────────────────────────────────
 
 import { useMemo, useState } from 'react'
 import { Pill, EmptyState, Skeleton, Button, InlineError, TextField, SegmentedControl } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
-import { useConfirm } from '@/components/ConfirmDialog'
-import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES, COURSE_CATEGORIES } from '@/lib/common-issues'
+import { COMMON_ISSUES_BY_LEVEL } from '@/lib/common-issues'
+import AttendanceRail, { AttendanceOverview } from '@/components/admin-v2/AttendanceRail'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
+
+const WEEKDAY_TOKENS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export interface CourseDetailData {
   id: string
@@ -31,6 +38,15 @@ export interface CourseDetailData {
   level: string | null
   telegram_chat_id: string | null
   archived_at: string | null
+  // ── Course-native schedule fields ──
+  schedule_days: string | null // "Mon,Wed"
+  schedule_time: string | null // "16:00"
+  schedule_duration_min: number | null
+  start_date: string | null // YYYY-MM-DD
+  self_study: boolean
+  telegram_link: string | null
+  lesson_link: string | null // Zoom
+  trainer_name?: string | null
 }
 
 export interface CourseStudentRow {
@@ -52,22 +68,32 @@ export interface CourseLessonRow {
   created_at: string
 }
 
-export interface CourseSaveForm {
-  name: string
+// What the Course-Info edit form sends (maps to update-schedule).
+export interface CourseInfoForm {
   description: string
   level: string
-  course_type: string
-  course_category: string
-  telegram_chat_id: string
-  invite_code: string
+  schedule_days: string // "Mon,Wed"
+  schedule_time: string
+  schedule_duration_min: number
+  start_date: string
+  self_study: boolean
+  telegram_link: string
+  lesson_link: string
 }
 
-// ── Helpers ported verbatim from the legacy admin page ──
-// formatDate: en-GB 'd Mon yyyy', null -> 'Never'.
+// ── Helpers ──
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return 'Never'
   const d = new Date(dateStr)
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Format a YYYY-MM-DD as a local "26 Jun 2024".
+function formatStartDate(iso: string | null): string {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return iso
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function timeAgo(dateStr: string | null): string {
@@ -78,7 +104,6 @@ function timeAgo(dateStr: string | null): string {
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
-
   if (diffMins < 1) return 'Just now'
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
@@ -86,66 +111,74 @@ function timeAgo(dateStr: string | null): string {
   return formatDate(dateStr)
 }
 
+// "Mon,Wed" + "16:00" + 60 -> "Mon & Wed · 16:00 · 1h".
+function formatSchedule(days: string | null, time: string | null, durationMin: number | null): string | null {
+  const parts: string[] = []
+  if (days && days.trim()) {
+    const tokens = days.split(',').map((t) => t.trim()).filter(Boolean)
+    if (tokens.length === 1) parts.push(tokens[0])
+    else if (tokens.length === 2) parts.push(`${tokens[0]} & ${tokens[1]}`)
+    else if (tokens.length > 2) parts.push(tokens.slice(0, -1).join(', ') + ' & ' + tokens[tokens.length - 1])
+  }
+  if (time && time.trim()) parts.push(time.trim())
+  if (durationMin) {
+    const h = durationMin / 60
+    parts.push(Number.isInteger(h) ? `${h}h` : `${durationMin}m`)
+  }
+  return parts.length ? parts.join(' · ') : null
+}
+
 const INVITE_CODE_RE = /^[A-Za-z0-9]{3,20}$/
 
-type Tab = 'lessons' | 'students' | 'info'
+type Tab = 'lessons' | 'students'
+
+// ── Tabler-style line icons for the Course-info rail ──
+const iconBase = {
+  width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none',
+  stroke: 'currentColor', strokeWidth: 2,
+  strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+}
+const IcCalendar = (<svg {...iconBase}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>)
+const IcClock = (<svg {...iconBase}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>)
+const IcUser = (<svg {...iconBase}><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 12 0v1" /></svg>)
+const IcKey = (<svg {...iconBase}><circle cx="8" cy="15" r="4" /><path d="M10.85 12.15 19 4M18 5l2 2M15 8l2 2" /></svg>)
+const IcVideo = (<svg {...iconBase}><rect x="2" y="6" width="14" height="12" rx="2" /><path d="m16 10 6-3v10l-6-3" /></svg>)
+const IcSend = (<svg {...iconBase}><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>)
 
 interface CourseDetailViewProps {
   course: CourseDetailData | null
   students: CourseStudentRow[]
   lessons: CourseLessonRow[]
   loading: boolean
+  // Attendance rail
+  overview: AttendanceOverview | null
+  overviewLoading?: boolean
+  onMarkToday: () => void
+  onNewClass: () => void
+  onOpenSession: (sessionId: string) => void
+  onViewAllSessions: () => void
+  // Navigation / lesson actions
   onBack: () => void
   onOpenLesson: (id: string) => void
   onOpenStudent: (email: string) => void
   onCreateLesson: () => void
   onAssignFromLibrary: () => void
-  onSaveCourse: (form: CourseSaveForm) => Promise<{ ok: boolean; error?: string }>
+  // Course-info save (update-schedule)
+  onSaveCourseInfo: (form: CourseInfoForm) => Promise<{ ok: boolean; error?: string }>
+  // Invite-code change is a separate concern (kept via update-course).
+  onSaveInviteCode: (code: string) => Promise<{ ok: boolean; error?: string }>
   onSendTelegramTest: () => Promise<{ ok: boolean; error?: string }>
-  onArchive: () => Promise<{ ok: boolean; error?: string }>
-  onRestore: () => Promise<{ ok: boolean; error?: string }>
 }
 
-// A small read-only label/value row for the Course Info read view.
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+// Read-only label/value row for the Course Info card.
+function InfoRow({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow">{label}</p>
-      <div className="text-sm text-ink-black mt-0.5">{children}</div>
-    </div>
-  )
-}
-
-// Segmented tab control. Local-only (active tab is UI state on this View).
-function Tabs({ value, onChange, lessonCount, studentCount }: {
-  value: Tab
-  onChange: (t: Tab) => void
-  lessonCount: number
-  studentCount: number
-}) {
-  const segs: { value: Tab; label: string }[] = [
-    { value: 'lessons', label: `Lessons (${lessonCount})` },
-    { value: 'students', label: `Students (${studentCount})` },
-    { value: 'info', label: 'Course Info' },
-  ]
-  return (
-    <div className="inline-flex bg-sky-wash rounded-full p-1">
-      {segs.map((s) => {
-        const active = s.value === value
-        return (
-          <button
-            key={s.value}
-            onClick={() => onChange(s.value)}
-            className={`px-4 py-1.5 text-[13px] font-bold rounded-full transition-all ${
-              active
-                ? 'bg-white text-brandblue shadow-[0_1px_2px_rgba(15,22,40,0.08)]'
-                : 'text-ink-body hover:text-ink-black'
-            }`}
-          >
-            {s.label}
-          </button>
-        )
-      })}
+    <div className="flex items-start gap-2.5">
+      <span className="text-sky-text mt-0.5 shrink-0">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow">{label}</p>
+        <div className="text-sm text-ink-black mt-0.5 break-words">{children}</div>
+      </div>
     </div>
   )
 }
@@ -155,31 +188,38 @@ export function CourseDetailView({
   students,
   lessons,
   loading,
+  overview,
+  overviewLoading,
+  onMarkToday,
+  onNewClass,
+  onOpenSession,
+  onViewAllSessions,
   onBack,
   onOpenLesson,
   onOpenStudent,
   onCreateLesson,
   onAssignFromLibrary,
-  onSaveCourse,
+  onSaveCourseInfo,
+  onSaveInviteCode,
   onSendTelegramTest,
-  onArchive,
-  onRestore,
 }: CourseDetailViewProps) {
-  const confirm = useConfirm()
   const [tab, setTab] = useState<Tab>('lessons')
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState<CourseSaveForm>({
-    name: '', description: '', level: '', course_type: '', course_category: '', telegram_chat_id: '', invite_code: '',
+  const [form, setForm] = useState<CourseInfoForm>({
+    description: '', level: '', schedule_days: '', schedule_time: '',
+    schedule_duration_min: 60, start_date: '', self_study: false,
+    telegram_link: '', lesson_link: '',
   })
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
   const [tgState, setTgState] = useState<{ kind: 'ok' | 'error'; message: string } | null>(null)
   const [tgSending, setTgSending] = useState(false)
-  const [archiveBusy, setArchiveBusy] = useState(false)
-  const [archiveError, setArchiveError] = useState('')
   const [copied, setCopied] = useState(false)
 
-  // ── Lessons-tab client-side search + status filter (over the `lessons` prop) ──
+  // Invite-code change (inside the edit form).
+  const [inviteCode, setInviteCode] = useState('')
+
+  // ── Lessons list search + status filter ──
   const [lessonQuery, setLessonQuery] = useState('')
   const [lessonStatus, setLessonStatus] = useState<'all' | 'draft' | 'published'>('all')
 
@@ -192,39 +232,63 @@ export function CourseDetailView({
     })
   }, [lessons, lessonQuery, lessonStatus])
 
-  // Seed the edit-form draft from the current course, then flip to edit mode.
+  const scheduleDaySet = useMemo(() => {
+    const set = new Set<string>()
+    if (form.schedule_days) for (const t of form.schedule_days.split(',')) { const v = t.trim(); if (v) set.add(v) }
+    return set
+  }, [form.schedule_days])
+
   const startEditing = () => {
     if (!course) return
     setForm({
-      name: course.name || '',
       description: course.description || '',
       level: course.level || '',
-      course_type: course.course_type || '',
-      course_category: course.course_category || '',
-      telegram_chat_id: course.telegram_chat_id || '',
-      invite_code: '',
+      schedule_days: course.schedule_days || '',
+      schedule_time: course.schedule_time || '',
+      schedule_duration_min: course.schedule_duration_min || 60,
+      start_date: course.start_date || '',
+      self_study: !!course.self_study,
+      telegram_link: course.telegram_link || '',
+      lesson_link: course.lesson_link || '',
     })
+    setInviteCode('')
     setSaveError('')
     setEditing(true)
   }
 
+  const toggleDay = (day: string) => {
+    setForm((prev) => {
+      const set = new Set<string>()
+      if (prev.schedule_days) for (const t of prev.schedule_days.split(',')) { const v = t.trim(); if (v) set.add(v) }
+      if (set.has(day)) set.delete(day)
+      else set.add(day)
+      // Re-order canonically (Mon..Sun).
+      const ordered = WEEKDAY_TOKENS.filter((d) => set.has(d))
+      return { ...prev, schedule_days: ordered.join(',') }
+    })
+  }
+
   const handleSave = async () => {
     setSaveError('')
-    // Client-validate the invite code before hitting the server (mirrors the
-    // server regex so we fail fast with a useful message). Empty = unchanged.
-    const code = form.invite_code.trim()
+    const code = inviteCode.trim()
     if (code && !INVITE_CODE_RE.test(code)) {
       setSaveError('Invite code must be 3-20 letters or digits — no spaces or symbols.')
       return
     }
     setSaving(true)
-    const res = await onSaveCourse(form)
-    setSaving(false)
-    if (res.ok) {
-      setEditing(false)
-    } else {
-      setSaveError(res.error || 'Failed to update course')
+    // Save the schedule/info first, then the invite code (if changed).
+    const res = await onSaveCourseInfo(form)
+    if (res.ok && code) {
+      const codeRes = await onSaveInviteCode(code)
+      if (!codeRes.ok) {
+        setSaving(false)
+        setSaveError(codeRes.error || 'Course info saved, but the invite code could not be updated.')
+        return
+      }
     }
+    setSaving(false)
+    if (res.ok) setEditing(false)
+    else setSaveError(res.error || 'Failed to update course')
   }
 
   const handleTelegramTest = async () => {
@@ -239,374 +303,393 @@ export function CourseDetailView({
     )
   }
 
-  const handleArchive = async () => {
-    const ok = await confirm({
-      title: 'Archive this course?',
-      message: 'Archive this course? It will be hidden from the active list (you can restore it anytime).',
-      confirmLabel: 'Archive',
-    })
-    if (!ok) return
-    setArchiveError('')
-    setArchiveBusy(true)
-    const res = await onArchive()
-    setArchiveBusy(false)
-    if (!res.ok) setArchiveError(res.error || 'Failed to archive course')
-  }
-
-  const handleRestore = async () => {
-    setArchiveError('')
-    setArchiveBusy(true)
-    const res = await onRestore()
-    setArchiveBusy(false)
-    if (!res.ok) setArchiveError(res.error || 'Failed to restore course')
-  }
-
   const handleCopyInvite = async () => {
     if (!course) return
     try {
       await navigator.clipboard.writeText(course.invite_code)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch { /* clipboard unavailable — no-op */ }
+    } catch { /* clipboard unavailable */ }
   }
 
   // ── Loading skeleton ──
   if (loading || !course) {
     return (
       <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <Skeleton className="h-4 w-40 mb-5" />
           <div className="bg-white rounded-card border border-hairline p-5 mb-4">
             <Skeleton className="h-6 w-52 mb-2" />
-            <Skeleton className="h-3 w-72 mb-3" />
-            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-3 w-72" />
           </div>
-          <Skeleton className="h-9 w-72 mb-4 rounded-full" />
-          <div className="bg-white rounded-card border border-hairline p-5 space-y-3">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr,320px] gap-4">
+            <Skeleton className="h-72 w-full rounded-card" />
+            <Skeleton className="h-72 w-full rounded-card" />
           </div>
         </div>
       </div>
     )
   }
 
+  const scheduleText = formatSchedule(course.schedule_days, course.schedule_time, course.schedule_duration_min)
+
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <PageHeader
-          crumbs={[
-            { label: 'My Courses', onClick: onBack },
-            { label: course.name },
-          ]}
+          crumbs={[{ label: 'My Courses', onClick: onBack }, { label: course.name }]}
           className="mb-5"
         />
 
-        {/* Course header card */}
+        {/* Header card — name + description ONLY */}
         <div className="bg-white rounded-card border border-hairline p-5 mb-4">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold text-brandblue">{course.name}</h1>
-                {course.archived_at && <Pill variant="status">Archived</Pill>}
-              </div>
-              <p className="text-sm text-ink-muted mt-1">{course.description || 'No description'}</p>
-              <div className="flex gap-2 mt-2.5 flex-wrap">
-                {course.level && <Pill variant="level">{course.level}</Pill>}
-                {course.course_type && <Pill variant="level">{course.course_type}</Pill>}
-                {course.course_category && <Pill variant="level">{course.course_category}</Pill>}
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-2.5 shrink-0">
-              <div className="text-xs text-ink-muted">
-                Invite: <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
-              </div>
-              {course.archived_at ? (
-                <Button variant="secondary" size="sm" onClick={handleRestore} disabled={archiveBusy}>
-                  {archiveBusy ? 'Restoring…' : 'Restore course'}
-                </Button>
-              ) : (
-                <Button variant="neutral" size="sm" onClick={handleArchive} disabled={archiveBusy}>
-                  {archiveBusy ? 'Archiving…' : 'Archive course'}
-                </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-bold text-brandblue">{course.name}</h1>
+            {course.archived_at && <Pill variant="status">Archived</Pill>}
+            {course.self_study && <Pill variant="level">Self-study</Pill>}
+          </div>
+          <p className="text-sm text-ink-muted mt-1">{course.description || 'No description'}</p>
+        </div>
+
+        {/* Two-column body */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr,330px] gap-4 items-start">
+          {/* ─── LEFT: tabs + list (the list is the only scroll area) ─── */}
+          <div className="order-2 md:order-1 min-w-0">
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <SegmentedControl<Tab>
+                segments={[
+                  { value: 'lessons', label: `Lessons (${lessons.length})` },
+                  { value: 'students', label: `Students (${students.length})` },
+                ]}
+                value={tab}
+                onChange={setTab}
+              />
+              {tab === 'lessons' && (
+                <div className="flex items-center gap-2">
+                  <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
+                  <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
+                </div>
               )}
             </div>
-          </div>
-          {archiveError && (
-            <div className="mt-3">
-              <InlineError message={archiveError} />
-            </div>
-          )}
-        </div>
 
-        {/* Tabs */}
-        <div className="mb-4">
-          <Tabs value={tab} onChange={setTab} lessonCount={lessons.length} studentCount={students.length} />
-        </div>
-
-        {/* ── Lessons tab ── */}
-        {tab === 'lessons' && (
-          <div className="bg-white rounded-card border border-hairline overflow-hidden">
-            <div className="px-5 py-4 border-b border-hairline flex items-center justify-between gap-3">
-              <h2 className="font-bold text-ink-black">Lessons</h2>
-              <div className="flex items-center gap-2">
-                <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from My Library</Button>
-                <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
-              </div>
-            </div>
-            {lessons.length === 0 ? (
-              <div className="py-2">
-                <EmptyState icon="📖" title="No lessons yet" hint="Create one from scratch or import a ready-made plan from the content bank." />
-                <div className="flex items-center justify-center gap-2 pb-8">
-                  <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
-                  <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from My Library</Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* Dense filter strip — search + status filter over the lessons prop */}
-                <div className="px-5 py-3 border-b border-hairline">
-                  <div className="bg-sky-wash rounded-card border border-sky-border p-3 flex flex-wrap items-end gap-3">
-                    <TextField
-                      label="Search"
-                      placeholder="Search lessons…"
-                      value={lessonQuery}
-                      onChange={(e) => setLessonQuery(e.target.value)}
-                      className="flex-1 min-w-[220px]"
-                    />
-                    <SegmentedControl<'all' | 'draft' | 'published'>
-                      segments={[
-                        { value: 'all', label: 'All' },
-                        { value: 'draft', label: 'Draft' },
-                        { value: 'published', label: 'Published' },
-                      ]}
-                      value={lessonStatus}
-                      onChange={setLessonStatus}
-                    />
+            {/* Lessons */}
+            {tab === 'lessons' && (
+              <div className="bg-white rounded-card border border-hairline overflow-hidden">
+                {lessons.length === 0 ? (
+                  <div className="py-2">
+                    <EmptyState icon="📖" title="No lessons yet" hint="Create one from scratch or import a ready-made plan from the content bank." />
+                    <div className="flex items-center justify-center gap-2 pb-8">
+                      <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
+                      <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
+                    </div>
                   </div>
-                </div>
-                {filteredLessons.length === 0 ? (
-                  <EmptyState icon="🔍" title="No matches" hint="No lessons match your search or filter. Try clearing the search or switching the status filter." />
                 ) : (
-                  <div className="divide-y divide-hairline">
-                    {filteredLessons.map((lesson) => (
+                  <>
+                    <div className="px-4 py-3 border-b border-hairline">
+                      <div className="bg-sky-wash rounded-card border border-sky-border p-3 flex flex-wrap items-end gap-3">
+                        <TextField
+                          label="Search"
+                          placeholder="Search lessons…"
+                          value={lessonQuery}
+                          onChange={(e) => setLessonQuery(e.target.value)}
+                          className="flex-1 min-w-[180px]"
+                        />
+                        <SegmentedControl<'all' | 'draft' | 'published'>
+                          segments={[
+                            { value: 'all', label: 'All' },
+                            { value: 'draft', label: 'Draft' },
+                            { value: 'published', label: 'Published' },
+                          ]}
+                          value={lessonStatus}
+                          onChange={setLessonStatus}
+                        />
+                      </div>
+                    </div>
+                    {filteredLessons.length === 0 ? (
+                      <EmptyState icon="🔍" title="No matches" hint="No lessons match your search or filter." />
+                    ) : (
+                      <div className="max-h-[60vh] overflow-y-auto divide-y divide-hairline">
+                        {filteredLessons.map((lesson) => (
+                          <button
+                            key={lesson.id}
+                            onClick={() => onOpenLesson(lesson.id)}
+                            className="w-full text-left px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
+                              <div className="flex gap-2 mt-1 flex-wrap">
+                                {lesson.template_level && <Pill variant="level">{lesson.template_level}</Pill>}
+                                {lesson.template_category && <Pill variant="level">{lesson.template_category}</Pill>}
+                                {lesson.is_template && (
+                                  <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Template</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
+                                {lesson.status === 'published' ? 'Published' : 'Draft'}
+                              </Pill>
+                              <span className="text-xs text-ink-muted hidden sm:inline">{formatDate(lesson.created_at)}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Students */}
+            {tab === 'students' && (
+              <div className="bg-white rounded-card border border-hairline overflow-hidden">
+                {students.length === 0 ? (
+                  <EmptyState icon="🦗" title="No students enrolled" hint="When a student signs up with this course's invite code, they'll appear here." />
+                ) : (
+                  <div className="max-h-[60vh] overflow-y-auto divide-y divide-hairline">
+                    {students.map((student) => (
                       <button
-                        key={lesson.id}
-                        onClick={() => onOpenLesson(lesson.id)}
-                        className="w-full text-left px-5 py-4 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
+                        key={student.email}
+                        onClick={() => onOpenStudent(student.email)}
+                        className="w-full text-left px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
                       >
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
-                          <div className="flex gap-2 mt-1 flex-wrap">
-                            {lesson.template_level && <Pill variant="level">{lesson.template_level}</Pill>}
-                            {lesson.template_category && <Pill variant="level">{lesson.template_category}</Pill>}
-                            {lesson.is_template && (
-                              <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Template</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold text-ink-black truncate">{student.name || 'Unknown'}</p>
+                            {student.level && <Pill variant="level">{student.level}</Pill>}
+                            {student.blocked && (
+                              <span className="text-[10px] font-bold bg-incorrect-bg text-incorrect-fg px-2 py-0.5 rounded-full">BLOCKED</span>
                             )}
                           </div>
+                          <p className="text-xs text-ink-muted mt-0.5 truncate">{student.email}</p>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
-                            {lesson.status === 'published' ? 'Published' : 'Draft'}
-                          </Pill>
-                          <span className="text-xs text-ink-muted">{formatDate(lesson.created_at)}</span>
+                        <div className="flex items-center gap-4 shrink-0 text-center">
+                          <div>
+                            <p className="text-sm font-bold text-sky-text">{student.total_sessions}</p>
+                            <p className="text-[10px] text-ink-muted">sessions</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-ink-muted">{timeAgo(student.last_activity)}</p>
+                            <p className="text-[10px] text-ink-muted">last active</p>
+                          </div>
                         </div>
                       </button>
                     ))}
                   </div>
                 )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── Students tab ── */}
-        {tab === 'students' && (
-          <div className="bg-white rounded-card border border-hairline overflow-hidden">
-            <div className="px-5 py-4 border-b border-hairline">
-              <h2 className="font-bold text-ink-black">Students in this course</h2>
-            </div>
-            {students.length === 0 ? (
-              <EmptyState icon="🦗" title="No students enrolled" hint="When a student signs up with this course's invite code, they'll appear here." />
-            ) : (
-              <div className="divide-y divide-hairline">
-                {students.map((student) => (
-                  <button
-                    key={student.email}
-                    onClick={() => onOpenStudent(student.email)}
-                    className="w-full text-left px-5 py-4 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-bold text-ink-black truncate">{student.name || 'Unknown'}</p>
-                        {student.level && <Pill variant="level">{student.level}</Pill>}
-                        {student.blocked && (
-                          <span className="text-[10px] font-bold bg-incorrect-bg text-incorrect-fg px-2 py-0.5 rounded-full">BLOCKED</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-ink-muted mt-0.5 truncate">{student.email}</p>
-                    </div>
-                    <div className="flex items-center gap-4 shrink-0 text-center">
-                      <div>
-                        <p className="text-sm font-bold text-sky-text">{student.total_sessions}</p>
-                        <p className="text-[10px] text-ink-muted">sessions</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-ink-muted">{timeAgo(student.last_activity)}</p>
-                        <p className="text-[10px] text-ink-muted">last active</p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
               </div>
             )}
           </div>
-        )}
 
-        {/* ── Course Info tab ── */}
-        {tab === 'info' && (
-          <div className="bg-white rounded-card border border-hairline p-5">
-            {editing ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Course Name</label>
-                  <input
-                    type="text"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Description</label>
-                  <textarea
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 h-20 resize-none bg-white focus:outline-none focus:border-sky"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
+          {/* ─── RIGHT RAIL: Course info + Attendance (does not scroll) ─── */}
+          <div className="order-1 md:order-2 space-y-4">
+            {/* Course info card */}
+            <div className="bg-white rounded-card border border-hairline p-[18px]">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-ink-black">Course info</h3>
+                {!editing && (
+                  <button onClick={startEditing} className="text-xs font-extrabold text-sky-text hover:underline">Edit</button>
+                )}
+              </div>
+
+              {editing ? (
+                <div className="space-y-3.5">
                   <div>
-                    <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Level</label>
-                    <select
-                      value={form.level}
-                      onChange={(e) => setForm({ ...form, level: e.target.value })}
-                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
-                    >
-                      <option value="">Not set</option>
-                      {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
+                    <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Description</label>
+                    <textarea
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 h-16 resize-none bg-white focus:outline-none focus:border-sky"
+                    />
                   </div>
                   <div>
-                    <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Course Type</label>
-                    <select
-                      value={form.course_type}
-                      onChange={(e) => setForm({ ...form, course_type: e.target.value })}
-                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
-                    >
-                      <option value="">Not set</option>
-                      {COURSE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Schedule days</label>
+                    <div className="flex flex-wrap gap-1">
+                      {WEEKDAY_TOKENS.map((d) => {
+                        const active = scheduleDaySet.has(d)
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => toggleDay(d)}
+                            className={`px-2.5 py-1.5 text-[11px] font-bold rounded-tile border transition-colors ${
+                              active ? 'bg-sky text-white border-sky' : 'bg-white text-ink-muted border-hairline hover:border-sky-border'
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Category</label>
-                    <select
-                      value={form.course_category}
-                      onChange={(e) => setForm({ ...form, course_category: e.target.value })}
-                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
-                    >
-                      <option value="">Not set</option>
-                      {COURSE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                    </select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Time</label>
+                      <input
+                        type="time"
+                        value={form.schedule_time}
+                        onChange={(e) => setForm({ ...form, schedule_time: e.target.value })}
+                        className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Duration</label>
+                      <select
+                        value={form.schedule_duration_min}
+                        onChange={(e) => setForm({ ...form, schedule_duration_min: Number(e.target.value) })}
+                        className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                      >
+                        <option value={30}>30m</option>
+                        <option value={60}>1h</option>
+                        <option value={90}>1.5h</option>
+                        <option value={120}>2h</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Invite code</label>
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="text-xs text-ink-muted">
-                      Current code: <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Start date</label>
+                      <input
+                        type="date"
+                        value={form.start_date}
+                        onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                        className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Level</label>
+                      <select
+                        value={form.level}
+                        onChange={(e) => setForm({ ...form, level: e.target.value })}
+                        className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                      >
+                        <option value="">Not set</option>
+                        {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {/* Self-study toggle */}
+                  <label className="flex items-center justify-between gap-3 rounded-tile border border-hairline px-3 py-2.5 cursor-pointer">
+                    <span className="min-w-0">
+                      <span className="text-sm font-bold text-ink-black block">Self-study course</span>
+                      <span className="text-[11px] text-ink-muted leading-snug">No live classes — hides attendance.</span>
                     </span>
-                    <Button variant="neutral" size="sm" onClick={handleCopyInvite}>
-                      {copied ? 'Copied!' : 'Copy'}
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.self_study}
+                      onClick={() => setForm({ ...form, self_study: !form.self_study })}
+                      className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${form.self_study ? 'bg-sky' : 'bg-hairline'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.self_study ? 'translate-x-5' : ''}`} />
+                    </button>
+                  </label>
+                  <div>
+                    <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Zoom link</label>
+                    <input
+                      type="url"
+                      value={form.lesson_link}
+                      onChange={(e) => setForm({ ...form, lesson_link: e.target.value })}
+                      placeholder="https://zoom.us/j/…"
+                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Telegram link</label>
+                    <input
+                      type="url"
+                      value={form.telegram_link}
+                      onChange={(e) => setForm({ ...form, telegram_link: e.target.value })}
+                      placeholder="https://t.me/…"
+                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1 block">Invite code</label>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span className="text-xs text-ink-muted">
+                        Current: <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
+                      </span>
+                      <Button variant="neutral" size="sm" onClick={handleCopyInvite}>{copied ? 'Copied!' : 'Copy'}</Button>
+                    </div>
+                    <input
+                      type="text"
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                      placeholder="New code (blank = keep current)"
+                      maxLength={20}
+                      className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white font-mono uppercase focus:outline-none focus:border-sky"
+                    />
+                  </div>
+                  {saveError && <InlineError message={saveError} />}
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+                      {saving ? 'Saving…' : 'Save'}
+                    </Button>
+                    <Button variant="neutral" size="sm" onClick={() => { setEditing(false); setSaveError('') }} disabled={saving}>
+                      Cancel
                     </Button>
                   </div>
-                  <input
-                    type="text"
-                    value={form.invite_code}
-                    onChange={(e) => setForm({ ...form, invite_code: e.target.value.toUpperCase() })}
-                    placeholder="Type a new code to change it (leave blank to keep current)"
-                    maxLength={20}
-                    className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white font-mono uppercase focus:outline-none focus:border-sky"
-                  />
-                  <p className="text-[11px] text-ink-muted mt-1 leading-snug">
-                    Must be 3-20 letters or digits. Stored uppercase. Changing it does not affect already-joined students.
-                  </p>
                 </div>
-                <div>
-                  <label className="text-[11px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-1.5 block">Telegram chat ID</label>
-                  <input
-                    type="text"
-                    value={form.telegram_chat_id}
-                    onChange={(e) => setForm({ ...form, telegram_chat_id: e.target.value })}
-                    placeholder="e.g. -1001234567890"
-                    className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white font-mono focus:outline-none focus:border-sky"
-                  />
-                  <p className="text-[11px] text-ink-muted mt-1 leading-snug">
-                    Add <span className="font-mono">@English_with_Laura_Bot</span> to your group, then type <span className="font-mono">/chatid</span> in the group — the bot will reply with the ID. Paste it here. Leave blank to disable notifications for this course.
-                  </p>
-                </div>
-                {saveError && <InlineError message={saveError} />}
-                <div className="flex gap-2 pt-1">
-                  <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
-                    {saving ? 'Saving…' : 'Save'}
-                  </Button>
-                  <Button variant="neutral" size="sm" onClick={() => { setEditing(false); setSaveError('') }} disabled={saving}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
+              ) : (
                 <div className="space-y-3">
-                  <InfoRow label="Name">{course.name}</InfoRow>
-                  <InfoRow label="Description">{course.description || '—'}</InfoRow>
-                  <div className="grid grid-cols-4 gap-4">
-                    <InfoRow label="Level">{course.level || '—'}</InfoRow>
-                    <InfoRow label="Type">{course.course_type || '—'}</InfoRow>
-                    <InfoRow label="Category">{course.course_category || '—'}</InfoRow>
-                    <InfoRow label="Invite Code">
-                      <span className="font-mono text-sky-text">{course.invite_code}</span>
-                    </InfoRow>
-                  </div>
-                  <InfoRow label="Created">{formatDate(course.created_at)}</InfoRow>
-                  <InfoRow label="Telegram chat ID">
-                    <span className="font-mono">{course.telegram_chat_id || '—'}</span>
-                  </InfoRow>
-                </div>
-                <div className="mt-4 flex gap-2 flex-wrap">
-                  <Button variant="primary" size="sm" onClick={startEditing}>Edit Course Info</Button>
-                  {course.telegram_chat_id && (
-                    <Button variant="secondary" size="sm" onClick={handleTelegramTest} disabled={tgSending}>
-                      {tgSending ? 'Sending…' : 'Send test message'}
-                    </Button>
+                  {scheduleText && <InfoRow icon={IcCalendar} label="Schedule">{scheduleText}</InfoRow>}
+                  {course.self_study && !scheduleText && (
+                    <InfoRow icon={IcCalendar} label="Schedule">Self-study (no fixed schedule)</InfoRow>
                   )}
-                </div>
-                {tgState && (
-                  <div className="mt-3">
-                    {tgState.kind === 'ok' ? (
-                      <p className="text-xs font-medium text-correct-fg bg-correct-bg border border-correct-border rounded-tile px-3.5 py-2.5">
-                        {tgState.message}
-                      </p>
+                  <InfoRow icon={IcClock} label="Started">{formatStartDate(course.start_date)}</InfoRow>
+                  <InfoRow icon={IcUser} label="Trainer · Level">
+                    {(course.trainer_name || 'Unassigned')}{course.level ? ` · ${course.level}` : ''}
+                  </InfoRow>
+                  <InfoRow icon={IcKey} label="Invite code">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="font-mono font-bold text-sky-text">{course.invite_code}</span>
+                      <button onClick={handleCopyInvite} className="text-[11px] font-bold text-sky-text underline">
+                        {copied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </span>
+                  </InfoRow>
+                  {course.lesson_link && (
+                    <InfoRow icon={IcVideo} label="Zoom">
+                      <a href={course.lesson_link} target="_blank" rel="noreferrer" className="text-sky-text font-bold hover:underline break-all">Open Zoom link</a>
+                    </InfoRow>
+                  )}
+                  {course.telegram_link && (
+                    <InfoRow icon={IcSend} label="Telegram">
+                      <a href={course.telegram_link} target="_blank" rel="noreferrer" className="text-sky-text font-bold hover:underline break-all">Open Telegram</a>
+                    </InfoRow>
+                  )}
+                  {course.telegram_chat_id && (
+                    <div className="pt-1">
+                      <Button variant="secondary" size="sm" onClick={handleTelegramTest} disabled={tgSending}>
+                        {tgSending ? 'Sending…' : 'Send Telegram test'}
+                      </Button>
+                    </div>
+                  )}
+                  {tgState && (
+                    tgState.kind === 'ok' ? (
+                      <p className="text-xs font-medium text-correct-fg bg-correct-bg border border-correct-border rounded-tile px-3 py-2">{tgState.message}</p>
                     ) : (
                       <InlineError message={tgState.message} />
-                    )}
-                  </div>
-                )}
-              </>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Attendance card — only for non-self-study courses */}
+            {!course.self_study && (
+              <AttendanceRail
+                overview={overview}
+                loading={overviewLoading}
+                onMarkToday={onMarkToday}
+                onNewClass={onNewClass}
+                onOpenSession={onOpenSession}
+                onViewAll={onViewAllSessions}
+              />
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

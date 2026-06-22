@@ -264,7 +264,15 @@ export async function POST(req: NextRequest) {
   try {
     // ── Create a new course ──
     if (action === 'create-course') {
-      const { name, description } = body
+      const {
+        name,
+        description,
+        self_study,
+        schedule_days,
+        schedule_time,
+        schedule_duration_min,
+        start_date,
+      } = body
       if (!name?.trim()) {
         return NextResponse.json({ error: 'Course name required' }, { status: 400 })
       }
@@ -276,14 +284,25 @@ export async function POST(req: NextRequest) {
       const prefix = name.trim().replace(/\s+/g, '').substring(0, 4).toUpperCase()
       const inviteCode = prefix + '-' + randomBytes(6).toString('hex').toUpperCase()
 
+      // Schedule fields are optional at creation (can be set later via the
+      // course-sessions update-schedule action). self_study defaults to false.
+      const insertData: Record<string, unknown> = {
+        name: name.trim(),
+        description: description?.trim() || null,
+        invite_code: inviteCode,
+        created_by: user.email,
+        self_study: !!self_study,
+      }
+      if (schedule_days !== undefined) insertData.schedule_days = schedule_days?.trim() || null
+      if (schedule_time !== undefined) insertData.schedule_time = schedule_time?.trim() || null
+      if (schedule_duration_min !== undefined)
+        insertData.schedule_duration_min =
+          typeof schedule_duration_min === 'number' ? schedule_duration_min : null
+      if (start_date !== undefined) insertData.start_date = start_date?.trim() || null
+
       const { data, error } = await supabase
         .from('courses')
-        .insert({
-          name: name.trim(),
-          description: description?.trim() || null,
-          invite_code: inviteCode,
-          created_by: user.email,
-        })
+        .insert(insertData)
         .select()
         .single()
 

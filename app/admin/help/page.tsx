@@ -376,16 +376,16 @@ function AttendanceSection() {
   return (
     <Section id="attendance" icon="✅" title="Attendance">
       <p>
-        <Link href="/admin/attendance" className="text-sky-text hover:underline">Attendance</Link> lets
-        you record who showed up to each class session.
+        Attendance now lives on each <Link href="/admin/courses" className="text-sky-text hover:underline">course page</Link>:
+        record who showed up to each dated class session, right beside the course info.
       </p>
       <Subhead>Marking attendance</Subhead>
       <ol className="list-decimal pl-5 space-y-1">
-        <li>Pick a course from the dropdown.</li>
-        <li>Pick a lesson — each lesson&apos;s date is shown for orientation.</li>
-        <li>For each student, click one of the four status toggles.</li>
-        <li>Add an optional per-record note (e.g. &quot;joined 10 min late&quot;).</li>
-        <li>Hit <span className="font-mono">Save attendance</span>.</li>
+        <li>Open the course — the Attendance card sits in the right rail.</li>
+        <li>On a class day, hit <span className="font-mono">Mark attendance</span> (or <span className="font-mono">+ New class</span> any other day).</li>
+        <li>Everyone starts Present — tap the exceptions (Late / Absent / Excused).</li>
+        <li>Add an optional per-student note and what you covered.</li>
+        <li>Hit <span className="font-mono">Save class</span>.</li>
       </ol>
       <Mockup title="Attendance roster">
         <div className="space-y-1.5">

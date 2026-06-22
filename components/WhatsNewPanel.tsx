@@ -33,10 +33,10 @@ const ITEMS: WhatsNewItem[] = [
   },
   {
     icon: '✅',
-    title: 'Attendance UI',
-    description: 'Mark Present / Absent / Late / Excused per student per lesson. Notes, audit trail, "Mark all present" shortcut.',
-    href: '/admin/attendance',
-    hrefLabel: 'Open Attendance',
+    title: 'Course attendance',
+    description: 'Mark Present / Late / Absent / Excused per student per class session, right from the course page. Schedule-aware "Mark attendance" prompt, monthly rollups and a per-class history.',
+    href: '/admin/courses',
+    hrefLabel: 'Open My Courses',
   },
   {
     icon: '📝',

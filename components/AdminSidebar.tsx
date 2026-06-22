@@ -63,13 +63,6 @@ const IconLibrary = (
   </svg>
 )
 
-const IconAttendance = (
-  <svg {...iconProps}>
-    <path d="M9 11l3 3L22 4" />
-    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-  </svg>
-)
-
 const IconReports = (
   <svg {...iconProps}>
     <path d="M3 3v18h18" />
@@ -148,14 +141,6 @@ const TEACHING_NAV: NavItem[] = [
     match: (p) =>
       (p?.startsWith('/admin/lessons') ?? false) ||
       (p?.startsWith('/admin/lessons') ?? false),
-  },
-  {
-    href: '/admin/attendance',
-    label: 'Attendance',
-    icon: IconAttendance,
-    match: (p) =>
-      (p?.startsWith('/admin/attendance') ?? false) ||
-      (p?.startsWith('/admin/attendance') ?? false),
   },
 ]
 

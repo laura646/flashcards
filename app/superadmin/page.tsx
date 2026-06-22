@@ -101,6 +101,7 @@ export default function SuperadminPage() {
   const [editingCourse, setEditingCourse] = useState<Course | null>(null)
   const [courseName, setCourseName] = useState('')
   const [courseDesc, setCourseDesc] = useState('')
+  const [courseSelfStudy, setCourseSelfStudy] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Course detail
@@ -362,6 +363,8 @@ export default function SuperadminPage() {
           course_id: editingCourse?.id,
           name: courseName,
           description: courseDesc,
+          // self_study is only set on create (edit happens in Course Info now).
+          ...(editingCourse ? {} : { self_study: courseSelfStudy }),
         }),
       })
       if (!res.ok) throw new Error()
@@ -374,6 +377,7 @@ export default function SuperadminPage() {
       setEditingCourse(null)
       setCourseName('')
       setCourseDesc('')
+      setCourseSelfStudy(false)
       await loadCourses()
     } catch { showToast('Failed to save course') }
     setSaving(false)
@@ -1095,7 +1099,7 @@ export default function SuperadminPage() {
             <h1 className="text-xl font-bold text-[#416ebe]">All Courses <span className="text-sm font-normal text-gray-400">({courses.length})</span></h1>
             <div className="flex gap-2">
               <button onClick={() => { setView('archived'); loadArchivedCourses() }} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors">View Archived</button>
-              <button onClick={() => { setShowNewCourse(true); setEditingCourse(null); setCourseName(''); setCourseDesc('') }} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors">+ New Course</button>
+              <button onClick={() => { setShowNewCourse(true); setEditingCourse(null); setCourseName(''); setCourseDesc(''); setCourseSelfStudy(false) }} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors">+ New Course</button>
             </div>
           </div>
           {courses.length === 0 ? (
@@ -1141,6 +1145,23 @@ export default function SuperadminPage() {
                     <label className="text-xs font-bold text-gray-500 block mb-1">Description (optional)</label>
                     <textarea value={courseDesc} onChange={e => setCourseDesc(e.target.value)} placeholder="Brief description" rows={3} className="w-full border-2 border-[#cddcf0] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#416ebe] resize-none" />
                   </div>
+                  {!editingCourse && (
+                    <label className="flex items-center justify-between gap-3 rounded-xl border-2 border-[#cddcf0] px-4 py-3 cursor-pointer">
+                      <span className="min-w-0">
+                        <span className="text-sm font-bold text-[#46464b] block">Self-study course</span>
+                        <span className="text-xs text-gray-400 leading-snug">No live classes — hides attendance.</span>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={courseSelfStudy}
+                        onClick={() => setCourseSelfStudy(v => !v)}
+                        className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${courseSelfStudy ? 'bg-[#00aff0]' : 'bg-[#cddcf0]'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${courseSelfStudy ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </label>
+                  )}
                 </div>
                 <div className="flex gap-2 mt-4">
                   <button onClick={saveCourse} disabled={saving || !courseName.trim()} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50">{saving ? 'Creating...' : 'Create Course'}</button>
@@ -1502,6 +1523,23 @@ export default function SuperadminPage() {
                     <label className="text-xs font-bold text-gray-500 block mb-1">Description (optional)</label>
                     <textarea value={courseDesc} onChange={e => setCourseDesc(e.target.value)} placeholder="Brief description" rows={3} className="w-full border-2 border-[#cddcf0] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#416ebe] resize-none" />
                   </div>
+                  {!editingCourse && (
+                    <label className="flex items-center justify-between gap-3 rounded-xl border-2 border-[#cddcf0] px-4 py-3 cursor-pointer">
+                      <span className="min-w-0">
+                        <span className="text-sm font-bold text-[#46464b] block">Self-study course</span>
+                        <span className="text-xs text-gray-400 leading-snug">No live classes — hides attendance.</span>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={courseSelfStudy}
+                        onClick={() => setCourseSelfStudy(v => !v)}
+                        className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${courseSelfStudy ? 'bg-[#00aff0]' : 'bg-[#cddcf0]'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${courseSelfStudy ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </label>
+                  )}
                 </div>
                 <div className="flex gap-2 mt-4">
                   <button onClick={saveCourse} disabled={saving || !courseName.trim()} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50">{saving ? 'Saving...' : editingCourse ? 'Update' : 'Create'}</button>
@@ -1528,7 +1566,7 @@ export default function SuperadminPage() {
 
           {/* Quick actions */}
           <div className="flex gap-2 mb-6">
-            <button onClick={() => { setShowNewCourse(true); setEditingCourse(null); setCourseName(''); setCourseDesc('') }} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors">+ New Course</button>
+            <button onClick={() => { setShowNewCourse(true); setEditingCourse(null); setCourseName(''); setCourseDesc(''); setCourseSelfStudy(false) }} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors">+ New Course</button>
             <button onClick={() => setView('invite-teacher')} className="flex-1 bg-white text-[#416ebe] border-2 border-[#416ebe] font-bold py-3 rounded-xl text-sm hover:bg-[#e6f0fa] transition-colors">+ Invite Teacher</button>
             <button onClick={() => router.push('/admin/content-bank')} className="flex-1 bg-white text-[#416ebe] border-2 border-[#cddcf0] font-bold py-3 rounded-xl text-sm hover:border-[#416ebe] hover:bg-[#e6f0fa] transition-colors">Content Bank</button>
           </div>
@@ -1568,6 +1606,23 @@ export default function SuperadminPage() {
                     <label className="text-xs font-bold text-gray-500 block mb-1">Description (optional)</label>
                     <textarea value={courseDesc} onChange={e => setCourseDesc(e.target.value)} placeholder="Brief description" rows={3} className="w-full border-2 border-[#cddcf0] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#416ebe] resize-none" />
                   </div>
+                  {!editingCourse && (
+                    <label className="flex items-center justify-between gap-3 rounded-xl border-2 border-[#cddcf0] px-4 py-3 cursor-pointer">
+                      <span className="min-w-0">
+                        <span className="text-sm font-bold text-[#46464b] block">Self-study course</span>
+                        <span className="text-xs text-gray-400 leading-snug">No live classes — hides attendance.</span>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={courseSelfStudy}
+                        onClick={() => setCourseSelfStudy(v => !v)}
+                        className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${courseSelfStudy ? 'bg-[#00aff0]' : 'bg-[#cddcf0]'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${courseSelfStudy ? 'translate-x-5' : ''}`} />
+                      </button>
+                    </label>
+                  )}
                 </div>
                 <div className="flex gap-2 mt-4">
                   <button onClick={saveCourse} disabled={saving || !courseName.trim()} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm disabled:opacity-50">{saving ? 'Creating...' : 'Create Course'}</button>
