@@ -355,9 +355,7 @@ export function CourseDetailView({
         {/* Two-column body */}
         <div className="grid grid-cols-1 md:grid-cols-[1fr,330px] gap-4 items-start">
           {/* ─── LEFT: header card + list card (the list is the only scroll area) ─── */}
-          {/* md:pt-3.5 matches the right rail panel's p-3.5 top offset so the
-              left HEADER card top lines up exactly with the right COURSE INFO card top. */}
-          <div className="order-2 md:order-1 min-w-0 space-y-4 md:pt-3.5">
+          <div className="order-2 md:order-1 min-w-0 space-y-4">
             {/* HEADER CARD — tabs + (lessons) actions + search/filter */}
             <div className="bg-white rounded-card border border-hairline p-4">
               <div className="flex items-end justify-between gap-3 flex-wrap">
@@ -502,7 +500,7 @@ export function CourseDetailView({
           </div>
 
           {/* ─── RIGHT RAIL: Course info + Attendance (does not scroll) ─── */}
-          <div className="order-1 md:order-2 space-y-4 rounded-card bg-[#e9f1fb] p-3.5">
+          <div className="order-1 md:order-2 space-y-4">
             {/* Course info card */}
             <div className="bg-white rounded-card border border-hairline p-[18px]">
               <div className="flex items-center justify-between mb-3">

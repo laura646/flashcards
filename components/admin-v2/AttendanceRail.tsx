@@ -9,7 +9,6 @@
 // session). Renders nothing for self-study courses (caller gates that).
 // ─────────────────────────────────────────────────────────────────
 
-import { Button } from '@/components/student-ui'
 
 // Mirrors GET /api/course-sessions?action=overview.
 export interface SessionCounts {
@@ -183,9 +182,12 @@ export default function AttendanceRail({
           </div>
         </button>
       ) : (
-        <Button variant="secondary" size="sm" fullWidth className="mb-3" onClick={onNewClass}>
+        <button
+          onClick={onNewClass}
+          className="w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3.5 rounded-[14px] mb-3 hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
+        >
           + New class
-        </Button>
+        </button>
       )}
 
       {/* Rollup chips */}
@@ -302,9 +304,12 @@ export function AllSessionsPanel({
         </div>
 
         <div className="border-t border-hairline px-5 py-3.5">
-          <Button variant="secondary" size="md" fullWidth onClick={onNewClass}>
+          <button
+            onClick={onNewClass}
+            className="w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
+          >
             + New class
-          </Button>
+          </button>
         </div>
       </div>
     </div>
