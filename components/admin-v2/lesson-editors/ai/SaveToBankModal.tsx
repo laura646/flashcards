@@ -135,6 +135,11 @@ export default function SaveToBankModal({ items, onClose, onSaved }: Props) {
   const [newCategory, setNewCategory] = useState('')
   const [newLevel, setNewLevel] = useState('')
   const [newFolderId, setNewFolderId] = useState('')
+  // When checked (new-template mode), also publish the new template to the
+  // School Library (is_shared) so the whole school can reuse it. Without this,
+  // "Save to Content Bank" only sets is_template -> it lands in My Library, NOT
+  // the School Library (which lists is_shared content).
+  const [shareToSchool, setShareToSchool] = useState(false)
 
   // Existing-template fields.
   const [existingFolderId, setExistingFolderId] = useState('')
@@ -300,7 +305,25 @@ export default function SaveToBankModal({ items, onClose, onSaved }: Props) {
         setSaving(false)
         return
       }
-      onSaved('Saved to Content Bank')
+      // Optionally publish the brand-new template to the School Library
+      // (reuses the owner-gated share-to-school action; the trainer owns the
+      // template they just created, so it passes the gate).
+      let savedMsg = 'Saved to Content Bank'
+      if (targetMode === 'new' && shareToSchool && templateId) {
+        try {
+          const shareRes = await fetch('/api/content-bank', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'share-to-school', lesson_id: templateId }),
+          })
+          savedMsg = shareRes.ok
+            ? 'Saved and shared to the School Library'
+            : 'Saved to Content Bank — but could not share to the School Library. Try the Share button on it.'
+        } catch {
+          savedMsg = 'Saved to Content Bank — but could not share to the School Library. Try the Share button on it.'
+        }
+      }
+      onSaved(savedMsg)
       onClose()
     } catch {
       setSaveError('Failed to save to the Content Bank. Please try again.')
@@ -529,6 +552,21 @@ export default function SaveToBankModal({ items, onClose, onSaved }: Props) {
                         </option>
                       ))}
                     </select>
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-tile border border-sky-border bg-sky-wash px-3.5 py-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={shareToSchool}
+                      onChange={(e) => setShareToSchool(e.target.checked)}
+                      className="mt-0.5 accent-sky"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-ink-black">📚 Add to the School Library</span>
+                      <span className="block text-[12px] text-ink-muted mt-0.5">
+                        Share with the whole school so any trainer can reuse it. Otherwise it stays in your own Content Bank.
+                      </span>
+                    </span>
                   </label>
                 </div>
               ) : (
