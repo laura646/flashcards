@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
@@ -10,7 +10,7 @@ import { useSession, signOut } from 'next-auth/react'
 interface NavItem {
   href: string
   label: string
-  icon: string
+  icon: ReactNode
   // Custom matcher: receives (pathname, searchParams) and returns whether
   // this nav item should be highlighted.
   match: (pathname: string, view: string | null) => boolean
@@ -24,23 +24,107 @@ interface BadgeCounts {
   student_new: number
 }
 
+// ─────────── Icons ───────────
+// 20×20 line icons, stroke=currentColor so they inherit the nav item's text
+// colour (white when active, slate when inactive). Paths supplied by Laura's
+// new design export.
+
+const iconProps = {
+  width: 20,
+  height: 20,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+}
+
+const IconCourses = (
+  <svg {...iconProps}>
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+  </svg>
+)
+
+const IconStudents = (
+  <svg {...iconProps}>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+)
+
+const IconLibrary = (
+  <svg {...iconProps}>
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </svg>
+)
+
+const IconAttendance = (
+  <svg {...iconProps}>
+    <path d="M9 11l3 3L22 4" />
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+)
+
+const IconReports = (
+  <svg {...iconProps}>
+    <path d="M3 3v18h18" />
+    <rect x="7" y="12" width="3" height="6" rx="1" />
+    <rect x="12" y="8" width="3" height="10" rx="1" />
+    <rect x="17" y="4" width="3" height="14" rx="1" />
+  </svg>
+)
+
+const IconSchoolLibrary = (
+  <svg {...iconProps}>
+    <path d="M3 21h18" />
+    <path d="M5 21V8l7-5 7 5v13" />
+    <path d="M9 21v-6h6v6" />
+  </svg>
+)
+
+const IconHelp = (
+  <svg {...iconProps}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <path d="M12 17h.01" />
+  </svg>
+)
+
+const IconSuperadmin = (
+  <svg {...iconProps}>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const IconLogout = (
+  <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+)
+
 // ─────────── Nav config ───────────
-// Primary nav (above the divider). Order matters — what teachers
-// hit most often goes near the top.
+// Two groups now (TEACHING / MANAGE) per Laura's new design — same destinations
+// as before, just regrouped by meaning. Hrefs and matchers are UNCHANGED.
 //
-// My Courses and My Students now have their own clean routes
-// (/admin/courses and /admin/students). The detail-level routes
-// (/admin/courses/[id] and /admin/students/[email]) currently redirect
-// to /admin?courseDetail=… / ?studentDetail=… so the legacy detail
-// views keep working. The matcher accounts for either landing spot.
-// SWITCHED to the 10B redesign at /admin-beta/* (all 7 teacher pages now have
-// new versions). Active-match checks the /admin-beta/* path; also still matches
-// the old /admin/* path so the highlight is correct if a legacy route is hit.
-const PRIMARY_NAV: NavItem[] = [
+// My Courses and My Students have their own clean routes
+// (/admin-beta/courses and /admin-beta/students). Detail-level routes still
+// redirect via /admin?courseDetail=… / ?studentDetail=… so the matcher accounts
+// for either landing spot. Active-match also still matches the legacy /admin/*
+// path so the highlight is correct if a legacy route is hit.
+
+// TEACHING group: My Courses, My Students, My Library, Attendance
+const TEACHING_NAV: NavItem[] = [
   {
     href: '/admin-beta/courses',
     label: 'My Courses',
-    icon: '📚',
+    icon: IconCourses,
     badgeKey: 'course_new',
     match: (p, v) =>
       (p?.startsWith('/admin-beta/courses') ?? false) ||
@@ -50,7 +134,7 @@ const PRIMARY_NAV: NavItem[] = [
   {
     href: '/admin-beta/students',
     label: 'My Students',
-    icon: '👥',
+    icon: IconStudents,
     badgeKey: 'student_new',
     match: (p, v) =>
       (p?.startsWith('/admin-beta/students') ?? false) ||
@@ -60,7 +144,7 @@ const PRIMARY_NAV: NavItem[] = [
   {
     href: '/admin-beta/lessons',
     label: 'My Library',
-    icon: '📖',
+    icon: IconLibrary,
     match: (p) =>
       (p?.startsWith('/admin-beta/lessons') ?? false) ||
       (p?.startsWith('/admin/lessons') ?? false),
@@ -68,15 +152,20 @@ const PRIMARY_NAV: NavItem[] = [
   {
     href: '/admin-beta/attendance',
     label: 'Attendance',
-    icon: '✅',
+    icon: IconAttendance,
     match: (p) =>
       (p?.startsWith('/admin-beta/attendance') ?? false) ||
       (p?.startsWith('/admin/attendance') ?? false),
   },
+]
+
+// MANAGE group: Reports, School Library, Help & Docs, Superadmin
+// Superadmin is appended at render time only when role === 'superadmin'.
+const MANAGE_NAV: NavItem[] = [
   {
     href: '/admin-beta/reports',
     label: 'Reports',
-    icon: '📊',
+    icon: IconReports,
     match: (p) =>
       (p?.startsWith('/admin-beta/reports') ?? false) ||
       (p?.startsWith('/admin/reports') ?? false),
@@ -84,7 +173,7 @@ const PRIMARY_NAV: NavItem[] = [
   {
     href: '/admin-beta/content-bank',
     label: 'School Library',
-    icon: '🗃️',
+    icon: IconSchoolLibrary,
     match: (p) =>
       (p?.startsWith('/admin-beta/content-bank') ?? false) ||
       (p?.startsWith('/admin/content-bank') ?? false),
@@ -92,29 +181,44 @@ const PRIMARY_NAV: NavItem[] = [
   {
     href: '/admin-beta/help',
     label: 'Help & Docs',
-    icon: '❓',
+    icon: IconHelp,
     match: (p) =>
       (p?.startsWith('/admin-beta/help') ?? false) ||
       (p?.startsWith('/admin/help') ?? false),
   },
 ]
 
-// Superadmin items (below the divider, only shown to superadmins)
-const SUPERADMIN_NAV: NavItem[] = [
-  {
-    href: '/superadmin',
-    label: 'Superadmin',
-    icon: '🛡️',
-    match: (p) => p?.startsWith('/superadmin') ?? false,
-  },
-]
+// Superadmin item — only shown to superadmins, lives in the MANAGE group.
+const SUPERADMIN_ITEM: NavItem = {
+  href: '/superadmin',
+  label: 'Superadmin',
+  icon: IconSuperadmin,
+  match: (p) => p?.startsWith('/superadmin') ?? false,
+}
+
+// ─────────── Helpers ───────────
+
+// Initials from a display name / email (max 2 chars, uppercase).
+function initialsFrom(name: string, email: string): string {
+  const source = (name || email || '').trim()
+  if (!source) return '?'
+  // If it looks like an email, use the part before @.
+  const base = source.includes('@') ? source.split('@')[0] : source
+  const parts = base.split(/[\s._-]+/).filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return base.slice(0, 2).toUpperCase()
+}
 
 // ─────────── Component ───────────
 
 export default function AdminSidebar() {
   // useSearchParams must be wrapped in Suspense per Next 14+ rules
   return (
-    <Suspense fallback={<aside className="hidden md:block fixed top-0 left-0 bottom-0 w-[240px] bg-white border-r border-[#e6f0fa]" />}>
+    <Suspense
+      fallback={
+        <aside className="hidden md:block fixed top-0 left-0 bottom-0 w-[264px] bg-white border-r border-[#e8edf5]" />
+      }
+    >
       <AdminSidebarInner />
     </Suspense>
   )
@@ -131,6 +235,7 @@ function AdminSidebarInner() {
   const isSuperadmin = role === 'superadmin'
   const userName = session?.user?.name || session?.user?.email || ''
   const userEmail = session?.user?.email || ''
+  const userInitials = initialsFrom(session?.user?.name || '', userEmail)
 
   // ── Notification badge counts ──
   // Unread counts per type for the current user, surfaced as pills on the
@@ -205,85 +310,133 @@ function AdminSidebarInner() {
   const badgeCount = (item: NavItem): number =>
     item.badgeKey ? badges[item.badgeKey] : 0
 
-  // Inner nav content reused for both desktop sidebar and mobile drawer
-  const NavList = (
-    <>
-      <nav className="flex-1 overflow-y-auto py-3">
-        <ul className="space-y-0.5 px-2">
-          {PRIMARY_NAV.map((item) => {
-            const active = isActive(item)
-            const count = badgeCount(item)
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                    active
-                      ? 'bg-[#416ebe] text-white font-bold'
-                      : 'text-[#46464b] hover:bg-[#e6f0fa] hover:text-[#416ebe]'
-                  }`}
-                >
-                  <span className="text-base leading-none">{item.icon}</span>
-                  <span>{item.label}</span>
-                  {count > 0 && (
-                    <span
-                      className="ml-auto bg-sky text-white text-[11px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center"
-                      aria-label={`${count} unread`}
-                    >
-                      {count > 9 ? '9+' : count}
-                    </span>
-                  )}
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-        {isSuperadmin && (
-          <>
-            <div className="mx-4 my-3 border-t border-[#e6f0fa]" />
-            <ul className="space-y-0.5 px-2">
-              {SUPERADMIN_NAV.map((item) => {
-                const active = isActive(item)
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        active
-                          ? 'bg-amber-500 text-white font-bold'
-                          : 'text-[#46464b] hover:bg-amber-50 hover:text-amber-700'
-                      }`}
-                    >
-                      <span className="text-base leading-none">{item.icon}</span>
-                      <span>{item.label}</span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </>
-        )}
-      </nav>
+  // Single nav item (shared by both groups). Active/inactive styling and the
+  // optional count badge follow Laura's new design exactly.
+  const renderItem = (item: NavItem) => {
+    const active = isActive(item)
+    const count = badgeCount(item)
+    return (
+      <li key={item.href}>
+        <Link
+          href={item.href}
+          style={
+            active
+              ? {
+                  backgroundColor: '#00aff0',
+                  color: '#fff',
+                  boxShadow: '0 5px 14px rgba(0,175,240,.28)',
+                }
+              : undefined
+          }
+          className={`group flex items-center gap-3 px-3 py-2.5 mb-0.5 rounded-[11px] text-[14.5px] font-bold no-underline transition-colors ${
+            active
+              ? ''
+              : 'text-[#5a6577] hover:bg-[#e9f6fd] hover:text-[#0090c9]'
+          }`}
+        >
+          <span className="shrink-0 flex items-center">{item.icon}</span>
+          <span className="flex-1 truncate">{item.label}</span>
+          {count > 0 && (
+            <span
+              className={`text-[11px] font-black rounded-full px-2 py-px leading-none ${
+                active ? 'text-white' : 'bg-[#dcf1fb] text-[#0090c9]'
+              }`}
+              style={active ? { backgroundColor: 'rgba(255,255,255,.24)' } : undefined}
+              aria-label={`${count} unread`}
+            >
+              {count > 9 ? '9+' : count}
+            </span>
+          )}
+        </Link>
+      </li>
+    )
+  }
 
-      {/* User block at the bottom */}
-      <div className="border-t border-[#e6f0fa] p-3">
-        <p className="text-sm font-bold text-[#46464b] truncate" title={userName}>
-          {userName}
-        </p>
-        <p className="text-[10px] text-gray-400 truncate" title={userEmail}>
-          {userEmail}
-        </p>
-        <p className="text-[10px] text-gray-400 mt-1 capitalize">
-          {role || 'guest'}
-        </p>
+  // Eyebrow group label
+  const eyebrow = (text: string) => (
+    <li
+      className="px-3 pt-2 pb-1.5 text-[10.5px] font-black uppercase text-[#00aff0]"
+      style={{ letterSpacing: '.14em' }}
+      aria-hidden="true"
+    >
+      {text}
+    </li>
+  )
+
+  // MANAGE group items (Superadmin appended only for superadmins)
+  const manageItems = isSuperadmin ? [...MANAGE_NAV, SUPERADMIN_ITEM] : MANAGE_NAV
+
+  // Workspace chip below the logo
+  const WorkspaceChip = (
+    <div className="px-4 pb-3.5">
+      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[#e9f6fd] border border-[#c3e8fa]">
+        <div className="w-[30px] h-[30px] shrink-0 rounded-[9px] bg-[#00aff0] text-white font-bold flex items-center justify-center text-sm">
+          A
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13px] font-bold text-[#2c3a52] leading-tight truncate">
+            Admin workspace
+          </p>
+          <p className="text-[11px] text-[#8a93a3] leading-tight truncate">
+            English with Laura
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+
+  // User footer (bottom)
+  const UserFooter = (
+    <div className="border-t border-[#eef2f8] p-3">
+      <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-xl hover:bg-[#f4f8fd] transition-colors">
+        <div className="w-[38px] h-[38px] shrink-0 rounded-full bg-[#00aff0] text-white font-bold flex items-center justify-center text-sm">
+          {userInitials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[13.5px] font-bold text-[#2c3a52] truncate" title={userName}>
+            {userName}
+          </p>
+          <p className="text-[11px] text-[#8a93a3] truncate capitalize" title={userEmail}>
+            {role || 'guest'}
+          </p>
+        </div>
         <button
           onClick={() => signOut({ callbackUrl: '/' })}
-          className="mt-3 w-full text-left text-xs text-[#416ebe] font-bold hover:underline"
+          aria-label="Sign out"
+          className="shrink-0 text-[#b6c0d0] hover:text-[#0090c9] transition-colors"
         >
-          ↪ Sign out
+          {IconLogout}
         </button>
       </div>
+    </div>
+  )
+
+  // Nav body shared by desktop sidebar and mobile drawer
+  const NavBody = (
+    <>
+      {WorkspaceChip}
+      <nav className="flex-1 overflow-y-auto px-4">
+        <ul>
+          {eyebrow('Teaching')}
+          {TEACHING_NAV.map(renderItem)}
+        </ul>
+        <ul>
+          {eyebrow('Manage')}
+          {manageItems.map(renderItem)}
+        </ul>
+      </nav>
+      {UserFooter}
     </>
+  )
+
+  // Logo block (white-background logo asset, already used app-wide on white)
+  const Logo = (
+    <div className="px-[22px] pt-6 pb-5">
+      <Link href="/admin-beta/courses" aria-label="English with Laura">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="English with Laura" className="h-[52px] w-auto" />
+      </Link>
+    </div>
   )
 
   return (
@@ -292,7 +445,7 @@ function AdminSidebarInner() {
       <button
         onClick={() => setMobileOpen(true)}
         aria-label="Open menu"
-        className="md:hidden fixed top-3 left-3 z-40 bg-white border border-[#cddcf0] rounded-lg w-9 h-9 flex items-center justify-center shadow-sm text-[#416ebe]"
+        className="md:hidden fixed top-3 left-3 z-40 bg-white border border-[#c3e8fa] rounded-lg w-9 h-9 flex items-center justify-center shadow-sm text-[#0090c9]"
       >
         <span className="text-lg">☰</span>
       </button>
@@ -306,40 +459,26 @@ function AdminSidebarInner() {
             className="md:hidden fixed inset-0 z-40 bg-black/40"
           />
           {/* Drawer */}
-          <aside
-            className="md:hidden fixed top-0 left-0 bottom-0 z-50 w-[260px] bg-white border-r border-[#e6f0fa] flex flex-col shadow-xl"
-          >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#e6f0fa]">
-              <Link
-                href="/admin-beta/courses"
-                className="font-bold text-[#416ebe] text-sm flex items-center gap-2"
-              >
-                <span>✨</span> EwL Admin
-              </Link>
+          <aside className="md:hidden fixed top-0 left-0 bottom-0 z-50 w-[264px] bg-white border-r border-[#e8edf5] flex flex-col shadow-xl">
+            <div className="flex items-start justify-between">
+              {Logo}
               <button
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close menu"
-                className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-[#416ebe]"
+                className="mt-5 mr-4 w-7 h-7 flex items-center justify-center text-gray-400 hover:text-[#0090c9]"
               >
                 ✕
               </button>
             </div>
-            {NavList}
+            {NavBody}
           </aside>
         </>
       )}
 
       {/* ─── Desktop sidebar (>= md) ─── */}
-      <aside className="hidden md:flex md:flex-col fixed top-0 left-0 bottom-0 w-[240px] bg-white border-r border-[#e6f0fa] z-30">
-        <div className="px-4 py-4 border-b border-[#e6f0fa]">
-          <Link
-            href="/admin-beta/courses"
-            className="font-bold text-[#416ebe] text-base flex items-center gap-2"
-          >
-            <span>✨</span> EwL Admin
-          </Link>
-        </div>
-        {NavList}
+      <aside className="hidden md:flex md:flex-col sticky top-0 h-screen w-[264px] bg-white border-r border-[#e8edf5] z-30">
+        {Logo}
+        {NavBody}
       </aside>
     </>
   )

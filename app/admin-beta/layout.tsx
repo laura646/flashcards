@@ -8,9 +8,9 @@ import WhatsNewBanner from '@/components/WhatsNewBanner'
 // navigate entirely within the redesigned experience.
 export default function AdminBetaLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface md:flex md:items-start">
       <AdminSidebar />
-      <main className="md:pl-[240px]">
+      <main className="min-w-0 flex-1">
         <ConfirmProvider>
           {/* Top padding on mobile to clear the hamburger button */}
           <div className="pt-12 md:pt-0">

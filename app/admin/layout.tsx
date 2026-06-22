@@ -10,9 +10,9 @@ import WhatsNewBanner from '@/components/WhatsNewBanner'
 // for branded confirmation dialogs (instead of native window.confirm).
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#f9fafb]">
+    <div className="min-h-screen bg-[#f9fafb] md:flex md:items-start">
       <AdminSidebar />
-      <main className="md:pl-[240px]">
+      <main className="min-w-0 flex-1">
         <ConfirmProvider>
           {/* Page content gets a top padding on mobile to clear the hamburger button */}
           <div className="pt-12 md:pt-0">

@@ -5,9 +5,9 @@ import { ConfirmProvider } from '@/components/ConfirmDialog'
 // extra Superadmin nav item shown automatically based on session role).
 export default function SuperadminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#f9fafb]">
+    <div className="min-h-screen bg-[#f9fafb] md:flex md:items-start">
       <AdminSidebar />
-      <main className="md:pl-[240px]">
+      <main className="min-w-0 flex-1">
         <ConfirmProvider>
           <div className="pt-12 md:pt-0">{children}</div>
         </ConfirmProvider>
