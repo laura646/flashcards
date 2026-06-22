@@ -354,42 +354,68 @@ export function CourseDetailView({
 
         {/* Two-column body */}
         <div className="grid grid-cols-1 md:grid-cols-[1fr,330px] gap-4 items-start">
-          {/* ─── LEFT: tabs + list (the list is the only scroll area) ─── */}
-          <div className="order-2 md:order-1 min-w-0">
-            <div className="flex items-end justify-between gap-3 mb-3 flex-wrap border-b border-hairline">
-              <div className="flex items-center gap-6">
-                {([
-                  { value: 'lessons' as Tab, label: `Lessons (${lessons.length})` },
-                  { value: 'students' as Tab, label: `Students (${students.length})` },
-                ]).map((t) => {
-                  const active = tab === t.value
-                  return (
+          {/* ─── LEFT: header card + list card (the list is the only scroll area) ─── */}
+          {/* md:pt-3.5 matches the right rail panel's p-3.5 top offset so the
+              left HEADER card top lines up exactly with the right COURSE INFO card top. */}
+          <div className="order-2 md:order-1 min-w-0 space-y-4 md:pt-3.5">
+            {/* HEADER CARD — tabs + (lessons) actions + search/filter */}
+            <div className="bg-white rounded-card border border-hairline p-4">
+              <div className="flex items-end justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-6">
+                  {([
+                    { value: 'lessons' as Tab, label: `Lessons (${lessons.length})` },
+                    { value: 'students' as Tab, label: `Students (${students.length})` },
+                  ]).map((t) => {
+                    const active = tab === t.value
+                    return (
+                      <button
+                        key={t.value}
+                        onClick={() => setTab(t.value)}
+                        className={`relative pb-2 text-[15px] font-bold transition-colors ${
+                          active ? 'text-brandblue' : 'text-ink-muted hover:text-ink-body'
+                        }`}
+                      >
+                        {t.label}
+                        {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-brandblue" />}
+                      </button>
+                    )
+                  })}
+                </div>
+                {tab === 'lessons' && (
+                  <div className="flex items-center gap-2">
+                    <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
                     <button
-                      key={t.value}
-                      onClick={() => setTab(t.value)}
-                      className={`relative pb-2.5 text-[15px] font-bold transition-colors ${
-                        active ? 'text-brandblue' : 'text-ink-muted hover:text-ink-body'
-                      }`}
+                      onClick={onCreateLesson}
+                      className="inline-flex items-center justify-center gap-1 rounded-full border-[1.5px] border-sky-border bg-white text-brandblue font-bold text-[12px] px-3.5 py-2 hover:border-sky transition-colors"
                     >
-                      {t.label}
-                      {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-brandblue" />}
+                      + Create
                     </button>
-                  )
-                })}
+                  </div>
+                )}
               </div>
-              {tab === 'lessons' && (
-                <div className="flex items-center gap-2 pb-2">
-                  <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
-                  <button
-                    onClick={onCreateLesson}
-                    className="inline-flex items-center justify-center gap-1 rounded-full border-[1.5px] border-sky-border bg-white text-brandblue font-bold text-[12px] px-3.5 py-2 hover:border-sky transition-colors"
-                  >
-                    + Create
-                  </button>
+              {tab === 'lessons' && lessons.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <TextField
+                    label="Search"
+                    placeholder="Search lessons…"
+                    value={lessonQuery}
+                    onChange={(e) => setLessonQuery(e.target.value)}
+                    className="flex-1 min-w-[180px]"
+                  />
+                  <SegmentedControl<'all' | 'draft' | 'published'>
+                    segments={[
+                      { value: 'all', label: 'All' },
+                      { value: 'draft', label: 'Draft' },
+                      { value: 'published', label: 'Published' },
+                    ]}
+                    value={lessonStatus}
+                    onChange={setLessonStatus}
+                  />
                 </div>
               )}
             </div>
 
+            {/* LIST CARD */}
             {/* Lessons */}
             {tab === 'lessons' && (
               <div className="bg-white rounded-card border border-hairline overflow-hidden">
@@ -401,59 +427,35 @@ export function CourseDetailView({
                       <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
                     </div>
                   </div>
+                ) : filteredLessons.length === 0 ? (
+                  <EmptyState icon="🔍" title="No matches" hint="No lessons match your search or filter." />
                 ) : (
-                  <>
-                    <div className="px-4 py-3 border-b border-hairline">
-                      <div className="bg-sky-wash rounded-card border border-sky-border p-3 flex flex-wrap items-end gap-3">
-                        <TextField
-                          label="Search"
-                          placeholder="Search lessons…"
-                          value={lessonQuery}
-                          onChange={(e) => setLessonQuery(e.target.value)}
-                          className="flex-1 min-w-[180px]"
-                        />
-                        <SegmentedControl<'all' | 'draft' | 'published'>
-                          segments={[
-                            { value: 'all', label: 'All' },
-                            { value: 'draft', label: 'Draft' },
-                            { value: 'published', label: 'Published' },
-                          ]}
-                          value={lessonStatus}
-                          onChange={setLessonStatus}
-                        />
-                      </div>
-                    </div>
-                    {filteredLessons.length === 0 ? (
-                      <EmptyState icon="🔍" title="No matches" hint="No lessons match your search or filter." />
-                    ) : (
-                      <div className="max-h-[60vh] overflow-y-auto divide-y divide-hairline">
-                        {filteredLessons.map((lesson) => (
-                          <button
-                            key={lesson.id}
-                            onClick={() => onOpenLesson(lesson.id)}
-                            className="w-full text-left px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
-                              <div className="flex gap-2 mt-1 flex-wrap">
-                                {lesson.template_level && <Pill variant="level">{lesson.template_level}</Pill>}
-                                {lesson.template_category && <Pill variant="level">{lesson.template_category}</Pill>}
-                                {lesson.is_template && (
-                                  <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Template</span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
-                                {lesson.status === 'published' ? 'Published' : 'Draft'}
-                              </Pill>
-                              <span className="text-xs text-ink-muted hidden sm:inline">{formatDate(lesson.created_at)}</span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
+                  <div className="max-h-[60vh] overflow-y-auto divide-y divide-hairline">
+                    {filteredLessons.map((lesson) => (
+                      <button
+                        key={lesson.id}
+                        onClick={() => onOpenLesson(lesson.id)}
+                        className="w-full text-left px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            {lesson.template_level && <Pill variant="level">{lesson.template_level}</Pill>}
+                            {lesson.template_category && <Pill variant="level">{lesson.template_category}</Pill>}
+                            {lesson.is_template && (
+                              <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Template</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
+                            {lesson.status === 'published' ? 'Published' : 'Draft'}
+                          </Pill>
+                          <span className="text-xs text-ink-muted hidden sm:inline">{formatDate(lesson.created_at)}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
