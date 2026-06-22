@@ -467,6 +467,32 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    // ── Notification badge counts for the current user ──
+    if (action === 'badge-counts') {
+      const [courseRes, studentRes] = await Promise.all([
+        supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('recipient_email', email)
+          .eq('type', 'course_new')
+          .is('read_at', null),
+        supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('recipient_email', email)
+          .eq('type', 'student_new')
+          .is('read_at', null),
+      ])
+
+      if (courseRes.error) throw courseRes.error
+      if (studentRes.error) throw studentRes.error
+
+      return NextResponse.json({
+        course_new: courseRes.count || 0,
+        student_new: studentRes.count || 0,
+      })
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {
     console.error('Admin API error:', err)
@@ -792,6 +818,29 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq('user_email', studentEmail)
         .eq('set_name', set_name)
+
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Mark notifications read for one badge section ──
+    if (action === 'mark-read') {
+      const { section } = body
+      if (section !== 'courses' && section !== 'students') {
+        return NextResponse.json(
+          { error: 'section must be "courses" or "students"' },
+          { status: 400 }
+        )
+      }
+
+      const notifType = section === 'courses' ? 'course_new' : 'student_new'
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('recipient_email', email)
+        .eq('type', notifType)
+        .is('read_at', null)
 
       if (error) throw error
       return NextResponse.json({ ok: true })

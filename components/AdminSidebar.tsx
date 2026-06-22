@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
@@ -14,6 +14,14 @@ interface NavItem {
   // Custom matcher: receives (pathname, searchParams) and returns whether
   // this nav item should be highlighted.
   match: (pathname: string, view: string | null) => boolean
+  // Which unread-notification count drives this item's count badge (if any).
+  badgeKey?: 'course_new' | 'student_new'
+}
+
+// Shape returned by GET /api/admin?action=badge-counts
+interface BadgeCounts {
+  course_new: number
+  student_new: number
 }
 
 // ─────────── Nav config ───────────
@@ -33,6 +41,7 @@ const PRIMARY_NAV: NavItem[] = [
     href: '/admin-beta/courses',
     label: 'My Courses',
     icon: '📚',
+    badgeKey: 'course_new',
     match: (p, v) =>
       (p?.startsWith('/admin-beta/courses') ?? false) ||
       (p?.startsWith('/admin/courses') ?? false) ||
@@ -42,6 +51,7 @@ const PRIMARY_NAV: NavItem[] = [
     href: '/admin-beta/students',
     label: 'My Students',
     icon: '👥',
+    badgeKey: 'student_new',
     match: (p, v) =>
       (p?.startsWith('/admin-beta/students') ?? false) ||
       (p?.startsWith('/admin/students') ?? false) ||
@@ -122,12 +132,78 @@ function AdminSidebarInner() {
   const userName = session?.user?.name || session?.user?.email || ''
   const userEmail = session?.user?.email || ''
 
+  // ── Notification badge counts ──
+  // Unread counts per type for the current user, surfaced as pills on the
+  // "My Courses" / "My Students" nav items. Resilient: any failure leaves
+  // counts at 0 (no badge) — the sidebar must never crash on a bad fetch.
+  const [badges, setBadges] = useState<BadgeCounts>({ course_new: 0, student_new: 0 })
+  // Tracks which sections we've already cleared this navigation so the
+  // mark-read POST only fires once per entry into a page (not every render).
+  const clearedRef = useRef<Set<'courses' | 'students'>>(new Set())
+
+  const fetchBadges = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin?action=badge-counts')
+      if (!res.ok) return
+      const data = (await res.json()) as Partial<BadgeCounts>
+      setBadges({
+        course_new: Number(data?.course_new) || 0,
+        student_new: Number(data?.student_new) || 0,
+      })
+    } catch {
+      // Swallow — show no badge rather than break the sidebar.
+    }
+  }, [])
+
+  // Fetch on mount and whenever the route changes.
+  useEffect(() => {
+    fetchBadges()
+  }, [fetchBadges, pathname])
+
   // Auto-close mobile menu on route change
   useEffect(() => {
     setMobileOpen(false)
   }, [pathname, currentView])
 
+  // Clear-on-open: when the user lands on /admin-beta/courses (or /students),
+  // mark that section's notifications read and zero its badge locally. Guarded
+  // by clearedRef so it only fires once per entry; the guard resets when the
+  // user navigates away so re-entering clears again.
+  useEffect(() => {
+    const onCourses = pathname?.startsWith('/admin-beta/courses') ?? false
+    const onStudents = pathname?.startsWith('/admin-beta/students') ?? false
+
+    const markRead = async (section: 'courses' | 'students') => {
+      if (clearedRef.current.has(section)) return
+      clearedRef.current.add(section)
+      // Zero the badge immediately for snappy UX.
+      setBadges((prev) =>
+        section === 'courses'
+          ? { ...prev, course_new: 0 }
+          : { ...prev, student_new: 0 }
+      )
+      try {
+        await fetch('/api/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'mark-read', section }),
+        })
+      } catch {
+        // Best-effort — local badge is already cleared.
+      }
+    }
+
+    if (onCourses) markRead('courses')
+    else clearedRef.current.delete('courses')
+
+    if (onStudents) markRead('students')
+    else clearedRef.current.delete('students')
+  }, [pathname])
+
   const isActive = (item: NavItem) => item.match(pathname, currentView)
+
+  const badgeCount = (item: NavItem): number =>
+    item.badgeKey ? badges[item.badgeKey] : 0
 
   // Inner nav content reused for both desktop sidebar and mobile drawer
   const NavList = (
@@ -136,6 +212,7 @@ function AdminSidebarInner() {
         <ul className="space-y-0.5 px-2">
           {PRIMARY_NAV.map((item) => {
             const active = isActive(item)
+            const count = badgeCount(item)
             return (
               <li key={item.href}>
                 <Link
@@ -148,6 +225,14 @@ function AdminSidebarInner() {
                 >
                   <span className="text-base leading-none">{item.icon}</span>
                   <span>{item.label}</span>
+                  {count > 0 && (
+                    <span
+                      className="ml-auto bg-sky text-white text-[11px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center"
+                      aria-label={`${count} unread`}
+                    >
+                      {count > 9 ? '9+' : count}
+                    </span>
+                  )}
                 </Link>
               </li>
             )

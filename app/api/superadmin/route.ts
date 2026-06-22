@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/roles'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
+import {
+  notifyCourseCreated,
+  notifyStudentJoined,
+  notifyTeacherAssigned,
+} from '@/lib/notifications'
 
 function handleError(err: unknown) {
   if (err && typeof err === 'object' && 'status' in err) {
@@ -283,6 +288,18 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (error) throw error
+
+      // Best-effort notification to other superadmins (never blocks the response).
+      try {
+        await notifyCourseCreated({
+          courseId: data.id,
+          courseName: data.name,
+          creatorEmail: user.email,
+        })
+      } catch (notifyErr) {
+        console.error('notifyCourseCreated error:', notifyErr)
+      }
+
       return NextResponse.json({ course: data })
     }
 
@@ -414,6 +431,18 @@ export async function POST(req: NextRequest) {
         .insert({ course_id, teacher_email: cleanEmail })
 
       if (error) throw error
+
+      // Best-effort notification to the assigned teacher (never blocks the response).
+      try {
+        await notifyTeacherAssigned({
+          courseId: course_id,
+          teacherEmail: cleanEmail,
+          actorEmail: user.email,
+        })
+      } catch (notifyErr) {
+        console.error('notifyTeacherAssigned error:', notifyErr)
+      }
+
       return NextResponse.json({ ok: true })
     }
 
@@ -459,6 +488,18 @@ export async function POST(req: NextRequest) {
             .update({ removed_at: null })
             .eq('id', existing.id)
           if (error) throw error
+
+          // Best-effort notification (reactivation counts as a join).
+          try {
+            await notifyStudentJoined({
+              courseId: course_id,
+              studentEmail: cleanEmail,
+              actorEmail: user.email,
+            })
+          } catch (notifyErr) {
+            console.error('notifyStudentJoined error:', notifyErr)
+          }
+
           return NextResponse.json({ ok: true, message: 'Student re-enrolled' })
         }
         return NextResponse.json({ ok: true, message: 'Already enrolled' })
@@ -470,6 +511,18 @@ export async function POST(req: NextRequest) {
         .insert({ course_id, student_email: cleanEmail })
 
       if (error) throw error
+
+      // Best-effort notification to course teachers + superadmins.
+      try {
+        await notifyStudentJoined({
+          courseId: course_id,
+          studentEmail: cleanEmail,
+          actorEmail: user.email,
+        })
+      } catch (notifyErr) {
+        console.error('notifyStudentJoined error:', notifyErr)
+      }
+
       return NextResponse.json({ ok: true })
     }
 

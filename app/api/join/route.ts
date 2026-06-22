@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { rateLimit } from '@/lib/rate-limit'
+import { notifyStudentJoined } from '@/lib/notifications'
 
 // Helper: get client IP for rate limiting
 function getClientIp(req: NextRequest): string {
@@ -88,6 +89,18 @@ export async function POST(req: NextRequest) {
           .update({ removed_at: null })
           .eq('id', existing.id)
         if (reactivateError) throw reactivateError
+
+        // Best-effort notification (reactivation counts as a join). The actor
+        // is the joining student, so they are self-suppressed automatically.
+        try {
+          await notifyStudentJoined({
+            courseId: course.id,
+            studentEmail: session.user.email,
+            actorEmail: session.user.email,
+          })
+        } catch (notifyErr) {
+          console.error('notifyStudentJoined error:', notifyErr)
+        }
       }
       // Already enrolled and active — no-op
     } else {
@@ -96,6 +109,17 @@ export async function POST(req: NextRequest) {
         .from('course_students')
         .insert({ course_id: course.id, student_email: session.user.email })
       if (enrollError) throw enrollError
+
+      // Best-effort notification to course teachers + superadmins.
+      try {
+        await notifyStudentJoined({
+          courseId: course.id,
+          studentEmail: session.user.email,
+          actorEmail: session.user.email,
+        })
+      } catch (notifyErr) {
+        console.error('notifyStudentJoined error:', notifyErr)
+      }
     }
 
     return NextResponse.json({ ok: true, course_name: course.name })
