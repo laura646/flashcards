@@ -3,7 +3,7 @@
 // 10B redesign — Lesson Manager LIST (Phase 1, "new beside old").
 //
 // Presentational only (data in via props) so it's verifiable with mock data in
-// a harness AND reused by the real /admin-beta/lessons page. The live editor at
+// a harness AND reused by the real /admin/lessons page. The live editor at
 // app/admin/lessons/page.tsx is left 100% untouched.
 //
 // Denser 2-column compact-card layout (matches Courses/Students) so there is no

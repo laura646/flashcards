@@ -2,7 +2,7 @@
 
 // 10B redesign — LESSON-BUILDER LANDING (Phase 1, "new beside old").
 //
-// Replaces the flat all-lessons list as the default /admin-beta/lessons view.
+// Replaces the flat all-lessons list as the default /admin/lessons view.
 // In the new model "lessons live inside Courses", so this landing is a launcher:
 //   1. START A NEW LESSON  — pick a course, then "+ New Lesson" (or course-less)
 //   2. CONTINUE A DRAFT    — the teacher's most-recent unpublished drafts

@@ -2,7 +2,7 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // useLessonAi — the AI-orchestration "brain" for the 10B redesign editor
-// (/admin-beta/lessons). Each function POSTs /api/generate-content (the FROZEN
+// (/admin/lessons). Each function POSTs /api/generate-content (the FROZEN
 // server, unchanged) and applies the result via the insert actions returned by
 // useLessonEditor.
 //

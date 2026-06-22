@@ -2,7 +2,7 @@
 
 // 10B redesign — shared recursive folder tree.
 //
-// Extracted from app/admin-beta/content-bank/page.tsx so both the Content Bank
+// Extracted from app/admin/content-bank/page.tsx so both the Content Bank
 // and My Library render folders identically. Fully presentational: the caller
 // owns the folder list, selection, expand/collapse state and all mutation
 // handlers. Nests on parent_id (subfolders supported).

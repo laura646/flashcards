@@ -1530,7 +1530,7 @@ export default function SuperadminPage() {
           <div className="flex gap-2 mb-6">
             <button onClick={() => { setShowNewCourse(true); setEditingCourse(null); setCourseName(''); setCourseDesc('') }} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-3 rounded-xl text-sm transition-colors">+ New Course</button>
             <button onClick={() => setView('invite-teacher')} className="flex-1 bg-white text-[#416ebe] border-2 border-[#416ebe] font-bold py-3 rounded-xl text-sm hover:bg-[#e6f0fa] transition-colors">+ Invite Teacher</button>
-            <button onClick={() => router.push('/admin-beta/content-bank')} className="flex-1 bg-white text-[#416ebe] border-2 border-[#cddcf0] font-bold py-3 rounded-xl text-sm hover:border-[#416ebe] hover:bg-[#e6f0fa] transition-colors">Content Bank</button>
+            <button onClick={() => router.push('/admin/content-bank')} className="flex-1 bg-white text-[#416ebe] border-2 border-[#cddcf0] font-bold py-3 rounded-xl text-sm hover:border-[#416ebe] hover:bg-[#e6f0fa] transition-colors">Content Bank</button>
           </div>
 
           {/* Stats row — CLICKABLE */}
@@ -1550,7 +1550,7 @@ export default function SuperadminPage() {
           </div>
 
           <div className="mt-4 flex flex-col gap-2">
-            <button onClick={() => router.push('/admin-beta/courses')} className="w-full bg-white text-[#416ebe] border-2 border-[#cddcf0] hover:border-[#416ebe] font-bold py-3 rounded-xl text-sm transition-colors">Go to Teacher Admin Panel</button>
+            <button onClick={() => router.push('/admin/courses')} className="w-full bg-white text-[#416ebe] border-2 border-[#cddcf0] hover:border-[#416ebe] font-bold py-3 rounded-xl text-sm transition-colors">Go to Teacher Admin Panel</button>
           </div>
           <p className="mt-6 text-center text-xs text-gray-400">englishwithlaura.com</p>
 

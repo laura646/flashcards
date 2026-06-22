@@ -52,7 +52,7 @@ export default function WhatsNewBanner() {
             <span className="font-bold">per-block publish toggle</span>, editable course invite
             codes, Telegram lesson notifications, and a much cheaper TTS backend.{' '}
             <Link
-              href="/admin-beta/help#whats-new"
+              href="/admin/help#whats-new"
               className="text-[#416ebe] font-bold hover:underline"
             >
               See all updates →

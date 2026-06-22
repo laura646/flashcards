@@ -1,10 +1,26 @@
 'use client'
 
+// 10B redesign — SCHOOL LIBRARY (Phase 2 of the locked Library model).
+//
+// This page is the School Library: SHARED content from across the school
+// (lessons with is_shared = true), reusable by any trainer. It is separate
+// from each teacher's "My Library" (created_by = me, at /admin/lessons).
+//
+// Loads templates with scope=school (is_shared = true). Everyone can browse,
+// "Add to Lesson" and "Clone to Course" (both COPY into the caller's own
+// lesson/course). Owner-only (created_by === me) OR superadmin can "Unshare"
+// an item from the school + edit it; non-owners can reuse but not edit.
+//
+// Internal links to the editor point at /admin/lessons. All API paths
+// are unchanged; scope=school is the API default.
+
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import ExercisePreview from '@/components/ExercisePreview'
 import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
+import { Button, Card, Pill, EmptyState, Skeleton } from '@/components/student-ui'
+import FolderTree, { getFolderDepth, type Folder } from '@/components/admin-v2/FolderTree'
 
 // ── Types ──
 
@@ -14,6 +30,8 @@ interface Template {
   lesson_date: string
   lesson_type: string
   summary: string | null
+  is_template: boolean
+  is_shared: boolean
   template_category: string | null
   template_level: string | null
   created_at: string
@@ -69,15 +87,6 @@ interface Course {
   name: string
 }
 
-interface Folder {
-  id: string
-  name: string
-  parent_id: string | null
-  created_by: string
-  created_at: string
-  template_count: number
-}
-
 const CATEGORIES = ['General English', 'Business English']
 
 const LEVELS = [
@@ -115,129 +124,19 @@ const BLOCK_TYPE_LABELS: Record<string, string> = {
 }
 
 const LESSON_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
-  lesson: { label: 'Lesson', icon: '\uD83D\uDCDA' },
-  mid_course_test: { label: 'Mid-Course Test', icon: '\uD83D\uDCDD' },
-  final_test: { label: 'Final Test', icon: '\uD83C\uDF93' },
-  review_test: { label: 'Review Test', icon: '\uD83D\uDD04' },
+  lesson: { label: 'Lesson', icon: '📚' },
+  mid_course_test: { label: 'Mid-Course Test', icon: '📝' },
+  final_test: { label: 'Final Test', icon: '🎓' },
+  review_test: { label: 'Review Test', icon: '🔄' },
 }
 
-// ── Folder Tree Component ──
-
-function FolderTree({
-  folders,
-  parentId,
-  selectedFolderId,
-  expandedFolders,
-  onSelectFolder,
-  onToggleExpand,
-  onCreateSubfolder,
-  onRenameFolder,
-  onDeleteFolder,
-  depth = 0,
-}: {
-  folders: Folder[]
-  parentId: string | null
-  selectedFolderId: string | null
-  expandedFolders: Set<string>
-  onSelectFolder: (id: string | null) => void
-  onToggleExpand: (id: string) => void
-  onCreateSubfolder: (parentId: string) => void
-  onRenameFolder: (folder: Folder) => void
-  onDeleteFolder: (folder: Folder) => void
-  depth?: number
-}) {
-  const children = folders.filter(f => f.parent_id === parentId)
-  if (children.length === 0) return null
-
-  return (
-    <div>
-      {children.map(folder => {
-        const hasChildren = folders.some(f => f.parent_id === folder.id)
-        const isExpanded = expandedFolders.has(folder.id)
-        const isSelected = selectedFolderId === folder.id
-
-        return (
-          <div key={folder.id}>
-            <div
-              className={`group flex items-center gap-1 px-2 py-1.5 rounded-lg cursor-pointer text-sm transition-colors ${
-                isSelected
-                  ? 'bg-[#e6f0fa] text-[#416ebe] font-semibold'
-                  : 'text-[#46464b] hover:bg-gray-100'
-              }`}
-              style={{ paddingLeft: `${depth * 16 + 8}px` }}
-            >
-              {/* Expand/collapse arrow */}
-              <button
-                onClick={e => { e.stopPropagation(); onToggleExpand(folder.id) }}
-                className="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-[#416ebe] shrink-0"
-              >
-                {hasChildren ? (isExpanded ? '\u25BE' : '\u25B8') : ''}
-              </button>
-
-              {/* Folder name */}
-              <button
-                onClick={() => onSelectFolder(isSelected ? null : folder.id)}
-                className="flex-1 text-left truncate"
-              >
-                {folder.name}
-              </button>
-
-              {/* Count badge */}
-              {folder.template_count > 0 && (
-                <span className="text-xs text-gray-400 shrink-0">{folder.template_count}</span>
-              )}
-
-              {/* Context actions (visible on hover) */}
-              <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-                <button
-                  onClick={e => { e.stopPropagation(); onCreateSubfolder(folder.id) }}
-                  className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-[#416ebe] text-xs"
-                  title="Add subfolder"
-                >
-                  +
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onRenameFolder(folder) }}
-                  className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-[#416ebe] text-xs"
-                  title="Rename"
-                >
-                  &#9998;
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onDeleteFolder(folder) }}
-                  className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-red-500 text-xs"
-                  title="Delete"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-
-            {/* Children */}
-            {hasChildren && isExpanded && (
-              <FolderTree
-                folders={folders}
-                parentId={folder.id}
-                selectedFolderId={selectedFolderId}
-                expandedFolders={expandedFolders}
-                onSelectFolder={onSelectFolder}
-                onToggleExpand={onToggleExpand}
-                onCreateSubfolder={onCreateSubfolder}
-                onRenameFolder={onRenameFolder}
-                onDeleteFolder={onDeleteFolder}
-                depth={depth + 1}
-              />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+// Shared input class for the dense restyled selects/inputs in modals + filters.
+const inputClass =
+  'w-full px-3 py-2 text-sm text-ink-body bg-white border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky transition-colors placeholder:text-[#b6bac2]'
 
 // ── Main Component ──
 
-export default function ContentBankPage() {
+export default function ContentBankBetaPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [templates, setTemplates] = useState<Template[]>([])
@@ -260,10 +159,6 @@ export default function ContentBankPage() {
 
   // Assign to folder modal
   const [assigningTemplate, setAssigningTemplate] = useState<Template | null>(null)
-
-  // Delete template
-  const [deletingTemplate, setDeletingTemplate] = useState<Template | null>(null)
-  const [deleteInProgress, setDeleteInProgress] = useState(false)
 
   // Detail view
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
@@ -308,6 +203,11 @@ export default function ContentBankPage() {
 
   const role = session?.user?.role
   const isAdmin = role === 'superadmin' || role === 'teacher'
+  const isSuperadmin = role === 'superadmin'
+  const myEmail = session?.user?.email || ''
+  // Owner-or-superadmin gate: who may edit / unshare a shared item.
+  const canManage = (t: { author_email: string | null } | null) =>
+    !!t && (isSuperadmin || (!!t.author_email && t.author_email === myEmail))
 
   // ── Load folders ──
   const loadFolders = useCallback(async () => {
@@ -325,7 +225,8 @@ export default function ContentBankPage() {
   const loadTemplates = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ action: 'list' })
+      // scope=school → only content shared to the School Library (is_shared=true).
+      const params = new URLSearchParams({ action: 'list', scope: 'school' })
       if (filterLevel) params.set('level', filterLevel)
       if (filterCategory) params.set('category', filterCategory)
       if (selectedFolderId) params.set('folder_id', selectedFolderId)
@@ -619,27 +520,6 @@ export default function ContentBankPage() {
     }
   }
 
-  const deleteTemplate = async (template: Template) => {
-    setDeleteInProgress(true)
-    try {
-      const res = await fetch('/api/lessons', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lessonId: template.id }),
-      })
-      if (!res.ok) throw new Error('Failed')
-      showToast('Template deleted')
-      setDeletingTemplate(null)
-      setSelectedTemplate(null)
-      setFlashcards([]); setExercises([]); setBlocks([])
-      loadTemplates()
-      loadFolders()
-    } catch {
-      showToast('Failed to delete template')
-    }
-    setDeleteInProgress(false)
-  }
-
   const assignToFolder = async (template: Template, folderId: string) => {
     try {
       const res = await fetch('/api/content-bank', {
@@ -681,6 +561,31 @@ export default function ContentBankPage() {
     }
   }
 
+  // ── Unshare from the School Library (owner or superadmin only) ──
+  // Sets is_shared=false. The item leaves the School Library but stays in the
+  // owner's My Library. Closes the detail view if the unshared item is open.
+  const unshareFromSchool = async (template: Template) => {
+    try {
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'unshare-from-school',
+          lesson_id: template.id,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast('Removed from School Library')
+      if (selectedTemplate?.id === template.id) {
+        setSelectedTemplate(null)
+        setFlashcards([]); setExercises([]); setBlocks([])
+      }
+      loadTemplates()
+    } catch {
+      showToast('Failed to unshare')
+    }
+  }
+
   const toggleExpand = (id: string) => {
     setExpandedFolders(prev => {
       const next = new Set(Array.from(prev))
@@ -717,7 +622,7 @@ export default function ContentBankPage() {
     if (t.exercise_count > 0) parts.push(`${t.exercise_count} exercises`)
     const bc = totalBlocks(t)
     if (bc > 0) parts.push(`${bc} blocks`)
-    return parts.join(' \u00B7 ') || 'Empty'
+    return parts.join(' · ') || 'Empty'
   }
 
   const selectedFolderName = selectedFolderId
@@ -725,10 +630,10 @@ export default function ContentBankPage() {
     : null
 
   return (
-    <div className="min-h-screen bg-[#f5f8fc] p-4 sm:p-8">
+    <div className="font-rubik min-h-screen bg-surface px-4 py-6">
       {/* Toast */}
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-[#416ebe] text-white px-5 py-3 rounded-xl text-xs font-bold shadow-lg">
+        <div className="fixed top-4 right-4 z-50 bg-brandblue text-white px-5 py-3 rounded-tile text-xs font-bold shadow-lg">
           {toast}
         </div>
       )}
@@ -736,15 +641,15 @@ export default function ContentBankPage() {
       {/* Clone Modal */}
       {showCloneModal && selectedTemplate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h3 className="font-bold text-[#46464b] mb-1">Clone to Course</h3>
-            <p className="text-xs text-gray-400 mb-4">
+          <Card className="w-full max-w-md shadow-xl">
+            <h3 className="font-bold text-ink-black mb-1">Clone to Course</h3>
+            <p className="text-xs text-ink-muted mb-4">
               &ldquo;{selectedTemplate.title}&rdquo; will be added as a draft lesson in the selected course.
             </p>
             <select
               value={selectedCourseId}
               onChange={e => setSelectedCourseId(e.target.value)}
-              className="w-full px-3 py-2 border border-[#cddcf0] rounded-lg text-sm mb-4"
+              className={`${inputClass} mb-4`}
             >
               <option value="">Select a course...</option>
               {courses.map(c => (
@@ -752,40 +657,42 @@ export default function ContentBankPage() {
               ))}
             </select>
             <div className="flex gap-2 justify-end">
-              <button
+              <Button
+                variant="neutral"
+                size="sm"
                 onClick={() => { setShowCloneModal(false); setSelectedCourseId('') }}
-                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={cloneLesson}
                 disabled={!selectedCourseId || cloning}
-                className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] disabled:opacity-50"
               >
                 {cloning ? 'Cloning...' : 'Clone Lesson'}
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Add to Lesson Modal */}
       {showAddToLessonModal && selectedTemplate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-            <h3 className="font-bold text-[#46464b] mb-1">Add to Existing Lesson</h3>
-            <p className="text-xs text-gray-400 mb-4">
+          <Card className="w-full max-w-md shadow-xl">
+            <h3 className="font-bold text-ink-black mb-1">Add to Existing Lesson</h3>
+            <p className="text-xs text-ink-muted mb-4">
               Copy all content from &ldquo;{selectedTemplate.title}&rdquo; into an existing lesson.
             </p>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Course</label>
+                <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">Course</label>
                 <select
                   value={addToLessonCourseId}
                   onChange={e => loadLessonsForCourse(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#cddcf0] rounded-lg text-sm"
+                  className={inputClass}
                 >
                   <option value="">Select a course...</option>
                   {courses.map(c => (
@@ -796,16 +703,16 @@ export default function ContentBankPage() {
 
               {addToLessonCourseId && (
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lesson</label>
+                  <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">Lesson</label>
                   {addToLessonLoading ? (
-                    <p className="text-xs text-gray-400 py-2">Loading lessons...</p>
+                    <p className="text-xs text-ink-muted py-2">Loading lessons...</p>
                   ) : addToLessonLessons.length === 0 ? (
-                    <p className="text-xs text-gray-400 py-2">No lessons in this course yet.</p>
+                    <p className="text-xs text-ink-muted py-2">No lessons in this course yet.</p>
                   ) : (
                     <select
                       value={addToLessonId}
                       onChange={e => setAddToLessonId(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#cddcf0] rounded-lg text-sm"
+                      className={inputClass}
                     >
                       <option value="">Select a lesson...</option>
                       {addToLessonLessons.map(l => (
@@ -820,124 +727,122 @@ export default function ContentBankPage() {
             </div>
 
             <div className="flex gap-2 justify-end mt-5">
-              <button
+              <Button
+                variant="neutral"
+                size="sm"
                 onClick={() => { setShowAddToLessonModal(false); setAddToLessonCourseId(''); setAddToLessonId('') }}
-                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={copyToLesson}
                 disabled={!addToLessonId || copying}
-                className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] disabled:opacity-50"
               >
                 {copying ? 'Copying...' : 'Add to Lesson'}
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Rename Folder Modal */}
       {renamingFolder && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="font-bold text-[#46464b] mb-3">Rename Folder</h3>
+          <Card className="w-full max-w-sm shadow-xl">
+            <h3 className="font-bold text-ink-black mb-3">Rename Folder</h3>
             <input
               value={renameValue}
               onChange={e => setRenameValue(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && renameFolder()}
-              className="w-full px-3 py-2 border border-[#cddcf0] rounded-lg text-sm mb-4"
+              className={`${inputClass} mb-4`}
               autoFocus
             />
             <div className="flex gap-2 justify-end">
-              <button
+              <Button
+                variant="neutral"
+                size="sm"
                 onClick={() => { setRenamingFolder(null); setRenameValue('') }}
-                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={renameFolder}
                 disabled={!renameValue.trim()}
-                className="px-5 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] disabled:opacity-50"
               >
                 Rename
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Delete Folder Confirmation */}
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="font-bold text-[#46464b] mb-2">Delete Folder?</h3>
-            <p className="text-xs text-gray-500 mb-4">
+          <Card className="w-full max-w-sm shadow-xl">
+            <h3 className="font-bold text-ink-black mb-2">Delete Folder?</h3>
+            <p className="text-xs text-ink-muted mb-4">
               &ldquo;{confirmDelete.name}&rdquo; and all subfolders will be deleted. Templates inside will not be deleted, just unlinked from the folder.
             </p>
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
-              >
+              <Button variant="neutral" size="sm" onClick={() => setConfirmDelete(null)}>
                 Cancel
-              </button>
+              </Button>
               <button
                 onClick={() => deleteFolder(confirmDelete)}
-                className="px-5 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600"
+                className="px-4 py-2 bg-incorrect-fg text-white text-xs font-extrabold rounded-tile hover:brightness-95 transition-all"
               >
                 Delete
               </button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Delete Exercise Confirmation Modal */}
       {confirmExerciseDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="font-bold text-[#46464b] mb-2">Delete Exercise?</h3>
-            <p className="text-xs text-gray-500 mb-4">
+          <Card className="w-full max-w-sm shadow-xl">
+            <h3 className="font-bold text-ink-black mb-2">Delete Exercise?</h3>
+            <p className="text-xs text-ink-muted mb-4">
               This will permanently delete the exercise. This cannot be undone.
             </p>
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setConfirmExerciseDelete(null)}
-                className="px-4 py-2 text-xs font-bold text-gray-400 hover:text-gray-600"
-              >
+              <Button variant="neutral" size="sm" onClick={() => setConfirmExerciseDelete(null)}>
                 Cancel
-              </button>
+              </Button>
               <button
                 onClick={() => { deleteExercise(confirmExerciseDelete); setConfirmExerciseDelete(null) }}
-                className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                className="px-4 py-2 bg-incorrect-fg text-white text-xs font-extrabold rounded-tile hover:brightness-95 transition-all"
               >
                 Delete
               </button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Assign to Folder Modal */}
       {assigningTemplate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="font-bold text-[#46464b] mb-1">Add to Folder</h3>
-            <p className="text-xs text-gray-400 mb-4">
+          <Card className="w-full max-w-sm shadow-xl">
+            <h3 className="font-bold text-ink-black mb-1">Add to Folder</h3>
+            <p className="text-xs text-ink-muted mb-4">
               Select a folder for &ldquo;{assigningTemplate.title}&rdquo;
             </p>
             {folders.length === 0 ? (
-              <p className="text-xs text-gray-400 mb-4">No folders yet. Create one first.</p>
+              <p className="text-xs text-ink-muted mb-4">No folders yet. Create one first.</p>
             ) : (
-              <div className="max-h-60 overflow-y-auto mb-4 border border-[#cddcf0] rounded-lg">
+              <div className="max-h-60 overflow-y-auto mb-4 border border-hairline rounded-tile">
                 {folders.map(f => (
                   <button
                     key={f.id}
                     onClick={() => assignToFolder(assigningTemplate, f.id)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-[#e6f0fa] transition-colors border-b border-[#cddcf0] last:border-b-0"
+                    className="w-full text-left px-3 py-2 text-sm text-ink-body hover:bg-sky-wash transition-colors border-b border-hairline last:border-b-0"
                   >
                     {/* Show hierarchy via indent */}
                     <span style={{ paddingLeft: `${getFolderDepth(folders, f.id) * 16}px` }}>
@@ -948,141 +853,120 @@ export default function ContentBankPage() {
               </div>
             )}
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setAssigningTemplate(null)}
-                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
-              >
+              <Button variant="neutral" size="sm" onClick={() => setAssigningTemplate(null)}>
                 Cancel
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete confirmation modal */}
-      {deletingTemplate && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h3 className="font-bold text-[#46464b] mb-1">Delete Template?</h3>
-            <p className="text-xs text-gray-400 mb-4">
-              This will permanently delete &ldquo;{deletingTemplate.title}&rdquo; and all its content. This cannot be undone.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setDeletingTemplate(null)}
-                disabled={deleteInProgress}
-                className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteTemplate(deletingTemplate)}
-                disabled={deleteInProgress}
-                className="px-4 py-2 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
-              >
-                {deleteInProgress ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* ══════════ DETAIL VIEW ══════════ */}
       {selectedTemplate ? (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {/* Back + header */}
           <button
             onClick={() => { setSelectedTemplate(null); setFlashcards([]); setExercises([]); setBlocks([]) }}
-            className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-2"
+            className="text-xs text-ink-muted hover:text-sky-text transition-colors mb-2"
           >
-            &larr; Back to Content Bank
+            &larr; Back to School Library
           </button>
 
-          <div className="flex items-start justify-between mb-6">
+          <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-[#416ebe]">{selectedTemplate.title}</h1>
-              <div className="flex gap-2 mt-2">
+              <h1 className="text-2xl font-bold text-brandblue">{selectedTemplate.title}</h1>
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <Pill variant="correct">✓ Shared</Pill>
                 {selectedTemplate.template_level && (
-                  <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full font-medium">
-                    {selectedTemplate.template_level}
-                  </span>
+                  <Pill variant="level">{selectedTemplate.template_level}</Pill>
                 )}
                 {selectedTemplate.template_category && (
-                  <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full font-medium">
-                    {selectedTemplate.template_category}
-                  </span>
+                  <Pill variant="wash">{selectedTemplate.template_category}</Pill>
                 )}
                 {selectedTemplate.lesson_type && selectedTemplate.lesson_type !== 'lesson' && (
-                  <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full font-medium">
+                  <Pill variant="wash">
                     {LESSON_TYPE_LABELS[selectedTemplate.lesson_type]?.icon} {LESSON_TYPE_LABELS[selectedTemplate.lesson_type]?.label}
-                  </span>
+                  </Pill>
                 )}
               </div>
+              <p className="text-xs text-ink-muted mt-2">
+                Shared by {selectedTemplate.author_name || 'Unknown'}
+              </p>
               {selectedTemplate.summary && (
-                <p className="text-sm text-gray-500 mt-2">{selectedTemplate.summary}</p>
+                <p className="text-sm text-ink-muted mt-2">{selectedTemplate.summary}</p>
               )}
             </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => setDeletingTemplate(selectedTemplate)}
-                className="px-4 py-2.5 border border-red-200 text-red-400 text-xs font-bold rounded-xl hover:border-red-400 hover:text-red-500 transition-colors"
-              >
-                Delete
-              </button>
-              <button
-                onClick={() => router.push(`/admin/lessons?id=${selectedTemplate.id}`)}
-                className="px-4 py-2.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-xl hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
-              >
-                Edit Template
-              </button>
-              <button
-                onClick={() => setAssigningTemplate(selectedTemplate)}
-                className="px-4 py-2.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-xl hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
-              >
+            <div className="flex gap-2 shrink-0 flex-wrap">
+              {/* Owner-destructive actions: only the owner (or superadmin). */}
+              {canManage(selectedTemplate) && (
+                <>
+                  <button
+                    onClick={() => unshareFromSchool(selectedTemplate)}
+                    className="px-3 py-2 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors"
+                    title="Remove this content from the School Library (stays in your library)"
+                  >
+                    Unshare
+                  </button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => router.push(`/admin/lessons?id=${selectedTemplate.id}`)}
+                  >
+                    Edit
+                  </Button>
+                </>
+              )}
+              {/* Reuse actions: available to everyone (they COPY into your own
+                  lesson/course/folder — they don't mutate the shared item). */}
+              <Button variant="secondary" size="sm" onClick={() => setAssigningTemplate(selectedTemplate)}>
                 Add to Folder
-              </button>
-              <button
-                onClick={openAddToLessonModal}
-                className="px-4 py-2.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-xl hover:border-[#416ebe] hover:text-[#416ebe] transition-colors"
-              >
+              </Button>
+              <Button variant="secondary" size="sm" onClick={openAddToLessonModal}>
                 Add to Lesson
-              </button>
-              <button
-                onClick={openCloneModal}
-                className="px-5 py-2.5 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0] transition-colors shadow-sm"
-              >
+              </Button>
+              <Button variant="primary" size="sm" onClick={openCloneModal}>
                 Clone to Course
-              </button>
+              </Button>
             </div>
           </div>
 
           {loadingDetail ? (
-            <p className="text-center text-gray-400 py-12">Loading content...</p>
+            <div className="space-y-3">
+              {[0, 1].map(i => (
+                <Card key={i}>
+                  <Skeleton className="h-4 w-32 mb-3" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                  </div>
+                </Card>
+              ))}
+            </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Flashcards */}
               {flashcards.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#cddcf0] p-5">
-                  <h3 className="font-bold text-[#46464b] mb-3">
-                    Flashcards <span className="text-xs font-normal text-gray-400">({flashcards.length})</span>
+                <Card>
+                  <h3 className="font-bold text-ink-black mb-3">
+                    Flashcards <span className="text-xs font-normal text-ink-muted">({flashcards.length})</span>
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {flashcards.map(fc => (
-                      <div key={fc.id} className="bg-[#f5f8fc] rounded-lg p-3 border border-[#e6f0fa]">
-                        <p className="font-bold text-sm text-[#416ebe]">{fc.word}</p>
-                        {fc.phonetic && <p className="text-xs text-gray-400">{fc.phonetic}</p>}
-                        <p className="text-xs text-[#46464b] mt-1">{fc.meaning}</p>
+                      <div key={fc.id} className="bg-surface rounded-tile p-3 border border-hairline">
+                        <p className="font-bold text-sm text-sky-text">{fc.word}</p>
+                        {fc.phonetic && <p className="text-xs text-ink-muted">{fc.phonetic}</p>}
+                        <p className="text-xs text-ink-body mt-1">{fc.meaning}</p>
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
               )}
 
               {/* Exercises */}
               {exercises.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#cddcf0] p-5">
-                  <h3 className="font-bold text-[#46464b] mb-3">
-                    Exercises <span className="text-xs font-normal text-gray-400">({exercises.length})</span>
+                <Card>
+                  <h3 className="font-bold text-ink-black mb-3">
+                    Exercises <span className="text-xs font-normal text-ink-muted">({exercises.length})</span>
                   </h3>
                   <div className="space-y-2">
                     {exercises.map(ex => {
@@ -1093,10 +977,10 @@ export default function ContentBankPage() {
                       const questions = (editEx.questions || []) as any[]
 
                       return (
-                        <div key={ex.id} className="bg-[#f5f8fc] rounded-lg border border-[#e6f0fa] overflow-hidden">
+                        <div key={ex.id} className="bg-surface rounded-tile border border-hairline overflow-hidden">
                           {/* Collapsed header — clickable */}
                           <div
-                            className="p-3 flex items-center gap-3 cursor-pointer hover:bg-[#edf4fc] transition-colors"
+                            className="p-3 flex items-center gap-3 cursor-pointer hover:bg-sky-wash transition-colors"
                             onClick={() => {
                               if (isExpanded) {
                                 setExpandedExerciseId(null)
@@ -1109,32 +993,34 @@ export default function ContentBankPage() {
                           >
                             <span className="text-lg">{ex.icon}</span>
                             <div className="flex-1">
-                              <p className="font-bold text-sm text-[#46464b]">{ex.title}</p>
-                              <p className="text-xs text-gray-400">
+                              <p className="font-bold text-sm text-ink-black">{ex.title}</p>
+                              <p className="text-xs text-ink-muted">
                                 {EXERCISE_TYPE_LABELS[ex.exercise_type] || ex.exercise_type}
-                                {ex.subtitle && ` \u00B7 ${ex.subtitle}`}
-                                {' \u00B7 '}
+                                {ex.subtitle && ` · ${ex.subtitle}`}
+                                {' · '}
                                 {questions.length} question{questions.length !== 1 ? 's' : ''}
                               </p>
                             </div>
-                            <span className={`text-gray-400 text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>&#x25BC;</span>
+                            <span className={`text-ink-muted text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>&#x25BC;</span>
                           </div>
 
                           {/* Expanded content */}
                           {isExpanded && (
-                            <div className="border-t border-[#e6f0fa] p-4">
+                            <div className="border-t border-hairline p-4">
                               {/* Action buttons */}
                               <div className="flex gap-2 mb-4">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setPreviewExercise(ex) }}
-                                  className="px-3 py-1.5 bg-amber-500 text-white text-xs font-bold rounded-lg hover:bg-amber-600 transition-colors"
+                                  className="px-3 py-1.5 bg-streak-fill text-streak-ink text-xs font-extrabold rounded-tile hover:brightness-95 transition-all"
                                 >
                                   ▶ Preview
                                 </button>
-                                {!isEditing ? (
+                                {/* Editing a shared item mutates it for everyone,
+                                    so Edit/Delete are owner-or-superadmin only. */}
+                                {canManage(selectedTemplate) && (!isEditing ? (
                                   <button
                                     onClick={() => setEditingExercise({ ...ex, questions: ex.questions })}
-                                    className="px-3 py-1.5 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors"
+                                    className="px-3 py-1.5 bg-sky text-white text-xs font-extrabold rounded-tile hover:bg-[#0099d6] transition-colors"
                                   >
                                     Edit
                                   </button>
@@ -1143,83 +1029,85 @@ export default function ContentBankPage() {
                                     <button
                                       onClick={() => saveExercise(editingExercise)}
                                       disabled={savingExercise}
-                                      className="px-3 py-1.5 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors disabled:opacity-50"
+                                      className="px-3 py-1.5 bg-sky text-white text-xs font-extrabold rounded-tile hover:bg-[#0099d6] transition-colors disabled:opacity-50"
                                     >
                                       {savingExercise ? 'Saving...' : 'Save'}
                                     </button>
                                     <button
                                       onClick={() => setEditingExercise(null)}
-                                      className="px-3 py-1.5 border border-[#cddcf0] text-[#46464b] text-xs font-bold rounded-lg hover:border-[#416ebe] transition-colors"
+                                      className="px-3 py-1.5 border-[1.5px] border-sky-border text-sky-text text-xs font-extrabold rounded-tile hover:border-sky transition-colors"
                                     >
                                       Cancel
                                     </button>
                                   </>
+                                ))}
+                                {canManage(selectedTemplate) && (
+                                  <button
+                                    onClick={() => setConfirmExerciseDelete(ex.id)}
+                                    className="px-3 py-1.5 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors ml-auto"
+                                  >
+                                    Delete
+                                  </button>
                                 )}
-                                <button
-                                  onClick={() => setConfirmExerciseDelete(ex.id)}
-                                  className="px-3 py-1.5 border border-red-200 text-red-500 text-xs font-bold rounded-lg hover:bg-red-50 transition-colors ml-auto"
-                                >
-                                  Delete
-                                </button>
                               </div>
 
                               {/* Editable fields */}
                               {isEditing ? (
                                 <div className="space-y-3 mb-4">
                                   <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Title</label>
+                                    <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">Title</label>
                                     <input type="text" value={editEx.title} onChange={(e) => setEditingExercise({ ...editEx, title: e.target.value })}
-                                      className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]" />
+                                      className={inputClass} />
                                   </div>
                                   <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Instructions</label>
+                                    <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">Instructions</label>
                                     <textarea value={editEx.instructions} onChange={(e) => setEditingExercise({ ...editEx, instructions: e.target.value })}
-                                      className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] h-16 resize-y" />
+                                      className={`${inputClass} h-16 resize-y`} />
                                   </div>
                                   <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Type</label>
+                                      <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">Type</label>
                                       <select
                                         value={editEx.exercise_type}
                                         disabled={convertingType}
                                         onChange={(e) => convertExerciseType(editEx, e.target.value)}
-                                        className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg bg-white disabled:opacity-50"
+                                        className={`${inputClass} disabled:opacity-50`}
                                       >
                                         {Object.entries(EXERCISE_TYPE_LABELS).map(([val, label]) => (
                                           <option key={val} value={val}>{label}</option>
                                         ))}
                                       </select>
                                       {convertingType && (
-                                        <p className="text-[10px] text-[#416ebe] mt-1 flex items-center gap-1">
-                                          <span className="animate-spin inline-block w-2.5 h-2.5 border-2 border-[#416ebe] border-t-transparent rounded-full" />
+                                        <p className="text-[10px] text-sky-text mt-1 flex items-center gap-1">
+                                          <span className="animate-spin inline-block w-2.5 h-2.5 border-2 border-sky-text border-t-transparent rounded-full" />
                                           Converting questions...
                                         </p>
                                       )}
                                     </div>
                                     <div>
-                                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Subtitle</label>
+                                      <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">Subtitle</label>
                                       <input type="text" value={editEx.subtitle} onChange={(e) => setEditingExercise({ ...editEx, subtitle: e.target.value })}
-                                        className="w-full px-3 py-2 text-sm border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe]" />
+                                        className={inputClass} />
                                     </div>
                                   </div>
                                 </div>
                               ) : (
                                 <div className="mb-4">
                                   {editEx.instructions && (
-                                    <p className="text-xs text-gray-500 italic mb-2">{editEx.instructions}</p>
+                                    <p className="text-xs text-ink-muted italic mb-2">{editEx.instructions}</p>
                                   )}
                                 </div>
                               )}
 
                               {/* Questions list */}
                               <div className="space-y-2">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase">Questions</p>
+                                <p className="text-[10px] font-bold text-ink-muted uppercase">Questions</p>
                                 {questions.map((q: { id?: number; prompt?: string; statement?: string; word?: string; text?: string; options?: string[]; correctIndex?: number; answer?: string; isTrue?: boolean; explanation?: string; clue?: string; hint?: string; blanks?: Record<string, string>; wordBank?: string[] }, qi: number) => (
-                                  <div key={q.id || qi} className="bg-white rounded-lg p-3 border border-[#e6f0fa] text-xs">
+                                  <div key={q.id || qi} className="bg-white rounded-tile p-3 border border-hairline text-xs">
                                     {isEditing ? (
                                       <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-gray-400 font-bold w-5">{qi + 1}.</span>
+                                          <span className="text-ink-muted font-bold w-5">{qi + 1}.</span>
                                           <input
                                             type="text"
                                             value={q.prompt || q.statement || q.word || q.text || ''}
@@ -1229,7 +1117,7 @@ export default function ContentBankPage() {
                                               updated[qi] = { ...updated[qi], [field]: e.target.value }
                                               setEditingExercise({ ...editEx, questions: updated })
                                             }}
-                                            className="flex-1 px-2 py-1 border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe] text-xs"
+                                            className="flex-1 px-2 py-1 border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky text-xs"
                                           />
                                         </div>
                                         {q.options && (
@@ -1248,7 +1136,7 @@ export default function ContentBankPage() {
                                         )}
                                         {q.answer !== undefined && (
                                           <div className="ml-7 flex items-center gap-2">
-                                            <span className="text-gray-400">Answer:</span>
+                                            <span className="text-ink-muted">Answer:</span>
                                             <input
                                               type="text"
                                               value={q.answer}
@@ -1257,13 +1145,13 @@ export default function ContentBankPage() {
                                                 updated[qi] = { ...updated[qi], answer: e.target.value }
                                                 setEditingExercise({ ...editEx, questions: updated })
                                               }}
-                                              className="flex-1 px-2 py-1 border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe] text-xs"
+                                              className="flex-1 px-2 py-1 border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky text-xs"
                                             />
                                           </div>
                                         )}
                                         {q.explanation !== undefined && (
                                           <div className="ml-7 flex items-center gap-2">
-                                            <span className="text-gray-400">Explanation:</span>
+                                            <span className="text-ink-muted">Explanation:</span>
                                             <input
                                               type="text"
                                               value={q.explanation}
@@ -1272,40 +1160,40 @@ export default function ContentBankPage() {
                                                 updated[qi] = { ...updated[qi], explanation: e.target.value }
                                                 setEditingExercise({ ...editEx, questions: updated })
                                               }}
-                                              className="flex-1 px-2 py-1 border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe] text-xs"
+                                              className="flex-1 px-2 py-1 border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky text-xs"
                                             />
                                           </div>
                                         )}
                                       </div>
                                     ) : (
                                       <div>
-                                        <p className="text-[#46464b]">
-                                          <span className="text-gray-400 font-bold">{qi + 1}.</span>{' '}
+                                        <p className="text-ink-body">
+                                          <span className="text-ink-muted font-bold">{qi + 1}.</span>{' '}
                                           {q.prompt || q.statement || (q.word && `Guess: ${q.word}`) || q.text || ''}
                                         </p>
                                         {q.options && (
                                           <div className="ml-5 mt-1 space-y-0.5">
                                             {q.options.map((opt: string, oi: number) => (
-                                              <p key={oi} className={oi === q.correctIndex ? 'text-green-600 font-medium' : 'text-gray-400'}>
+                                              <p key={oi} className={oi === q.correctIndex ? 'text-correct-fg font-medium' : 'text-ink-muted'}>
                                                 {String.fromCharCode(97 + oi)}) {opt} {oi === q.correctIndex && '✓'}
                                               </p>
                                             ))}
                                           </div>
                                         )}
                                         {q.answer !== undefined && (
-                                          <p className="ml-5 mt-1 text-green-600 font-medium">Answer: {q.answer}</p>
+                                          <p className="ml-5 mt-1 text-correct-fg font-medium">Answer: {q.answer}</p>
                                         )}
                                         {q.isTrue !== undefined && (
-                                          <p className="ml-5 mt-1 text-green-600 font-medium">{q.isTrue ? 'True' : 'False'}</p>
+                                          <p className="ml-5 mt-1 text-correct-fg font-medium">{q.isTrue ? 'True' : 'False'}</p>
                                         )}
                                         {q.clue && (
-                                          <p className="ml-5 mt-1 text-gray-400">Clue: {q.clue}</p>
+                                          <p className="ml-5 mt-1 text-ink-muted">Clue: {q.clue}</p>
                                         )}
                                         {q.explanation && (
-                                          <p className="ml-5 mt-1 text-gray-400 italic">{q.explanation}</p>
+                                          <p className="ml-5 mt-1 text-ink-muted italic">{q.explanation}</p>
                                         )}
                                         {q.wordBank && (
-                                          <p className="ml-5 mt-1 text-gray-400">Word bank: {q.wordBank.join(', ')}</p>
+                                          <p className="ml-5 mt-1 text-ink-muted">Word bank: {q.wordBank.join(', ')}</p>
                                         )}
                                       </div>
                                     )}
@@ -1318,66 +1206,63 @@ export default function ContentBankPage() {
                       )
                     })}
                   </div>
-                </div>
+                </Card>
               )}
 
               {/* Content Blocks */}
               {blocks.length > 0 && (
-                <div className="bg-white rounded-2xl border border-[#cddcf0] p-5">
-                  <h3 className="font-bold text-[#46464b] mb-3">
-                    Content Blocks <span className="text-xs font-normal text-gray-400">({blocks.length})</span>
+                <Card>
+                  <h3 className="font-bold text-ink-black mb-3">
+                    Content Blocks <span className="text-xs font-normal text-ink-muted">({blocks.length})</span>
                   </h3>
                   <div className="space-y-2">
                     {blocks.map(b => (
-                      <div key={b.id} className="bg-[#f5f8fc] rounded-lg p-3 border border-[#e6f0fa]">
-                        <p className="font-bold text-sm text-[#46464b]">
+                      <div key={b.id} className="bg-surface rounded-tile p-3 border border-hairline">
+                        <p className="font-bold text-sm text-ink-black">
                           {BLOCK_TYPE_LABELS[b.block_type] || b.block_type}
                           {b.title && `: ${b.title}`}
                         </p>
                       </div>
                     ))}
                   </div>
-                </div>
+                </Card>
               )}
 
               {flashcards.length === 0 && exercises.length === 0 && blocks.length === 0 && (
-                <p className="text-center text-gray-400 py-8">This template has no content yet.</p>
+                <Card>
+                  <EmptyState icon="📭" title="No content yet" hint="This template has no flashcards, exercises or blocks." />
+                </Card>
               )}
             </div>
           )}
         </div>
       ) : (
         /* ══════════ LIST VIEW WITH FOLDER SIDEBAR ══════════ */
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
             <div>
-              <button
-                onClick={() => router.push('/admin')}
-                className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-1"
-              >
-                &larr; Admin Console
-              </button>
-              <h1 className="text-2xl font-bold text-[#416ebe]">Content Bank</h1>
-              <p className="text-xs text-gray-400 mt-1">Browse shared lesson templates. Clone or cherry-pick content into your lessons.</p>
+              <h1 className="text-2xl font-bold text-brandblue">School Library</h1>
+              <p className="text-xs text-ink-muted mt-1">Shared content from across the school — reuse it in your lessons.</p>
             </div>
-            <button
-              onClick={() => router.push('/admin/lessons?mode=content-bank')}
-              className="px-5 py-2.5 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0] transition-colors shadow-sm shrink-0"
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => router.push('/admin/lessons?mode=content-bank&share=school')}
             >
-              + Create Template
-            </button>
+              ＋ New
+            </Button>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex gap-4">
             {/* ── Folder Sidebar ── */}
-            <div className="w-56 shrink-0">
-              <div className="bg-white rounded-2xl border border-[#cddcf0] p-4">
+            <div className="w-52 shrink-0">
+              <Card padding="sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold text-sm text-[#46464b]">Folders</h3>
+                  <h3 className="font-bold text-sm text-ink-black">Folders</h3>
                   <button
                     onClick={() => { setShowNewFolder(true); setNewFolderParentId(null) }}
-                    className="text-xs text-[#416ebe] hover:text-[#3560b0] font-bold"
+                    className="text-xs text-sky-text hover:underline font-bold"
                   >
                     + New
                   </button>
@@ -1394,20 +1279,20 @@ export default function ContentBankPage() {
                         if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName(''); setNewFolderParentId(null) }
                       }}
                       placeholder={newFolderParentId ? 'Subfolder name...' : 'Folder name...'}
-                      className="w-full px-2 py-1.5 border border-[#cddcf0] rounded-lg text-xs mb-1"
+                      className="w-full px-2 py-1.5 border-[1.5px] border-[#e3e5e9] rounded-tile text-xs mb-1 focus:outline-none focus:border-sky"
                       autoFocus
                     />
                     <div className="flex gap-1">
                       <button
                         onClick={createFolder}
                         disabled={!newFolderName.trim()}
-                        className="px-2 py-1 bg-[#416ebe] text-white text-xs rounded-lg disabled:opacity-50"
+                        className="px-2 py-1 bg-sky text-white text-xs font-extrabold rounded-tile disabled:opacity-50 hover:bg-[#0099d6] transition-colors"
                       >
                         Create
                       </button>
                       <button
                         onClick={() => { setShowNewFolder(false); setNewFolderName(''); setNewFolderParentId(null) }}
-                        className="px-2 py-1 text-xs text-gray-500"
+                        className="px-2 py-1 text-xs text-ink-muted hover:text-ink-body"
                       >
                         Cancel
                       </button>
@@ -1415,16 +1300,16 @@ export default function ContentBankPage() {
                   </div>
                 )}
 
-                {/* "All Templates" option */}
+                {/* "All Shared Content" option */}
                 <button
                   onClick={() => setSelectedFolderId(null)}
-                  className={`w-full text-left px-2 py-1.5 rounded-lg text-sm mb-1 transition-colors ${
+                  className={`w-full text-left px-2 py-1.5 rounded-tile text-sm mb-1 transition-colors ${
                     selectedFolderId === null
-                      ? 'bg-[#e6f0fa] text-[#416ebe] font-semibold'
-                      : 'text-[#46464b] hover:bg-gray-100'
+                      ? 'bg-sky-wash text-sky-text font-semibold'
+                      : 'text-ink-body hover:bg-surface'
                   }`}
                 >
-                  All Templates
+                  All Shared Content
                 </button>
 
                 {/* Folder tree */}
@@ -1441,41 +1326,42 @@ export default function ContentBankPage() {
                 />
 
                 {folders.length === 0 && !showNewFolder && (
-                  <p className="text-xs text-gray-300 mt-2">No folders yet.</p>
+                  <p className="text-xs text-ink-muted mt-2">No folders yet.</p>
                 )}
-              </div>
+              </Card>
             </div>
 
             {/* ── Main Content ── */}
             <div className="flex-1 min-w-0">
               {/* Active folder label + Filters */}
-              <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
                 {selectedFolderName && (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[#46464b]">{selectedFolderName}</span>
+                    <span className="text-sm font-semibold text-ink-body">{selectedFolderName}</span>
                     <button
                       onClick={() => setSelectedFolderId(null)}
-                      className="text-xs text-gray-400 hover:text-[#416ebe]"
+                      className="text-xs text-ink-muted hover:text-sky-text"
                     >
                       &times; Clear
                     </button>
                   </div>
                 )}
-                <div className="relative flex-1 min-w-[220px] max-w-md">
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="relative w-full max-w-xs">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-muted pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
                   </svg>
                   <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search templates by title…"
-                    className="w-full pl-9 pr-9 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] bg-white"
+                    placeholder="Search shared content…"
+                    className="w-full pl-9 pr-9 py-2 text-sm text-ink-body bg-white border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky transition-colors placeholder:text-[#b6bac2]"
                   />
                   {search && (
                     <button
                       onClick={() => setSearch('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                      aria-label="Clear search"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-body"
                     >
                       &times;
                     </button>
@@ -1484,7 +1370,7 @@ export default function ContentBankPage() {
                 <select
                   value={filterLevel}
                   onChange={e => setFilterLevel(e.target.value)}
-                  className="px-3 py-2 border border-[#cddcf0] rounded-lg text-sm bg-white"
+                  className="px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white text-ink-body focus:outline-none focus:border-sky"
                 >
                   <option value="">All Levels</option>
                   {LEVELS.map(l => (
@@ -1494,7 +1380,7 @@ export default function ContentBankPage() {
                 <select
                   value={filterCategory}
                   onChange={e => setFilterCategory(e.target.value)}
-                  className="px-3 py-2 border border-[#cddcf0] rounded-lg text-sm bg-white"
+                  className="px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white text-ink-body focus:outline-none focus:border-sky"
                 >
                   <option value="">All Categories</option>
                   {CATEGORIES.map(c => (
@@ -1504,7 +1390,7 @@ export default function ContentBankPage() {
                 <select
                   value={filterAuthor}
                   onChange={e => setFilterAuthor(e.target.value)}
-                  className="px-3 py-2 border border-[#cddcf0] rounded-lg text-sm bg-white"
+                  className="px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white text-ink-body focus:outline-none focus:border-sky"
                 >
                   <option value="">All Authors</option>
                   {Array.from(new Set(templates.map((t) => t.author_name || 'Unknown'))).sort((a, b) => a.localeCompare(b)).map((a) => (
@@ -1514,7 +1400,7 @@ export default function ContentBankPage() {
                 <select
                   value={sortBy}
                   onChange={e => setSortBy(e.target.value as 'recent' | 'author')}
-                  className="px-3 py-2 border border-[#cddcf0] rounded-lg text-sm bg-white"
+                  className="px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white text-ink-body focus:outline-none focus:border-sky"
                   title="Sort templates"
                 >
                   <option value="recent">Most recent</option>
@@ -1536,65 +1422,69 @@ export default function ContentBankPage() {
                     )
                   : filtered
                 if (loading) {
-                  return <p className="text-center text-gray-400 py-12">Loading templates...</p>
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} className="bg-white rounded-card border border-hairline p-4">
+                          <Skeleton className="h-4 w-40 mb-2" />
+                          <Skeleton className="h-3 w-24 mb-3" />
+                          <Skeleton className="h-3 w-32" />
+                        </div>
+                      ))}
+                    </div>
+                  )
                 }
                 if (visible.length === 0) {
                   const filtersActive = !!filterAuthor || !!selectedFolderId || !!filterLevel || !!filterCategory || !!q
                   return (
-                    <div className="text-center py-16">
-                      <p className="text-gray-400 mb-2">
-                        {filtersActive ? 'No templates match the current filters.' : 'No templates found.'}
-                      </p>
-                      <p className="text-xs text-gray-300">
-                        {filtersActive
+                    <div className="bg-white rounded-card border border-hairline">
+                      <EmptyState
+                        icon={filtersActive ? '🔍' : '🏫'}
+                        title={filtersActive ? 'No shared content matches the current filters.' : 'Nothing shared to the school yet.'}
+                        hint={filtersActive
                           ? 'Try clearing a filter to see more.'
-                          : 'Create a template with the button above, or mark an existing lesson as "Share as Template" in the Lesson Manager.'}
-                      </p>
+                          : 'Share content from your own library to make it reusable across the school.'}
+                      />
                     </div>
                   )
                 }
                 return (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {visible.map(t => (
                     <div
                       key={t.id}
-                      className="bg-white rounded-2xl border border-[#cddcf0] p-5 hover:shadow-md hover:border-[#416ebe] transition-all group relative"
+                      className="bg-white rounded-card border border-hairline p-4 hover:border-sky transition-colors group relative"
                     >
                       <button
                         onClick={() => openTemplate(t)}
                         className="w-full text-left"
                       >
-                        <h3 className="font-bold text-[#46464b] group-hover:text-[#416ebe] transition-colors mb-1">
+                        <h3 className="font-bold text-ink-black group-hover:text-sky-text transition-colors mb-1">
                           {t.title}
                         </h3>
                         <div className="flex flex-wrap gap-1.5 mb-2">
+                          <Pill variant="correct">✓ Shared</Pill>
                           {t.template_level && (
-                            <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full">
-                              {t.template_level}
-                            </span>
+                            <Pill variant="level">{t.template_level}</Pill>
                           )}
                           {t.template_category && (
-                            <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full">
-                              {t.template_category}
-                            </span>
+                            <Pill variant="wash">{t.template_category}</Pill>
                           )}
                           {t.lesson_type && t.lesson_type !== 'lesson' && (
-                            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full">
-                              {LESSON_TYPE_LABELS[t.lesson_type]?.label}
-                            </span>
+                            <Pill variant="wash">{LESSON_TYPE_LABELS[t.lesson_type]?.label}</Pill>
                           )}
                         </div>
-                        <p className="text-xs text-gray-400">{contentSummary(t)}</p>
+                        <p className="text-xs text-ink-muted">{contentSummary(t)}</p>
                         {t.summary && (
-                          <p className="text-xs text-gray-500 mt-2 line-clamp-2">{t.summary}</p>
+                          <p className="text-xs text-ink-muted mt-2 line-clamp-2">{t.summary}</p>
                         )}
                       </button>
-                      <p className="text-xs text-gray-400 mt-2">
-                        Created by{' '}
+                      <p className="text-xs text-ink-muted mt-2">
+                        Shared by{' '}
                         <button
                           onClick={(e) => { e.stopPropagation(); setFilterAuthor(t.author_name || 'Unknown') }}
-                          className="hover:text-[#416ebe] hover:underline"
-                          title={`Show only ${t.author_name || 'Unknown'}'s templates`}
+                          className="hover:text-sky-text hover:underline"
+                          title={`Show only ${t.author_name || 'Unknown'}'s content`}
                         >
                           {t.author_name || 'Unknown'}
                         </button>
@@ -1606,15 +1496,25 @@ export default function ContentBankPage() {
                       <div className="absolute top-3 right-3 hidden group-hover:flex items-center gap-1">
                         <button
                           onClick={e => { e.stopPropagation(); setAssigningTemplate(t) }}
-                          className="px-2 py-1 bg-white border border-[#cddcf0] rounded-lg text-xs text-gray-500 hover:text-[#416ebe] hover:border-[#416ebe]"
-                          title="Add to folder"
+                          className="px-2 py-1 bg-white border border-hairline rounded-tile text-xs text-ink-muted hover:text-sky-text hover:border-sky"
+                          title="Add to one of your folders"
                         >
                           Folder
                         </button>
+                        {/* Unshare: owner or superadmin only. */}
+                        {canManage(t) && (
+                          <button
+                            onClick={e => { e.stopPropagation(); unshareFromSchool(t) }}
+                            className="px-2 py-1 bg-white border border-hairline rounded-tile text-xs text-ink-muted hover:text-incorrect-fg hover:border-incorrect-border"
+                            title="Remove from the School Library"
+                          >
+                            Unshare
+                          </button>
+                        )}
                         {selectedFolderId && (
                           <button
                             onClick={e => { e.stopPropagation(); removeFromFolder(t.id) }}
-                            className="px-2 py-1 bg-white border border-[#cddcf0] rounded-lg text-xs text-gray-500 hover:text-red-500 hover:border-red-300"
+                            className="px-2 py-1 bg-white border border-hairline rounded-tile text-xs text-ink-muted hover:text-incorrect-fg hover:border-incorrect-border"
                             title="Remove from this folder"
                           >
                             Remove
@@ -1639,15 +1539,4 @@ export default function ContentBankPage() {
       )}
     </div>
   )
-}
-
-// Helper: get folder depth for indentation in flat list
-function getFolderDepth(folders: Folder[], folderId: string): number {
-  let depth = 0
-  let current = folders.find(f => f.id === folderId)
-  while (current?.parent_id) {
-    depth++
-    current = folders.find(f => f.id === current!.parent_id)
-  }
-  return depth
 }

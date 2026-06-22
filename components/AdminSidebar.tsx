@@ -114,7 +114,7 @@ const IconLogout = (
 // as before, just regrouped by meaning. Hrefs and matchers are UNCHANGED.
 //
 // My Courses and My Students have their own clean routes
-// (/admin-beta/courses and /admin-beta/students). Detail-level routes still
+// (/admin/courses and /admin/students). Detail-level routes still
 // redirect via /admin?courseDetail=… / ?studentDetail=… so the matcher accounts
 // for either landing spot. Active-match also still matches the legacy /admin/*
 // path so the highlight is correct if a legacy route is hit.
@@ -122,39 +122,39 @@ const IconLogout = (
 // TEACHING group: My Courses, My Students, My Library, Attendance
 const TEACHING_NAV: NavItem[] = [
   {
-    href: '/admin-beta/courses',
+    href: '/admin/courses',
     label: 'My Courses',
     icon: IconCourses,
     badgeKey: 'course_new',
     match: (p, v) =>
-      (p?.startsWith('/admin-beta/courses') ?? false) ||
+      (p?.startsWith('/admin/courses') ?? false) ||
       (p?.startsWith('/admin/courses') ?? false) ||
       (p === '/admin' && v !== 'students'),
   },
   {
-    href: '/admin-beta/students',
+    href: '/admin/students',
     label: 'My Students',
     icon: IconStudents,
     badgeKey: 'student_new',
     match: (p, v) =>
-      (p?.startsWith('/admin-beta/students') ?? false) ||
+      (p?.startsWith('/admin/students') ?? false) ||
       (p?.startsWith('/admin/students') ?? false) ||
       (p === '/admin' && v === 'students'),
   },
   {
-    href: '/admin-beta/lessons',
+    href: '/admin/lessons',
     label: 'My Library',
     icon: IconLibrary,
     match: (p) =>
-      (p?.startsWith('/admin-beta/lessons') ?? false) ||
+      (p?.startsWith('/admin/lessons') ?? false) ||
       (p?.startsWith('/admin/lessons') ?? false),
   },
   {
-    href: '/admin-beta/attendance',
+    href: '/admin/attendance',
     label: 'Attendance',
     icon: IconAttendance,
     match: (p) =>
-      (p?.startsWith('/admin-beta/attendance') ?? false) ||
+      (p?.startsWith('/admin/attendance') ?? false) ||
       (p?.startsWith('/admin/attendance') ?? false),
   },
 ]
@@ -163,27 +163,27 @@ const TEACHING_NAV: NavItem[] = [
 // Superadmin is appended at render time only when role === 'superadmin'.
 const MANAGE_NAV: NavItem[] = [
   {
-    href: '/admin-beta/reports',
+    href: '/admin/reports',
     label: 'Reports',
     icon: IconReports,
     match: (p) =>
-      (p?.startsWith('/admin-beta/reports') ?? false) ||
+      (p?.startsWith('/admin/reports') ?? false) ||
       (p?.startsWith('/admin/reports') ?? false),
   },
   {
-    href: '/admin-beta/content-bank',
+    href: '/admin/content-bank',
     label: 'School Library',
     icon: IconSchoolLibrary,
     match: (p) =>
-      (p?.startsWith('/admin-beta/content-bank') ?? false) ||
+      (p?.startsWith('/admin/content-bank') ?? false) ||
       (p?.startsWith('/admin/content-bank') ?? false),
   },
   {
-    href: '/admin-beta/help',
+    href: '/admin/help',
     label: 'Help & Docs',
     icon: IconHelp,
     match: (p) =>
-      (p?.startsWith('/admin-beta/help') ?? false) ||
+      (p?.startsWith('/admin/help') ?? false) ||
       (p?.startsWith('/admin/help') ?? false),
   },
 ]
@@ -270,13 +270,13 @@ function AdminSidebarInner() {
     setMobileOpen(false)
   }, [pathname, currentView])
 
-  // Clear-on-open: when the user lands on /admin-beta/courses (or /students),
+  // Clear-on-open: when the user lands on /admin/courses (or /students),
   // mark that section's notifications read and zero its badge locally. Guarded
   // by clearedRef so it only fires once per entry; the guard resets when the
   // user navigates away so re-entering clears again.
   useEffect(() => {
-    const onCourses = pathname?.startsWith('/admin-beta/courses') ?? false
-    const onStudents = pathname?.startsWith('/admin-beta/students') ?? false
+    const onCourses = pathname?.startsWith('/admin/courses') ?? false
+    const onStudents = pathname?.startsWith('/admin/students') ?? false
 
     const markRead = async (section: 'courses' | 'students') => {
       if (clearedRef.current.has(section)) return
@@ -432,7 +432,7 @@ function AdminSidebarInner() {
   // Logo block (white-background logo asset, already used app-wide on white)
   const Logo = (
     <div className="px-[22px] pt-6 pb-5">
-      <Link href="/admin-beta/courses" aria-label="English with Laura">
+      <Link href="/admin/courses" aria-label="English with Laura">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.svg" alt="English with Laura" className="h-[52px] w-auto" />
       </Link>

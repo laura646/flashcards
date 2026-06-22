@@ -2,7 +2,7 @@
 // Lesson-editor shared types + helpers (10B redesign)
 //
 // These declarations are COPIED VERBATIM from the legacy editor
-// app/admin/lessons/page.tsx so the new /admin-beta editor shares the exact
+// app/admin/lessons/page.tsx so the new /admin editor shares the exact
 // same data contract. Do NOT edit the legacy file. If the legacy shapes change,
 // re-sync this file by hand. Line references below point at the legacy source
 // as of the port (page.tsx).

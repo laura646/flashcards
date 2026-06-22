@@ -8,7 +8,7 @@
 // on lg with each pane scrolling independently; stacked on mobile).
 //
 // Each group is dispatched to its matching student Runner (the exact kind→runner
-// mapping copied from app/admin-beta/ielts-preview/page.tsx). Every runner
+// mapping copied from app/admin/ielts-preview/page.tsx). Every runner
 // reports its score via onScore(correct, total) when the learner presses Check.
 //
 // Aggregate completion: this view tracks each group's latest (correct, total).

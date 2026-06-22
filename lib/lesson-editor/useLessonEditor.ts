@@ -2,7 +2,7 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // useLessonEditor — the lesson-editor "brain" for the 10B redesign
-// (/admin-beta/lessons). Holds all Phase-1 state and ports the LOAD / SAVE data
+// (/admin/lessons). Holds all Phase-1 state and ports the LOAD / SAVE data
 // contract BYTE-FOR-BYTE from the legacy editor app/admin/lessons/page.tsx.
 //
 // The legacy file is left 100% untouched. Where the legacy code called

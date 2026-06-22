@@ -2,7 +2,7 @@
 
 // 10B redesign — Lesson EDITOR, CALM 3-pane body (Phase 3).
 //
-// This is the REAL lesson editor for /admin-beta/lessons. It keeps EVERY piece
+// This is the REAL lesson editor for /admin/lessons. It keeps EVERY piece
 // of chrome the prior LessonEditorView had — the breadcrumb header, the lesson /
 // template METADATA card (title / date / type / level / category / summary), the
 // sticky SAVE / PUBLISH bar with the unsaved-changes indicator + error display,

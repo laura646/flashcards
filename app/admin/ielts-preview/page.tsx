@@ -7,7 +7,7 @@
 // student runners built under components/ielts/runners/. It is NOT wired into
 // the lesson editor, NOT added to the sidebar, and touches no live file.
 //
-// Auth: same gate every other /admin-beta/* page uses
+// Auth: same gate every other /admin/* page uses
 //   isAdmin = role === 'superadmin' || role === 'teacher'
 // (unauthenticated → redirect to '/'; authenticated non-admin → access denied).
 //

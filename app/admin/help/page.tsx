@@ -1,17 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Eyebrow } from '@/components/student-ui'
 
 // ═══════════════════════════════════════════════════════════════
-// /admin/help — admin documentation page
+// /admin/help — admin documentation page (10B redesign)
 //
-// Single long-form page documenting every admin/superadmin feature
-// shipped through v1.1.x. The mockup boxes are styled to look like
-// the actual UI (same colours and patterns) — they're illustrative,
-// not real screenshots.
+// New beside old: faithful COPY + RESTYLE of app/admin/help/page.tsx.
+// The live /admin/help is left 100% untouched. Same content, same
+// section ids/anchors (incl. #whats-new, linked from WhatsNewPanel/
+// Banner), same role-gating — restyled to the compact 10B kit/tokens.
+// Internal /admin/* links repointed to /admin/*. The mockup boxes
+// are styled to look like the actual UI — they're illustrative, not
+// real screenshots.
 // ═══════════════════════════════════════════════════════════════
 
 const SECTIONS = [
@@ -38,21 +42,25 @@ export default function HelpPage() {
     if (status === 'unauthenticated') router.replace('/')
   }, [status, router])
 
-  if (status === 'loading') return <div className="p-8 text-sm text-gray-400">Loading…</div>
-  if (!isAdmin) return <div className="p-8 text-sm text-red-500">Access denied — admin or teacher only.</div>
+  if (status === 'loading') {
+    return <div className="p-8 text-sm text-ink-muted font-rubik">Loading…</div>
+  }
+  if (!isAdmin) {
+    return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
+  }
 
   return (
-    <div className="px-4 py-6">
-      <div className="max-w-5xl mx-auto grid md:grid-cols-[200px_1fr] gap-6">
+    <div className="font-rubik min-h-screen bg-surface px-4 py-6">
+      <div className="max-w-5xl mx-auto grid md:grid-cols-[200px_1fr] gap-5">
         {/* TOC */}
         <aside className="md:sticky md:top-4 md:self-start">
-          <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Contents</p>
-          <ul className="space-y-1">
+          <Eyebrow className="block mb-2">Contents</Eyebrow>
+          <ul className="space-y-0.5">
             {SECTIONS.map((s) => (
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="text-xs text-[#46464b] hover:text-[#416ebe] flex items-center gap-1.5"
+                  className="text-xs text-ink-body hover:text-brandblue flex items-center gap-1.5 py-0.5"
                 >
                   <span>{s.icon}</span> {s.label}
                 </a>
@@ -62,10 +70,10 @@ export default function HelpPage() {
         </aside>
 
         {/* Content */}
-        <div className="space-y-10 pb-12 min-w-0">
+        <div className="space-y-7 pb-10 min-w-0">
           <header>
-            <h1 className="text-2xl font-bold text-[#416ebe]">Help &amp; Docs</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-brandblue">Help &amp; Docs</h1>
+            <p className="text-sm text-ink-muted mt-1">
               A guide to every admin feature in the EwL platform — what it does,
               where to find it, and how to get the most out of it.
             </p>
@@ -84,7 +92,7 @@ export default function HelpPage() {
           <FaqsSection />
           <WhatsNewSection />
 
-          <footer className="pt-8 border-t border-[#e6f0fa] text-[11px] text-gray-400">
+          <footer className="pt-6 border-t border-hairline text-[11px] text-ink-muted">
             Docs current to v1.2.0. Last updated automatically with each release.
           </footer>
         </div>
@@ -98,21 +106,21 @@ export default function HelpPage() {
 function Section({ id, icon, title, children }: { id: string; icon: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="scroll-mt-4">
-      <h2 className="text-lg font-bold text-[#416ebe] mb-3 flex items-center gap-2">
+      <h2 className="text-lg font-bold text-brandblue mb-2.5 flex items-center gap-2">
         <span>{icon}</span> {title}
       </h2>
-      <div className="space-y-4 text-sm text-[#46464b] leading-relaxed">{children}</div>
+      <div className="space-y-3 text-sm text-ink-body leading-relaxed">{children}</div>
     </section>
   )
 }
 
 function Subhead({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-sm font-bold text-[#416ebe] mt-4 mb-1">{children}</h3>
+  return <h3 className="text-sm font-bold text-brandblue mt-3 mb-1">{children}</h3>
 }
 
 function Tip({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-amber-50 border-l-4 border-amber-300 px-3 py-2 text-xs text-amber-800 rounded-r">
+    <div className="bg-sky-wash border border-sky-border rounded-card px-3 py-2 text-xs text-sky-text">
       <span className="font-bold">💡 Tip: </span>{children}
     </div>
   )
@@ -120,7 +128,7 @@ function Tip({ children }: { children: React.ReactNode }) {
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-[#e6f0fa] border-l-4 border-[#416ebe] px-3 py-2 text-xs text-[#416ebe] rounded-r">
+    <div className="bg-sky-wash border border-sky-border rounded-card px-3 py-2 text-xs text-sky-text">
       <span className="font-bold">ℹ️ Note: </span>{children}
     </div>
   )
@@ -129,9 +137,9 @@ function Note({ children }: { children: React.ReactNode }) {
 // Mockup container that looks like real EwL UI
 function Mockup({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#f7fafd] rounded-xl border border-[#cddcf0] p-3">
-      {title && <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">{title}</p>}
-      <div className="bg-white rounded-lg border border-[#e6f0fa] p-3 text-xs">{children}</div>
+    <div className="bg-sky-wash rounded-card border border-sky-border p-3">
+      {title && <Eyebrow className="block mb-2">{title}</Eyebrow>}
+      <div className="bg-white rounded-card border border-hairline p-3 text-xs">{children}</div>
     </div>
   )
 }
@@ -149,13 +157,13 @@ function GettingStartedSection() {
       <Subhead>The 3 most common workflows</Subhead>
       <ol className="list-decimal pl-5 space-y-1.5">
         <li>
-          <span className="font-bold">Authoring</span> — open <Link href="/admin/lessons" className="text-[#416ebe] hover:underline">Lessons</Link> to build flashcards + exercises for your students.
+          <span className="font-bold">Authoring</span> — open <Link href="/admin/lessons" className="text-sky-text hover:underline">Lessons</Link> to build flashcards + exercises for your students.
         </li>
         <li>
           <span className="font-bold">Class management</span> — mark attendance after each Zoom class and leave per-student notes in the student detail view.
         </li>
         <li>
-          <span className="font-bold">Insight</span> — open <Link href="/admin/reports" className="text-[#416ebe] hover:underline">Reports</Link> to see who&apos;s struggling, what they&apos;re struggling with, and how the class is trending overall.
+          <span className="font-bold">Insight</span> — open <Link href="/admin/reports" className="text-sky-text hover:underline">Reports</Link> to see who&apos;s struggling, what they&apos;re struggling with, and how the class is trending overall.
         </li>
       </ol>
       <Tip>
@@ -174,19 +182,19 @@ function SidebarSection() {
       </p>
       <Mockup title="What the sidebar looks like">
         <div className="grid grid-cols-[140px_1fr] gap-2 text-[11px]">
-          <div className="bg-white border border-[#e6f0fa] rounded-md p-2 space-y-0.5">
-            <div className="font-bold text-[#416ebe] mb-2">✨ EwL Admin</div>
-            <div className="px-2 py-1 rounded bg-[#416ebe] text-white font-bold">📚 My Courses</div>
-            <div className="px-2 py-1 rounded text-[#46464b]">👥 My Students</div>
-            <div className="px-2 py-1 rounded text-[#46464b]">📖 Lessons</div>
-            <div className="px-2 py-1 rounded text-[#46464b]">✅ Attendance</div>
-            <div className="px-2 py-1 rounded text-[#46464b]">📊 Reports</div>
-            <div className="px-2 py-1 rounded text-[#46464b]">🗃️ Content Bank</div>
-            <div className="px-2 py-1 rounded text-[#46464b]">❓ Help &amp; Docs</div>
-            <div className="border-t border-[#e6f0fa] mt-2 pt-2 text-gray-400">Laura</div>
-            <div className="text-gray-400">↪ Sign out</div>
+          <div className="bg-white border border-hairline rounded-card p-2 space-y-0.5">
+            <div className="font-bold text-brandblue mb-2">✨ EwL Admin</div>
+            <div className="px-2 py-1 rounded-full bg-sky text-white font-bold">📚 My Courses</div>
+            <div className="px-2 py-1 rounded-full text-ink-body">👥 My Students</div>
+            <div className="px-2 py-1 rounded-full text-ink-body">📖 Lessons</div>
+            <div className="px-2 py-1 rounded-full text-ink-body">✅ Attendance</div>
+            <div className="px-2 py-1 rounded-full text-ink-body">📊 Reports</div>
+            <div className="px-2 py-1 rounded-full text-ink-body">🗃️ Content Bank</div>
+            <div className="px-2 py-1 rounded-full text-ink-body">❓ Help &amp; Docs</div>
+            <div className="border-t border-hairline mt-2 pt-2 text-ink-muted">Laura</div>
+            <div className="text-ink-muted">↪ Sign out</div>
           </div>
-          <div className="bg-white border border-[#e6f0fa] rounded-md p-3 text-gray-400 italic">
+          <div className="bg-white border border-hairline rounded-card p-3 text-ink-muted italic">
             (page content shows here)
           </div>
         </div>
@@ -202,7 +210,7 @@ function CoursesSection() {
   return (
     <Section id="courses" icon="📚" title="Courses">
       <p>
-        <Link href="/admin/courses" className="text-[#416ebe] hover:underline">My Courses</Link> lists
+        <Link href="/admin/courses" className="text-sky-text hover:underline">My Courses</Link> lists
         every course you teach. Each card shows the course name, level, type, and how many students
         and lessons it has. Click a card to drill into the course detail.
       </p>
@@ -212,14 +220,14 @@ function CoursesSection() {
             { name: 'A1.1 — Beginner English', students: 12, lessons: 18 },
             { name: 'B1 Conversational', students: 8, lessons: 26 },
           ].map((c) => (
-            <div key={c.name} className="flex items-center justify-between bg-[#f7fafd] rounded-md p-2 border border-[#e6f0fa]">
+            <div key={c.name} className="flex items-center justify-between bg-sky-wash rounded-card p-2 border border-sky-border">
               <div>
-                <p className="font-bold text-[11px] text-[#46464b]">{c.name}</p>
-                <p className="text-[10px] text-gray-400">English course</p>
+                <p className="font-bold text-[11px] text-ink-body">{c.name}</p>
+                <p className="text-[10px] text-ink-muted">English course</p>
               </div>
               <div className="flex gap-3 text-center">
-                <div><p className="font-bold text-[#416ebe]">{c.students}</p><p className="text-[9px] text-gray-400">students</p></div>
-                <div><p className="font-bold text-[#416ebe]">{c.lessons}</p><p className="text-[9px] text-gray-400">lessons</p></div>
+                <div><p className="font-bold text-sky-text">{c.students}</p><p className="text-[9px] text-ink-muted">students</p></div>
+                <div><p className="font-bold text-sky-text">{c.lessons}</p><p className="text-[9px] text-ink-muted">lessons</p></div>
               </div>
             </div>
           ))}
@@ -233,7 +241,7 @@ function CoursesSection() {
         <li><span className="font-bold">Info</span> — course name, description, level, type. Editable.</li>
       </ul>
       <Tip>
-        Each course has a unique <span className="font-mono bg-gray-100 px-1 rounded">invite code</span> — share it with students so they can self-enroll.
+        Each course has a unique <span className="font-mono bg-surface px-1 rounded">invite code</span> — share it with students so they can self-enroll.
       </Tip>
     </Section>
   )
@@ -243,7 +251,7 @@ function StudentsSection() {
   return (
     <Section id="students" icon="👥" title="Students">
       <p>
-        <Link href="/admin/students" className="text-[#416ebe] hover:underline">My Students</Link> lists
+        <Link href="/admin/students" className="text-sky-text hover:underline">My Students</Link> lists
         every student across all your courses. Use the search box to find anyone by name or email.
       </p>
       <Subhead>Student detail page</Subhead>
@@ -265,13 +273,13 @@ function LessonsSection() {
   return (
     <Section id="lessons" icon="📖" title="Lessons &amp; exercises">
       <p>
-        <Link href="/admin/lessons" className="text-[#416ebe] hover:underline">Lessons</Link> is where
+        <Link href="/admin/lessons" className="text-sky-text hover:underline">Lessons</Link> is where
         you build the content your students see. Each lesson is a mix of flashcards, exercises, and
         content blocks (text, video, writing prompts).
       </p>
 
       <Subhead>Exercise types</Subhead>
-      <p className="text-xs text-gray-500 mb-1">
+      <p className="text-xs text-ink-muted mb-1">
         Every type has a visual editor — no JSON needed. Most types support instant per-question
         feedback during practice, and most editors have a 🪄 AI assist where it applies.
       </p>
@@ -290,7 +298,7 @@ function LessonsSection() {
         <li><span className="font-bold">Cloze Listening</span> — gap-fill with audio (same 3-source picker as Dictation).</li>
         <li><span className="font-bold">Odd One Out</span> — pick the item that doesn&apos;t fit + optional explanation.</li>
       </ul>
-      <p className="text-[11px] text-gray-400 mt-1">
+      <p className="text-[11px] text-ink-muted mt-1">
         Removed in v1.1.3: Fill in the Blank, Transform, Complete the Sentence (overlapped with
         the above). Existing exercises of those types keep working.
       </p>
@@ -300,17 +308,17 @@ function LessonsSection() {
       <ul className="list-disc pl-5 space-y-1 text-xs">
         <li><span className="font-bold">Skills</span> — multi-select: vocabulary, grammar, listening, reading, writing, speaking, pronunciation. Drives the per-skill breakdown in reports.</li>
         <li><span className="font-bold">CEFR level</span> — A1 through C2. Drives the per-level breakdown in reports.</li>
-        <li><span className="font-bold">Test type</span> — Practice (default), Review, Mid-course, or End-of-course. See the <a href="#tests" className="text-[#416ebe] hover:underline">Tests</a> section.</li>
+        <li><span className="font-bold">Test type</span> — Practice (default), Review, Mid-course, or End-of-course. See the <a href="#tests" className="text-sky-text hover:underline">Tests</a> section.</li>
       </ul>
 
       <Mockup title="Exercise card in the editor">
         <div className="space-y-1.5">
-          <p className="font-bold text-[#416ebe] text-[11px]">Past Simple — verb forms</p>
-          <p className="text-[10px] text-gray-400">10 questions · Multiple Choice</p>
+          <p className="font-bold text-brandblue text-[11px]">Past Simple — verb forms</p>
+          <p className="text-[10px] text-ink-muted">10 questions · Multiple Choice</p>
           <div className="flex flex-wrap gap-1 mt-1">
-            <span className="text-[9px] bg-[#416ebe] text-white px-1.5 py-0.5 rounded-full font-bold">Grammar</span>
-            <span className="text-[9px] bg-[#416ebe] text-white px-1.5 py-0.5 rounded-full font-bold">Vocabulary</span>
-            <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full font-bold">B1</span>
+            <span className="text-[9px] bg-sky text-white px-1.5 py-0.5 rounded-full font-bold">Grammar</span>
+            <span className="text-[9px] bg-sky text-white px-1.5 py-0.5 rounded-full font-bold">Vocabulary</span>
+            <span className="text-[9px] bg-surface text-ink-muted px-1.5 py-0.5 rounded-full font-bold">B1</span>
           </div>
         </div>
       </Mockup>
@@ -352,13 +360,13 @@ function TestsSection() {
       <Mockup title="Student sees this when a test is already submitted">
         <div className="text-center">
           <div className="text-2xl mb-1">🌟</div>
-          <p className="font-bold text-[#416ebe]">Test completed</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">You scored 8/10 (80%) · 14 May 2026</p>
-          <p className="text-[9px] text-gray-400 mt-1">Tests can only be taken once. Contact your teacher for a retry.</p>
+          <p className="font-bold text-brandblue">Test completed</p>
+          <p className="text-[10px] text-ink-muted mt-0.5">You scored 8/10 (80%) · 14 May 2026</p>
+          <p className="text-[9px] text-ink-muted mt-1">Tests can only be taken once. Contact your teacher for a retry.</p>
         </div>
       </Mockup>
       <Tip>
-        If a student says &quot;I had network issues, can I retry?&quot; — open <Link href="/admin/reports" className="text-[#416ebe] hover:underline">Reports</Link>, find their detail view, scroll to Tests, click ↺ Reset on the right test.
+        If a student says &quot;I had network issues, can I retry?&quot; — open <Link href="/admin/reports" className="text-sky-text hover:underline">Reports</Link>, find their detail view, scroll to Tests, click ↺ Reset on the right test.
       </Tip>
     </Section>
   )
@@ -368,7 +376,7 @@ function AttendanceSection() {
   return (
     <Section id="attendance" icon="✅" title="Attendance">
       <p>
-        <Link href="/admin/attendance" className="text-[#416ebe] hover:underline">Attendance</Link> lets
+        <Link href="/admin/attendance" className="text-sky-text hover:underline">Attendance</Link> lets
         you record who showed up to each class session.
       </p>
       <Subhead>Marking attendance</Subhead>
@@ -382,13 +390,13 @@ function AttendanceSection() {
       <Mockup title="Attendance roster">
         <div className="space-y-1.5">
           {[
-            { name: 'Anna Pérez', status: '✓ Present', color: 'bg-green-50 text-green-600 border-green-200' },
-            { name: 'Boris Volkov', status: '✕ Absent', color: 'bg-red-50 text-red-500 border-red-200' },
-            { name: 'Carla Rossi', status: '🕐 Late', color: 'bg-amber-50 text-amber-600 border-amber-200' },
+            { name: 'Anna Pérez', status: '✓ Present', color: 'bg-correct-bg text-correct-fg border-correct-border' },
+            { name: 'Boris Volkov', status: '✕ Absent', color: 'bg-incorrect-bg text-incorrect-fg border-incorrect-border' },
+            { name: 'Carla Rossi', status: '🕐 Late', color: 'bg-sky-wash text-sky-text border-sky-border' },
           ].map((s) => (
-            <div key={s.name} className="flex items-center justify-between border border-[#e6f0fa] rounded px-2 py-1.5">
-              <p className="text-[11px] text-[#46464b]">{s.name}</p>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded border ${s.color} font-bold`}>{s.status}</span>
+            <div key={s.name} className="flex items-center justify-between border border-hairline rounded-card px-2 py-1.5">
+              <p className="text-[11px] text-ink-body">{s.name}</p>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${s.color} font-bold`}>{s.status}</span>
             </div>
           ))}
         </div>
@@ -401,7 +409,7 @@ function AttendanceSection() {
         <li><span className="font-bold">📝 Excused</span> — counted as missed but with the &quot;valid reason&quot; nuance</li>
       </ul>
       <p>
-        Attendance % shown in <Link href="/admin/reports" className="text-[#416ebe] hover:underline">Reports</Link> = (present + late) ÷ marked sessions.
+        Attendance % shown in <Link href="/admin/reports" className="text-sky-text hover:underline">Reports</Link> = (present + late) ÷ marked sessions.
       </p>
       <Tip>
         Use the &quot;Mark all present&quot; button to flip everyone to present in one click, then only toggle the few who weren&apos;t there. Saves time.
@@ -414,15 +422,15 @@ function ReportsSection() {
   return (
     <Section id="reports" icon="📊" title="Reports">
       <p>
-        <Link href="/admin/reports" className="text-[#416ebe] hover:underline">Reports</Link> is the
+        <Link href="/admin/reports" className="text-sky-text hover:underline">Reports</Link> is the
         nerve centre of the admin panel. Two top-level views:
       </p>
       <Subhead>1. Course overview</Subhead>
       <p>One row per student in the selected course. Click a row to drill into that student.</p>
       <Mockup title="Overview table">
         <table className="w-full text-[10px]">
-          <thead className="bg-[#f7fafd]">
-            <tr className="text-gray-400 uppercase font-bold">
+          <thead className="bg-sky-wash">
+            <tr className="text-ink-muted uppercase font-bold">
               <th className="py-1 px-2 text-left">Student</th>
               <th className="py-1 px-2 text-left">Completion</th>
               <th className="py-1 px-2 text-left">Attendance</th>
@@ -431,8 +439,8 @@ function ReportsSection() {
             </tr>
           </thead>
           <tbody>
-            <tr className="border-t border-[#e6f0fa]"><td className="py-1.5 px-2 font-bold">Anna</td><td className="py-1.5 px-2">85% (17/20)</td><td className="py-1.5 px-2">92%</td><td className="py-1.5 px-2">78%</td><td className="py-1.5 px-2">85%</td></tr>
-            <tr className="border-t border-[#e6f0fa]"><td className="py-1.5 px-2 font-bold">Boris</td><td className="py-1.5 px-2">40% (8/20)</td><td className="py-1.5 px-2">60%</td><td className="py-1.5 px-2">45%</td><td className="py-1.5 px-2">62%</td></tr>
+            <tr className="border-t border-hairline"><td className="py-1.5 px-2 font-bold">Anna</td><td className="py-1.5 px-2">85% (17/20)</td><td className="py-1.5 px-2">92%</td><td className="py-1.5 px-2">78%</td><td className="py-1.5 px-2">85%</td></tr>
+            <tr className="border-t border-hairline"><td className="py-1.5 px-2 font-bold">Boris</td><td className="py-1.5 px-2">40% (8/20)</td><td className="py-1.5 px-2">60%</td><td className="py-1.5 px-2">45%</td><td className="py-1.5 px-2">62%</td></tr>
           </tbody>
         </table>
       </Mockup>
@@ -441,11 +449,11 @@ function ReportsSection() {
       <p>Same data as a grid: rows = students, columns = exercises, cells colour-coded by latest score.</p>
       <Mockup title="Heatmap legend">
         <div className="flex flex-wrap gap-2 text-[10px]">
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-red-100" /> &lt;50 struggling</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-100" /> 50–69 so-so</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-lime-100" /> 70–89 good</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-green-100" /> 90+ excellent</span>
-          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-gray-100" /> not attempted</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-incorrect-bg" /> &lt;50 struggling</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-sky-wash" /> 50–69 so-so</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-correct-bg" /> 70–89 good</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-correct-bg" /> 90+ excellent</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-surface" /> not attempted</span>
         </div>
       </Mockup>
       <Tip>
@@ -464,7 +472,7 @@ function ReportsSection() {
         <li><span className="font-bold">Score trend</span> — chart of every attempt over time, so you see improvement or decline at a glance.</li>
         <li><span className="font-bold">Skill breakdown + CEFR performance</span> — horizontal bars showing how the student performs per skill (vocab / grammar / listening etc) and per CEFR level.</li>
         <li><span className="font-bold">Tests</span> — one row per tagged test with first-attempt + latest scores, plus a ↺ Reset button for retakes.</li>
-        <li><span className="font-bold">Teacher notes</span> — see <a href="#notes" className="text-[#416ebe] hover:underline">Teacher Notes</a> below.</li>
+        <li><span className="font-bold">Teacher notes</span> — see <a href="#notes" className="text-sky-text hover:underline">Teacher Notes</a> below.</li>
         <li><span className="font-bold">Attendance history</span> — per-lesson list with status and any notes.</li>
         <li><span className="font-bold">Writing submissions</span> — chronological list of every writing block they submitted, expandable to see the full text.</li>
         <li><span className="font-bold">Per-exercise breakdown</span> — every exercise with attempt count, latest %, best %, and last-attempt date.</li>
@@ -491,30 +499,30 @@ function NotesSection() {
       <p>Each note gets a tag chosen from a fixed set:</p>
       <div className="flex flex-wrap gap-1.5">
         {[
-          { l: 'General', c: 'bg-gray-100 text-gray-600' },
-          { l: 'Homework', c: 'bg-blue-100 text-blue-600' },
-          { l: 'Behaviour', c: 'bg-purple-100 text-purple-600' },
-          { l: 'Parent contact', c: 'bg-green-100 text-green-600' },
-          { l: 'Academic concern', c: 'bg-amber-100 text-amber-600' },
+          { l: 'General', c: 'bg-surface text-ink-body' },
+          { l: 'Homework', c: 'bg-sky-wash text-sky-text' },
+          { l: 'Behaviour', c: 'bg-sky-wash text-sky-text' },
+          { l: 'Parent contact', c: 'bg-correct-bg text-correct-fg' },
+          { l: 'Academic concern', c: 'bg-incorrect-bg text-incorrect-fg' },
         ].map((t) => (
-          <span key={t.l} className={`text-[10px] font-bold px-2 py-0.5 rounded ${t.c}`}>{t.l}</span>
+          <span key={t.l} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${t.c}`}>{t.l}</span>
         ))}
       </div>
       <Mockup title="Notes log">
         <div className="space-y-2">
-          <div className="border border-[#e6f0fa] rounded p-2">
+          <div className="border border-hairline rounded-card p-2">
             <div className="flex gap-2 items-center mb-1">
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-600">Academic concern</span>
-              <span className="text-[9px] text-gray-400">14 May 2026 · laura@ewl.com</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-incorrect-bg text-incorrect-fg">Academic concern</span>
+              <span className="text-[9px] text-ink-muted">14 May 2026 · laura@ewl.com</span>
             </div>
-            <p className="text-[11px] text-[#46464b]">Anna struggling with past simple — schedule a one-on-one next week.</p>
+            <p className="text-[11px] text-ink-body">Anna struggling with past simple — schedule a one-on-one next week.</p>
           </div>
-          <div className="border border-[#e6f0fa] rounded p-2">
+          <div className="border border-hairline rounded-card p-2">
             <div className="flex gap-2 items-center mb-1">
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-600">Parent contact</span>
-              <span className="text-[9px] text-gray-400">10 May 2026 · laura@ewl.com</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-correct-bg text-correct-fg">Parent contact</span>
+              <span className="text-[9px] text-ink-muted">10 May 2026 · laura@ewl.com</span>
             </div>
-            <p className="text-[11px] text-[#46464b]">Mother emailed about progress. Replied with mid-course test plan.</p>
+            <p className="text-[11px] text-ink-body">Mother emailed about progress. Replied with mid-course test plan.</p>
           </div>
         </div>
       </Mockup>
@@ -526,7 +534,7 @@ function ContentBankSection() {
   return (
     <Section id="content-bank" icon="🗃️" title="Content Bank">
       <p>
-        <Link href="/admin/content-bank" className="text-[#416ebe] hover:underline">Content Bank</Link> is
+        <Link href="/admin/content-bank" className="text-sky-text hover:underline">Content Bank</Link> is
         a shared library of reusable lesson templates. Save a lesson once, drop it into multiple
         courses. Useful when you teach the same grammar topic across several courses.
       </p>
@@ -596,9 +604,9 @@ function FaqsSection() {
     <Section id="faqs" icon="❓" title="FAQs">
       <div className="space-y-3">
         {faqs.map((f, i) => (
-          <div key={i} className="border-l-2 border-[#cddcf0] pl-3">
-            <p className="text-sm font-bold text-[#46464b]">{f.q}</p>
-            <p className="text-xs text-gray-500 mt-1">{f.a}</p>
+          <div key={i} className="border-l-2 border-sky-border pl-3">
+            <p className="text-sm font-bold text-ink-black">{f.q}</p>
+            <p className="text-xs text-ink-muted mt-1">{f.a}</p>
           </div>
         ))}
       </div>
@@ -620,8 +628,8 @@ function WhatsNewSection() {
         <li>
           <span className="font-bold">🪞 Live correction panel in dialogue.</span> When a student
           makes a grammar or vocabulary mistake, an amber &quot;Watch out for&quot; box appears below
-          the AI reply showing <span className="text-red-500 line-through">what they said</span> →{' '}
-          <span className="text-green-700">the correction</span> + a 1-sentence why. Easier for
+          the AI reply showing <span className="text-incorrect-fg line-through">what they said</span> →{' '}
+          <span className="text-correct-fg">the correction</span> + a 1-sentence why. Easier for
           students to actually internalise corrections than embedded ones.
         </li>
         <li>

@@ -3,7 +3,7 @@
 //
 // Ported VERBATIM from the legacy editor app/admin/lessons/page.tsx (L469-480).
 // The legacy file is left 100% untouched; this is the single non-legacy copy the
-// new /admin-beta editor's AI flow imports.
+// new /admin editor's AI flow imports.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // (legacy page.tsx 469-480) — copied verbatim
