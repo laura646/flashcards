@@ -423,40 +423,40 @@ export default function MarkAttendanceModal({
                   </div>
 
                   {/* Roster */}
-                  <div className="space-y-2">
+                  <div className="divide-y divide-hairline border-t border-hairline">
                     {roster.length === 0 ? (
                       <p className="text-sm text-ink-muted text-center py-6">No students enrolled in this course yet.</p>
                     ) : (
                       roster.map((s) => {
                         const r = rows[s.student_email]
                         return (
-                          <div key={s.student_email} className="rounded-[14px] border border-hairline p-3.5">
+                          <div key={s.student_email} className="py-2.5">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 shrink-0 rounded-full bg-[#cfe4fb] text-brandblue font-bold flex items-center justify-center text-xs">
+                              <div className="w-8 h-8 shrink-0 rounded-full bg-[#cfe4fb] text-brandblue font-bold flex items-center justify-center text-[11px]">
                                 {initials(s.name, s.student_email)}
                               </div>
                               <p className="flex-1 min-w-0 text-sm font-bold text-ink-black truncate">{s.name}</p>
-                            </div>
-                            <div className="grid grid-cols-4 gap-2 mt-3">
-                              {(['present', 'late', 'absent', 'excused'] as AttStatus[]).map((st) => {
-                                const meta = STATUS_META[st]
-                                const active = r.status === st
-                                return (
-                                  <button
-                                    key={st}
-                                    onClick={() => setStatus(s.student_email, st)}
-                                    className={`py-2 rounded-[10px] border-[1.5px] text-[12px] font-bold transition-colors ${
-                                      active ? meta.active : meta.idle
-                                    }`}
-                                  >
-                                    {meta.label}
-                                  </button>
-                                )
-                              })}
+                              <div className="flex gap-1.5 shrink-0">
+                                {(['present', 'late', 'absent', 'excused'] as AttStatus[]).map((st) => {
+                                  const meta = STATUS_META[st]
+                                  const active = r.status === st
+                                  return (
+                                    <button
+                                      key={st}
+                                      onClick={() => setStatus(s.student_email, st)}
+                                      className={`px-2.5 py-1.5 rounded-[10px] border-[1.5px] text-[12px] font-bold transition-colors ${
+                                        active ? meta.active : meta.idle
+                                      }`}
+                                    >
+                                      {meta.label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
                             </div>
                             {/* Late: minutes + note */}
                             {r.status === 'late' && (
-                              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                              <div className="mt-2 ml-11 flex flex-wrap items-center gap-2">
                                 <label className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
                                   <input
                                     type="number"
@@ -479,7 +479,7 @@ export default function MarkAttendanceModal({
                             )}
                             {/* Excused: note (make-up eligible label, no scheduling) */}
                             {r.status === 'excused' && (
-                              <div className="mt-2.5">
+                              <div className="mt-2 ml-11">
                                 <input
                                   type="text"
                                   value={r.note}
