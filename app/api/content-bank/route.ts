@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { requireRole, getAccessibleCourseIds, type UserRole } from '@/lib/roles'
 
-// Owner/access gate for filing a lesson into a folder (assign / remove).
-// Superadmins bypass. Teachers must (a) own the lesson OR have access to its
-// course, AND (b) own the target folder — folders are personal per teacher.
-// Returns a NextResponse to short-circuit on denial, or null when allowed.
+// Access gate for filing a lesson into a folder (assign / remove).
+// Superadmins bypass. Content-bank folders are SHARED org structure (the School
+// Library shows the whole folder tree to everyone), so any teacher may file into
+// ANY folder — the gate is on the CONTENT, not folder ownership. A teacher must
+// own the lesson, have access to its course, OR the lesson must be shared to the
+// School Library (is_shared). Renaming/deleting folders stays owner-gated.
 async function checkFolderAssignAccess(
   user: { email: string; role: UserRole },
   lessonId: string,
@@ -14,23 +16,21 @@ async function checkFolderAssignAccess(
   if (user.role === 'superadmin') return null
 
   const [{ data: lesson }, { data: folder }] = await Promise.all([
-    supabase.from('lessons').select('created_by, course_id').eq('id', lessonId).single(),
-    supabase.from('content_bank_folders').select('created_by').eq('id', folderId).single(),
+    supabase.from('lessons').select('created_by, course_id, is_shared').eq('id', lessonId).single(),
+    supabase.from('content_bank_folders').select('id').eq('id', folderId).single(),
   ])
 
   if (!lesson) return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
   if (!folder) return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
 
-  // Must own the destination folder.
-  if (folder.created_by !== user.email) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  // Must own the lesson or have access to its course.
+  // Gate on the content: own the lesson, have access to its course, or it's
+  // shared to the School Library. Folder ownership is NOT required (folders are
+  // shared org structure).
   const accessible = await getAccessibleCourseIds(user.email, user.role)
   const lessonOk =
     lesson.created_by === user.email ||
-    (lesson.course_id && accessible.includes(lesson.course_id))
+    (lesson.course_id && accessible.includes(lesson.course_id)) ||
+    lesson.is_shared === true
   if (!lessonOk) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
