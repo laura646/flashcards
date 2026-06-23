@@ -495,6 +495,8 @@ ${({
 - Each question has segments in the CORRECT order. level is "sentence" or "paragraph". The app shuffles them for the student.`,
   cloze_listening: `"questions": [{"id": 1, "text": "The {{1}} sat on the {{2}}.", "blanks": {"1": "cat", "2": "mat"}, "audio_url": ""}]
 - text has {{n}} placeholders for blanks. blanks maps numbers to correct words. audio_url is optional (TTS auto-generated if empty). No word bank.`,
+  odd_one_out: `"questions": [{"id": 1, "prompt": "clean", "options": ["the bathroom", "the windows", "the washing"], "correctIndex": 2, "explanation": "You 'do the washing', not 'clean the washing'."}]
+- "prompt" is a keyword/collocation base (e.g. a verb like "clean" or a category). "options" are 3-4 candidates where exactly ONE does NOT belong/collocate. correctIndex points to that odd one. Add a short "explanation" of why it doesn't fit.`,
 } as Record<string, string>)[newType] || 'Use the standard questions format.'}
 
 RULES:

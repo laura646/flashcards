@@ -428,7 +428,7 @@ export function defaultDataForType(type: string): { questions: unknown[]; groupD
     case 'cloze_listening':
       return { questions: [{ id: newId(), text: '', blanks: {}, audio_url: '' }] }
     case 'odd_one_out':
-      return { questions: [{ id: newId(), items: ['', '', '', ''], oddIndex: 0, explanation: '' }] }
+      return { questions: [{ id: newId(), prompt: '', options: ['', '', '', ''], correctIndex: 0, explanation: '' }] }
     default:
       return { questions: [{ id: newId(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }] }
   }
