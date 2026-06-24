@@ -58,7 +58,9 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
    {"id": 1, "text": "The {{1}} sat on the {{2}}.", "blanks": {"1": "cat", "2": "mat"}, "audio_url": ""}
    text has {{n}} placeholders, blanks maps numbers to correct words. audio_url is optional (TTS auto-generated if empty). No word bank — student types freely.
 
-RULES:
+15. "gap_fill" — ONE coherent paragraph with 4-8 inline gaps. The WHOLE config is a single questions element (questions[0]).
+   {"questions": [{"mode": "open", "text": "Last year we {{g1}} to Spain and {{g2}} by the sea.", "gaps": [{"id": "g1", "answers": ["travelled", "went"], "options": ["travelled", "drove", "flew", "walked"]}, {"id": "g2", "answers": ["stayed"], "options": ["stayed", "lived", "slept", "remained"]}], "distractors": ["drove", "ate"], "require_exact": false}]}
+   - "text" is a short coherent paragraph with {{gId}} placeholders. "gaps" lists each gap: "id" matches a placeholder, "answers" is the accepted answers (first is canonical; include common synonyms), "options" is the per-gap choices (correct + 2-3 plausible wrong) used ONLY in dropdown mode. "distractors" are 2-3 extra wrong words used ONLY in word_bank mode. Set "mode" to "open" by default and "require_exact" to false.
 - Convert EVERY exercise from the document, not just some
 - Pick the exercise type that best matches the original exercise format
 
@@ -124,6 +126,7 @@ const KNOWN_EXERCISE_TYPES = [
   'anagram',
   'cloze_listening',
   'odd_one_out',
+  'gap_fill',
 ] as const
 
 // Build the optional type-constraint preamble shared by every action that
@@ -497,6 +500,8 @@ ${({
 - text has {{n}} placeholders for blanks. blanks maps numbers to correct words. audio_url is optional (TTS auto-generated if empty). No word bank.`,
   odd_one_out: `"questions": [{"id": 1, "prompt": "clean", "options": ["the bathroom", "the windows", "the washing"], "correctIndex": 2, "explanation": "You 'do the washing', not 'clean the washing'."}]
 - "prompt" is a keyword/collocation base (e.g. a verb like "clean" or a category). "options" are 3-4 candidates where exactly ONE does NOT belong/collocate. correctIndex points to that odd one. Add a short "explanation" of why it doesn't fit.`,
+  gap_fill: `"questions": [{"mode": "open", "text": "Last year we {{g1}} to Spain and {{g2}} by the sea.", "gaps": [{"id": "g1", "answers": ["travelled", "went"], "options": ["travelled", "drove", "flew", "walked"]}, {"id": "g2", "answers": ["stayed"], "options": ["stayed", "lived", "slept", "remained"]}], "distractors": ["drove", "ate"], "require_exact": false}]
+- The WHOLE config is ONE element of "questions". "text" is a coherent short paragraph with 4-8 {{gId}} placeholders. Each gap: "id" matches a placeholder, "answers" is the accepted answers (first is canonical; include common synonyms), "options" is the per-gap choices (correct + 2-3 plausible wrong) used only in dropdown mode. "distractors" are 2-3 extra wrong words used only in word_bank mode. Set "mode" to "open" and "require_exact" to false.`,
 } as Record<string, string>)[newType] || 'Use the standard questions format.'}
 
 RULES:

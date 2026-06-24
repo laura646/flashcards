@@ -48,6 +48,7 @@ import TextSequencingEditor from '@/components/TextSequencingEditor'
 import UnjumbleEditor from '@/components/UnjumbleEditor'
 import GapFillBuilder from '@/components/GapFillBuilder'
 import OddOneOutEditor from '@/components/OddOneOutEditor'
+import GapFillEditor from '@/components/GapFillEditor'
 
 interface Props {
   exercise: Exercise
@@ -208,6 +209,7 @@ function buildRegistry(exerciseType: string): Record<string, RegistryEntry> {
       extraProps: { mode: exerciseType },
     },
     odd_one_out: { Component: OddOneOutEditor as AnyEditor, dataKey: 'questions' },
+    gap_fill: { Component: GapFillEditor as AnyEditor, dataKey: 'questions' },
   }
 }
 
@@ -228,6 +230,7 @@ export const EXERCISE_EDITOR_REGISTRY_KEYS = [
   'cloze_listening',
   'complete_sentence',
   'odd_one_out',
+  'gap_fill',
 ] as const
 
 export default function ExerciseEditor({ exercise, onChange, onPreview }: Props) {

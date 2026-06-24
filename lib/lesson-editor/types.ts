@@ -354,6 +354,7 @@ export const EXERCISE_TYPES = [
   { value: 'anagram', label: 'Unjumble', icon: '🔀' },
   { value: 'cloze_listening', label: 'Cloze Listening', icon: '🎧' },
   { value: 'odd_one_out', label: 'Odd One Out', icon: '🚫' },
+  { value: 'gap_fill', label: 'Gap-fill', icon: '📝' },
 ]
 
 // (legacy page.tsx 158-176)
@@ -375,6 +376,33 @@ export const EXERCISE_TYPE_LABELS: Record<string, string> = {
   unjumble: 'Unjumble',
   cloze_listening: 'Cloze Listening',
   odd_one_out: 'Odd One Out',
+  gap_fill: 'Gap-fill',
+}
+
+// ── Gap-fill types (one umbrella exercise, three render modes) ──
+//
+// The whole gap-fill config is stored as the exercise's `questions` array with
+// ONE element (questions[0]), so it fits the engine's array-typed `questions` +
+// the existing save/load path. The student runner reads cfg = questions[0] and
+// renders a SINGLE paragraph with inline gaps; the mode is fixed by cfg.mode.
+
+export type GapFillMode = 'open' | 'word_bank' | 'dropdown'
+
+export interface GapFillGap {
+  id: string                 // matches a {{id}} placeholder in `text`
+  answers: string[]          // accepted answers; answers[0] is canonical
+  // dropdown mode ONLY: the per-gap choices (correct + wrong), shuffled at render
+  options?: string[]
+}
+
+export interface GapFillQuestion {
+  mode: GapFillMode
+  text: string               // paragraph with {{gapId}} placeholders marked inline
+  gaps: GapFillGap[]
+  // word_bank mode ONLY: extra wrong tiles added to the shared bank
+  distractors?: string[]
+  // open mode ONLY: when true, exact spelling required (no typo tolerance)
+  require_exact?: boolean
 }
 
 // ── Exercise helpers (legacy page.tsx) — copied verbatim ──
@@ -429,6 +457,9 @@ export function defaultDataForType(type: string): { questions: unknown[]; groupD
       return { questions: [{ id: newId(), text: '', blanks: {}, audio_url: '' }] }
     case 'odd_one_out':
       return { questions: [{ id: newId(), prompt: '', options: ['', '', '', ''], correctIndex: 0, explanation: '' }] }
+    case 'gap_fill':
+      // ONE-element questions array carrying the whole gap-fill config.
+      return { questions: [{ mode: 'open', text: '', gaps: [], distractors: [], require_exact: false }] }
     default:
       return { questions: [{ id: newId(), prompt: '', options: ['', ''], correctIndex: -1, hint: '' }] }
   }

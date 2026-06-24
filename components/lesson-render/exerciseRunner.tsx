@@ -20,6 +20,7 @@ const AnagramRunner = lazy(() => import('@/components/AnagramRunner'))
 const ClozeListeningRunner = lazy(() => import('@/components/ClozeListeningRunner'))
 const MatchHalvesRunner = lazy(() => import('@/components/MatchHalvesRunner'))
 const OddOneOutRunner = lazy(() => import('@/components/OddOneOutRunner'))
+const GapFillRunner = lazy(() => import('@/components/GapFillRunner'))
 
 export const ExerciseLoadingFallback = () => (
   <div className="flex items-center justify-center py-12">
@@ -83,6 +84,8 @@ export function renderStandaloneRunner(
     return <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'odd_one_out') {
     return <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={onComplete} onBack={onBack} />
+  } else if (exType === 'gap_fill') {
+    return <GapFillRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Fill each gap, then check.' }} onComplete={onComplete} onBack={onBack} />
   } else {
     // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
     return <ExerciseRunner exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle, icon: exercise.icon, instructions: exercise.instructions, questions: exercise.questions, test_type: exercise.test_type }} onComplete={onComplete} onBack={onBack} />
