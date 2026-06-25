@@ -423,7 +423,8 @@ export async function POST(req: NextRequest) {
       if (Object.keys(updateData).length === 0) {
         return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
       }
-      updateData.updated_at = new Date().toISOString()
+      // NB: courses has no updated_at column in the live DB — writing it 500s.
+      // The other course-update paths (admin/superadmin) don't set it either.
 
       const { error } = await supabase.from('courses').update(updateData).eq('id', courseId)
       if (error) throw error
