@@ -324,7 +324,7 @@ export async function POST(req: NextRequest) {
 
     // ── Update a course (supports all fields) ──
     if (action === 'update-course') {
-      const { course_id, name, description, level, telegram_link, lesson_link, schedule, total_planned_sessions, teacher_notes, course_type } = body
+      const { course_id, name, description, level, telegram_link, lesson_link, schedule, schedule_days, schedule_time, schedule_duration_min, start_date, self_study, total_planned_sessions, teacher_notes, course_type } = body
       if (!course_id) {
         return NextResponse.json({ error: 'course_id required' }, { status: 400 })
       }
@@ -336,6 +336,12 @@ export async function POST(req: NextRequest) {
       if (telegram_link !== undefined) updateData.telegram_link = telegram_link?.trim() || null
       if (lesson_link !== undefined) updateData.lesson_link = lesson_link?.trim() || null
       if (schedule !== undefined) updateData.schedule = schedule?.trim() || null
+      // Structured schedule (synced with the Course-info panel on the course page)
+      if (schedule_days !== undefined) updateData.schedule_days = (schedule_days as string)?.trim() || null
+      if (schedule_time !== undefined) updateData.schedule_time = (schedule_time as string)?.trim() || null
+      if (schedule_duration_min !== undefined) updateData.schedule_duration_min = typeof schedule_duration_min === 'number' ? schedule_duration_min : null
+      if (start_date !== undefined) updateData.start_date = (start_date as string)?.trim() || null
+      if (self_study !== undefined) updateData.self_study = !!self_study
       if (total_planned_sessions !== undefined) updateData.total_planned_sessions = total_planned_sessions || null
       if (teacher_notes !== undefined) updateData.teacher_notes = teacher_notes?.trim() || null
       if (course_type !== undefined) updateData.course_type = course_type || null

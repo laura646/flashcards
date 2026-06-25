@@ -838,7 +838,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       }
       const lessonIds = lessons.map((l: { id: string }) => l.id)
       const { data: cards } = await supabase
-        .from('flashcards')
+        .from('lesson_flashcards')
         .select('lesson_id, word')
         .in('lesson_id', lessonIds)
         .order('order_index', { ascending: true })

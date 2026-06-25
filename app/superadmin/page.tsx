@@ -19,10 +19,34 @@ interface Course {
   telegram_link: string | null
   lesson_link: string | null
   schedule: string | null
+  schedule_days: string | null
+  schedule_time: string | null
+  schedule_duration_min: number | null
+  start_date: string | null
+  self_study: boolean | null
   total_planned_sessions: number | null
   teacher_notes: string | null
   course_type: string | null
   archived_at: string | null
+}
+
+const SA_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+// "Mon,Wed" + "16:00" + 60 -> "Mon & Wed · 16:00 · 1h" (matches the course page).
+function formatSchedule(days: string | null, time: string | null, durationMin: number | null): string | null {
+  const parts: string[] = []
+  if (days && days.trim()) {
+    const tokens = days.split(',').map((t) => t.trim()).filter(Boolean)
+    if (tokens.length === 1) parts.push(tokens[0])
+    else if (tokens.length === 2) parts.push(`${tokens[0]} & ${tokens[1]}`)
+    else if (tokens.length > 2) parts.push(tokens.slice(0, -1).join(', ') + ' & ' + tokens[tokens.length - 1])
+  }
+  if (time && time.trim()) parts.push(time.trim())
+  if (durationMin) {
+    const h = durationMin / 60
+    parts.push(Number.isInteger(h) ? `${h}h` : `${durationMin}m`)
+  }
+  return parts.length ? parts.join(' · ') : null
 }
 
 const COURSE_LEVELS = [
@@ -133,7 +157,11 @@ export default function SuperadminPage() {
     level: '' as string,
     telegram_link: '',
     lesson_link: '',
-    schedule: '',
+    schedule_days: '',
+    schedule_time: '',
+    schedule_duration_min: 60,
+    start_date: '',
+    self_study: false,
     total_planned_sessions: '' as string,
     teacher_notes: '',
     course_type: '' as string,
@@ -298,7 +326,11 @@ export default function SuperadminPage() {
           level: c.level || '',
           telegram_link: c.telegram_link || '',
           lesson_link: c.lesson_link || '',
-          schedule: c.schedule || '',
+          schedule_days: c.schedule_days || '',
+          schedule_time: c.schedule_time || '',
+          schedule_duration_min: c.schedule_duration_min || 60,
+          start_date: c.start_date || '',
+          self_study: !!c.self_study,
           total_planned_sessions: c.total_planned_sessions?.toString() || '',
           teacher_notes: c.teacher_notes || '',
           course_type: c.course_type || '',
@@ -322,7 +354,11 @@ export default function SuperadminPage() {
           level: courseInfoForm.level || null,
           telegram_link: courseInfoForm.telegram_link,
           lesson_link: courseInfoForm.lesson_link,
-          schedule: courseInfoForm.schedule,
+          schedule_days: courseInfoForm.schedule_days || null,
+          schedule_time: courseInfoForm.schedule_time || null,
+          schedule_duration_min: courseInfoForm.schedule_duration_min,
+          start_date: courseInfoForm.start_date || null,
+          self_study: courseInfoForm.self_study,
           total_planned_sessions: courseInfoForm.total_planned_sessions ? parseInt(courseInfoForm.total_planned_sessions) : null,
           teacher_notes: courseInfoForm.teacher_notes,
           course_type: courseInfoForm.course_type || null,
@@ -340,7 +376,11 @@ export default function SuperadminPage() {
         level: courseInfoForm.level || null,
         telegram_link: courseInfoForm.telegram_link || null,
         lesson_link: courseInfoForm.lesson_link || null,
-        schedule: courseInfoForm.schedule || null,
+        schedule_days: courseInfoForm.schedule_days || null,
+        schedule_time: courseInfoForm.schedule_time || null,
+        schedule_duration_min: courseInfoForm.schedule_duration_min || null,
+        start_date: courseInfoForm.start_date || null,
+        self_study: courseInfoForm.self_study,
         total_planned_sessions: courseInfoForm.total_planned_sessions ? parseInt(courseInfoForm.total_planned_sessions) : null,
         teacher_notes: courseInfoForm.teacher_notes || null,
         course_type: courseInfoForm.course_type || null,
@@ -1284,7 +1324,11 @@ export default function SuperadminPage() {
                   level: selectedCourse?.level || '',
                   telegram_link: selectedCourse?.telegram_link || '',
                   lesson_link: selectedCourse?.lesson_link || '',
-                  schedule: selectedCourse?.schedule || '',
+                  schedule_days: selectedCourse?.schedule_days || '',
+                  schedule_time: selectedCourse?.schedule_time || '',
+                  schedule_duration_min: selectedCourse?.schedule_duration_min || 60,
+                  start_date: selectedCourse?.start_date || '',
+                  self_study: !!selectedCourse?.self_study,
                   total_planned_sessions: selectedCourse?.total_planned_sessions?.toString() || '',
                   teacher_notes: selectedCourse?.teacher_notes || '',
                   course_type: selectedCourse?.course_type || '',
@@ -1314,8 +1358,53 @@ export default function SuperadminPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-500 block mb-1">Schedule</label>
-                  <input type="text" value={courseInfoForm.schedule} onChange={e => setCourseInfoForm(f => ({ ...f, schedule: e.target.value }))} placeholder="e.g. Mon/Wed 18:00-19:30" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+                  <label className="text-xs font-bold text-gray-500 block mb-1">Schedule days</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SA_WEEKDAYS.map((d) => {
+                      const on = new Set(courseInfoForm.schedule_days.split(',').map(t => t.trim()).filter(Boolean)).has(d)
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setCourseInfoForm(f => {
+                            const s = new Set(f.schedule_days.split(',').map(t => t.trim()).filter(Boolean))
+                            if (s.has(d)) s.delete(d); else s.add(d)
+                            return { ...f, schedule_days: SA_WEEKDAYS.filter(w => s.has(w)).join(',') }
+                          })}
+                          className={`px-2.5 py-1 rounded-full text-xs font-bold border-2 transition-colors ${on ? 'bg-[#00aff0] border-[#00aff0] text-white' : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'}`}
+                        >
+                          {d}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">Time</label>
+                    <input type="time" value={courseInfoForm.schedule_time} onChange={e => setCourseInfoForm(f => ({ ...f, schedule_time: e.target.value }))} className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">Duration</label>
+                    <select value={courseInfoForm.schedule_duration_min} onChange={e => setCourseInfoForm(f => ({ ...f, schedule_duration_min: Number(e.target.value) }))} className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]">
+                      <option value={30}>30m</option>
+                      <option value={60}>1h</option>
+                      <option value={90}>1.5h</option>
+                      <option value={120}>2h</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">Start date</label>
+                    <input type="date" value={courseInfoForm.start_date} onChange={e => setCourseInfoForm(f => ({ ...f, start_date: e.target.value }))} className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-500 block mb-1">Self-study course</label>
+                    <button type="button" onClick={() => setCourseInfoForm(f => ({ ...f, self_study: !f.self_study }))} className={`w-full border-2 rounded-xl px-3 py-2 text-sm font-bold transition-colors ${courseInfoForm.self_study ? 'bg-[#00aff0] border-[#00aff0] text-white' : 'bg-white border-[#cddcf0] text-[#46464b] hover:border-[#416ebe]'}`}>
+                      {courseInfoForm.self_study ? 'On — no live classes' : 'Off'}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-500 block mb-1">Total Planned Sessions</label>
@@ -1341,12 +1430,14 @@ export default function SuperadminPage() {
               <div className="space-y-2 text-sm">
                 {selectedCourse?.level && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Level</span><span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full font-bold">{selectedCourse.level}</span></div>}
                 {selectedCourse?.course_type && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Type</span><span className="text-xs text-[#46464b]">{selectedCourse.course_type}</span></div>}
-                {selectedCourse?.schedule && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Schedule</span><span className="text-xs text-[#46464b]">{selectedCourse.schedule}</span></div>}
+                {formatSchedule(selectedCourse?.schedule_days ?? null, selectedCourse?.schedule_time ?? null, selectedCourse?.schedule_duration_min ?? null) && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Schedule</span><span className="text-xs text-[#46464b]">{formatSchedule(selectedCourse?.schedule_days ?? null, selectedCourse?.schedule_time ?? null, selectedCourse?.schedule_duration_min ?? null)}</span></div>}
+                {selectedCourse?.self_study && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Self-study</span><span className="text-xs text-[#46464b]">Yes — no live classes</span></div>}
+                {selectedCourse?.start_date && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Start date</span><span className="text-xs text-[#46464b]">{selectedCourse.start_date}</span></div>}
                 {selectedCourse?.total_planned_sessions && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Planned sessions</span><span className="text-xs text-[#46464b]">{selectedCourse.total_planned_sessions}</span></div>}
                 {selectedCourse?.lesson_link && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Lesson link</span><a href={selectedCourse.lesson_link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#416ebe] hover:underline truncate">{selectedCourse.lesson_link}</a></div>}
                 {selectedCourse?.telegram_link && <div className="flex items-center gap-2"><span className="text-xs font-bold text-gray-400 w-28">Telegram</span><a href={selectedCourse.telegram_link} target="_blank" rel="noopener noreferrer" className="text-xs text-[#416ebe] hover:underline truncate">{selectedCourse.telegram_link}</a></div>}
                 {selectedCourse?.teacher_notes && <div className="flex items-start gap-2"><span className="text-xs font-bold text-gray-400 w-28 shrink-0">Teacher notes</span><span className="text-xs text-[#46464b] whitespace-pre-wrap">{selectedCourse.teacher_notes}</span></div>}
-                {!selectedCourse?.level && !selectedCourse?.schedule && !selectedCourse?.lesson_link && !selectedCourse?.telegram_link && !selectedCourse?.course_type && (
+                {!selectedCourse?.level && !selectedCourse?.schedule_days && !selectedCourse?.lesson_link && !selectedCourse?.telegram_link && !selectedCourse?.course_type && (
                   <p className="text-xs text-gray-400">No course info set yet. Click Edit to add details.</p>
                 )}
               </div>
