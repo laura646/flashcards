@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
-import { getTeacherCourseIds } from '@/lib/roles'
+import { getTeacherCourseIds, type UserRole } from '@/lib/roles'
 
 async function checkAdmin() {
   const session = await getServerSession(authOptions)
@@ -16,16 +16,26 @@ async function checkAdmin() {
 async function getTeacherStudentEmails(email: string, role: string): Promise<string[] | null> {
   if (role === 'superadmin') return null // null means "all students"
 
-  const courseIds = await getTeacherCourseIds(email, role as 'teacher')
-  if (courseIds.length === 0) return []
+  const courseIds = await getTeacherCourseIds(email, role as UserRole)
+  const emails: string[] = []
+  if (courseIds.length > 0) {
+    const { data } = await supabase
+      .from('course_students')
+      .select('student_email')
+      .in('course_id', courseIds)
+      .is('removed_at', null)
+    emails.push(...(data || []).map((s: { student_email: string }) => s.student_email))
+  }
 
-  const { data } = await supabase
-    .from('course_students')
-    .select('student_email')
-    .in('course_id', courseIds)
-    .is('removed_at', null)
+  // HR can also be assigned individual students directly (mixed groups).
+  if (role === 'hr') {
+    const { data } = await supabase
+      .from('hr_students')
+      .select('student_email')
+      .eq('hr_email', email)
+    emails.push(...(data || []).map((s: { student_email: string }) => s.student_email))
+  }
 
-  const emails = (data || []).map((s: { student_email: string }) => s.student_email)
   return Array.from(new Set(emails))
 }
 
@@ -510,6 +520,11 @@ export async function POST(req: NextRequest) {
   const { action } = body
   const role = adminSession?.user?.role || 'teacher'
   const email = adminSession?.user?.email || ''
+
+  // HR accounts are read-only — block every mutation in this route.
+  if (role === 'hr') {
+    return NextResponse.json({ error: 'HR accounts are read-only' }, { status: 403 })
+  }
 
   try {
     // ── Update student profile (teachers can edit) ──

@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from './auth'
 import { supabase } from './supabase'
 
-export type UserRole = 'superadmin' | 'teacher' | 'student'
+export type UserRole = 'superadmin' | 'teacher' | 'student' | 'hr'
 
 /**
  * Get the current user's session with role info.
@@ -53,6 +53,15 @@ export async function getTeacherCourseIds(
     return (data || []).map((c: { id: string }) => c.id)
   }
 
+  // HR is assigned to courses via the read-only course_hr mapping.
+  if (role === 'hr') {
+    const { data } = await supabase
+      .from('course_hr')
+      .select('course_id')
+      .eq('hr_email', email)
+    return (data || []).map((c: { course_id: string }) => c.course_id)
+  }
+
   const { data } = await supabase
     .from('course_teachers')
     .select('course_id')
@@ -94,6 +103,17 @@ export async function hasAccessToCourse(
     return !!data
   }
 
+  // HR can read a course only if it's in their course_hr assignment.
+  if (role === 'hr') {
+    const { data } = await supabase
+      .from('course_hr')
+      .select('id')
+      .eq('course_id', courseId)
+      .eq('hr_email', email)
+      .maybeSingle()
+    return !!data
+  }
+
   // student
   const { data } = await supabase
     .from('course_students')
@@ -112,7 +132,7 @@ export async function getAccessibleCourseIds(
   email: string,
   role: UserRole
 ): Promise<string[]> {
-  if (role === 'superadmin' || role === 'teacher') {
+  if (role === 'superadmin' || role === 'teacher' || role === 'hr') {
     return getTeacherCourseIds(email, role)
   }
   return getStudentCourseIds(email)

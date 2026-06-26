@@ -112,7 +112,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.email = token.email as string
         session.user.name = token.name as string
-        session.user.role = (token.role as 'superadmin' | 'teacher' | 'student') || 'student'
+        session.user.role = (token.role as 'superadmin' | 'teacher' | 'student' | 'hr') || 'student'
       }
       return session
     },

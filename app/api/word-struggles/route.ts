@@ -88,6 +88,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Deny-by-default: only self, the student's teacher, or a superadmin may write.
+    if (user_email !== postSession.user.email && postSession.user.role !== 'superadmin' && postSession.user.role !== 'teacher') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const { error } = await supabase
       .from('word_struggles')
       .insert({

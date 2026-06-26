@@ -76,7 +76,7 @@ interface AttendanceRow {
 export async function GET(req: NextRequest) {
   let auth
   try {
-    auth = await requireRole('teacher', 'superadmin')
+    auth = await requireRole('teacher', 'superadmin', 'hr')
   } catch (err) {
     const e = err as { status?: number; message?: string }
     return NextResponse.json({ error: e.message || 'Unauthorized' }, { status: e.status || 401 })

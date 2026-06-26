@@ -82,7 +82,7 @@ function parseScheduleDays(raw: string | null | undefined): Set<string> {
 export async function GET(req: NextRequest) {
   let auth
   try {
-    auth = await requireRole('superadmin', 'teacher')
+    auth = await requireRole('superadmin', 'teacher', 'hr')
   } catch (err) {
     return errorResponse(err)
   }

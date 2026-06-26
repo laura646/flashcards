@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   let auth
   try {
-    auth = await requireRole('teacher', 'superadmin')
+    auth = await requireRole('teacher', 'superadmin', 'hr')
   } catch (err) {
     return errorResponse(err)
   }

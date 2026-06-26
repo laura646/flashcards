@@ -97,6 +97,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Deny-by-default: only the user themselves, their teacher, or a superadmin
+    // may write progress (blocks the read-only hr role and any future role).
+    if (user_email !== postSession.user.email && postSession.user.role !== 'superadmin' && postSession.user.role !== 'teacher') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const { error } = await supabase
       .from('progress')
       .insert({
