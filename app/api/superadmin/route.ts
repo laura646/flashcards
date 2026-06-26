@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
     if (action === 'all-students') {
       const { data, error } = await supabase
         .from('users')
-        .select('email, name, country, level, learning_goals, company, common_issues_tags, common_issues_comments, created_at')
+        .select('email, name, country, level, learning_goals, company, account_type, common_issues_tags, common_issues_comments, created_at')
         .eq('role', 'student')
         .order('name')
 
@@ -658,7 +658,7 @@ export async function POST(req: NextRequest) {
 
     // ── Update student profile ──
     if (action === 'update-student-profile') {
-      const { email, name, level, learning_goals, company, common_issues_tags, common_issues_comments } = body
+      const { email, name, level, learning_goals, company, account_type, common_issues_tags, common_issues_comments } = body
       if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
       const updateData: Record<string, unknown> = {}
@@ -671,6 +671,7 @@ export async function POST(req: NextRequest) {
       if (level !== undefined) updateData.level = level || null
       if (learning_goals !== undefined) updateData.learning_goals = learning_goals || null
       if (company !== undefined) updateData.company = company || null
+      if (account_type !== undefined) updateData.account_type = account_type || null
       if (common_issues_tags !== undefined) updateData.common_issues_tags = common_issues_tags || []
       if (common_issues_comments !== undefined) updateData.common_issues_comments = common_issues_comments || null
 

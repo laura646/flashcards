@@ -14,6 +14,7 @@ import { useState } from 'react'
 import { Button, Pill, Eyebrow, Card, TextField, EmptyState, Skeleton, InlineError } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import { COMMON_ISSUES_BY_LEVEL } from '@/lib/common-issues'
+import { ACCOUNT_TYPES, ACCOUNT_TYPE_COLORS } from '@/lib/account-types'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
 
@@ -24,6 +25,7 @@ export interface StudentDetailData {
   level: string | null
   learning_goals: string | null
   company: string | null
+  account_type: string | null
   common_issues_tags: string[]
   common_issues_comments: string | null
   blocked: boolean
@@ -43,6 +45,7 @@ export interface ProgressRow {
 export interface ProfileSaveForm {
   level: string
   company: string
+  account_type: string
   learning_goals: string
   common_issues_tags: string[]
   common_issues_comments: string
@@ -76,7 +79,7 @@ export function StudentDetailView({
   // ── Profile edit state ──
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileForm, setProfileForm] = useState<ProfileSaveForm>({
-    level: '', company: '', learning_goals: '', common_issues_tags: [], common_issues_comments: '',
+    level: '', company: '', account_type: '', learning_goals: '', common_issues_tags: [], common_issues_comments: '',
   })
   const [customTag, setCustomTag] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
@@ -107,6 +110,7 @@ export function StudentDetailView({
     setProfileForm({
       level: student.level || '',
       company: student.company || '',
+      account_type: student.account_type || '',
       learning_goals: student.learning_goals || '',
       common_issues_tags: [...(student.common_issues_tags || [])],
       common_issues_comments: student.common_issues_comments || '',
@@ -283,6 +287,17 @@ export function StudentDetailView({
                   onChange={(e) => setProfileForm({ ...profileForm, company: e.target.value })}
                   placeholder="Company name"
                 />
+                <div>
+                  <span className="block text-[11px] font-extrabold uppercase tracking-eyebrow mb-1.5 text-ink-muted">Account type</span>
+                  <select
+                    value={profileForm.account_type}
+                    onChange={(e) => setProfileForm({ ...profileForm, account_type: e.target.value })}
+                    className="w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 py-3 border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky transition-colors"
+                  >
+                    <option value="">Not set</option>
+                    {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -379,6 +394,14 @@ export function StudentDetailView({
                 <div>
                   <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider">Company</p>
                   <p className="text-sm text-ink-black mt-0.5">{student.company || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider">Account type</p>
+                  {student.account_type ? (
+                    <span className="inline-block mt-0.5 text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: ACCOUNT_TYPE_COLORS[student.account_type]?.bg, color: ACCOUNT_TYPE_COLORS[student.account_type]?.text }}>{student.account_type}</span>
+                  ) : (
+                    <p className="text-sm text-ink-black mt-0.5">—</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider">Joined</p>

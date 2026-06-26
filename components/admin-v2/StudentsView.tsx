@@ -7,12 +7,14 @@
 
 import { useState } from 'react'
 import { Pill, EmptyState, Skeleton } from '@/components/student-ui'
+import { ACCOUNT_TYPES, ACCOUNT_TYPE_COLORS } from '@/lib/account-types'
 
 export interface StudentSummary {
   email: string
   name: string
   level: string | null
   company: string | null
+  account_type: string | null
   blocked: boolean
   courses: { course_id: string; course_name: string }[]
 }
@@ -32,8 +34,16 @@ export function StudentsView({ students, loading, onOpenStudent }: {
   onOpenStudent: (email: string) => void
 }) {
   const [search, setSearch] = useState('')
+  const [accountFilter, setAccountFilter] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('')
   const q = search.trim().toLowerCase()
-  const filtered = q ? students.filter((s) => (s.name || '').toLowerCase().includes(q) || s.email.toLowerCase().includes(q)) : students
+  const cq = companyFilter.trim().toLowerCase()
+  const filtered = students.filter((s) => {
+    if (q && !((s.name || '').toLowerCase().includes(q) || s.email.toLowerCase().includes(q))) return false
+    if (accountFilter && s.account_type !== accountFilter) return false
+    if (cq && !((s.company || '').toLowerCase().includes(cq))) return false
+    return true
+  })
 
   const distinctCourses = new Set(students.flatMap((s) => s.courses.map((c) => c.course_id))).size
   const distinctCompanies = new Set(students.map((s) => s.company).filter(Boolean)).size
@@ -41,7 +51,7 @@ export function StudentsView({ students, loading, onOpenStudent }: {
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
           <h1 className="text-2xl font-bold text-brandblue">Students</h1>
           <input
             type="text"
@@ -51,6 +61,29 @@ export function StudentsView({ students, loading, onOpenStudent }: {
             onChange={(e) => setSearch(e.target.value)}
             className="text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 w-60 bg-white placeholder:text-ink-muted focus:outline-none focus:border-sky"
           />
+        </div>
+
+        <div className="flex items-center gap-2 mb-5 flex-wrap">
+          <select
+            aria-label="Filter by account type"
+            value={accountFilter}
+            onChange={(e) => setAccountFilter(e.target.value)}
+            className="text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+          >
+            <option value="">All account types</option>
+            {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <input
+            type="text"
+            aria-label="Filter by company"
+            placeholder="Filter by company…"
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 w-52 bg-white placeholder:text-ink-muted focus:outline-none focus:border-sky"
+          />
+          {(accountFilter || companyFilter) && (
+            <button onClick={() => { setAccountFilter(''); setCompanyFilter('') }} className="text-xs font-bold text-ink-muted hover:text-ink-body px-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40">Clear</button>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-5">
@@ -100,6 +133,9 @@ export function StudentsView({ students, loading, onOpenStudent }: {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-bold text-ink-black truncate">{s.name || 'Unknown'}</p>
                       {s.level && <Pill variant="level">{s.level}</Pill>}
+                      {s.account_type && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: ACCOUNT_TYPE_COLORS[s.account_type]?.bg, color: ACCOUNT_TYPE_COLORS[s.account_type]?.text }}>{s.account_type}</span>
+                      )}
                       {s.blocked && <span className="text-[10px] font-bold bg-incorrect-bg text-incorrect-fg px-2 py-0.5 rounded-full">BLOCKED</span>}
                     </div>
                     <p className="text-xs text-ink-muted truncate mt-0.5">{s.email}</p>

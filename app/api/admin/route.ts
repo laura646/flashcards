@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       if (studentEmails.length > 0) {
         const { data: userData } = await supabase
           .from('users')
-          .select('email, name, created_at, level, learning_goals, company, common_issues_tags, common_issues_comments, blocked, notes')
+          .select('email, name, created_at, level, learning_goals, company, account_type, common_issues_tags, common_issues_comments, blocked, notes')
           .in('email', studentEmails)
 
         // Get progress stats per student
@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
       // Get student user data with profile fields
       let usersQuery = supabase
         .from('users')
-        .select('email, name, created_at, level, learning_goals, company, common_issues_tags, common_issues_comments, blocked, notes')
+        .select('email, name, created_at, level, learning_goals, company, account_type, common_issues_tags, common_issues_comments, blocked, notes')
         .order('created_at', { ascending: false })
       if (allowedEmails !== null) {
         usersQuery = usersQuery.in('email', allowedEmails)
@@ -236,7 +236,7 @@ export async function GET(req: NextRequest) {
       // SECURITY: Never select password_hash, reset_token, or reset_token_expires_at
       let usersQuery = supabase
         .from('users')
-        .select('email, name, role, created_at, level, learning_goals, company, country, specialization, common_issues_tags, common_issues_comments, blocked, notes')
+        .select('email, name, role, created_at, level, learning_goals, company, account_type, country, specialization, common_issues_tags, common_issues_comments, blocked, notes')
         .order('created_at', { ascending: false })
       if (allowedEmails !== null) {
         if (allowedEmails.length === 0) return NextResponse.json({ students: [] })
@@ -360,7 +360,7 @@ export async function GET(req: NextRequest) {
           .order('completed_at', { ascending: false }),
         supabase
           .from('users')
-          .select('email, name, role, created_at, level, learning_goals, company, country, specialization, common_issues_tags, common_issues_comments, blocked, notes')
+          .select('email, name, role, created_at, level, learning_goals, company, account_type, country, specialization, common_issues_tags, common_issues_comments, blocked, notes')
           .eq('email', studentEmail)
           .maybeSingle(),
         supabase
@@ -514,7 +514,7 @@ export async function POST(req: NextRequest) {
   try {
     // ── Update student profile (teachers can edit) ──
     if (action === 'update-student-profile') {
-      const { studentEmail, level, learning_goals, company, common_issues_tags, common_issues_comments } = body
+      const { studentEmail, level, learning_goals, company, account_type, common_issues_tags, common_issues_comments } = body
       if (!studentEmail) return NextResponse.json({ error: 'studentEmail required' }, { status: 400 })
 
       // Verify teacher has access to this student
@@ -527,6 +527,7 @@ export async function POST(req: NextRequest) {
       if (level !== undefined) updateData.level = level
       if (learning_goals !== undefined) updateData.learning_goals = learning_goals
       if (company !== undefined) updateData.company = company
+      if (account_type !== undefined) updateData.account_type = account_type || null
       if (common_issues_tags !== undefined) updateData.common_issues_tags = common_issues_tags
       if (common_issues_comments !== undefined) updateData.common_issues_comments = common_issues_comments
 

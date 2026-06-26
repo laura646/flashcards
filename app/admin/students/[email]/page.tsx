@@ -23,6 +23,7 @@ interface StudentUser {
   level: string | null
   learning_goals: string | null
   company: string | null
+  account_type: string | null
   common_issues_tags: string[] | null
   common_issues_comments: string | null
   blocked: boolean | null
@@ -62,6 +63,7 @@ export default function StudentDetailBetaPage() {
           level: user.level ?? null,
           learning_goals: user.learning_goals ?? null,
           company: user.company ?? null,
+          account_type: user.account_type ?? null,
           common_issues_tags: user.common_issues_tags ?? [],
           common_issues_comments: user.common_issues_comments ?? null,
           blocked: !!user.blocked,
@@ -107,6 +109,7 @@ export default function StudentDetailBetaPage() {
       level: f.level || null,
       learning_goals: f.learning_goals || null,
       company: f.company || null,
+      account_type: f.account_type || null,
       common_issues_tags: f.common_issues_tags,
       common_issues_comments: f.common_issues_comments || null,
     })

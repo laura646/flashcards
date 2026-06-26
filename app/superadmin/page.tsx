@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import SignOutButton from '@/components/SignOutButton'
 import { useRouter } from 'next/navigation'
 import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES, COUNTRY_FLAGS } from '@/lib/common-issues'
+import { ACCOUNT_TYPES, ACCOUNT_TYPE_COLORS } from '@/lib/account-types'
 
 interface Course {
   id: string
@@ -82,6 +83,7 @@ interface Student {
   level: string | null
   learning_goals: string | null
   company: string | null
+  account_type: string | null
   common_issues_tags: string[]
   common_issues_comments: string | null
   courses: string[]
@@ -206,10 +208,18 @@ export default function SuperadminPage() {
     level: '',
     learning_goals: '',
     company: '',
+    account_type: '',
     common_issues_tags: [] as string[],
     common_issues_comments: '',
   })
+  const [saAccount, setSaAccount] = useState('')
+  const [saCompany, setSaCompany] = useState('')
   const [customTag, setCustomTag] = useState('')
+  const filteredStudents = allStudents.filter((s) => {
+    if (saAccount && s.account_type !== saAccount) return false
+    if (saCompany && !((s.company || '').toLowerCase().includes(saCompany.trim().toLowerCase()))) return false
+    return true
+  })
 
   const toastTimer = useRef<ReturnType<typeof setTimeout>>()
   const showToast = (msg: string) => {
@@ -701,7 +711,7 @@ export default function SuperadminPage() {
       }
 
       // Save profile data if any was filled in
-      const hasProfile = studentForm.level || studentForm.learning_goals || studentForm.company || studentForm.common_issues_tags.length > 0 || studentForm.common_issues_comments
+      const hasProfile = studentForm.level || studentForm.learning_goals || studentForm.company || studentForm.account_type || studentForm.common_issues_tags.length > 0 || studentForm.common_issues_comments
       if (hasProfile) {
         await fetch('/api/superadmin', {
           method: 'POST',
@@ -714,7 +724,7 @@ export default function SuperadminPage() {
       setNewStudentEmail('')
       setNewStudentName('')
       setShowAddNewStudent(false)
-      setStudentForm({ name: '', level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' })
+      setStudentForm({ name: '', level: '', learning_goals: '', company: '', account_type: '', common_issues_tags: [], common_issues_comments: '' })
       setCustomTag('')
       await loadAllStudents()
     } catch { showToast('Failed to add student') }
@@ -883,10 +893,19 @@ export default function SuperadminPage() {
         <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
           <button onClick={() => setView('courses')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-4">&larr; Back to dashboard</button>
           <div className="flex items-center justify-between mb-1">
-            <h1 className="text-xl font-bold text-[#416ebe]">All Students ({allStudents.length})</h1>
-            <button onClick={() => { setShowAddNewStudent(!showAddNewStudent); setStudentForm({ name: '', level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag(''); setNewStudentEmail(''); setNewStudentName('') }} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0]">+ Add Student</button>
+            <h1 className="text-xl font-bold text-[#416ebe]">All Students ({filteredStudents.length})</h1>
+            <button onClick={() => { setShowAddNewStudent(!showAddNewStudent); setStudentForm({ name: '', level: '', learning_goals: '', company: '', account_type: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag(''); setNewStudentEmail(''); setNewStudentName('') }} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0]">+ Add Student</button>
           </div>
-          <p className="text-xs text-gray-400 mb-4">Click Edit to update student profiles with level, goals, and common issues.</p>
+          <p className="text-xs text-gray-400 mb-3">Click Edit to update student profiles with level, goals, and common issues.</p>
+
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <select value={saAccount} onChange={e => setSaAccount(e.target.value)} className="border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]">
+              <option value="">All account types</option>
+              {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input type="text" value={saCompany} onChange={e => setSaCompany(e.target.value)} placeholder="Filter by company…" className="border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm w-52 focus:outline-none focus:border-[#416ebe]" />
+            {(saAccount || saCompany) && <button onClick={() => { setSaAccount(''); setSaCompany('') }} className="text-xs font-bold text-gray-400 hover:text-[#416ebe] px-2">Clear</button>}
+          </div>
 
           {showAddNewStudent && (
             <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-5 mb-4">
@@ -918,6 +937,11 @@ export default function SuperadminPage() {
                 <div>
                   <label className="text-xs font-bold text-gray-500 block mb-1">Company (optional)</label>
                   <input type="text" value={studentForm.company} onChange={e => setStudentForm(f => ({ ...f, company: e.target.value }))} placeholder="e.g. Google, Freelancer" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+                  <label className="text-xs font-bold text-gray-500 block mb-1 mt-3">Account type</label>
+                  <select value={studentForm.account_type} onChange={e => setStudentForm(f => ({ ...f, account_type: e.target.value }))} className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]">
+                    <option value="">Not set</option>
+                    {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                 </div>
 
                 {/* Common Issues Tags */}
@@ -961,19 +985,19 @@ export default function SuperadminPage() {
 
                 <div className="flex gap-2">
                   <button onClick={createNewStudent} disabled={addingNewStudent || !newStudentEmail.trim()} className="flex-1 bg-[#416ebe] hover:bg-[#3560b0] text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50">{addingNewStudent ? 'Adding...' : 'Add Student'}</button>
-                  <button onClick={() => { setShowAddNewStudent(false); setNewStudentEmail(''); setNewStudentName(''); setStudentForm({ name: '', level: '', learning_goals: '', company: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag('') }} className="px-6 py-2.5 text-sm text-gray-400">Cancel</button>
+                  <button onClick={() => { setShowAddNewStudent(false); setNewStudentEmail(''); setNewStudentName(''); setStudentForm({ name: '', level: '', learning_goals: '', company: '', account_type: '', common_issues_tags: [], common_issues_comments: '' }); setCustomTag('') }} className="px-6 py-2.5 text-sm text-gray-400">Cancel</button>
                 </div>
               </div>
             </div>
           )}
 
-          {allStudents.length === 0 ? (
+          {filteredStudents.length === 0 ? (
             <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">
-              <p className="text-sm text-gray-400">No students yet.</p>
+              <p className="text-sm text-gray-400">{allStudents.length === 0 ? 'No students yet.' : 'No students match your filters.'}</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {allStudents.map(s => (
+              {filteredStudents.map(s => (
                 <div key={s.email} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-5">
                   <div className="flex items-start justify-between">
                     <div>
@@ -982,6 +1006,7 @@ export default function SuperadminPage() {
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {s.level && <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full font-medium">{s.level}</span>}
                         {s.company && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{s.company}</span>}
+                        {s.account_type && <span className="px-2 py-0.5 text-xs rounded-full font-medium" style={{ backgroundColor: ACCOUNT_TYPE_COLORS[s.account_type]?.bg, color: ACCOUNT_TYPE_COLORS[s.account_type]?.text }}>{s.account_type}</span>}
                         {s.courses.length > 0 ? <span className="px-2 py-0.5 bg-green-50 text-green-600 text-xs rounded-full">{s.courses.length} course{s.courses.length !== 1 ? 's' : ''}</span> : <span className="px-2 py-0.5 bg-orange-50 text-orange-600 text-xs rounded-full">No course</span>}
                       </div>
                       {s.courses.length > 0 && <p className="text-xs text-gray-400 mt-1">{s.courses.join(', ')}</p>}
@@ -1003,6 +1028,7 @@ export default function SuperadminPage() {
                           level: s.level || '',
                           learning_goals: s.learning_goals || '',
                           company: s.company || '',
+                          account_type: s.account_type || '',
                           common_issues_tags: s.common_issues_tags || [],
                           common_issues_comments: s.common_issues_comments || '',
                         })
@@ -1034,6 +1060,11 @@ export default function SuperadminPage() {
                       <div>
                         <label className="text-xs font-bold text-gray-500 block mb-1">Company (optional)</label>
                         <input type="text" value={studentForm.company} onChange={e => setStudentForm(f => ({ ...f, company: e.target.value }))} placeholder="e.g. Google, Freelancer" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+                  <label className="text-xs font-bold text-gray-500 block mb-1 mt-3">Account type</label>
+                  <select value={studentForm.account_type} onChange={e => setStudentForm(f => ({ ...f, account_type: e.target.value }))} className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]">
+                    <option value="">Not set</option>
+                    {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
                       </div>
 
                       {/* Common Issues Tags */}
