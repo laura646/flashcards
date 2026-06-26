@@ -71,6 +71,11 @@ export default function HomePage() {
         router.replace('/admin')
         return
       }
+      if (role === 'hr') {
+        // HR is a read-only viewer of the admin workspace (My Courses / My Students).
+        router.replace('/admin')
+        return
+      }
 
       fetch('/api/student/courses')
         .then((res) => res.json())
