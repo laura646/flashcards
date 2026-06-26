@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { escHtml } from '@/lib/html'
 import crypto from 'crypto'
 import { rateLimit } from '@/lib/rate-limit'
 
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
     const resetUrl = `${appUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(trimmedEmail)}`
 
-    const esc = (await import('@/lib/html')).escHtml
+    const esc = escHtml
     const resend = new Resend(apiKey)
     await resend.emails.send({
       from: 'English with Laura <noreply@learn.englishwithlaura.com>',

@@ -3,6 +3,7 @@ import { requireRole } from '@/lib/roles'
 import { isOwner } from '@/lib/owner'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { escHtml } from '@/lib/html'
 import {
   notifyCourseCreated,
   notifyStudentJoined,
@@ -455,7 +456,7 @@ export async function POST(req: NextRequest) {
       // Send invite email
       const apiKey = process.env.RESEND_API_KEY
       if (apiKey) {
-        const esc = (await import('@/lib/html')).escHtml
+        const esc = escHtml
         const resend = new Resend(apiKey)
         try {
           await resend.emails.send({
@@ -510,7 +511,7 @@ export async function POST(req: NextRequest) {
 
       const apiKey = process.env.RESEND_API_KEY
       if (apiKey) {
-        const esc = (await import('@/lib/html')).escHtml
+        const esc = escHtml
         const resend = new Resend(apiKey)
         try {
           await resend.emails.send({
@@ -558,7 +559,7 @@ export async function POST(req: NextRequest) {
 
       const apiKey = process.env.RESEND_API_KEY
       if (apiKey) {
-        const esc = (await import('@/lib/html')).escHtml
+        const esc = escHtml
         const resend = new Resend(apiKey)
         try {
           await resend.emails.send({

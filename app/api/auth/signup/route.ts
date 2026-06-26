@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { escHtml } from '@/lib/html'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.RESEND_API_KEY
     if (apiKey) {
       try {
-        const esc = (await import('@/lib/html')).escHtml
+        const esc = escHtml
         const resend = new Resend(apiKey)
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
         await resend.emails.send({

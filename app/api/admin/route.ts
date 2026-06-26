@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
+import { escHtml } from '@/lib/html'
 import { getTeacherCourseIds, type UserRole } from '@/lib/roles'
 
 async function checkAdmin() {
@@ -763,7 +764,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Email not configured' }, { status: 500 })
       }
 
-      const esc = (await import('@/lib/html')).escHtml
+      const esc = escHtml
       const resend = new Resend(apiKey)
       await resend.emails.send({
         from: 'English with Laura <noreply@learn.englishwithlaura.com>',
