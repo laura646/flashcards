@@ -311,6 +311,15 @@ export default function SuperadminPage() {
     }
   }, [status, session, loadCourses, loadTeachers, loadSuperadmins, loadHr])
 
+  // Deep-link: /superadmin?view=hr opens the team view and jumps to the HR section.
+  useEffect(() => {
+    if (status !== 'authenticated' || session?.user?.role !== 'superadmin') return
+    if (new URLSearchParams(window.location.search).get('view') === 'hr') {
+      setView('all-teachers'); loadTeachers(); loadSuperadmins(); loadHr()
+      setTimeout(() => document.getElementById('hr-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300)
+    }
+  }, [status, session, loadTeachers, loadSuperadmins, loadHr])
+
   // ── Content Bank functions ──
   const loadContentBank = useCallback(async (level?: string, category?: string) => {
     setCbLoading(true)
@@ -977,7 +986,7 @@ export default function SuperadminPage() {
           </div>
 
           {/* ── HR (read-only viewers) ── */}
-          <div className="flex items-center justify-between mb-2">
+          <div id="hr-section" className="flex items-center justify-between mb-2 scroll-mt-6">
             <div>
               <h1 className="text-xl font-bold text-[#416ebe]">HR ({hrList.length})</h1>
               <p className="text-xs text-gray-400 mt-1">View-only accounts. Assign the courses and individual students each HR can follow.</p>
@@ -1960,6 +1969,10 @@ export default function SuperadminPage() {
             <button onClick={() => { setView('all-students'); loadAllStudents() }} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 text-center hover:border-[#416ebe] transition-colors">
               <div className="text-2xl font-bold text-[#416ebe]">{totalStudents}</div>
               <div className="text-xs text-gray-400">Students</div>
+            </button>
+            <button onClick={() => { setView('all-teachers'); loadTeachers(); loadSuperadmins(); loadHr(); setTimeout(() => document.getElementById('hr-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150) }} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 text-center hover:border-[#00aff0] transition-colors">
+              <div className="text-2xl font-bold text-[#0076a8]">{hrList.length}</div>
+              <div className="text-xs text-gray-400">HR</div>
             </button>
           </div>
 

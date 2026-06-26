@@ -274,6 +274,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ hr })
     }
 
+    if (action === 'course-hr') {
+      const courseId = req.nextUrl.searchParams.get('course_id') || ''
+      if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+      const { data: links } = await supabase.from('course_hr').select('hr_email').eq('course_id', courseId)
+      const emails = (links || []).map((r: { hr_email: string }) => r.hr_email)
+      let hr: { email: string; name: string }[] = []
+      if (emails.length > 0) {
+        const { data: users } = await supabase.from('users').select('email, name').in('email', emails).eq('role', 'hr')
+        hr = (users || []) as { email: string; name: string }[]
+      }
+      return NextResponse.json({ hr })
+    }
+
     // ── Get attendance for a lesson ──
     if (action === 'attendance') {
       const lessonId = req.nextUrl.searchParams.get('lesson_id')
@@ -963,6 +976,29 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq('hr_email', (hr_email as string).toLowerCase())
         .eq('student_email', (student_email as string).toLowerCase())
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Add / remove a single HR↔course link (course-page shortcut) ──
+    if (action === 'add-hr-course') {
+      const { hr_email, course_id } = body
+      if (!hr_email || !course_id) return NextResponse.json({ error: 'hr_email and course_id required' }, { status: 400 })
+      const { error } = await supabase
+        .from('course_hr')
+        .upsert({ hr_email: (hr_email as string).toLowerCase(), course_id }, { onConflict: 'course_id,hr_email' })
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'remove-hr-course') {
+      const { hr_email, course_id } = body
+      if (!hr_email || !course_id) return NextResponse.json({ error: 'hr_email and course_id required' }, { status: 400 })
+      const { error } = await supabase
+        .from('course_hr')
+        .delete()
+        .eq('hr_email', (hr_email as string).toLowerCase())
+        .eq('course_id', course_id)
       if (error) throw error
       return NextResponse.json({ ok: true })
     }

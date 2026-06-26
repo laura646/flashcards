@@ -169,6 +169,12 @@ interface CourseDetailViewProps {
   onSaveInviteCode: (code: string) => Promise<{ ok: boolean; error?: string }>
   onSendTelegramTest: () => Promise<{ ok: boolean; error?: string }>
   canEdit?: boolean
+  manageHr?: {
+    all: { email: string; name: string }[]
+    assigned: { email: string; name: string }[]
+    onAdd: (email: string) => void
+    onRemove: (email: string) => void
+  }
 }
 
 // Read-only icon + value row for the Course Info card.
@@ -205,6 +211,7 @@ export function CourseDetailView({
   onSaveInviteCode,
   onSendTelegramTest,
   canEdit = true,
+  manageHr,
 }: CourseDetailViewProps) {
   const [tab, setTab] = useState<Tab>('lessons')
   const [editing, setEditing] = useState(false)
@@ -702,6 +709,37 @@ export function CourseDetailView({
                 </div>
               )}
             </div>
+
+            {/* HR observers card — superadmin only (course-first HR assignment) */}
+            {manageHr && (
+              <div className="bg-white rounded-card border border-hairline p-[18px]">
+                <h3 className="text-sm font-bold text-ink-black mb-1">HR observers</h3>
+                <p className="text-xs text-ink-muted mb-2">Read-only HRs who follow this course.</p>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {manageHr.assigned.length === 0 ? (
+                    <span className="text-xs text-ink-muted">None yet.</span>
+                  ) : manageHr.assigned.map((h) => (
+                    <span key={h.email} className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full" style={{ backgroundColor: '#f3eafe', color: '#5b3aa0' }}>
+                      {h.name || h.email}
+                      <button onClick={() => manageHr.onRemove(h.email)} aria-label="Remove HR" style={{ color: '#5b3aa0' }} className="hover:opacity-70">✕</button>
+                    </span>
+                  ))}
+                </div>
+                {(() => {
+                  const avail = manageHr.all.filter((h) => !manageHr.assigned.some((a) => a.email === h.email))
+                  return avail.length > 0 ? (
+                    <select value="" onChange={(e) => { if (e.target.value) manageHr.onAdd(e.target.value) }} className="w-full text-sm text-ink-body bg-white border border-hairline rounded-tile px-3 py-2 focus:outline-none focus:border-sky">
+                      <option value="">+ Add HR…</option>
+                      {avail.map((h) => <option key={h.email} value={h.email}>{h.name || h.email}</option>)}
+                    </select>
+                  ) : manageHr.all.length === 0 ? (
+                    <p className="text-[11px] text-ink-muted">No HR accounts yet — invite one from the team page.</p>
+                  ) : (
+                    <p className="text-[11px] text-ink-muted">All HR accounts already follow this course.</p>
+                  )
+                })()}
+              </div>
+            )}
 
             {/* Attendance card — only for non-self-study courses */}
             {!course.self_study && (

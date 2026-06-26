@@ -69,7 +69,11 @@ export default function CourseDetailBetaPage() {
   const [markSaving, setMarkSaving] = useState(false)
   const [markError, setMarkError] = useState<string | null>(null)
 
+  const [allHr, setAllHr] = useState<{ email: string; name: string }[]>([])
+  const [assignedHr, setAssignedHr] = useState<{ email: string; name: string }[]>([])
+
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
+  const isSuperadmin = session?.user?.role === 'superadmin'
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')
@@ -292,6 +296,41 @@ export default function CourseDetailBetaPage() {
     }
   }, [mark, id, loadOverview])
 
+  // HR observers (superadmin only) — course-first HR assignment.
+  const loadHrForCourse = useCallback(async () => {
+    if (!isSuperadmin || !id) return
+    try {
+      const [allRes, assignedRes] = await Promise.all([
+        fetch('/api/superadmin?action=hr'),
+        fetch(`/api/superadmin?action=course-hr&course_id=${encodeURIComponent(id)}`),
+      ])
+      const allData = await allRes.json().catch(() => ({}))
+      const assignedData = await assignedRes.json().catch(() => ({}))
+      setAllHr(allData.hr || [])
+      setAssignedHr(assignedData.hr || [])
+    } catch { /* swallow */ }
+  }, [isSuperadmin, id])
+
+  useEffect(() => {
+    if (status === 'authenticated' && isSuperadmin && id) loadHrForCourse()
+  }, [status, isSuperadmin, id, loadHrForCourse])
+
+  const onAddHrCourse = async (hrEmail: string) => {
+    const res = await fetch('/api/superadmin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add-hr-course', hr_email: hrEmail, course_id: id }),
+    })
+    if (res.ok) loadHrForCourse()
+  }
+
+  const onRemoveHrCourse = async (hrEmail: string) => {
+    const res = await fetch('/api/superadmin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remove-hr-course', hr_email: hrEmail, course_id: id }),
+    })
+    if (res.ok) loadHrForCourse()
+  }
+
   if (status === 'authenticated' && !isAdmin) {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
@@ -320,6 +359,7 @@ export default function CourseDetailBetaPage() {
         onSaveInviteCode={onSaveInviteCode}
         onSendTelegramTest={onSendTelegramTest}
         canEdit={session?.user?.role !== 'hr'}
+        manageHr={isSuperadmin ? { all: allHr, assigned: assignedHr, onAdd: onAddHrCourse, onRemove: onRemoveHrCourse } : undefined}
       />
 
       {toast && (

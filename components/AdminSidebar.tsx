@@ -181,6 +181,14 @@ const SUPERADMIN_ITEM: NavItem = {
   match: (p) => p?.startsWith('/superadmin') ?? false,
 }
 
+// Deep-link to HR management (superadmin only). Lands on the team view's HR section.
+const HR_ITEM: NavItem = {
+  href: '/superadmin?view=hr',
+  label: 'HR & access',
+  icon: IconStudents,
+  match: () => false,
+}
+
 // ─────────── Helpers ───────────
 
 // Initials from a display name / email (max 2 chars, uppercase).
@@ -353,7 +361,7 @@ function AdminSidebarInner() {
   const isHr = role === 'hr'
   const teachingItems = isHr ? TEACHING_NAV.filter((i) => i.href !== '/admin/lessons') : TEACHING_NAV
   const manageItems = isSuperadmin
-    ? [...MANAGE_NAV, SUPERADMIN_ITEM]
+    ? [...MANAGE_NAV, HR_ITEM, SUPERADMIN_ITEM]
     : isHr
     ? MANAGE_NAV.filter((i) => i.href !== '/admin/content-bank')
     : MANAGE_NAV
