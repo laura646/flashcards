@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { escHtml as esc } from '@/lib/html'
+import { escHtml as esc } from '@/lib/esc'
 import { Resend } from 'resend'
 
 const TEACHER_EMAIL = 'laura@englishwithlaura.com'

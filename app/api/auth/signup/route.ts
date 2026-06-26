@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
-import { escHtml } from '@/lib/html'
+import { escHtml } from '@/lib/esc'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {

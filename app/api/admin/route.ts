@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
-import { escHtml } from '@/lib/html'
+import { escHtml } from '@/lib/esc'
 import { getTeacherCourseIds, type UserRole } from '@/lib/roles'
 
 async function checkAdmin() {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
-import { escHtml } from '@/lib/html'
+import { escHtml } from '@/lib/esc'
 import crypto from 'crypto'
 import { rateLimit } from '@/lib/rate-limit'
 

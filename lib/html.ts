@@ -1,10 +1,7 @@
-/** Escape HTML special characters to prevent XSS in email templates */
-export const escHtml = (s: unknown): string =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+// escHtml lives in its own dependency-free module (lib/esc) so API route
+// handlers can import it WITHOUT pulling in the isomorphic-dompurify below
+// (which crashes serverless route modules at load). Re-exported for compat.
+export { escHtml } from './esc'
 
 import DOMPurify from 'isomorphic-dompurify'
 

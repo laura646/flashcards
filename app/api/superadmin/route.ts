@@ -3,7 +3,7 @@ import { requireRole } from '@/lib/roles'
 import { isOwner } from '@/lib/owner'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
-import { escHtml } from '@/lib/html'
+import { escHtml } from '@/lib/esc'
 import {
   notifyCourseCreated,
   notifyStudentJoined,
