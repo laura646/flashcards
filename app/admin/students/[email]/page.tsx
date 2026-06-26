@@ -39,8 +39,11 @@ export default function StudentDetailBetaPage() {
   const [student, setStudent] = useState<StudentDetailData | null>(null)
   const [progress, setProgress] = useState<ProgressRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [allHr, setAllHr] = useState<{ email: string; name: string }[]>([])
+  const [assignedHr, setAssignedHr] = useState<{ email: string; name: string }[]>([])
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
+  const isSuperadmin = session?.user?.role === 'superadmin'
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')
@@ -122,6 +125,41 @@ export default function StudentDetailBetaPage() {
   const onSendReminder = async (message: string) =>
     post({ action: 'send-reminder', email, studentName: student?.name || '', message })
 
+  // HR access management (superadmin only) — Approach B: assign this student to an HR in context.
+  const loadHr = useCallback(async () => {
+    if (!isSuperadmin || !email) return
+    try {
+      const [allRes, assignedRes] = await Promise.all([
+        fetch('/api/superadmin?action=hr'),
+        fetch(`/api/superadmin?action=student-hr&student_email=${encodeURIComponent(email)}`),
+      ])
+      const allData = await allRes.json().catch(() => ({}))
+      const assignedData = await assignedRes.json().catch(() => ({}))
+      setAllHr(allData.hr || [])
+      setAssignedHr(assignedData.hr || [])
+    } catch { /* swallow */ }
+  }, [isSuperadmin, email])
+
+  useEffect(() => {
+    if (status === 'authenticated' && isSuperadmin && email) loadHr()
+  }, [status, isSuperadmin, email, loadHr])
+
+  const onAddHr = async (hrEmail: string) => {
+    const res = await fetch('/api/superadmin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add-hr-student', hr_email: hrEmail, student_email: email }),
+    })
+    if (res.ok) loadHr()
+  }
+
+  const onRemoveHr = async (hrEmail: string) => {
+    const res = await fetch('/api/superadmin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remove-hr-student', hr_email: hrEmail, student_email: email }),
+    })
+    if (res.ok) loadHr()
+  }
+
   if (status === 'authenticated' && !isAdmin) {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
@@ -136,6 +174,7 @@ export default function StudentDetailBetaPage() {
       onSaveNotes={onSaveNotes}
       onSendReminder={onSendReminder}
       canEdit={session?.user?.role !== 'hr'}
+      manageHr={isSuperadmin ? { all: allHr, assigned: assignedHr, onAdd: onAddHr, onRemove: onRemoveHr } : undefined}
     />
   )
 }

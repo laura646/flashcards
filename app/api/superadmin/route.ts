@@ -261,6 +261,19 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    if (action === 'student-hr') {
+      const studentEmail = (req.nextUrl.searchParams.get('student_email') || '').toLowerCase()
+      if (!studentEmail) return NextResponse.json({ error: 'student_email required' }, { status: 400 })
+      const { data: links } = await supabase.from('hr_students').select('hr_email').eq('student_email', studentEmail)
+      const emails = (links || []).map((r: { hr_email: string }) => r.hr_email)
+      let hr: { email: string; name: string }[] = []
+      if (emails.length > 0) {
+        const { data: users } = await supabase.from('users').select('email, name').in('email', emails).eq('role', 'hr')
+        hr = (users || []) as { email: string; name: string }[]
+      }
+      return NextResponse.json({ hr })
+    }
+
     // ── Get attendance for a lesson ──
     if (action === 'attendance') {
       const lessonId = req.nextUrl.searchParams.get('lesson_id')
@@ -925,6 +938,32 @@ export async function POST(req: NextRequest) {
           .insert(studentEmails.map((em) => ({ hr_email: clean, student_email: em })))
         if (se) throw se
       }
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Add / remove a single HR↔student link (student-page shortcut, Approach B) ──
+    if (action === 'add-hr-student') {
+      const { hr_email, student_email } = body
+      if (!hr_email || !student_email) return NextResponse.json({ error: 'hr_email and student_email required' }, { status: 400 })
+      const { error } = await supabase
+        .from('hr_students')
+        .upsert(
+          { hr_email: (hr_email as string).toLowerCase(), student_email: (student_email as string).toLowerCase() },
+          { onConflict: 'hr_email,student_email' }
+        )
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'remove-hr-student') {
+      const { hr_email, student_email } = body
+      if (!hr_email || !student_email) return NextResponse.json({ error: 'hr_email and student_email required' }, { status: 400 })
+      const { error } = await supabase
+        .from('hr_students')
+        .delete()
+        .eq('hr_email', (hr_email as string).toLowerCase())
+        .eq('student_email', (student_email as string).toLowerCase())
+      if (error) throw error
       return NextResponse.json({ ok: true })
     }
 

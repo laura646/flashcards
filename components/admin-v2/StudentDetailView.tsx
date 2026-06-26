@@ -68,6 +68,7 @@ export function StudentDetailView({
   onSaveNotes,
   onSendReminder,
   canEdit = true,
+  manageHr,
 }: {
   student: StudentDetailData | null
   progress: ProgressRow[]
@@ -77,6 +78,12 @@ export function StudentDetailView({
   onSaveNotes: (notes: string) => Promise<{ ok: boolean; error?: string }>
   onSendReminder: (message: string) => Promise<{ ok: boolean; error?: string }>
   canEdit?: boolean
+  manageHr?: {
+    all: { email: string; name: string }[]
+    assigned: { email: string; name: string }[]
+    onAdd: (email: string) => void
+    onRemove: (email: string) => void
+  }
 }) {
   // ── Profile edit state ──
   const [editingProfile, setEditingProfile] = useState(false)
@@ -460,6 +467,40 @@ export function StudentDetailView({
             </div>
           )}
         </Card>
+
+        {manageHr && (
+          <Card>
+            <Eyebrow>HR access</Eyebrow>
+            <p className="text-xs text-ink-muted mt-1 mb-2">HR who can view this student&apos;s progress.</p>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {manageHr.assigned.length === 0 ? (
+                <span className="text-xs text-ink-muted">None yet.</span>
+              ) : manageHr.assigned.map((h) => (
+                <span key={h.email} className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full" style={{ backgroundColor: '#f3eafe', color: '#5b3aa0' }}>
+                  {h.name || h.email}
+                  <button onClick={() => manageHr.onRemove(h.email)} aria-label="Remove HR" style={{ color: '#5b3aa0' }} className="hover:opacity-70">✕</button>
+                </span>
+              ))}
+            </div>
+            {(() => {
+              const avail = manageHr.all.filter((h) => !manageHr.assigned.some((a) => a.email === h.email))
+              return avail.length > 0 ? (
+                <select
+                  value=""
+                  onChange={(e) => { if (e.target.value) manageHr.onAdd(e.target.value) }}
+                  className="w-full text-sm text-ink-body bg-white border border-hairline rounded-tile px-3 py-2 focus:outline-none focus:border-sky"
+                >
+                  <option value="">+ Add HR…</option>
+                  {avail.map((h) => <option key={h.email} value={h.email}>{h.name || h.email}</option>)}
+                </select>
+              ) : manageHr.all.length === 0 ? (
+                <p className="text-[11px] text-ink-muted">No HR accounts yet — invite one from the team page.</p>
+              ) : (
+                <p className="text-[11px] text-ink-muted">All HR accounts already have access.</p>
+              )
+            })()}
+          </Card>
+        )}
 
         {/* ── Activity history card ── */}
         <Card padding="sm">
