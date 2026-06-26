@@ -6,6 +6,7 @@ import SignOutButton from '@/components/SignOutButton'
 import { useRouter } from 'next/navigation'
 import { COMMON_ISSUES_BY_LEVEL, COURSE_TYPES, COUNTRY_FLAGS } from '@/lib/common-issues'
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_COLORS } from '@/lib/account-types'
+import { isOwner } from '@/lib/owner'
 
 interface Course {
   id: string
@@ -139,6 +140,10 @@ export default function SuperadminPage() {
   // Invite teacher
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
+  const [superadmins, setSuperadmins] = useState<{ email: string; name: string; created_at: string }[]>([])
+  const [saInviteEmail, setSaInviteEmail] = useState('')
+  const [saInviteName, setSaInviteName] = useState('')
+  const [showInviteSa, setShowInviteSa] = useState(false)
   const [inviting, setInviting] = useState(false)
 
   // Assign teacher to course
@@ -220,6 +225,7 @@ export default function SuperadminPage() {
     if (saCompany && !((s.company || '').toLowerCase().includes(saCompany.trim().toLowerCase()))) return false
     return true
   })
+  const amOwner = isOwner(session?.user?.email)
 
   const toastTimer = useRef<ReturnType<typeof setTimeout>>()
   const showToast = (msg: string) => {
@@ -252,6 +258,14 @@ export default function SuperadminPage() {
     } catch {}
   }, [])
 
+  const loadSuperadmins = useCallback(async () => {
+    try {
+      const res = await fetch('/api/superadmin?action=superadmins')
+      const data = await res.json()
+      setSuperadmins(data.superadmins || [])
+    } catch {}
+  }, [])
+
   // ── Load all students ──
   const loadAllStudents = useCallback(async () => {
     try {
@@ -275,8 +289,9 @@ export default function SuperadminPage() {
       loadCourses()
       loadTeachers()
       loadAllStudents()
+      loadSuperadmins()
     }
-  }, [status, session, loadCourses, loadTeachers])
+  }, [status, session, loadCourses, loadTeachers, loadSuperadmins])
 
   // ── Content Bank functions ──
   const loadContentBank = useCallback(async (level?: string, category?: string) => {
@@ -500,6 +515,42 @@ export default function SuperadminPage() {
       await loadTeachers()
     } catch { showToast('Failed to invite teacher') }
     setInviting(false)
+  }
+
+  const inviteSuperadmin = async () => {
+    if (!saInviteEmail.trim()) return
+    try {
+      const res = await fetch('/api/superadmin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'invite-superadmin', email: saInviteEmail, name: saInviteName }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { showToast(data.error || 'Failed to invite superadmin'); return }
+      showToast('Superadmin invited!')
+      setSaInviteEmail(''); setSaInviteName(''); setShowInviteSa(false)
+      loadSuperadmins()
+    } catch { showToast('Failed to invite superadmin') }
+  }
+
+  const removeSuperadmin = (email: string, name: string) => {
+    setConfirmModal({
+      title: 'Remove Superadmin',
+      message: `Remove ${name || email} as a superadmin? This deletes their account and admin access. This cannot be undone.`,
+      confirmLabel: 'Yes, Remove',
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/superadmin', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete-superadmin', email }),
+          })
+          const data = await res.json().catch(() => ({}))
+          setConfirmModal(null)
+          if (!res.ok) { showToast(data.error || 'Failed to remove superadmin'); return }
+          showToast('Superadmin removed')
+          loadSuperadmins()
+        } catch { setConfirmModal(null); showToast('Failed to remove superadmin') }
+      },
+    })
   }
 
   // ── Assign teacher to course ──
@@ -794,6 +845,53 @@ export default function SuperadminPage() {
       {view === 'all-teachers' && (
         <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
           <button onClick={() => setView('courses')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-4">&larr; Back to dashboard</button>
+
+          {/* ── Superadmins ── */}
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-xl font-bold text-[#416ebe]">Superadmins ({superadmins.length})</h1>
+              <p className="text-xs text-gray-400 mt-1">{amOwner ? 'School administrators with full access. Only you can invite or remove them.' : 'Only the owner can invite or remove superadmins.'}</p>
+            </div>
+            {amOwner && (
+              <button onClick={() => setShowInviteSa(v => !v)} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0]">{showInviteSa ? 'Cancel' : '+ Invite Superadmin'}</button>
+            )}
+          </div>
+          {amOwner && showInviteSa && (
+            <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 mb-3 flex flex-col sm:flex-row gap-2 sm:items-end">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 block mb-1">Email</label>
+                <input type="email" value={saInviteEmail} onChange={e => setSaInviteEmail(e.target.value)} placeholder="name@example.com" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 block mb-1">Name (optional)</label>
+                <input type="text" value={saInviteName} onChange={e => setSaInviteName(e.target.value)} placeholder="Full name" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+              </div>
+              <button onClick={inviteSuperadmin} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0] whitespace-nowrap">Send invite</button>
+            </div>
+          )}
+          <div className="flex flex-col gap-2 mb-8">
+            {superadmins.length === 0 ? (
+              <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-5 text-center"><p className="text-sm text-gray-400">No superadmins yet.</p></div>
+            ) : superadmins.map(a => {
+              const owner = isOwner(a.email)
+              return (
+                <div key={a.email} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[#46464b] truncate">
+                      {a.name || 'Unnamed'}
+                      {owner && <span className="ml-2 px-2 py-0.5 bg-[#eef0fb] text-[#416ebe] text-[10px] rounded-full align-middle">Owner</span>}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">{a.email}</p>
+                  </div>
+                  {amOwner && !owner && (
+                    <button onClick={() => removeSuperadmin(a.email, a.name)} className="text-xs font-bold text-red-500 border-2 border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-xl whitespace-nowrap">Remove</button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ── Teachers ── */}
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-xl font-bold text-[#416ebe]">All Teachers ({teachers.length})</h1>
@@ -1699,7 +1797,7 @@ export default function SuperadminPage() {
               <div className="text-2xl font-bold text-[#416ebe]">{courses.length}</div>
               <div className="text-xs text-gray-400">Courses</div>
             </button>
-            <button onClick={() => { setView('all-teachers'); loadTeachers() }} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 text-center hover:border-[#416ebe] transition-colors">
+            <button onClick={() => { setView('all-teachers'); loadTeachers(); loadSuperadmins() }} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 text-center hover:border-[#416ebe] transition-colors">
               <div className="text-2xl font-bold text-[#416ebe]">{teachers.length}</div>
               <div className="text-xs text-gray-400">Teachers</div>
             </button>

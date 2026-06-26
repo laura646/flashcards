@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireRole } from '@/lib/roles'
+import { isOwner } from '@/lib/owner'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
 import {
@@ -227,6 +228,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ users: data || [] })
     }
 
+    if (action === 'superadmins') {
+      const { data, error } = await supabase
+        .from('users')
+        .select('email, name, created_at')
+        .eq('role', 'superadmin')
+        .order('name')
+      if (error) throw error
+      return NextResponse.json({ superadmins: data || [] })
+    }
+
     // ── Get attendance for a lesson ──
     if (action === 'attendance') {
       const lessonId = req.nextUrl.searchParams.get('lesson_id')
@@ -423,6 +434,61 @@ export async function POST(req: NextRequest) {
           })
         } catch (emailErr) {
           console.error('Teacher invite email error:', emailErr)
+        }
+      }
+
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Invite a superadmin / school administrator (OWNER ONLY) ──
+    if (action === 'invite-superadmin') {
+      if (!isOwner(user.email)) {
+        return NextResponse.json({ error: 'Only the owner can invite superadmins' }, { status: 403 })
+      }
+      const { email, name: adminName } = body
+      if (!email?.trim()) {
+        return NextResponse.json({ error: 'Email required' }, { status: 400 })
+      }
+      const cleanEmail = email.trim().toLowerCase()
+
+      const { error: userError } = await supabase
+        .from('users')
+        .upsert(
+          { email: cleanEmail, name: adminName?.trim() || '', role: 'superadmin' },
+          { onConflict: 'email' }
+        )
+      if (userError) throw userError
+
+      const apiKey = process.env.RESEND_API_KEY
+      if (apiKey) {
+        const esc = (await import('@/lib/html')).escHtml
+        const resend = new Resend(apiKey)
+        try {
+          await resend.emails.send({
+            from: 'English with Laura <noreply@learn.englishwithlaura.com>',
+            to: cleanEmail,
+            subject: 'You\'ve been invited as a school administrator — English with Laura',
+            html: `
+              <div style="font-family: Lato, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #46464b;">
+                <div style="background: #416ebe; padding: 24px 32px; border-radius: 12px 12px 0 0;">
+                  <h1 style="color: white; margin: 0; font-size: 20px;">English with Laura</h1>
+                </div>
+                <div style="background: white; padding: 32px; border: 1px solid #cddcf0; border-top: none; border-radius: 0 0 12px 12px;">
+                  <p style="font-size: 15px; margin-top: 0;">Hi ${esc(adminName || 'there')},</p>
+                  <p style="font-size: 15px; line-height: 1.6;">You've been invited as a <strong>school administrator</strong> on the English with Laura platform, with full access to manage courses, teachers, and students. Sign in with your Google account to get started.</p>
+                  <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e6f0fa;">
+                    <a href="https://app.englishwithlaura.com"
+                       style="display: inline-block; background: #416ebe; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">
+                      Sign In to Platform
+                    </a>
+                  </div>
+                  <p style="font-size: 13px; color: #888; margin-top: 24px;">— Laura</p>
+                </div>
+              </div>
+            `,
+          })
+        } catch (emailErr) {
+          console.error('Superadmin invite email error:', emailErr)
         }
       }
 
@@ -729,6 +795,24 @@ export async function POST(req: NextRequest) {
       // Remove from all course assignments
       await supabase.from('course_teachers').delete().eq('teacher_email', email)
       // Delete user
+      const { error } = await supabase.from('users').delete().eq('email', email)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Remove a superadmin (OWNER ONLY; the owner can't be removed) ──
+    if (action === 'delete-superadmin') {
+      if (!isOwner(user.email)) {
+        return NextResponse.json({ error: 'Only the owner can remove superadmins' }, { status: 403 })
+      }
+      const { email } = body
+      if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 })
+      if (isOwner(email)) {
+        return NextResponse.json({ error: 'The owner account cannot be removed' }, { status: 400 })
+      }
+
+      // Remove any course assignments, then delete the user
+      await supabase.from('course_teachers').delete().eq('teacher_email', email)
       const { error } = await supabase.from('users').delete().eq('email', email)
       if (error) throw error
       return NextResponse.json({ ok: true })
