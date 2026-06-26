@@ -40,7 +40,7 @@ export default function StudentDetailBetaPage() {
   const [progress, setProgress] = useState<ProgressRow[]>([])
   const [loading, setLoading] = useState(true)
 
-  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
+  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')
@@ -135,6 +135,7 @@ export default function StudentDetailBetaPage() {
       onSaveProfile={onSaveProfile}
       onSaveNotes={onSaveNotes}
       onSendReminder={onSendReminder}
+      canEdit={session?.user?.role !== 'hr'}
     />
   )
 }

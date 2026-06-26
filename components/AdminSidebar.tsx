@@ -348,8 +348,15 @@ function AdminSidebarInner() {
     </li>
   )
 
-  // MANAGE group items (Superadmin appended only for superadmins)
-  const manageItems = isSuperadmin ? [...MANAGE_NAV, SUPERADMIN_ITEM] : MANAGE_NAV
+  // MANAGE group items (Superadmin appended only for superadmins).
+  // HR is read-only: hide the editing tools (My Library, School Library).
+  const isHr = role === 'hr'
+  const teachingItems = isHr ? TEACHING_NAV.filter((i) => i.href !== '/admin/lessons') : TEACHING_NAV
+  const manageItems = isSuperadmin
+    ? [...MANAGE_NAV, SUPERADMIN_ITEM]
+    : isHr
+    ? MANAGE_NAV.filter((i) => i.href !== '/admin/content-bank')
+    : MANAGE_NAV
 
   // Workspace chip below the logo
   const WorkspaceChip = (
@@ -403,7 +410,7 @@ function AdminSidebarInner() {
       <nav className="flex-1 overflow-y-auto px-4">
         <ul>
           {eyebrow('Teaching')}
-          {TEACHING_NAV.map(renderItem)}
+          {teachingItems.map(renderItem)}
         </ul>
         <ul>
           {eyebrow('Manage')}

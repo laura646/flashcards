@@ -168,6 +168,7 @@ interface CourseDetailViewProps {
   // Invite-code change is a separate concern (kept via update-course).
   onSaveInviteCode: (code: string) => Promise<{ ok: boolean; error?: string }>
   onSendTelegramTest: () => Promise<{ ok: boolean; error?: string }>
+  canEdit?: boolean
 }
 
 // Read-only icon + value row for the Course Info card.
@@ -203,6 +204,7 @@ export function CourseDetailView({
   onSaveCourseInfo,
   onSaveInviteCode,
   onSendTelegramTest,
+  canEdit = true,
 }: CourseDetailViewProps) {
   const [tab, setTab] = useState<Tab>('lessons')
   const [editing, setEditing] = useState(false)
@@ -379,7 +381,7 @@ export function CourseDetailView({
                     )
                   })}
                 </div>
-                {tab === 'lessons' && (
+                {tab === 'lessons' && canEdit && (
                   <div className="flex items-center gap-2">
                     <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
                     <button
@@ -420,10 +422,12 @@ export function CourseDetailView({
                 {lessons.length === 0 ? (
                   <div className="py-2">
                     <EmptyState icon="📖" title="No lessons yet" hint="Create one from scratch or import a ready-made plan from the content bank." />
-                    <div className="flex items-center justify-center gap-2 pb-8">
-                      <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
-                      <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex items-center justify-center gap-2 pb-8">
+                        <Button variant="secondary" size="sm" onClick={onCreateLesson}>+ Create Lesson</Button>
+                        <Button variant="neutral" size="sm" onClick={onAssignFromLibrary}>Assign from Library</Button>
+                      </div>
+                    )}
                   </div>
                 ) : filteredLessons.length === 0 ? (
                   <EmptyState icon="🔍" title="No matches" hint="No lessons match your search or filter." />
@@ -505,7 +509,7 @@ export function CourseDetailView({
             <div className="bg-white rounded-card border border-hairline p-[18px]">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-ink-black">Course info</h3>
-                {!editing && (
+                {!editing && canEdit && (
                   <button onClick={startEditing} className="text-xs font-bold text-brandblue hover:underline">Edit</button>
                 )}
               </div>
@@ -681,7 +685,7 @@ export function CourseDetailView({
                       )}
                     </div>
                   )}
-                  {course.telegram_chat_id && (
+                  {course.telegram_chat_id && canEdit && (
                     <div className="pt-1">
                       <Button variant="secondary" size="sm" onClick={handleTelegramTest} disabled={tgSending}>
                         {tgSending ? 'Sending…' : 'Send Telegram test'}
@@ -708,6 +712,7 @@ export function CourseDetailView({
                 onNewClass={onNewClass}
                 onOpenSession={onOpenSession}
                 onViewAll={onViewAllSessions}
+                canEdit={canEdit}
               />
             )}
           </div>

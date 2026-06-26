@@ -69,7 +69,7 @@ export default function CourseDetailBetaPage() {
   const [markSaving, setMarkSaving] = useState(false)
   const [markError, setMarkError] = useState<string | null>(null)
 
-  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
+  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')
@@ -319,6 +319,7 @@ export default function CourseDetailBetaPage() {
         onSaveCourseInfo={onSaveCourseInfo}
         onSaveInviteCode={onSaveInviteCode}
         onSendTelegramTest={onSendTelegramTest}
+        canEdit={session?.user?.role !== 'hr'}
       />
 
       {toast && (
@@ -334,6 +335,7 @@ export default function CourseDetailBetaPage() {
           onOpenSession={(sid) => { setShowAllSessions(false); openSession(sid) }}
           onNewClass={() => { setShowAllSessions(false); openNewClass() }}
           onClose={() => setShowAllSessions(false)}
+          canEdit={session?.user?.role !== 'hr'}
         />
       )}
 
@@ -352,6 +354,7 @@ export default function CourseDetailBetaPage() {
           saveError={markError}
           onClose={() => setMark(null)}
           onSave={onSaveMark}
+          canEdit={session?.user?.role !== 'hr'}
         />
       )}
 

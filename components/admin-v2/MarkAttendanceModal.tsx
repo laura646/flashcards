@@ -58,6 +58,7 @@ interface MarkAttendanceModalProps {
   saveError?: string | null
   onClose: () => void
   onSave: (payload: MarkSavePayload) => void
+  canEdit?: boolean
 }
 
 const DURATION_CHIPS: { value: number; label: string }[] = [
@@ -243,6 +244,7 @@ export default function MarkAttendanceModal({
   saveError,
   onClose,
   onSave,
+  canEdit = true,
 }: MarkAttendanceModalProps) {
   const [date, setDate] = useState(defaultDate)
   const [showCal, setShowCal] = useState(false)
@@ -526,13 +528,17 @@ export default function MarkAttendanceModal({
                 ) : (
                   <span />
                 )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="shrink-0 inline-flex items-center justify-center bg-sky text-white font-bold text-[15px] px-7 py-3.5 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40 disabled:opacity-45 disabled:cursor-not-allowed"
-                >
-                  {saving ? 'Saving…' : cancelled ? 'Save (cancelled)' : 'Save class'}
-                </button>
+                {canEdit ? (
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="shrink-0 inline-flex items-center justify-center bg-sky text-white font-bold text-[15px] px-7 py-3.5 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40 disabled:opacity-45 disabled:cursor-not-allowed"
+                  >
+                    {saving ? 'Saving…' : cancelled ? 'Save (cancelled)' : 'Save class'}
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-xs font-bold text-ink-muted px-2">View only</span>
+                )}
               </div>
             </div>
           </>

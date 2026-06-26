@@ -19,7 +19,7 @@ export default function CoursesBetaPage() {
   const [courses, setCourses] = useState<CourseSummary[]>([])
   const [loading, setLoading] = useState(true)
 
-  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
+  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')

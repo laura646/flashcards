@@ -38,7 +38,7 @@ export default function ReportsBetaPage() {
   const [loading, setLoading] = useState(true)
   const [generatingEmail, setGeneratingEmail] = useState<string | null>(null)
 
-  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher'
+  const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')
@@ -167,8 +167,8 @@ export default function ReportsBetaPage() {
         <ReportsView
           courseName={courseName}
           students={students}
-          onGenerate={handleGenerate}
-          onRegenerate={handleGenerate}
+          onGenerate={session?.user?.role === 'hr' ? undefined : handleGenerate}
+          onRegenerate={session?.user?.role === 'hr' ? undefined : handleGenerate}
           generatingEmail={generatingEmail}
         />
       )}

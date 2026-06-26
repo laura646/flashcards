@@ -120,6 +120,7 @@ interface AttendanceRailProps {
   onOpenSession: (sessionId: string) => void
   // Open the "all classes" panel.
   onViewAll: () => void
+  canEdit?: boolean
 }
 
 export default function AttendanceRail({
@@ -129,6 +130,7 @@ export default function AttendanceRail({
   onNewClass,
   onOpenSession,
   onViewAll,
+  canEdit = true,
 }: AttendanceRailProps) {
   if (loading || !overview) {
     return (
@@ -161,12 +163,14 @@ export default function AttendanceRail({
           <p className="text-sm font-bold text-ink-black mt-1.5 flex items-center gap-2">
             <span className="text-[#e8730c]">{WarnIcon}</span> Not marked yet
           </p>
-          <button
-            onClick={onMarkToday}
-            className="mt-3 w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3.5 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
-          >
-            Mark attendance
-          </button>
+          {canEdit && (
+            <button
+              onClick={onMarkToday}
+              className="mt-3 w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3.5 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
+            >
+              Mark attendance
+            </button>
+          )}
         </div>
       ) : today.is_class_day && today.marked && todaySession ? (
         <button
@@ -181,14 +185,14 @@ export default function AttendanceRail({
             <CountBadge session={todaySession} />
           </div>
         </button>
-      ) : (
+      ) : canEdit ? (
         <button
           onClick={onNewClass}
           className="w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3.5 rounded-[14px] mb-3 hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
         >
           + New class
         </button>
-      )}
+      ) : null}
 
       {/* Rollup chips */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -251,12 +255,14 @@ export function AllSessionsPanel({
   onOpenSession,
   onNewClass,
   onClose,
+  canEdit = true,
 }: {
   courseName: string
   sessions: OverviewSession[]
   onOpenSession: (sessionId: string) => void
   onNewClass: () => void
   onClose: () => void
+  canEdit?: boolean
 }) {
   return (
     <div className="fixed inset-0 z-50 font-rubik flex items-end sm:items-center justify-center bg-black/45 px-0 sm:px-4 py-0 sm:py-6">
@@ -303,14 +309,16 @@ export function AllSessionsPanel({
           )}
         </div>
 
-        <div className="border-t border-hairline px-5 py-3.5">
-          <button
-            onClick={onNewClass}
-            className="w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
-          >
-            + New class
-          </button>
-        </div>
+        {canEdit && (
+          <div className="border-t border-hairline px-5 py-3.5">
+            <button
+              onClick={onNewClass}
+              className="w-full inline-flex items-center justify-center bg-sky text-white font-bold text-sm py-3 rounded-[14px] hover:bg-[#0099d6] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky/40"
+            >
+              + New class
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -67,6 +67,7 @@ export function StudentDetailView({
   onSaveProfile,
   onSaveNotes,
   onSendReminder,
+  canEdit = true,
 }: {
   student: StudentDetailData | null
   progress: ProgressRow[]
@@ -75,6 +76,7 @@ export function StudentDetailView({
   onSaveProfile: (f: ProfileSaveForm) => Promise<{ ok: boolean; error?: string }>
   onSaveNotes: (notes: string) => Promise<{ ok: boolean; error?: string }>
   onSendReminder: (message: string) => Promise<{ ok: boolean; error?: string }>
+  canEdit?: boolean
 }) {
   // ── Profile edit state ──
   const [editingProfile, setEditingProfile] = useState(false)
@@ -246,9 +248,11 @@ export function StudentDetailView({
                 </div>
               )}
             </div>
-            <Button variant="primary" size="sm" onClick={() => setShowReminderModal(true)}>
-              Send Reminder
-            </Button>
+            {canEdit && (
+              <Button variant="primary" size="sm" onClick={() => setShowReminderModal(true)}>
+                Send Reminder
+              </Button>
+            )}
           </div>
         </Card>
 
@@ -258,7 +262,7 @@ export function StudentDetailView({
         <Card>
           <div className="flex items-center justify-between mb-3">
             <Eyebrow>Student Profile</Eyebrow>
-            {!editingProfile && (
+            {!editingProfile && canEdit && (
               <button onClick={startEditProfile} className="text-xs font-bold text-sky-text hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40">
                 Edit
               </button>
@@ -443,15 +447,18 @@ export function StudentDetailView({
             value={notes}
             onChange={(e) => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false) }}
             placeholder="Add private notes about this student…"
+            readOnly={!canEdit}
             className="w-full h-24 text-sm text-ink-body bg-white border border-hairline rounded-tile p-3 mt-2 resize-none focus:outline-none focus:border-sky transition-colors placeholder:text-ink-muted"
           />
           {notesError && <InlineError message={notesError} className="mt-2" />}
-          <div className="flex items-center gap-2 mt-2">
-            <Button variant="primary" size="sm" onClick={handleSaveNotes} disabled={notesSaving}>
-              {notesSaving ? 'Saving…' : 'Save Notes'}
-            </Button>
-            {notesSaved && <span className="text-xs font-bold text-correct-fg">Saved!</span>}
-          </div>
+          {canEdit && (
+            <div className="flex items-center gap-2 mt-2">
+              <Button variant="primary" size="sm" onClick={handleSaveNotes} disabled={notesSaving}>
+                {notesSaving ? 'Saving…' : 'Save Notes'}
+              </Button>
+              {notesSaved && <span className="text-xs font-bold text-correct-fg">Saved!</span>}
+            </div>
+          )}
         </Card>
 
         {/* ── Activity history card ── */}
