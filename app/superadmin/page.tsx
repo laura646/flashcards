@@ -144,6 +144,15 @@ export default function SuperadminPage() {
   const [saInviteEmail, setSaInviteEmail] = useState('')
   const [saInviteName, setSaInviteName] = useState('')
   const [showInviteSa, setShowInviteSa] = useState(false)
+  const [hrList, setHrList] = useState<{ email: string; name: string; created_at: string }[]>([])
+  const [hrInviteEmail, setHrInviteEmail] = useState('')
+  const [hrInviteName, setHrInviteName] = useState('')
+  const [showInviteHr, setShowInviteHr] = useState(false)
+  const [managingHr, setManagingHr] = useState<string | null>(null)
+  const [hrCourseSel, setHrCourseSel] = useState<Set<string>>(new Set())
+  const [hrStudentSel, setHrStudentSel] = useState<Set<string>>(new Set())
+  const [hrStudentSearch, setHrStudentSearch] = useState('')
+  const [savingHrAccess, setSavingHrAccess] = useState(false)
   const [inviting, setInviting] = useState(false)
 
   // Assign teacher to course
@@ -266,6 +275,14 @@ export default function SuperadminPage() {
     } catch {}
   }, [])
 
+  const loadHr = useCallback(async () => {
+    try {
+      const res = await fetch('/api/superadmin?action=hr')
+      const data = await res.json()
+      setHrList(data.hr || [])
+    } catch {}
+  }, [])
+
   // ── Load all students ──
   const loadAllStudents = useCallback(async () => {
     try {
@@ -290,8 +307,9 @@ export default function SuperadminPage() {
       loadTeachers()
       loadAllStudents()
       loadSuperadmins()
+      loadHr()
     }
-  }, [status, session, loadCourses, loadTeachers, loadSuperadmins])
+  }, [status, session, loadCourses, loadTeachers, loadSuperadmins, loadHr])
 
   // ── Content Bank functions ──
   const loadContentBank = useCallback(async (level?: string, category?: string) => {
@@ -551,6 +569,73 @@ export default function SuperadminPage() {
         } catch { setConfirmModal(null); showToast('Failed to remove superadmin') }
       },
     })
+  }
+
+  const inviteHr = async () => {
+    if (!hrInviteEmail.trim()) return
+    try {
+      const res = await fetch('/api/superadmin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'invite-hr', email: hrInviteEmail, name: hrInviteName }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { showToast(data.error || 'Failed to invite HR'); return }
+      showToast('HR invited!')
+      setHrInviteEmail(''); setHrInviteName(''); setShowInviteHr(false)
+      loadHr()
+    } catch { showToast('Failed to invite HR') }
+  }
+
+  const removeHr = (email: string, name: string) => {
+    setConfirmModal({
+      title: 'Remove HR',
+      message: `Remove ${name || email}? This deletes their account and all their access. This cannot be undone.`,
+      confirmLabel: 'Yes, Remove',
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/superadmin', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete-hr', email }),
+          })
+          const data = await res.json().catch(() => ({}))
+          setConfirmModal(null)
+          if (!res.ok) { showToast(data.error || 'Failed to remove HR'); return }
+          showToast('HR removed')
+          if (managingHr === email) setManagingHr(null)
+          loadHr()
+        } catch { setConfirmModal(null); showToast('Failed to remove HR') }
+      },
+    })
+  }
+
+  const openManageAccess = async (email: string) => {
+    if (managingHr === email) { setManagingHr(null); return }
+    setManagingHr(email)
+    setHrStudentSearch('')
+    setHrCourseSel(new Set())
+    setHrStudentSel(new Set())
+    try {
+      const res = await fetch(`/api/superadmin?action=hr-access&hr_email=${encodeURIComponent(email)}`)
+      const data = await res.json()
+      setHrCourseSel(new Set<string>(data.course_ids || []))
+      setHrStudentSel(new Set<string>(data.student_emails || []))
+    } catch { showToast('Failed to load HR access') }
+  }
+
+  const saveHrAccess = async () => {
+    if (!managingHr) return
+    setSavingHrAccess(true)
+    try {
+      const res = await fetch('/api/superadmin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-hr-access', hr_email: managingHr, course_ids: Array.from(hrCourseSel), student_emails: Array.from(hrStudentSel) }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { showToast(data.error || 'Failed to save access'); setSavingHrAccess(false); return }
+      showToast('Access saved')
+      setManagingHr(null)
+    } catch { showToast('Failed to save access') }
+    setSavingHrAccess(false)
   }
 
   // ── Assign teacher to course ──
@@ -889,6 +974,77 @@ export default function SuperadminPage() {
                 </div>
               )
             })}
+          </div>
+
+          {/* ── HR (read-only viewers) ── */}
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h1 className="text-xl font-bold text-[#416ebe]">HR ({hrList.length})</h1>
+              <p className="text-xs text-gray-400 mt-1">View-only accounts. Assign the courses and individual students each HR can follow.</p>
+            </div>
+            <button onClick={() => setShowInviteHr(v => !v)} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0]">{showInviteHr ? 'Cancel' : '+ Invite HR'}</button>
+          </div>
+          {showInviteHr && (
+            <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 mb-3 flex flex-col sm:flex-row gap-2 sm:items-end">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 block mb-1">Email</label>
+                <input type="email" value={hrInviteEmail} onChange={e => setHrInviteEmail(e.target.value)} placeholder="name@example.com" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 block mb-1">Name (optional)</label>
+                <input type="text" value={hrInviteName} onChange={e => setHrInviteName(e.target.value)} placeholder="Full name" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]" />
+              </div>
+              <button onClick={inviteHr} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0] whitespace-nowrap">Send invite</button>
+            </div>
+          )}
+          <div className="flex flex-col gap-2 mb-8">
+            {hrList.length === 0 ? (
+              <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-5 text-center"><p className="text-sm text-gray-400">No HR accounts yet.</p></div>
+            ) : hrList.map(h => (
+              <div key={h.email} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-[#46464b] truncate">{h.name || 'Unnamed'} <span className="ml-1 px-2 py-0.5 bg-[#f3eafe] text-[#5b3aa0] text-[10px] rounded-full align-middle">HR</span></p>
+                    <p className="text-xs text-gray-400 truncate">{h.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={() => openManageAccess(h.email)} className="text-xs font-bold text-[#416ebe] border-2 border-[#cddcf0] hover:bg-[#e6f0fa] px-3 py-1.5 rounded-xl whitespace-nowrap">{managingHr === h.email ? 'Close' : 'Manage access'}</button>
+                    <button onClick={() => removeHr(h.email, h.name)} className="text-xs font-bold text-red-500 border-2 border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-xl whitespace-nowrap">Remove</button>
+                  </div>
+                </div>
+                {managingHr === h.email && (
+                  <div className="mt-4 pt-4 border-t border-[#e6f0fa] grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 mb-2">Courses ({hrCourseSel.size})</p>
+                      <div className="max-h-52 overflow-y-auto pr-1 flex flex-col gap-1">
+                        {courses.length === 0 ? <p className="text-xs text-gray-400">No courses.</p> : courses.map(c => (
+                          <label key={c.id} className="flex items-center gap-2 text-sm text-[#46464b] py-1">
+                            <input type="checkbox" checked={hrCourseSel.has(c.id)} onChange={() => setHrCourseSel(prev => { const n = new Set(prev); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n })} />
+                            <span className="truncate">{c.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 mb-2">Individual students ({hrStudentSel.size})</p>
+                      <input type="text" value={hrStudentSearch} onChange={e => setHrStudentSearch(e.target.value)} placeholder="Search students" className="w-full border-2 border-[#cddcf0] rounded-xl px-3 py-1.5 text-xs mb-2 focus:outline-none focus:border-[#416ebe]" />
+                      <div className="max-h-44 overflow-y-auto pr-1 flex flex-col gap-1">
+                        {allStudents.filter(s => { const q = hrStudentSearch.trim().toLowerCase(); return !q || (s.name || '').toLowerCase().includes(q) || s.email.toLowerCase().includes(q) }).slice(0, 50).map(s => (
+                          <label key={s.email} className="flex items-center gap-2 text-sm text-[#46464b] py-1">
+                            <input type="checkbox" checked={hrStudentSel.has(s.email)} onChange={() => setHrStudentSel(prev => { const n = new Set(prev); if (n.has(s.email)) n.delete(s.email); else n.add(s.email); return n })} />
+                            <span className="truncate">{s.name || s.email}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2 flex justify-end gap-2">
+                      <button onClick={() => setManagingHr(null)} className="px-4 py-2 text-xs font-bold text-gray-400">Cancel</button>
+                      <button onClick={saveHrAccess} disabled={savingHrAccess} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-xl hover:bg-[#3560b0] disabled:opacity-50">{savingHrAccess ? 'Saving…' : 'Save access'}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
           {/* ── Teachers ── */}
@@ -1797,7 +1953,7 @@ export default function SuperadminPage() {
               <div className="text-2xl font-bold text-[#416ebe]">{courses.length}</div>
               <div className="text-xs text-gray-400">Courses</div>
             </button>
-            <button onClick={() => { setView('all-teachers'); loadTeachers(); loadSuperadmins() }} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 text-center hover:border-[#416ebe] transition-colors">
+            <button onClick={() => { setView('all-teachers'); loadTeachers(); loadSuperadmins(); loadHr() }} className="bg-white rounded-2xl border-2 border-[#cddcf0] p-4 text-center hover:border-[#416ebe] transition-colors">
               <div className="text-2xl font-bold text-[#416ebe]">{teachers.length}</div>
               <div className="text-xs text-gray-400">Teachers</div>
             </button>

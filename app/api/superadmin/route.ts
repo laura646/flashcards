@@ -238,6 +238,29 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ superadmins: data || [] })
     }
 
+    if (action === 'hr') {
+      const { data, error } = await supabase
+        .from('users')
+        .select('email, name, created_at')
+        .eq('role', 'hr')
+        .order('name')
+      if (error) throw error
+      return NextResponse.json({ hr: data || [] })
+    }
+
+    if (action === 'hr-access') {
+      const hrEmail = (req.nextUrl.searchParams.get('hr_email') || '').toLowerCase()
+      if (!hrEmail) return NextResponse.json({ error: 'hr_email required' }, { status: 400 })
+      const [coursesRes, studentsRes] = await Promise.all([
+        supabase.from('course_hr').select('course_id').eq('hr_email', hrEmail),
+        supabase.from('hr_students').select('student_email').eq('hr_email', hrEmail),
+      ])
+      return NextResponse.json({
+        course_ids: (coursesRes.data || []).map((r: { course_id: string }) => r.course_id),
+        student_emails: (studentsRes.data || []).map((r: { student_email: string }) => r.student_email),
+      })
+    }
+
     // ── Get attendance for a lesson ──
     if (action === 'attendance') {
       const lessonId = req.nextUrl.searchParams.get('lesson_id')
@@ -492,6 +515,53 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Invite an HR (read-only viewer) — any superadmin can ──
+    if (action === 'invite-hr') {
+      const { email, name: hrName } = body
+      if (!email?.trim()) {
+        return NextResponse.json({ error: 'Email required' }, { status: 400 })
+      }
+      const cleanEmail = email.trim().toLowerCase()
+      const { error: userError } = await supabase
+        .from('users')
+        .upsert({ email: cleanEmail, name: hrName?.trim() || '', role: 'hr' }, { onConflict: 'email' })
+      if (userError) throw userError
+
+      const apiKey = process.env.RESEND_API_KEY
+      if (apiKey) {
+        const esc = (await import('@/lib/html')).escHtml
+        const resend = new Resend(apiKey)
+        try {
+          await resend.emails.send({
+            from: 'English with Laura <noreply@learn.englishwithlaura.com>',
+            to: cleanEmail,
+            subject: 'You\'ve been invited to view progress — English with Laura',
+            html: `
+              <div style="font-family: Lato, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #46464b;">
+                <div style="background: #416ebe; padding: 24px 32px; border-radius: 12px 12px 0 0;">
+                  <h1 style="color: white; margin: 0; font-size: 20px;">English with Laura</h1>
+                </div>
+                <div style="background: white; padding: 32px; border: 1px solid #cddcf0; border-top: none; border-radius: 0 0 12px 12px;">
+                  <p style="font-size: 15px; margin-top: 0;">Hi ${esc(hrName || 'there')},</p>
+                  <p style="font-size: 15px; line-height: 1.6;">You've been given <strong>view-only (HR) access</strong> to follow the progress of your assigned students and courses on the English with Laura platform. Sign in with your Google account to get started.</p>
+                  <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e6f0fa;">
+                    <a href="https://app.englishwithlaura.com"
+                       style="display: inline-block; background: #416ebe; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">
+                      Sign In to Platform
+                    </a>
+                  </div>
+                  <p style="font-size: 13px; color: #888; margin-top: 24px;">— Laura</p>
+                </div>
+              </div>
+            `,
+          })
+        } catch (emailErr) {
+          console.error('HR invite email error:', emailErr)
+        }
+      }
       return NextResponse.json({ ok: true })
     }
 
@@ -815,6 +885,46 @@ export async function POST(req: NextRequest) {
       await supabase.from('course_teachers').delete().eq('teacher_email', email)
       const { error } = await supabase.from('users').delete().eq('email', email)
       if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Remove an HR (any superadmin) ──
+    if (action === 'delete-hr') {
+      const { email } = body
+      if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 })
+      const clean = (email as string).toLowerCase()
+      await supabase.from('course_hr').delete().eq('hr_email', clean)
+      await supabase.from('hr_students').delete().eq('hr_email', clean)
+      const { error } = await supabase.from('users').delete().eq('email', clean)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Set an HR's access (replace course + direct-student assignments) ──
+    if (action === 'set-hr-access') {
+      const { hr_email, course_ids, student_emails } = body
+      if (!hr_email) return NextResponse.json({ error: 'hr_email required' }, { status: 400 })
+      const clean = (hr_email as string).toLowerCase()
+      const courseIds: string[] = Array.isArray(course_ids) ? course_ids : []
+      const studentEmails: string[] = Array.isArray(student_emails)
+        ? (student_emails as string[]).map((e) => e.toLowerCase())
+        : []
+
+      await supabase.from('course_hr').delete().eq('hr_email', clean)
+      if (courseIds.length > 0) {
+        const { error: ce } = await supabase
+          .from('course_hr')
+          .insert(courseIds.map((cid) => ({ course_id: cid, hr_email: clean })))
+        if (ce) throw ce
+      }
+
+      await supabase.from('hr_students').delete().eq('hr_email', clean)
+      if (studentEmails.length > 0) {
+        const { error: se } = await supabase
+          .from('hr_students')
+          .insert(studentEmails.map((em) => ({ hr_email: clean, student_email: em })))
+        if (se) throw se
+      }
       return NextResponse.json({ ok: true })
     }
 
