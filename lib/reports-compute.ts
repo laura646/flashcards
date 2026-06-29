@@ -27,6 +27,8 @@ export interface ReportsCourse {
   id: string
   name: string
   description: string | null
+  current_level?: string | null
+  goal_level?: string | null
 }
 
 export interface ReportsStudent {
@@ -117,6 +119,7 @@ export interface ReportsData {
   lessonFlashcards: ReportsLessonFlashcard[]
   vocabSrs: ReportsVocabSrsRow[]
   notes: ReportsNoteRow[]
+  courseProgress: Record<string, { pct: number | null; updatedAt: string | null }>
 }
 
 // ─────────── StudentReport (ReportsView contract) ───────────
@@ -138,6 +141,7 @@ export interface StudentReport {
   wordsLearned: number
   groupRank: number | null
   groupSize: number
+  courseProgressPct: number | null
   vocabFocus: number | null
   aiSummary: string | null
   aiGeneratedAt?: string | null
@@ -608,6 +612,7 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
         wordsLearned: wordsByEmail[student.email] || 0,
         groupRank: groupSize > 0 ? rankByEmail[student.email] : null,
         groupSize,
+        courseProgressPct: data.courseProgress?.[student.email]?.pct ?? null,
         vocabFocus: detail ? detail.vocab.needsAttention : null,
         skills: detail ? detail.skillBreakdown.map((s) => ({ label: s.label, pct: s.avgPct })) : [],
         trend: detail ? detail.trend.map((t) => t.score) : [],

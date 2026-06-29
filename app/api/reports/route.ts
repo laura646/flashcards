@@ -24,6 +24,8 @@ interface Course {
   id: string
   name: string
   description: string | null
+  current_level?: string | null
+  goal_level?: string | null
 }
 
 interface Student {
@@ -115,6 +117,7 @@ export async function GET(req: NextRequest) {
       lessonFlashcards: [],
       vocabSrs: [],
       notes: [],
+      courseProgress: {},
     })
   }
 
@@ -133,6 +136,22 @@ export async function GET(req: NextRequest) {
       .single()
     if (courseErr) throw courseErr
 
+    // 1b. Course CEFR endpoints (best-effort — columns may not exist before the
+    //     P4 migration runs; never let a missing column 500 the whole report).
+    let currentLevel: string | null = null
+    let goalLevel: string | null = null
+    {
+      const { data: lv, error: lvErr } = await supabase
+        .from('courses')
+        .select('current_level, goal_level')
+        .eq('id', courseId)
+        .maybeSingle()
+      if (!lvErr && lv) {
+        currentLevel = (lv as { current_level: string | null }).current_level ?? null
+        goalLevel = (lv as { goal_level: string | null }).goal_level ?? null
+      }
+    }
+
     // 2. Students enrolled in this course (active only)
     const { data: enrollments } = await supabase
       .from('course_students')
@@ -140,6 +159,29 @@ export async function GET(req: NextRequest) {
       .eq('course_id', courseId)
       .is('removed_at', null)
     const studentEmails = (enrollments || []).map((e: { student_email: string }) => e.student_email)
+
+    // 2b. Manual course-progress % per student (best-effort — columns may not
+    //     exist before the P4 migration). HR sees the value; only teachers edit.
+    const courseProgress: Record<string, { pct: number | null; updatedAt: string | null }> = {}
+    {
+      const { data: progRows, error: progErr } = await supabase
+        .from('course_students')
+        .select('student_email, course_progress_pct, course_progress_updated_at')
+        .eq('course_id', courseId)
+        .is('removed_at', null)
+      if (!progErr && progRows) {
+        for (const r of progRows as {
+          student_email: string
+          course_progress_pct: number | null
+          course_progress_updated_at: string | null
+        }[]) {
+          courseProgress[r.student_email] = {
+            pct: r.course_progress_pct ?? null,
+            updatedAt: r.course_progress_updated_at ?? null,
+          }
+        }
+      }
+    }
 
     // Get student name/email details
     let students: Student[] = []
@@ -291,7 +333,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       courses: (courses || []) as Course[],
-      course: course as Course,
+      course: { ...(course as Course), current_level: currentLevel, goal_level: goalLevel },
       students,
       lessons: (lessons || []) as Lesson[],
       exercises,
@@ -303,6 +345,7 @@ export async function GET(req: NextRequest) {
       lessonFlashcards,
       vocabSrs,
       notes,
+      courseProgress,
     })
   } catch (err) {
     console.error('Reports GET error:', err)

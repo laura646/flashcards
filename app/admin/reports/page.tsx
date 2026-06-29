@@ -174,6 +174,50 @@ export default function ReportsBetaPage() {
     setGeneratingOverview(false)
   }, [data, courses, courseId, days])
 
+  // Set one learner's manual course-progress % (teacher/admin only).
+  const handleSetProgress = useCallback(
+    async (email: string, pct: number) => {
+      if (!courseId) return
+      try {
+        const res = await fetch('/api/course-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courseId, studentEmail: email, pct }),
+        })
+        if (res.ok) {
+          setStudents((prev) => prev.map((s) => (s.email === email ? { ...s, courseProgressPct: pct } : s)))
+        }
+      } catch {
+        /* swallow — teacher can retry */
+      }
+    },
+    [courseId]
+  )
+
+  // Set the course CEFR endpoints (current → goal) — teacher/admin only.
+  const handleSetLevels = useCallback(
+    async (current: string, goal: string) => {
+      if (!courseId) return
+      try {
+        const res = await fetch('/api/course-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courseId, currentLevel: current, goalLevel: goal }),
+        })
+        if (res.ok) {
+          setData((prev) =>
+            prev && prev.course
+              ? { ...prev, course: { ...prev.course, current_level: current || null, goal_level: goal || null } }
+              : prev
+          )
+        }
+      } catch {
+        /* swallow — teacher can retry */
+      }
+    },
+    [courseId]
+  )
+
   if (status === 'authenticated' && !isAdmin) {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
@@ -222,6 +266,10 @@ export default function ReportsBetaPage() {
           courseOverview={courseOverview}
           onGenerateOverview={session?.user?.role === 'hr' ? undefined : handleGenerateOverview}
           generatingOverview={generatingOverview}
+          courseCurrentLevel={data?.course?.current_level ?? null}
+          courseGoalLevel={data?.course?.goal_level ?? null}
+          onSetProgress={session?.user?.role === 'hr' ? undefined : handleSetProgress}
+          onSetLevels={session?.user?.role === 'hr' ? undefined : handleSetLevels}
         />
       )}
     </div>

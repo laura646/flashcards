@@ -10,7 +10,7 @@
 // overview list → AI summary, stat band (sky-wash), skills, score trend,
 // vocabulary mastery (Leitner ramp), attendance, tests, teacher notes.
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Pill, EmptyState, Button, Spinner } from '@/components/student-ui'
 
 export interface StudentReport {
@@ -24,6 +24,7 @@ export interface StudentReport {
   wordsLearned: number
   groupRank: number | null
   groupSize: number
+  courseProgressPct: number | null
   vocabFocus: number | null
   aiSummary: string | null
   aiGeneratedAt?: string | null
@@ -139,7 +140,97 @@ function CourseOverview({ overview, onGenerate, generating }: {
   )
 }
 
-export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview }: {
+const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+
+// Course CEFR endpoints (current → goal) shown in the reports header. Teachers
+// can edit both; HR sees the values but gets no edit affordance (onSet undefined).
+function CourseLevels({ current, goal, onSet }: {
+  current: string | null
+  goal: string | null
+  onSet?: (current: string, goal: string) => Promise<void> | void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [c, setC] = useState(current || '')
+  const [g, setG] = useState(goal || '')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    setC(current || '')
+    setG(goal || '')
+  }, [current, goal])
+
+  if (editing && onSet) {
+    return (
+      <span className="flex items-center gap-1.5">
+        <select value={c} onChange={(e) => setC(e.target.value)} className="text-[12px] border border-hairline rounded-tile px-1.5 py-1" aria-label="Current level">
+          <option value="">—</option>
+          {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <span className="text-ink-muted">→</span>
+        <select value={g} onChange={(e) => setG(e.target.value)} className="text-[12px] border border-hairline rounded-tile px-1.5 py-1" aria-label="Goal level">
+          <option value="">—</option>
+          {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+        <button onClick={async () => { setSaving(true); await onSet(c, g); setSaving(false); setEditing(false) }} className="text-[12px] font-bold text-sky-text">{saving ? '…' : 'Save'}</button>
+      </span>
+    )
+  }
+  return (
+    <span className="text-[12px] text-ink-muted flex items-center gap-1.5">
+      Level: <span className="font-bold text-ink-body">{current || '—'} → {goal || '—'}</span>
+      {onSet && <button onClick={() => setEditing(true)} className="text-sky-text" aria-label="Edit course levels">✎</button>}
+    </span>
+  )
+}
+
+// CEFR progress: current → goal endpoints + a manual course-progress % bar.
+// The % is teacher-set (Edit → slider → Save). HR sees the bar and the value
+// but no Edit button (onSet is undefined for HR), so it reads as an objective
+// metric with no hint that it's hand-set.
+function CefrProgress({ report, current, goal, onSet }: {
+  report: StudentReport
+  current: string | null
+  goal: string | null
+  onSet?: (email: string, pct: number) => Promise<void> | void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(report.courseProgressPct ?? 0)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    setVal(report.courseProgressPct ?? 0)
+    setEditing(false)
+  }, [report.email, report.courseProgressPct])
+  const pct = report.courseProgressPct
+
+  return (
+    <div className="bg-white rounded-card border border-hairline p-5 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">CEFR progress</p>
+        {onSet && !editing && (
+          <button onClick={() => setEditing(true)} className="text-[12px] text-sky-text border border-hairline rounded-tile px-2.5 py-1 hover:bg-surface">✎ Edit</button>
+        )}
+      </div>
+      <div className="flex items-center justify-between text-[12px] font-bold mb-2">
+        <span className="text-sky-text">Current · {current || '—'}</span>
+        <span className="text-correct-fg">Goal · {goal || '—'}</span>
+      </div>
+      <div className="h-2.5 bg-surface rounded-full overflow-hidden">
+        <div className="h-full bg-correct-fg rounded-full" style={{ width: `${editing ? val : pct ?? 0}%` }} />
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-3 mt-3">
+          <input type="range" min={0} max={100} value={val} onChange={(e) => setVal(parseInt(e.target.value, 10))} className="flex-1" aria-label="Course progress percent" />
+          <span className="text-[13px] font-bold text-ink-black w-10 text-right">{val}%</span>
+          <Button variant="primary" size="sm" onClick={async () => { if (!onSet) return; setSaving(true); await onSet(report.email, val); setSaving(false); setEditing(false) }}>{saving ? 'Saving…' : 'Save'}</Button>
+          <button onClick={() => setEditing(false)} className="text-[12px] text-ink-muted">Cancel</button>
+        </div>
+      ) : (
+        <p className="text-[12px] text-ink-muted mt-2">{pct != null ? `${pct}% through the course` : 'Not set'}</p>
+      )}
+    </div>
+  )
+}
+
+export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels }: {
   courseName: string
   students: StudentReport[]
   onRegenerate?: (email: string) => void
@@ -148,6 +239,10 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   courseOverview?: CourseOverviewData | null
   onGenerateOverview?: () => void
   generatingOverview?: boolean
+  courseCurrentLevel?: string | null
+  courseGoalLevel?: string | null
+  onSetProgress?: (email: string, pct: number) => Promise<void> | void
+  onSetLevels?: (current: string, goal: string) => Promise<void> | void
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const s = students.find((x) => x.email === sel) || null
@@ -158,7 +253,10 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
             <h1 className="text-2xl font-bold text-brandblue">Reports</h1>
-            <span className="text-[12px] text-ink-muted">{courseName} · last 30 days</span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[12px] text-ink-muted">{courseName} · last 30 days</span>
+              <CourseLevels current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} onSet={onSetLevels} />
+            </div>
           </div>
 
           {(courseOverview || onGenerateOverview) && (
@@ -238,6 +336,13 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
           <Stat label="Streak" value={s.streak ? `${s.streak}🔥` : '—'} />
           <Stat label="Group rank" value={s.groupRank != null ? `#${s.groupRank} of ${s.groupSize}` : '—'} />
         </div>
+
+        <CefrProgress
+          report={s}
+          current={courseCurrentLevel || s.cefr || null}
+          goal={courseGoalLevel || null}
+          onSet={onSetProgress}
+        />
 
         <div className="grid md:grid-cols-2 gap-4">
           <Card title="Skill breakdown">
