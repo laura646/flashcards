@@ -13,6 +13,7 @@
 import { useState, useEffect } from 'react'
 import { Pill, EmptyState, Button, Spinner } from '@/components/student-ui'
 import { buildReportCsv, downloadCsv, buildReportHtml, openPrintWindow, type ExportSection } from '@/lib/reports-export'
+import type { CourseRollup } from '@/lib/reports-compute'
 
 export interface StudentReport {
   email: string
@@ -430,7 +431,54 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, onClose }
   )
 }
 
-export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest }: {
+// Course-level HR rollup — cohort KPIs, a weekly score trend, and a
+// needs-attention list (click a learner to drill in). Sits atop the report.
+function CohortRollup({ cohort, onSelect }: { cohort: CourseRollup; onSelect: (email: string) => void }) {
+  const maxTrend = cohort.trend.length ? Math.max(1, ...cohort.trend.map((t) => t.avgPct)) : 1
+  return (
+    <div className="mb-4 space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <Stat label="Learners" value={`${cohort.learnerCount}`} />
+        <Stat label="Avg completion" value={`${cohort.avgCompletionPct}%`} />
+        <Stat label="Avg score" value={cohort.avgScorePct != null ? `${cohort.avgScorePct}%` : '—'} />
+        <Stat label="Team attendance" value={cohort.avgAttendancePct != null ? `${cohort.avgAttendancePct}%` : '—'} />
+        <Stat label="On a streak" value={`${cohort.activeStreaks}/${cohort.learnerCount}`} />
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card title="Cohort score trend">
+          {cohort.trend.length === 0 ? (
+            <p className="text-[13px] text-ink-muted">Not enough data yet.</p>
+          ) : (
+            <>
+              <div className="flex items-end gap-1.5 h-24">
+                {cohort.trend.map((t, i) => (
+                  <div key={i} className="flex-1 bg-sky rounded-t" style={{ height: `${Math.max(6, Math.round((t.avgPct / maxTrend) * 100))}%` }} title={`${t.label}: ${t.avgPct}%`} />
+                ))}
+              </div>
+              <p className="text-[11px] text-ink-muted mt-2">Avg exercise score by week · {cohort.trend[0].label}–{cohort.trend[cohort.trend.length - 1].label}</p>
+            </>
+          )}
+        </Card>
+        <Card title="Needs attention">
+          {cohort.needsAttention.length === 0 ? (
+            <p className="text-[13px] text-ink-muted">Everyone is on track.</p>
+          ) : (
+            <div className="space-y-0.5">
+              {cohort.needsAttention.map((r) => (
+                <button key={r.email} onClick={() => onSelect(r.email)} className="w-full text-left flex items-center justify-between gap-2 py-1.5 px-2 rounded-tile hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40">
+                  <span className="text-[13px] font-bold text-ink-black truncate">{r.name}</span>
+                  <span className="text-[11px] text-ink-muted shrink-0">{r.reason}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, cohort, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest }: {
   courseName: string
   students: StudentReport[]
   onRegenerate?: (email: string) => void
@@ -439,6 +487,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   courseOverview?: CourseOverviewData | null
   onGenerateOverview?: () => void
   generatingOverview?: boolean
+  cohort?: CourseRollup | null
   courseCurrentLevel?: string | null
   courseGoalLevel?: string | null
   onSetProgress?: (email: string, pct: number) => Promise<void> | void
@@ -473,6 +522,8 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
               onClose={() => setExporting(false)}
             />
           )}
+
+          {cohort && students.length > 0 && <CohortRollup cohort={cohort} onSelect={setSel} />}
 
           {(courseOverview || onGenerateOverview) && (
             <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview} generating={generatingOverview} />

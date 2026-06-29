@@ -893,3 +893,102 @@ export function buildCourseDigest(
     needsAttention,
   }
 }
+
+// ─────────── Course-level rollup (HR cohort dashboard) ───────────
+// Cohort KPIs + a weekly score trend + a needs-attention list for the dashboard
+// atop the reports list. Reuses buildStudentReports so the numbers match the
+// per-student rows exactly.
+
+export interface CourseRollup {
+  learnerCount: number
+  avgCompletionPct: number
+  avgScorePct: number | null
+  avgAttendancePct: number | null
+  avgCourseProgressPct: number | null
+  activeStreaks: number
+  trend: { label: string; avgPct: number; count: number }[]
+  needsAttention: { email: string; name: string; completionPct: number; attendancePct: number | null; scorePct: number | null; reason: string }[]
+  topPerformers: { name: string; scorePct: number | null; completionPct: number }[]
+}
+
+export function buildCourseRollup(data: ReportsData, days: ReportsDays): CourseRollup {
+  const reports = buildStudentReports(data, days)
+  const learnerCount = reports.length
+  const mean = (arr: number[]): number | null =>
+    arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null
+
+  const avgCompletionPct = mean(reports.map((r) => r.completionPct)) ?? 0
+  const avgScorePct = mean(reports.map((r) => r.avgLatestPct).filter((x): x is number => x != null))
+  const avgAttendancePct = mean(reports.map((r) => r.attendancePct).filter((x): x is number => x != null))
+  const avgCourseProgressPct = mean(reports.map((r) => r.courseProgressPct).filter((x): x is number => x != null))
+  const activeStreaks = reports.filter((r) => r.streak > 0).length
+
+  // Weekly cohort score trend (avg exercise score per ISO week, oldest→newest,
+  // last 8 weeks), course exercises only.
+  const courseExerciseIds = new Set(data.exercises.map((e) => e.id))
+  const byWeek: Record<string, { sum: number; count: number; ts: number }> = {}
+  for (const p of data.progress) {
+    if (p.activity_type !== 'exercise' || !courseExerciseIds.has(p.activity_id)) continue
+    if (p.score == null || !p.total) continue
+    const d = new Date(p.completed_at)
+    const monday = new Date(d)
+    monday.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+    monday.setHours(0, 0, 0, 0)
+    const key = monday.toISOString().slice(0, 10)
+    const pct = Math.round((p.score / p.total) * 100)
+    if (!byWeek[key]) byWeek[key] = { sum: 0, count: 0, ts: monday.getTime() }
+    byWeek[key].sum += pct
+    byWeek[key].count += 1
+  }
+  const trend = Object.values(byWeek)
+    .sort((a, b) => a.ts - b.ts)
+    .slice(-8)
+    .map((v) => ({
+      label: new Date(v.ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      avgPct: Math.round(v.sum / v.count),
+      count: v.count,
+    }))
+
+  // Needs attention: low completion, attendance, or score.
+  const needsAttention = reports
+    .filter(
+      (r) =>
+        r.completionPct < 50 ||
+        (r.attendancePct != null && r.attendancePct < 70) ||
+        (r.avgLatestPct != null && r.avgLatestPct < 60)
+    )
+    .sort((a, b) => a.completionPct - b.completionPct)
+    .slice(0, 5)
+    .map((r) => {
+      const reasons: string[] = []
+      if (r.completionPct < 50) reasons.push(`${r.completionPct}% complete`)
+      if (r.attendancePct != null && r.attendancePct < 70) reasons.push(`${r.attendancePct}% attendance`)
+      if (r.avgLatestPct != null && r.avgLatestPct < 60) reasons.push(`${r.avgLatestPct}% avg score`)
+      return {
+        email: r.email,
+        name: r.name,
+        completionPct: r.completionPct,
+        attendancePct: r.attendancePct,
+        scorePct: r.avgLatestPct,
+        reason: reasons.join(' · ') || 'low engagement',
+      }
+    })
+
+  const topPerformers = reports
+    .slice()
+    .sort((a, b) => (b.avgLatestPct ?? -1) - (a.avgLatestPct ?? -1) || b.completionPct - a.completionPct)
+    .slice(0, 3)
+    .map((r) => ({ name: r.name, scorePct: r.avgLatestPct, completionPct: r.completionPct }))
+
+  return {
+    learnerCount,
+    avgCompletionPct,
+    avgScorePct,
+    avgAttendancePct,
+    avgCourseProgressPct,
+    activeStreaks,
+    trend,
+    needsAttention,
+    topPerformers,
+  }
+}

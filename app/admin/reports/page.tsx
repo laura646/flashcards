@@ -13,7 +13,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import ReportsView, { StudentReport } from '@/components/admin-v2/ReportsView'
-import { buildStudentReports, buildDigestPayload, buildCourseDigest, ReportsData, ReportsDays } from '@/lib/reports-compute'
+import { buildStudentReports, buildDigestPayload, buildCourseDigest, buildCourseRollup, ReportsData, ReportsDays, CourseRollup } from '@/lib/reports-compute'
 import { Skeleton } from '@/components/student-ui'
 
 const DAY_OPTIONS: { value: ReportsDays; label: string }[] = [
@@ -39,6 +39,7 @@ export default function ReportsBetaPage() {
   const [generatingEmail, setGeneratingEmail] = useState<string | null>(null)
   const [courseOverview, setCourseOverview] = useState<{ summary: string; needs: string; ready: string; generatedAt: string | null } | null>(null)
   const [generatingOverview, setGeneratingOverview] = useState(false)
+  const [rollup, setRollup] = useState<CourseRollup | null>(null)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
 
@@ -88,6 +89,7 @@ export default function ReportsBetaPage() {
         /* cache is optional — summaries just show the Generate button */
       }
       setStudents(built)
+      setRollup(buildCourseRollup(d, days))
 
       // Course-level AI overview (cached → token-free).
       try {
@@ -109,6 +111,7 @@ export default function ReportsBetaPage() {
     } catch {
       setStudents([])
       setCourseOverview(null)
+      setRollup(null)
     }
     setLoading(false)
   }, [courseId, days])
@@ -316,6 +319,7 @@ export default function ReportsBetaPage() {
           courseOverview={courseOverview}
           onGenerateOverview={session?.user?.role === 'hr' ? undefined : handleGenerateOverview}
           generatingOverview={generatingOverview}
+          cohort={rollup}
           courseCurrentLevel={data?.course?.current_level ?? null}
           courseGoalLevel={data?.course?.goal_level ?? null}
           onSetProgress={session?.user?.role === 'hr' ? undefined : handleSetProgress}
