@@ -142,7 +142,10 @@ function CourseOverview({ overview, onGenerate, generating }: {
   )
 }
 
-const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+// CEFR half-steps: X.1 = the start of level X, X.2 = the middle of X. Used for
+// both the course's current (starting) level and its goal level, so a learner
+// can start "halfway through A1" and progress is measured across that span.
+const CEFR_LEVELS = ['A1.1', 'A1.2', 'A2.1', 'A2.2', 'B1.1', 'B1.2', 'B2.1', 'B2.2', 'C1.1', 'C1.2', 'C2.1', 'C2.2']
 
 // Course CEFR endpoints (current → goal) shown in the reports header. Teachers
 // can edit both; HR sees the values but gets no edit affordance (onSet undefined).
