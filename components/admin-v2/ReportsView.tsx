@@ -12,6 +12,7 @@
 
 import { useState, useEffect } from 'react'
 import { Pill, EmptyState, Button, Spinner } from '@/components/student-ui'
+import { buildReportCsv, downloadCsv, buildReportHtml, openPrintWindow, type ExportSection } from '@/lib/reports-export'
 
 export interface StudentReport {
   email: string
@@ -323,6 +324,109 @@ function TestsCard({ report, onAdd, onDelete }: {
   )
 }
 
+// Export dialog — pick learners + sections + format, then download CSV (Excel)
+// or open a branded print window (PDF). Fully client-side from loaded data.
+// Available to admins AND HR.
+const EXPORT_SECTIONS: { key: ExportSection; label: string }[] = [
+  { key: 'summary', label: 'AI summary' },
+  { key: 'kpis', label: 'KPIs' },
+  { key: 'cefr', label: 'CEFR / progress' },
+  { key: 'attendance', label: 'Attendance' },
+  { key: 'tests', label: 'Test results' },
+  { key: 'notes', label: "Teacher's notes" },
+]
+
+function ExportDialog({ students, courseName, currentLevel, goalLevel, onClose }: {
+  students: StudentReport[]
+  courseName: string
+  currentLevel: string | null
+  goalLevel: string | null
+  onClose: () => void
+}) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(students.map((s) => s.email)))
+  const [sections, setSections] = useState<Set<ExportSection>>(() => new Set(EXPORT_SECTIONS.map((s) => s.key)))
+  const [fmt, setFmt] = useState<'pdf' | 'excel'>('pdf')
+  const allOn = picked.size === students.length
+
+  const togglePicked = (email: string) =>
+    setPicked((p) => {
+      const n = new Set(p)
+      if (n.has(email)) n.delete(email)
+      else n.add(email)
+      return n
+    })
+  const toggleSection = (k: ExportSection) =>
+    setSections((p) => {
+      const n = new Set(p)
+      if (n.has(k)) n.delete(k)
+      else n.add(k)
+      return n
+    })
+
+  const run = () => {
+    const chosen = students.filter((s) => picked.has(s.email))
+    if (chosen.length === 0) return
+    const opts = { courseName, currentLevel, goalLevel, sections }
+    if (fmt === 'excel') {
+      const safe = (courseName || 'report').replace(/[^a-z0-9.\-]+/gi, '_')
+      downloadCsv(`${safe}.csv`, buildReportCsv(chosen, opts))
+    } else {
+      const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      openPrintWindow(buildReportHtml(chosen, opts, today))
+    }
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-card border border-hairline p-5 w-full max-w-lg max-h-[85vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-ink-black">Export report</h2>
+          <button onClick={onClose} className="text-ink-muted" aria-label="Close">✕</button>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[12px] font-bold text-ink-black">Learners ({picked.size}/{students.length})</span>
+              <button onClick={() => setPicked(allOn ? new Set() : new Set(students.map((s) => s.email)))} className="text-[11px] font-bold text-sky-text">{allOn ? 'Clear' : 'Select all'}</button>
+            </div>
+            <div className="border border-hairline rounded-tile max-h-52 overflow-auto p-1">
+              {students.map((s) => (
+                <label key={s.email} className="flex items-center gap-2 px-2 py-1.5 text-[13px] cursor-pointer hover:bg-surface rounded">
+                  <input type="checkbox" checked={picked.has(s.email)} onChange={() => togglePicked(s.email)} />
+                  <span className="truncate">{s.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span className="text-[12px] font-bold text-ink-black">Include</span>
+            <div className="mt-1.5 space-y-1">
+              {EXPORT_SECTIONS.map((sec) => (
+                <label key={sec.key} className="flex items-center gap-2 text-[13px] cursor-pointer">
+                  <input type="checkbox" checked={sections.has(sec.key)} onChange={() => toggleSection(sec.key)} />
+                  {sec.label}
+                </label>
+              ))}
+            </div>
+            <div className="text-[12px] font-bold text-ink-black mt-3 mb-1.5">Format</div>
+            <div className="flex gap-1 bg-surface rounded-tile p-1 w-fit">
+              {(['pdf', 'excel'] as const).map((f) => (
+                <button key={f} onClick={() => setFmt(f)} className={`text-[12px] font-bold px-3 py-1 rounded-tile ${fmt === f ? 'bg-white text-sky-text' : 'text-ink-muted'}`}>{f === 'pdf' ? 'PDF' : 'Excel'}</button>
+              ))}
+            </div>
+            <p className="text-[11px] text-ink-muted mt-1.5">{fmt === 'pdf' ? 'PDF — one page per learner.' : 'Excel — one row per learner (CSV).'}</p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onClose} className="text-[13px] font-bold text-ink-muted px-3 py-2">Cancel</button>
+          <Button variant="primary" size="sm" onClick={run}>Export {picked.size} learner{picked.size === 1 ? '' : 's'}</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest }: {
   courseName: string
   students: StudentReport[]
@@ -340,6 +444,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   onDeleteTest?: (id: string, email: string) => Promise<void> | void
 }) {
   const [sel, setSel] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const s = students.find((x) => x.email === sel) || null
 
   if (!s) {
@@ -351,8 +456,20 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-[12px] text-ink-muted">{courseName} · last 30 days</span>
               <CourseLevels current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} onSet={onSetLevels} />
+              {students.length > 0 && (
+                <button onClick={() => setExporting(true)} className="text-[12px] font-bold text-white bg-sky rounded-tile px-3 py-1.5 hover:opacity-90">Export</button>
+              )}
             </div>
           </div>
+          {exporting && (
+            <ExportDialog
+              students={students}
+              courseName={courseName}
+              currentLevel={courseCurrentLevel ?? null}
+              goalLevel={courseGoalLevel ?? null}
+              onClose={() => setExporting(false)}
+            />
+          )}
 
           {(courseOverview || onGenerateOverview) && (
             <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview} generating={generatingOverview} />

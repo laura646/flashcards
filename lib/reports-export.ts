@@ -1,0 +1,184 @@
+// ═══════════════════════════════════════════════════════════════
+// lib/reports-export.ts
+//
+// Client-side report export — no external libraries, no server round-trip.
+// Excel: a UTF-8 CSV (opens in Excel), one row per learner.
+// PDF:   a branded, self-contained HTML document (one page per learner)
+//        opened in a new window and sent to the browser's print → Save as PDF.
+// Rebuilt from the retired legacy export (commits 7c2764c + b5fa3a7) on the
+// current StudentReport shape.
+// ═══════════════════════════════════════════════════════════════
+
+import type { StudentReport } from '@/components/admin-v2/ReportsView'
+
+export type ExportSection = 'summary' | 'kpis' | 'cefr' | 'attendance' | 'tests' | 'notes'
+
+export interface ExportOptions {
+  courseName: string
+  currentLevel: string | null
+  goalLevel: string | null
+  sections: Set<ExportSection>
+}
+
+function has(sections: Set<ExportSection>, s: ExportSection): boolean {
+  return sections.has(s)
+}
+
+function attendanceCounts(r: StudentReport) {
+  let present = 0
+  let late = 0
+  let absent = 0
+  let excused = 0
+  for (const a of r.attendance) {
+    if (a.status === 'present') present++
+    else if (a.status === 'late') late++
+    else if (a.status === 'absent') absent++
+    else if (a.status === 'excused') excused++
+  }
+  const total = r.attendance.length
+  const pct = total > 0 ? Math.round(((present + late) / total) * 100) : null
+  return { present, late, absent, excused, total, pct }
+}
+
+function csvCell(v: unknown): string {
+  const s = v == null ? '' : String(v)
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+export function buildReportCsv(students: StudentReport[], opts: ExportOptions): string {
+  const cols: { header: string; get: (r: StudentReport) => string | number }[] = [
+    { header: 'Learner', get: (r) => r.name },
+    { header: 'Email', get: (r) => r.email },
+  ]
+  if (has(opts.sections, 'cefr')) {
+    cols.push({ header: 'Current level', get: () => opts.currentLevel || '' })
+    cols.push({ header: 'Goal level', get: () => opts.goalLevel || '' })
+    cols.push({ header: 'Course progress %', get: (r) => r.courseProgressPct ?? '' })
+  }
+  if (has(opts.sections, 'kpis')) {
+    cols.push({ header: 'Words learned', get: (r) => r.wordsLearned })
+    cols.push({ header: 'Completion %', get: (r) => r.completionPct })
+    cols.push({ header: 'Avg score %', get: (r) => r.avgLatestPct ?? '' })
+    cols.push({ header: 'Streak', get: (r) => r.streak })
+    cols.push({ header: 'Group rank', get: (r) => (r.groupRank != null ? `${r.groupRank}/${r.groupSize}` : '') })
+  }
+  if (has(opts.sections, 'attendance')) {
+    cols.push({ header: 'Attendance %', get: (r) => attendanceCounts(r).pct ?? '' })
+  }
+  if (has(opts.sections, 'tests')) {
+    cols.push({ header: 'Tests taken', get: (r) => r.tests.length + r.manualTests.length })
+  }
+  if (has(opts.sections, 'summary')) {
+    cols.push({ header: 'AI summary', get: (r) => r.aiSummary || '' })
+  }
+
+  const rows = [cols.map((c) => csvCell(c.header)).join(',')]
+  for (const r of students) rows.push(cols.map((c) => csvCell(c.get(r))).join(','))
+  return rows.join('\n')
+}
+
+export function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+function esc(s: unknown): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+export function buildReportHtml(students: StudentReport[], opts: ExportOptions, generatedOn: string): string {
+  const pages = students
+    .map((r) => {
+      const att = attendanceCounts(r)
+      const parts: string[] = []
+      parts.push(
+        `<div class="hd"><div><div class="brand">English with Laura</div><div class="subh">Learner progress report</div></div><div class="meta">${esc(opts.courseName)}<br>${esc(generatedOn)}</div></div>`
+      )
+      parts.push(`<div class="who"><div class="nm">${esc(r.name)}</div><div class="em">${esc(r.email)}</div></div>`)
+      if (has(opts.sections, 'summary') && r.aiSummary) {
+        parts.push(`<div class="sec"><div class="h">Summary</div><p>${esc(r.aiSummary)}</p></div>`)
+      }
+      if (has(opts.sections, 'kpis')) {
+        parts.push(
+          `<div class="sec"><div class="h">Key metrics</div><table class="kpi"><tr>` +
+            `<td><b>${r.wordsLearned}</b><span>Words learned</span></td>` +
+            `<td><b>${r.completionPct}%</b><span>Completion</span></td>` +
+            `<td><b>${r.avgLatestPct ?? '—'}${r.avgLatestPct != null ? '%' : ''}</b><span>Avg score</span></td>` +
+            `<td><b>${r.streak}</b><span>Streak</span></td>` +
+            `<td><b>${r.groupRank != null ? '#' + r.groupRank : '—'}</b><span>Group rank</span></td>` +
+            `</tr></table></div>`
+        )
+      }
+      if (has(opts.sections, 'cefr')) {
+        parts.push(
+          `<div class="sec"><div class="h">CEFR progress</div><p>${esc(opts.currentLevel || r.cefr || '—')} → ${esc(opts.goalLevel || '—')}${r.courseProgressPct != null ? ` · ${r.courseProgressPct}% through the course` : ''}</p></div>`
+        )
+      }
+      if (has(opts.sections, 'attendance')) {
+        parts.push(
+          `<div class="sec"><div class="h">Attendance</div><p>${att.pct != null ? att.pct + '%' : '—'} · ${att.present} present, ${att.late} late, ${att.absent} absent${att.excused ? `, ${att.excused} excused` : ''}</p></div>`
+        )
+      }
+      if (has(opts.sections, 'tests')) {
+        const tests = [
+          ...r.tests.map((t) => `${esc(t.title)}: ${t.score}%`),
+          ...r.manualTests.map((t) => `${esc(t.name)} (${esc(t.source)}): ${t.scorePct != null ? t.scorePct + '%' : '—'}`),
+        ]
+        parts.push(`<div class="sec"><div class="h">Tests</div>${tests.length ? `<ul>${tests.map((t) => `<li>${t}</li>`).join('')}</ul>` : '<p>No tests.</p>'}</div>`)
+      }
+      if (has(opts.sections, 'notes')) {
+        parts.push(
+          `<div class="sec"><div class="h">Teacher's notes</div>${r.notes.length ? r.notes.map((n) => `<p><b>${esc(n.tag)}</b> ${esc(n.text)}</p>`).join('') : '<p>No notes.</p>'}</div>`
+        )
+      }
+      parts.push(`<div class="ft">English with Laura · Confidential</div>`)
+      return `<section class="page">${parts.join('')}</section>`
+    })
+    .join('')
+
+  return (
+    `<!doctype html><html><head><meta charset="utf-8"><title>Report — ${esc(opts.courseName)}</title><style>` +
+    `*{box-sizing:border-box;margin:0;padding:0}` +
+    `body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#333}` +
+    `.page{padding:32px;max-width:760px;margin:0 auto}` +
+    `.page+.page{page-break-before:always}` +
+    `.hd{display:flex;justify-content:space-between;align-items:center;background:#00AFF0;color:#fff;padding:16px 22px;border-radius:10px}` +
+    `.brand{font-size:17px;font-weight:700}.subh{font-size:12px;opacity:.9}` +
+    `.meta{font-size:11px;text-align:right;opacity:.95}` +
+    `.who{margin:18px 0 4px}.nm{font-size:20px;font-weight:700;color:#1A1A1A}.em{font-size:12px;color:#6B7280}` +
+    `.sec{margin-top:16px}.sec .h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0098D4;border-bottom:1px solid #E4EBF3;padding-bottom:5px;margin-bottom:8px}` +
+    `.sec p{font-size:13px;line-height:1.5;margin:4px 0}` +
+    `.sec ul{margin:4px 0 4px 18px}.sec li{font-size:13px;line-height:1.6}` +
+    `table.kpi{width:100%;border-collapse:collapse}table.kpi td{text-align:left;padding:4px 8px 4px 0;vertical-align:top}table.kpi b{display:block;font-size:18px;color:#1A1A1A}table.kpi span{font-size:11px;color:#6B7280}` +
+    `.ft{margin-top:24px;border-top:1px solid #E4EBF3;padding-top:8px;font-size:10px;color:#9AA3AF}` +
+    `@media print{.page{padding:0}}` +
+    `</style></head><body>${pages}</body></html>`
+  )
+}
+
+export function openPrintWindow(html: string): void {
+  const w = window.open('', '_blank')
+  if (!w) return
+  w.document.open()
+  w.document.write(html)
+  w.document.close()
+  w.onload = () => {
+    w.focus()
+    w.print()
+  }
+  setTimeout(() => {
+    try {
+      w.focus()
+      w.print()
+    } catch {
+      /* user can print manually */
+    }
+  }, 500)
+}
