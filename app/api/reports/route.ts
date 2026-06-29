@@ -65,13 +65,17 @@ interface WritingBlock {
   title: string | null
 }
 
+interface CourseSession {
+  id: string
+  session_date: string | null
+  topic: string | null
+  status: string
+}
+
 interface AttendanceRow {
-  lesson_id: string
+  session_id: string
   student_email: string
   status: string
-  notes: string | null
-  marked_by: string | null
-  marked_at: string | null
 }
 
 export async function GET(req: NextRequest) {
@@ -105,6 +109,7 @@ export async function GET(req: NextRequest) {
       exercises: [],
       progress: [],
       attendance: [],
+      sessions: [],
       writingBlocks: [],
       vocabStruggles: {},
       lessonFlashcards: [],
@@ -191,13 +196,23 @@ export async function GET(req: NextRequest) {
       progress = (progressRows || []) as ProgressRecord[]
     }
 
-    // 6. Attendance records for these lessons
+    // 6. Attendance — course-native session model (course_sessions +
+    //    session_attendance). Replaces the dead lesson-keyed `attendance` table,
+    //    which no live UI writes to anymore.
+    const { data: sessionRows } = await supabase
+      .from('course_sessions')
+      .select('id, session_date, topic, status')
+      .eq('course_id', courseId)
+      .order('session_date', { ascending: false })
+    const sessions = (sessionRows || []) as CourseSession[]
+
     let attendance: AttendanceRow[] = []
-    if (lessonIds.length > 0) {
+    const sessionIds = sessions.map((s) => s.id)
+    if (sessionIds.length > 0) {
       const { data: attRows } = await supabase
-        .from('attendance')
-        .select('lesson_id, student_email, status, notes, marked_by, marked_at')
-        .in('lesson_id', lessonIds)
+        .from('session_attendance')
+        .select('session_id, student_email, status')
+        .in('session_id', sessionIds)
       attendance = (attRows || []) as AttendanceRow[]
     }
 
@@ -282,6 +297,7 @@ export async function GET(req: NextRequest) {
       exercises,
       progress,
       attendance,
+      sessions,
       writingBlocks,
       vocabStruggles,
       lessonFlashcards,

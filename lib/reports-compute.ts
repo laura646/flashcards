@@ -68,13 +68,17 @@ export interface ReportsWritingBlock {
   title: string | null
 }
 
+export interface ReportsSession {
+  id: string
+  session_date: string | null
+  topic: string | null
+  status: string
+}
+
 export interface ReportsAttendanceRow {
-  lesson_id: string
+  session_id: string
   student_email: string
   status: string
-  notes: string | null
-  marked_by: string | null
-  marked_at: string | null
 }
 
 export interface ReportsLessonFlashcard {
@@ -107,6 +111,7 @@ export interface ReportsData {
   exercises: ReportsExercise[]
   progress: ReportsProgressRecord[]
   attendance: ReportsAttendanceRow[]
+  sessions: ReportsSession[]
   writingBlocks: ReportsWritingBlock[]
   vocabStruggles: Record<string, number>
   lessonFlashcards: ReportsLessonFlashcard[]
@@ -236,26 +241,27 @@ export function computeStreak(completedDates: string[]): number {
 // inline cutoff. Lessons with no lesson_date are EXCLUDED from the overview
 // aggregate (matching lessonsInRange, which returns false for null dates).
 
-function lessonsInRangeIdSet(data: ReportsData, days: ReportsDays): Set<string> {
+function sessionsInRangeIdSet(data: ReportsData, days: ReportsDays): Set<string> {
+  const valid = (data.sessions || []).filter((s) => s.status !== 'cancelled')
   const ids = new Set<string>()
-  if (days === 'all') {
-    data.lessons.forEach((l) => {
-      if (l.lesson_date) ids.add(l.id)
+  const addAll = () =>
+    valid.forEach((s) => {
+      if (s.session_date) ids.add(s.id)
     })
+  if (days === 'all') {
+    addAll()
     return ids
   }
   const n = parseInt(days, 10)
   if (isNaN(n) || n <= 0) {
-    data.lessons.forEach((l) => {
-      if (l.lesson_date) ids.add(l.id)
-    })
+    addAll()
     return ids
   }
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - n)
-  data.lessons.forEach((l) => {
-    if (!l.lesson_date) return
-    if (new Date(l.lesson_date) >= cutoff) ids.add(l.id)
+  valid.forEach((s) => {
+    if (!s.session_date) return
+    if (new Date(s.session_date) >= cutoff) ids.add(s.id)
   })
   return ids
 }
@@ -281,7 +287,7 @@ function computeOverviewAggregate(
   data: ReportsData,
   student: ReportsStudent,
   courseExerciseIds: Set<string>,
-  lessonsInRangeIds: Set<string>
+  sessionsInRangeIds: Set<string>
 ): OverviewAggregate {
   const studentExerciseProgress = data.progress.filter(
     (p) =>
@@ -325,7 +331,7 @@ function computeOverviewAggregate(
 
   // Attendance: count marked lessons in range where student was present-or-late
   const studentAttendance = data.attendance.filter(
-    (a) => a.student_email === student.email && lessonsInRangeIds.has(a.lesson_id)
+    (a) => a.student_email === student.email && sessionsInRangeIds.has(a.session_id)
   )
   const marked = studentAttendance.length
   const presentOrLate = studentAttendance.filter((a) => ATTENDANCE_PRESENT_STATUSES.has(a.status)).length
@@ -408,14 +414,24 @@ function buildStudentDetail(data: ReportsData, selectedStudentEmail: string): St
     }))
 
   // Attendance: filter attendance rows for this student, join with lessons for date/title
-  const lessonById = new Map(data.lessons.map((l) => [l.id, l]))
+  const sessionById = new Map((data.sessions || []).map((sx) => [sx.id, sx]))
   const studentAttendanceRows = data.attendance
-    .filter((a) => a.student_email === selectedStudentEmail)
-    .map((a) => ({
-      ...a,
-      lesson_title: lessonById.get(a.lesson_id)?.title || '(unknown lesson)',
-      lesson_date: lessonById.get(a.lesson_id)?.lesson_date || null,
-    }))
+    .filter((a) => {
+      if (a.student_email !== selectedStudentEmail) return false
+      const sx = sessionById.get(a.session_id)
+      return !!sx && sx.status !== 'cancelled'
+    })
+    .map((a) => {
+      const sx = sessionById.get(a.session_id)
+      const dateLabel = sx?.session_date
+        ? new Date(sx.session_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+        : null
+      return {
+        status: a.status,
+        lesson_title: sx?.topic || dateLabel || '(class)',
+        lesson_date: sx?.session_date || null,
+      }
+    })
     .sort((x, y) => {
       const dx = x.lesson_date ? new Date(x.lesson_date).getTime() : 0
       const dy = y.lesson_date ? new Date(y.lesson_date).getTime() : 0
@@ -544,7 +560,7 @@ function toAttendanceStatus(status: string): AttendanceStatus {
 
 export function buildStudentReports(data: ReportsData, days: ReportsDays): StudentReport[] {
   const courseExerciseIds = new Set(data.exercises.map((e) => e.id))
-  const lessonsInRangeIds = lessonsInRangeIdSet(data, days)
+  const sessionsInRangeIds = sessionsInRangeIdSet(data, days)
 
   // Words learned (vocab_srs rows per student) + group rank (by points earned
   // in the period, across the cohort). Rank 1 = most points.
@@ -563,7 +579,7 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
 
   return data.students
     .map((student) => {
-      const overview = computeOverviewAggregate(data, student, courseExerciseIds, lessonsInRangeIds)
+      const overview = computeOverviewAggregate(data, student, courseExerciseIds, sessionsInRangeIds)
       const detail = buildStudentDetail(data, student.email)
 
       // cefr (optional) = highest level present in cefrBreakdown, else omit.
@@ -671,11 +687,13 @@ export function buildDigestPayload(
     if (isNaN(n) || n <= 0) return 0
     return Date.now() - n * 24 * 60 * 60 * 1000
   })()
-  const lessonsInRangeIds = new Set(
-    data.lessons.filter((l) => !l.lesson_date || new Date(l.lesson_date).getTime() >= cutoffMs).map((l) => l.id)
+  const sessionsInRangeIds = new Set(
+    (data.sessions || [])
+      .filter((sx) => sx.status !== 'cancelled' && (!sx.session_date || new Date(sx.session_date).getTime() >= cutoffMs))
+      .map((sx) => sx.id)
   )
   const studentAttendance = data.attendance.filter(
-    (a) => a.student_email === email && lessonsInRangeIds.has(a.lesson_id)
+    (a) => a.student_email === email && sessionsInRangeIds.has(a.session_id)
   )
   const attendanceMarked = studentAttendance.length
   const presentOrLate = studentAttendance.filter((a) => a.status === 'present' || a.status === 'late').length

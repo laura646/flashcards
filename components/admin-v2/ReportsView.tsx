@@ -37,10 +37,6 @@ export interface StudentReport {
 
 const VOCAB_LABELS = ['New', 'Learning', 'Familiar', 'Known', 'Mastered']
 const VOCAB_BG = ['bg-leitner-new', 'bg-leitner-learning', 'bg-leitner-familiar', 'bg-leitner-known', 'bg-leitner-mastered']
-const ATT_STYLE: Record<string, string> = {
-  present: 'bg-correct-bg text-correct-fg', late: 'bg-streak-fill text-streak-ink',
-  absent: 'bg-incorrect-bg text-incorrect-fg', excused: 'bg-sky-wash text-sky-text',
-}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -288,10 +284,33 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             )}
           </Card>
 
-          <Card title="Attendance history">
-            <div className="flex gap-1.5 flex-wrap">
-              {s.attendance.map((a, i) => <span key={i} className={`text-[10px] font-bold px-2 py-1 rounded-tile capitalize ${ATT_STYLE[a.status]}`}>{a.status}</span>)}
-            </div>
+          <Card title="Attendance">
+            {s.attendance.length === 0 ? (
+              <p className="text-[13px] text-ink-muted">No attendance marked yet.</p>
+            ) : (() => {
+              const present = s.attendance.filter((a) => a.status === 'present').length
+              const late = s.attendance.filter((a) => a.status === 'late').length
+              const excused = s.attendance.filter((a) => a.status === 'excused').length
+              const absent = s.attendance.filter((a) => a.status === 'absent').length
+              const total = s.attendance.length
+              const w = (n: number) => `${Math.round((n / total) * 100)}%`
+              return (
+                <>
+                  <div className="flex h-3.5 rounded-full overflow-hidden bg-surface mb-2.5">
+                    {present > 0 && <div className="bg-correct-bg" style={{ width: w(present) }} />}
+                    {late > 0 && <div className="bg-streak-fill" style={{ width: w(late) }} />}
+                    {excused > 0 && <div className="bg-sky-wash" style={{ width: w(excused) }} />}
+                    {absent > 0 && <div className="bg-incorrect-bg" style={{ width: w(absent) }} />}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-ink-muted">
+                    <span><span className="inline-block w-2 h-2 rounded-sm bg-correct-bg mr-1 align-middle" />{present} present</span>
+                    {late > 0 && <span><span className="inline-block w-2 h-2 rounded-sm bg-streak-fill mr-1 align-middle" />{late} late</span>}
+                    {excused > 0 && <span><span className="inline-block w-2 h-2 rounded-sm bg-sky-wash mr-1 align-middle" />{excused} excused</span>}
+                    <span><span className="inline-block w-2 h-2 rounded-sm bg-incorrect-bg mr-1 align-middle" />{absent} absent</span>
+                  </div>
+                </>
+              )
+            })()}
           </Card>
 
           <Card title="Teacher notes">
