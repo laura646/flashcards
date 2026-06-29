@@ -42,11 +42,12 @@ export interface StudentReport {
 const VOCAB_LABELS = ['New', 'Learning', 'Familiar', 'Known', 'Mastered']
 const VOCAB_BG = ['bg-leitner-new', 'bg-leitner-learning', 'bg-leitner-familiar', 'bg-leitner-known', 'bg-leitner-mastered']
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-sky-wash rounded-card border border-sky-border p-4">
-      <p className="text-[12px] text-ink-body">{label}</p>
-      <p className="text-2xl font-bold text-sky-text mt-0.5">{value}</p>
+    <div className="bg-white rounded-card border border-hairline p-4">
+      <p className="text-[12px] font-semibold text-ink-muted">{label}</p>
+      <p className="text-2xl font-bold text-ink-black mt-1 leading-none">{value}</p>
+      {sub && <p className="text-[11px] font-semibold text-correct-fg mt-1">{sub}</p>}
     </div>
   )
 }
@@ -434,7 +435,6 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, onClose }
 // Course-level HR rollup — cohort KPIs, a weekly score trend, and a
 // needs-attention list (click a learner to drill in). Sits atop the report.
 function CohortRollup({ cohort, onSelect }: { cohort: CourseRollup; onSelect: (email: string) => void }) {
-  const maxTrend = cohort.trend.length ? Math.max(1, ...cohort.trend.map((t) => t.avgPct)) : 1
   return (
     <div className="mb-4 space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -450,11 +450,30 @@ function CohortRollup({ cohort, onSelect }: { cohort: CourseRollup; onSelect: (e
             <p className="text-[13px] text-ink-muted">Not enough data yet.</p>
           ) : (
             <>
-              <div className="flex items-end gap-1.5 h-24">
-                {cohort.trend.map((t, i) => (
-                  <div key={i} className="flex-1 bg-sky rounded-t" style={{ height: `${Math.max(6, Math.round((t.avgPct / maxTrend) * 100))}%` }} title={`${t.label}: ${t.avgPct}%`} />
-                ))}
-              </div>
+              {(() => {
+                const vals = cohort.trend.map((t) => t.avgPct)
+                const W = 320
+                const H = 90
+                const pad = 10
+                const lo = Math.min(...vals)
+                const hi = Math.max(...vals)
+                const flat = hi === lo
+                const xs = (i: number) => (vals.length === 1 ? W / 2 : pad + (i * (W - 2 * pad)) / (vals.length - 1))
+                const ys = (v: number) => (flat ? H / 2 : H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad))
+                const linePts = vals.map((v, i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(' ')
+                const areaPts = `${xs(0).toFixed(1)},${H - pad} ${linePts} ${xs(vals.length - 1).toFixed(1)},${H - pad}`
+                return (
+                  <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-24" role="img" aria-label="Cohort average score by week">
+                    <polygon points={areaPts} fill="#E1F5FE" />
+                    <polyline points={linePts} fill="none" stroke="#0098D4" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                    {vals.map((v, i) => (
+                      <circle key={i} cx={xs(i)} cy={ys(v)} r="3.2" fill="#fff" stroke="#0098D4" strokeWidth="2">
+                        <title>{`${cohort.trend[i].label}: ${v}%`}</title>
+                      </circle>
+                    ))}
+                  </svg>
+                )
+              })()}
               <p className="text-[11px] text-ink-muted mt-2">Avg exercise score by week · {cohort.trend[0].label}–{cohort.trend[cohort.trend.length - 1].label}</p>
             </>
           )}
@@ -503,10 +522,12 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
     return (
       <div className="font-rubik min-h-screen bg-surface px-4 py-6">
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-            <h1 className="text-2xl font-bold text-brandblue">Reports</h1>
+          <div className="flex items-end justify-between gap-3 mb-5 flex-wrap">
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted mb-0.5">Reports</p>
+              <h1 className="text-xl font-bold text-ink-black leading-tight">{courseName}</h1>
+            </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-[12px] text-ink-muted">{courseName} · last 30 days</span>
               <CourseLevels current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} onSet={onSetLevels} />
               {students.length > 0 && (
                 <button onClick={() => setExporting(true)} className="text-[12px] font-bold text-white bg-sky rounded-tile px-3 py-1.5 hover:opacity-90">Export</button>
