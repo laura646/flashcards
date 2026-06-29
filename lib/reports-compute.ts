@@ -744,3 +744,84 @@ export function buildDigestPayload(
     cefrBreakdown,
   }
 }
+
+// ─────────── Course-level digest (for the course AI overview) ───────────
+// Aggregates the per-student reports into a cohort snapshot that
+// /api/course-summary turns into three short narratives
+// (summary / needs attention / ready to level up). Reuses buildStudentReports
+// so the numbers match exactly what the View shows.
+
+export interface CourseDigestPayload {
+  courseId: string
+  courseName: string
+  timeRangeLabel: string
+  studentCount: number
+  avgCompletionPct: number
+  avgScorePct: number | null
+  avgAttendancePct: number | null
+  activeStreaks: number
+  skillCohort: { label: string; avgPct: number; students: number }[]
+  topPerformers: { name: string; scorePct: number | null; completionPct: number }[]
+  needsAttention: { name: string; completionPct: number; scorePct: number | null; attendancePct: number | null }[]
+}
+
+export function buildCourseDigest(
+  data: ReportsData,
+  courseName: string,
+  days: ReportsDays
+): CourseDigestPayload | null {
+  if (!data.course) return null
+  const reports = buildStudentReports(data, days)
+  const n = reports.length
+  const mean = (arr: number[]): number | null =>
+    arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null
+
+  const avgCompletionPct = mean(reports.map((r) => r.completionPct)) ?? 0
+  const avgScorePct = mean(reports.map((r) => r.avgLatestPct).filter((x): x is number => x != null))
+  const avgAttendancePct = mean(reports.map((r) => r.attendancePct).filter((x): x is number => x != null))
+  const activeStreaks = reports.filter((r) => r.streak > 0).length
+
+  // Cohort skill averages across all students who have a score for that skill.
+  const skillSums: Record<string, { sum: number; count: number }> = {}
+  for (const r of reports) {
+    for (const sk of r.skills) {
+      if (!skillSums[sk.label]) skillSums[sk.label] = { sum: 0, count: 0 }
+      skillSums[sk.label].sum += sk.pct
+      skillSums[sk.label].count += 1
+    }
+  }
+  const skillCohort = Object.entries(skillSums)
+    .map(([label, v]) => ({ label, avgPct: Math.round(v.sum / v.count), students: v.count }))
+    .sort((a, b) => b.avgPct - a.avgPct)
+
+  const topPerformers = reports
+    .slice()
+    .sort((a, b) => (b.avgLatestPct ?? -1) - (a.avgLatestPct ?? -1) || b.completionPct - a.completionPct)
+    .slice(0, 3)
+    .map((r) => ({ name: r.name, scorePct: r.avgLatestPct, completionPct: r.completionPct }))
+
+  const needsAttention = reports
+    .slice()
+    .sort((a, b) => a.completionPct - b.completionPct || (a.avgLatestPct ?? 101) - (b.avgLatestPct ?? 101))
+    .slice(0, 3)
+    .map((r) => ({
+      name: r.name,
+      completionPct: r.completionPct,
+      scorePct: r.avgLatestPct,
+      attendancePct: r.attendancePct,
+    }))
+
+  return {
+    courseId: data.course.id,
+    courseName,
+    timeRangeLabel: days === 'all' ? 'All time' : `Last ${days} days`,
+    studentCount: n,
+    avgCompletionPct,
+    avgScorePct,
+    avgAttendancePct,
+    activeStreaks,
+    skillCohort,
+    topPerformers,
+    needsAttention,
+  }
+}

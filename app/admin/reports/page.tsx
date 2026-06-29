@@ -13,7 +13,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import ReportsView, { StudentReport } from '@/components/admin-v2/ReportsView'
-import { buildStudentReports, buildDigestPayload, ReportsData, ReportsDays } from '@/lib/reports-compute'
+import { buildStudentReports, buildDigestPayload, buildCourseDigest, ReportsData, ReportsDays } from '@/lib/reports-compute'
 import { Skeleton } from '@/components/student-ui'
 
 const DAY_OPTIONS: { value: ReportsDays; label: string }[] = [
@@ -37,6 +37,8 @@ export default function ReportsBetaPage() {
   const [students, setStudents] = useState<StudentReport[]>([])
   const [loading, setLoading] = useState(true)
   const [generatingEmail, setGeneratingEmail] = useState<string | null>(null)
+  const [courseOverview, setCourseOverview] = useState<{ summary: string; needs: string; ready: string; generatedAt: string | null } | null>(null)
+  const [generatingOverview, setGeneratingOverview] = useState(false)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
 
@@ -86,8 +88,27 @@ export default function ReportsBetaPage() {
         /* cache is optional — summaries just show the Generate button */
       }
       setStudents(built)
+
+      // Course-level AI overview (cached → token-free).
+      try {
+        const ores = await fetch(`/api/course-summary?courseId=${courseId}`)
+        const oj = await ores.json()
+        setCourseOverview(
+          oj.overview
+            ? {
+                summary: oj.overview.summary,
+                needs: oj.overview.needs,
+                ready: oj.overview.ready,
+                generatedAt: oj.overview.generated_at,
+              }
+            : null
+        )
+      } catch {
+        setCourseOverview(null)
+      }
     } catch {
       setStudents([])
+      setCourseOverview(null)
     }
     setLoading(false)
   }, [courseId, days])
@@ -124,6 +145,34 @@ export default function ReportsBetaPage() {
     },
     [data, courses, courseId, days]
   )
+
+  // Generate (or regenerate) the course-level AI overview on demand, then cache it.
+  const handleGenerateOverview = useCallback(async () => {
+    if (!data) return
+    const cName = courses.find((c) => c.id === courseId)?.name || ''
+    const payload = buildCourseDigest(data, cName, days)
+    if (!payload) return
+    setGeneratingOverview(true)
+    try {
+      const res = await fetch('/api/course-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = await res.json()
+      if (body.summary) {
+        setCourseOverview({
+          summary: body.summary,
+          needs: body.needs || '',
+          ready: body.ready || '',
+          generatedAt: body.generatedAt || new Date().toISOString(),
+        })
+      }
+    } catch {
+      /* swallow — teacher can retry */
+    }
+    setGeneratingOverview(false)
+  }, [data, courses, courseId, days])
 
   if (status === 'authenticated' && !isAdmin) {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
@@ -170,6 +219,9 @@ export default function ReportsBetaPage() {
           onGenerate={session?.user?.role === 'hr' ? undefined : handleGenerate}
           onRegenerate={session?.user?.role === 'hr' ? undefined : handleGenerate}
           generatingEmail={generatingEmail}
+          courseOverview={courseOverview}
+          onGenerateOverview={session?.user?.role === 'hr' ? undefined : handleGenerateOverview}
+          generatingOverview={generatingOverview}
         />
       )}
     </div>

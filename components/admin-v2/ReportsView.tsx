@@ -74,12 +74,81 @@ function relativeTime(iso: string | null | undefined): string {
   return new Date(then).toLocaleDateString()
 }
 
-export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail }: {
+export type CourseOverviewData = { summary: string; needs: string; ready: string; generatedAt: string | null }
+
+// Course-level AI overview card (cohort view) — three tabbed narratives.
+// Mirrors the per-student AI summary: cached + generated on demand. HR sees
+// the cached overview but gets no Generate button (onGenerate is undefined).
+function CourseOverview({ overview, onGenerate, generating }: {
+  overview: CourseOverviewData | null
+  onGenerate?: () => void
+  generating?: boolean
+}) {
+  const [tab, setTab] = useState<'summary' | 'needs' | 'ready'>('summary')
+  const TABS = [
+    ['summary', 'Summary'],
+    ['needs', 'Needs attention'],
+    ['ready', 'Ready to level up'],
+  ] as const
+
+  return (
+    <div className="bg-white rounded-card border border-sky-border p-5 mb-4">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <span className="text-[11px] font-extrabold uppercase tracking-eyebrow text-sky-text">✨ AI overview</span>
+        {overview && onGenerate && !generating && (
+          <button onClick={onGenerate} className="text-[12px] text-ink-body border border-hairline rounded-tile px-2.5 py-1 hover:bg-surface">↻ Regenerate</button>
+        )}
+      </div>
+
+      {overview && !generating && (
+        <div className="flex gap-1 mb-3 bg-surface rounded-tile p-1 w-fit">
+          {TABS.map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`text-[12px] font-bold px-3 py-1 rounded-tile transition-colors ${tab === k ? 'bg-white text-sky-text' : 'text-ink-muted hover:text-ink-body'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {generating ? (
+        <div className="flex items-center gap-2.5 py-1.5">
+          <Spinner size={18} label="Generating overview…" />
+          <span className="text-[13px] text-ink-muted">Generating overview…</span>
+        </div>
+      ) : overview ? (
+        <>
+          <p className="text-[14px] text-ink-body leading-relaxed">{overview[tab]}</p>
+          {overview.generatedAt && <p className="text-[11px] text-ink-muted mt-2">Generated {relativeTime(overview.generatedAt)}</p>}
+        </>
+      ) : (
+        <div className="py-1">
+          <p className="text-[13px] text-ink-body">No overview yet for this course.</p>
+          {onGenerate ? (
+            <div className="mt-3">
+              <Button variant="primary" size="sm" onClick={onGenerate}>✨ Generate overview</Button>
+            </div>
+          ) : (
+            <p className="text-[11px] text-ink-muted mt-1">Ask a teacher to generate it.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview }: {
   courseName: string
   students: StudentReport[]
   onRegenerate?: (email: string) => void
   onGenerate?: (email: string) => void
   generatingEmail?: string | null
+  courseOverview?: CourseOverviewData | null
+  onGenerateOverview?: () => void
+  generatingOverview?: boolean
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const s = students.find((x) => x.email === sel) || null
@@ -92,6 +161,11 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             <h1 className="text-2xl font-bold text-brandblue">Reports</h1>
             <span className="text-[12px] text-ink-muted">{courseName} · last 30 days</span>
           </div>
+
+          {(courseOverview || onGenerateOverview) && (
+            <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview} generating={generatingOverview} />
+          )}
+
           {students.length === 0 ? (
             <EmptyState icon="📊" title="No data yet" hint="Once students complete exercises, their progress shows here." />
           ) : (
