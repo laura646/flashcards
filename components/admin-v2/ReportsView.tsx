@@ -516,72 +516,76 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
-  const s = students.find((x) => x.email === sel) || null
-
-  if (!s) {
-    return (
-      <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-end justify-between gap-3 mb-5 flex-wrap">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted mb-0.5">Reports</p>
-              <h1 className="text-xl font-bold text-ink-black leading-tight">{courseName}</h1>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <CourseLevels current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} onSet={onSetLevels} />
-              {students.length > 0 && (
-                <button onClick={() => setExporting(true)} className="text-[12px] font-bold text-white bg-sky rounded-tile px-3 py-1.5 hover:opacity-90">Export</button>
-              )}
-            </div>
-          </div>
-          {exporting && (
-            <ExportDialog
-              students={students}
-              courseName={courseName}
-              currentLevel={courseCurrentLevel ?? null}
-              goalLevel={courseGoalLevel ?? null}
-              onClose={() => setExporting(false)}
-            />
-          )}
-
-          {cohort && students.length > 0 && <CohortRollup cohort={cohort} onSelect={setSel} />}
-
-          {(courseOverview || onGenerateOverview) && (
-            <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview} generating={generatingOverview} />
-          )}
-
-          {students.length === 0 ? (
-            <EmptyState icon="📊" title="No data yet" hint="Once students complete exercises, their progress shows here." />
-          ) : (
-            <div className="bg-white rounded-card border border-hairline overflow-hidden">
-              {students.map((st, i) => (
-                <button
-                  key={st.email}
-                  onClick={() => setSel(st.email)}
-                  className={`w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-surface transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40 ${i > 0 ? 'border-t border-hairline' : ''}`}
-                >
-                  <div className="w-9 h-9 rounded-full bg-sky-wash text-sky-text flex items-center justify-center text-sm font-bold shrink-0" aria-hidden="true">{st.name[0]}</div>
-                  <span className="flex-1 text-sm font-bold text-ink-black truncate">{st.name}</span>
-                  <span className="text-[12px] text-ink-muted w-24 text-right">{st.completionPct}% done</span>
-                  <span className="text-[12px] font-bold text-sky-text w-16 text-right">{st.avgLatestPct != null ? `${st.avgLatestPct}%` : '—'}</span>
-                  <span aria-hidden="true" className="text-ink-muted">›</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
+  const s = students.find((x) => x.email === sel) || students[0] || null
 
   return (
     <div className="font-rubik min-h-screen bg-surface px-4 py-6">
-      <div className="max-w-5xl mx-auto">
-        <button onClick={() => setSel(null)} className="text-[13px] font-bold text-sky-text mb-4 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40">‹ Back to all students</button>
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-full bg-sky-wash text-sky-text flex items-center justify-center font-bold" aria-hidden="true">{s.name[0]}</div>
-          <div><h1 className="text-xl font-bold text-ink-black">{s.name}</h1>{s.cefr && <p className="text-[12px] text-ink-muted">Working at {s.cefr}</p>}</div>
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-end justify-between gap-3 mb-5 flex-wrap">
+          <div>
+            <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted mb-0.5">Reports</p>
+            <h1 className="text-xl font-bold text-ink-black leading-tight">{courseName}</h1>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <CourseLevels current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} onSet={onSetLevels} />
+            {students.length > 0 && (
+              <button onClick={() => setExporting(true)} className="text-[12px] font-bold text-white bg-sky rounded-tile px-3 py-1.5 hover:opacity-90">Export</button>
+            )}
+          </div>
         </div>
+
+        {exporting && (
+          <ExportDialog
+            students={students}
+            courseName={courseName}
+            currentLevel={courseCurrentLevel ?? null}
+            goalLevel={courseGoalLevel ?? null}
+            onClose={() => setExporting(false)}
+          />
+        )}
+
+        {cohort && students.length > 0 && <CohortRollup cohort={cohort} onSelect={setSel} />}
+
+        {(courseOverview || onGenerateOverview) && (
+          <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview} generating={generatingOverview} />
+        )}
+
+        {students.length === 0 ? (
+          <EmptyState icon="📊" title="No data yet" hint="Once students complete exercises, their progress shows here." />
+        ) : !s ? null : (
+          <div className="grid grid-cols-1 md:grid-cols-[248px_1fr] gap-4 items-start">
+            {/* Left rail — learners list (always visible) */}
+            <div className="bg-white rounded-card border border-hairline overflow-hidden self-start">
+              <div className="px-3.5 py-2.5 border-b border-hairline flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">Learners</span>
+                <span className="text-[11px] font-bold text-ink-muted">{students.length}</span>
+              </div>
+              <div className="max-h-[74vh] overflow-auto">
+                {students.map((st, i) => {
+                  const on = s.email === st.email
+                  return (
+                    <button
+                      key={st.email}
+                      onClick={() => setSel(st.email)}
+                      className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40 ${i > 0 ? 'border-t border-hairline' : ''} ${on ? 'bg-sky-wash' : ''}`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${on ? 'bg-sky text-white' : 'bg-sky-wash text-sky-text'}`} aria-hidden="true">{st.name[0]}</div>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-bold text-ink-black truncate">{st.name}</span>
+                        <span className="block text-[11px] text-ink-muted">{st.completionPct}% done · {st.avgLatestPct != null ? `${st.avgLatestPct}%` : '—'}</span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Right panel — selected student's full overview */}
+            <div className="min-w-0">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-11 h-11 rounded-full bg-sky-wash text-sky-text flex items-center justify-center font-bold" aria-hidden="true">{s.name[0]}</div>
+                <div><h2 className="text-lg font-bold text-ink-black leading-tight">{s.name}</h2>{s.cefr && <p className="text-[12px] text-ink-muted">Working at {s.cefr}</p>}</div>
+              </div>
 
         {/* AI summary — on demand: generate / loading / cached */}
         <div className="bg-white rounded-card border border-sky-border p-5 mb-4">
@@ -707,6 +711,9 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             )}
           </Card>
         </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
