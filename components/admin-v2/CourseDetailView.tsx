@@ -351,14 +351,23 @@ export function CourseDetailView({
           className="mb-5"
         />
 
-        {/* Header card — name + description ONLY */}
-        <div className="bg-white rounded-card border border-hairline p-6 mb-4">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-[30px] font-extrabold text-brandblue leading-tight tracking-hero">{course.name}</h1>
-            {course.archived_at && <Pill variant="status">Archived</Pill>}
-            {course.self_study && <Pill variant="level">Self-study</Pill>}
+        {/* Header card — name + description + report shortcut */}
+        <div className="bg-white rounded-card border border-hairline p-6 mb-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-[30px] font-extrabold text-brandblue leading-tight tracking-hero">{course.name}</h1>
+              {course.archived_at && <Pill variant="status">Archived</Pill>}
+              {course.self_study && <Pill variant="level">Self-study</Pill>}
+            </div>
+            <p className="text-sm text-ink-muted mt-1.5">{course.description || 'No description'}</p>
           </div>
-          <p className="text-sm text-ink-muted mt-1.5">{course.description || 'No description'}</p>
+          <a
+            href={`/admin/reports?courseId=${course.id}`}
+            className="shrink-0 inline-flex items-center gap-2 bg-sky text-white rounded-tile px-4 py-2.5 text-sm font-bold hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-6M20 20H4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            View report
+          </a>
         </div>
 
         {/* Two-column body */}

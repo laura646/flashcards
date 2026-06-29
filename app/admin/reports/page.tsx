@@ -54,7 +54,9 @@ export default function ReportsBetaPage() {
       const d = await res.json()
       const list: { id: string; name: string }[] = d.courses || []
       setCourses(list)
-      setCourseId((prev) => prev || (list[0]?.id ?? ''))
+      const urlCourseId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('courseId') : null
+      const preferred = urlCourseId && list.some((c) => c.id === urlCourseId) ? urlCourseId : (list[0]?.id ?? '')
+      setCourseId((prev) => prev || preferred)
       if (!list.length) setLoading(false)
     } catch {
       setLoading(false)
