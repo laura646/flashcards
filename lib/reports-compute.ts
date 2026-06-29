@@ -59,6 +59,7 @@ export interface ReportsProgressRecord {
   total: number | null
   completed_at: string
   response_text: string | null
+  points_earned: number | null
 }
 
 export interface ReportsWritingBlock {
@@ -129,6 +130,9 @@ export interface StudentReport {
   attendancePct: number | null
   avgLatestPct: number | null
   streak: number
+  wordsLearned: number
+  groupRank: number | null
+  groupSize: number
   vocabFocus: number | null
   aiSummary: string | null
   aiGeneratedAt?: string | null
@@ -542,6 +546,21 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
   const courseExerciseIds = new Set(data.exercises.map((e) => e.id))
   const lessonsInRangeIds = lessonsInRangeIdSet(data, days)
 
+  // Words learned (vocab_srs rows per student) + group rank (by points earned
+  // in the period, across the cohort). Rank 1 = most points.
+  const wordsByEmail: Record<string, number> = {}
+  for (const v of data.vocabSrs || []) wordsByEmail[v.user_email] = (wordsByEmail[v.user_email] || 0) + 1
+  const pointsByEmail: Record<string, number> = {}
+  for (const p of data.progress) pointsByEmail[p.user_email] = (pointsByEmail[p.user_email] || 0) + (p.points_earned ?? 0)
+  const groupSize = data.students.length
+  const rankByEmail: Record<string, number> = {}
+  data.students
+    .map((st) => ({ email: st.email, pts: pointsByEmail[st.email] || 0 }))
+    .sort((a, b) => b.pts - a.pts)
+    .forEach((r, i) => {
+      rankByEmail[r.email] = i + 1
+    })
+
   return data.students
     .map((student) => {
       const overview = computeOverviewAggregate(data, student, courseExerciseIds, lessonsInRangeIds)
@@ -570,6 +589,9 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
         streak: computeStreak(
           data.progress.filter((p) => p.user_email === student.email).map((p) => p.completed_at)
         ),
+        wordsLearned: wordsByEmail[student.email] || 0,
+        groupRank: groupSize > 0 ? rankByEmail[student.email] : null,
+        groupSize,
         vocabFocus: detail ? detail.vocab.needsAttention : null,
         skills: detail ? detail.skillBreakdown.map((s) => ({ label: s.label, pct: s.avgPct })) : [],
         trend: detail ? detail.trend.map((t) => t.score) : [],

@@ -21,6 +21,9 @@ export interface StudentReport {
   attendancePct: number | null
   avgLatestPct: number | null
   streak: number
+  wordsLearned: number
+  groupRank: number | null
+  groupSize: number
   vocabFocus: number | null
   aiSummary: string | null
   aiGeneratedAt?: string | null
@@ -231,11 +234,13 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
         </div>
 
         {/* Stat band */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+          <Stat label="Words learned" value={`${s.wordsLearned}`} />
           <Stat label="Completion" value={`${s.completionPct}%`} />
           <Stat label="Avg. score" value={s.avgLatestPct != null ? `${s.avgLatestPct}%` : '—'} />
           <Stat label="Attendance" value={s.attendancePct != null ? `${s.attendancePct}%` : '—'} />
           <Stat label="Streak" value={s.streak ? `${s.streak}🔥` : '—'} />
+          <Stat label="Group rank" value={s.groupRank != null ? `#${s.groupRank} of ${s.groupSize}` : '—'} />
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">

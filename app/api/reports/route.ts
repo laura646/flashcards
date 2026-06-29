@@ -56,6 +56,7 @@ interface ProgressRecord {
   total: number | null
   completed_at: string
   response_text: string | null
+  points_earned: number | null
 }
 
 interface WritingBlock {
@@ -173,7 +174,7 @@ export async function GET(req: NextRequest) {
     if (studentEmails.length > 0) {
       let query = supabase
         .from('progress')
-        .select('user_email, activity_type, activity_id, score, total, completed_at, response_text')
+        .select('user_email, activity_type, activity_id, score, total, completed_at, response_text, points_earned')
         .in('user_email', studentEmails)
         .order('completed_at', { ascending: false })
 
