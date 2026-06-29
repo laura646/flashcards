@@ -118,7 +118,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
       }
       if (has(opts.sections, 'cefr')) {
         parts.push(
-          `<div class="sec"><div class="h">CEFR progress</div><p>${esc(opts.currentLevel || r.cefr || '—')} → ${esc(opts.goalLevel || '—')}${r.courseProgressPct != null ? ` · ${r.courseProgressPct}% through the course` : ''}</p></div>`
+          `<div class="sec"><div class="h">CEFR progress</div><p>${esc(opts.currentLevel || '—')} → ${esc(opts.goalLevel || '—')}${r.courseProgressPct != null ? ` · ${r.courseProgressPct}% through the course` : ''}</p></div>`
         )
       }
       if (has(opts.sections, 'attendance')) {

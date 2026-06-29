@@ -584,7 +584,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             <div className="min-w-0">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-11 h-11 rounded-full bg-sky-wash text-sky-text flex items-center justify-center font-bold" aria-hidden="true">{s.name[0]}</div>
-                <div><h2 className="text-lg font-bold text-ink-black leading-tight">{s.name}</h2>{s.cefr && <p className="text-[12px] text-ink-muted">Working at {s.cefr}</p>}</div>
+                <div><h2 className="text-lg font-bold text-ink-black leading-tight">{s.name}</h2>{courseCurrentLevel && <p className="text-[12px] text-ink-muted">Working at {courseCurrentLevel} (group level)</p>}</div>
               </div>
 
         {/* AI summary — on demand: generate / loading / cached */}
@@ -630,7 +630,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
 
         <CefrProgress
           report={s}
-          current={courseCurrentLevel || s.cefr || null}
+          current={courseCurrentLevel ?? null}
           goal={courseGoalLevel || null}
           onSet={onSetProgress}
         />
