@@ -434,65 +434,106 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, onClose }
 
 // Course-level HR rollup — cohort KPIs, a weekly score trend, and a
 // needs-attention list (click a learner to drill in). Sits atop the report.
-function CohortRollup({ cohort, onSelect }: { cohort: CourseRollup; onSelect: (email: string) => void }) {
-  return (
-    <div className="mb-4 space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+function CohortRollup({ cohort, onSelect, view = 'kpis' }: { cohort: CourseRollup; onSelect: (email: string) => void; view?: 'kpis' | 'detail' }) {
+  // Top-of-page cohort KPI cards.
+  if (view === 'kpis') {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <Stat label="Learners" value={`${cohort.learnerCount}`} />
         <Stat label="Avg completion" value={`${cohort.avgCompletionPct}%`} />
         <Stat label="Avg score" value={cohort.avgScorePct != null ? `${cohort.avgScorePct}%` : '—'} />
         <Stat label="Team attendance" value={cohort.avgAttendancePct != null ? `${cohort.avgAttendancePct}%` : '—'} />
         <Stat label="On a streak" value={`${cohort.activeStreaks}/${cohort.learnerCount}`} />
       </div>
-      <div className="grid md:grid-cols-2 gap-4">
-        <Card title="Cohort score trend">
-          {cohort.trend.length === 0 ? (
-            <p className="text-[13px] text-ink-muted">Not enough data yet.</p>
-          ) : (
-            <>
-              {(() => {
-                const vals = cohort.trend.map((t) => t.avgPct)
-                const W = 320
-                const H = 90
-                const pad = 10
-                const lo = Math.min(...vals)
-                const hi = Math.max(...vals)
-                const flat = hi === lo
-                const xs = (i: number) => (vals.length === 1 ? W / 2 : pad + (i * (W - 2 * pad)) / (vals.length - 1))
-                const ys = (v: number) => (flat ? H / 2 : H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad))
-                const linePts = vals.map((v, i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(' ')
-                const areaPts = `${xs(0).toFixed(1)},${H - pad} ${linePts} ${xs(vals.length - 1).toFixed(1)},${H - pad}`
-                return (
-                  <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-24" role="img" aria-label="Cohort average score by week">
-                    <polygon points={areaPts} fill="#E1F5FE" />
-                    <polyline points={linePts} fill="none" stroke="#0098D4" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-                    {vals.map((v, i) => (
-                      <circle key={i} cx={xs(i)} cy={ys(v)} r="3.2" fill="#fff" stroke="#0098D4" strokeWidth="2">
-                        <title>{`${cohort.trend[i].label}: ${v}%`}</title>
-                      </circle>
-                    ))}
-                  </svg>
-                )
-              })()}
-              <p className="text-[11px] text-ink-muted mt-2">Avg exercise score by week · {cohort.trend[0].label}–{cohort.trend[cohort.trend.length - 1].label}</p>
-            </>
-          )}
-        </Card>
-        <Card title="Needs attention">
-          {cohort.needsAttention.length === 0 ? (
-            <p className="text-[13px] text-ink-muted">Everyone is on track.</p>
-          ) : (
-            <div className="space-y-0.5">
-              {cohort.needsAttention.map((r) => (
-                <button key={r.email} onClick={() => onSelect(r.email)} className="w-full text-left flex items-center justify-between gap-2 py-1.5 px-2 rounded-tile hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40">
-                  <span className="text-[13px] font-bold text-ink-black truncate">{r.name}</span>
-                  <span className="text-[11px] text-ink-muted shrink-0">{r.reason}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </Card>
+    )
+  }
+  // Bottom-of-page detail: score trend + needs attention.
+  return (
+    <div className="grid md:grid-cols-2 gap-4 mt-6">
+      <Card title="Cohort score trend">
+        {cohort.trend.length === 0 ? (
+          <p className="text-[13px] text-ink-muted">Not enough data yet.</p>
+        ) : (
+          <>
+            {(() => {
+              const vals = cohort.trend.map((t) => t.avgPct)
+              const W = 320
+              const H = 96
+              const pad = 18
+              const lo = Math.min(...vals)
+              const hi = Math.max(...vals)
+              const flat = hi === lo
+              const xs = (i: number) => (vals.length === 1 ? W / 2 : pad + (i * (W - 2 * pad)) / (vals.length - 1))
+              const ys = (v: number) => (flat ? H / 2 : H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad))
+              const linePts = vals.map((v, i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(' ')
+              const areaPts = `${xs(0).toFixed(1)},${H - pad} ${linePts} ${xs(vals.length - 1).toFixed(1)},${H - pad}`
+              return (
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-28" role="img" aria-label="Cohort average score by week">
+                  <polygon points={areaPts} fill="#E1F5FE" />
+                  <polyline points={linePts} fill="none" stroke="#0098D4" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                  {vals.map((v, i) => (
+                    <g key={i}>
+                      <circle cx={xs(i)} cy={ys(v)} r="3.2" fill="#fff" stroke="#0098D4" strokeWidth="2" />
+                      <text x={xs(i)} y={ys(v) - 7} textAnchor="middle" fontSize="9" fontWeight="700" fill="#0098D4">{v}%</text>
+                    </g>
+                  ))}
+                </svg>
+              )
+            })()}
+            <p className="text-[12px] text-ink-body mt-1">The group's <b>average exercise score each week</b> — shows whether scores are trending up or down over the period.</p>
+            <p className="text-[11px] text-ink-muted mt-0.5">{cohort.trend[0].label} – {cohort.trend[cohort.trend.length - 1].label}</p>
+          </>
+        )}
+      </Card>
+      <Card title="Needs attention">
+        {cohort.needsAttention.length === 0 ? (
+          <p className="text-[13px] text-ink-muted">Everyone is on track.</p>
+        ) : (
+          <div className="space-y-0.5">
+            {cohort.needsAttention.map((r) => (
+              <button key={r.email} onClick={() => onSelect(r.email)} className="w-full text-left flex items-center justify-between gap-2 py-1.5 px-2 rounded-tile hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40">
+                <span className="text-[13px] font-bold text-ink-black truncate">{r.name}</span>
+                <span className="text-[11px] text-ink-muted shrink-0">{r.reason}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+// One line under the overview: the group's level (current → goal) with a dot
+// per learner at their course-progress %, so you see where everyone sits.
+function GroupLevelStrip({ students, current, goal }: { students: StudentReport[]; current: string | null; goal: string | null }) {
+  const notSet = students.filter((s) => s.courseProgressPct == null).length
+  return (
+    <div className="bg-white rounded-card border border-hairline p-5 mb-4">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">Where the group is</p>
+        <span className="text-[12px] font-bold">
+          <span className="text-sky-text">{current || '—'}</span> <span className="text-ink-muted">→</span> <span className="text-correct-fg">{goal || '—'}</span>
+        </span>
       </div>
+      <div className="relative h-6">
+        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-2.5 bg-surface rounded-full" />
+        {students.map((st) => {
+          const pct = Math.max(0, Math.min(100, st.courseProgressPct ?? 0))
+          return (
+            <div
+              key={st.email}
+              className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-sky border-2 border-white"
+              style={{ left: `${pct}%` }}
+              title={`${st.name}: ${st.courseProgressPct != null ? st.courseProgressPct + '%' : 'not set'}`}
+            />
+          )
+        })}
+      </div>
+      <div className="flex justify-between text-[11px] text-ink-muted mt-1.5">
+        <span>{current || 'start'}</span>
+        <span>{goal || 'goal'}</span>
+      </div>
+      {notSet > 0 && <p className="text-[11px] text-ink-muted mt-2">{notSet} learner{notSet === 1 ? '' : 's'} not set yet (shown at the start).</p>}
     </div>
   )
 }
@@ -544,10 +585,14 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
           />
         )}
 
-        {cohort && students.length > 0 && <CohortRollup cohort={cohort} onSelect={setSel} />}
+        {cohort && students.length > 0 && <CohortRollup cohort={cohort} onSelect={setSel} view="kpis" />}
 
         {(courseOverview || onGenerateOverview) && (
           <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview} generating={generatingOverview} />
+        )}
+
+        {students.length > 0 && (
+          <GroupLevelStrip students={students} current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} />
         )}
 
         {students.length === 0 ? (
@@ -636,17 +681,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
         />
 
         <div className="grid md:grid-cols-2 gap-4">
-          <Card title="Skill breakdown">
-            <div className="space-y-2.5">
-              {s.skills.map((sk) => (
-                <div key={sk.label} className="flex items-center gap-3">
-                  <span className="w-24 text-[12px] text-ink-body shrink-0">{sk.label}</span>
-                  <div className="flex-1 h-2 bg-surface rounded-full overflow-hidden"><div className="h-full bg-sky rounded-full" style={{ width: `${sk.pct}%` }} /></div>
-                  <span className="w-9 text-[12px] font-bold text-ink-black text-right">{sk.pct}%</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          {/* Skill breakdown — hidden for now (s.skills still computed; revisit later) */}
 
           <Card title="Score trend">
             <div className="flex items-end gap-2 h-28">
@@ -714,6 +749,8 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             </div>
           </div>
         )}
+
+        {cohort && students.length > 0 && <CohortRollup cohort={cohort} onSelect={setSel} view="detail" />}
       </div>
     </div>
   )
