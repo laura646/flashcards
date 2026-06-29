@@ -33,6 +33,7 @@ export interface StudentReport {
   vocab: number[] // 5 counts: New, Learning, Familiar, Known, Mastered
   attendance: { lesson: string; status: 'present' | 'absent' | 'late' | 'excused' }[]
   tests: { title: string; type: string; score: number }[]
+  manualTests: { id: string; name: string; date: string | null; scorePct: number | null; source: string }[]
   notes: { tag: string; author: string; text: string }[]
 }
 
@@ -230,7 +231,99 @@ function CefrProgress({ report, current, goal, onSet }: {
   )
 }
 
-export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels }: {
+// Tests card: platform-derived tests (read-only) + manual results (offline /
+// written / oral). Teachers get an "+ Add result" form and per-row delete;
+// HR sees everything read-only (onAdd / onDelete undefined).
+function TestsCard({ report, onAdd, onDelete }: {
+  report: StudentReport
+  onAdd?: (email: string, t: { name: string; date: string; score: number; max: number; source: string }) => Promise<void> | void
+  onDelete?: (id: string, email: string) => Promise<void> | void
+}) {
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [date, setDate] = useState('')
+  const [score, setScore] = useState('')
+  const [max, setMax] = useState('100')
+  const [source, setSource] = useState('Written')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    setAdding(false)
+  }, [report.email])
+
+  const pillCls = (n: number | null) => (n != null && n >= 80 ? 'bg-correct-bg text-correct-fg' : 'bg-sky-wash text-sky-text')
+  const empty = report.tests.length === 0 && report.manualTests.length === 0
+
+  return (
+    <div className="bg-white rounded-card border border-hairline p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">Tests</p>
+        {onAdd && !adding && (
+          <button onClick={() => setAdding(true)} className="text-[12px] text-sky-text border border-hairline rounded-tile px-2.5 py-1 hover:bg-surface">+ Add result</button>
+        )}
+      </div>
+
+      {empty && !adding ? (
+        <p className="text-[13px] text-ink-muted">No tests yet.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {report.tests.map((t) => (
+            <div key={`p-${t.title}`} className="flex items-center justify-between text-[13px]">
+              <span className="text-ink-body">{t.title}</span>
+              <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${t.score >= 80 ? 'bg-correct-bg text-correct-fg' : 'bg-sky-wash text-sky-text'}`}>{t.score}%</span>
+            </div>
+          ))}
+          {report.manualTests.map((t) => (
+            <div key={`m-${t.id}`} className="flex items-center justify-between text-[13px] gap-2">
+              <span className="text-ink-body flex items-center gap-1.5 min-w-0">
+                <span className="truncate">{t.name}</span>
+                <span className="text-[10px] font-bold text-ink-muted bg-surface rounded px-1.5 py-0.5 shrink-0">{t.source}</span>
+                {t.date && <span className="text-[11px] text-ink-muted shrink-0">{t.date}</span>}
+              </span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${pillCls(t.scorePct)}`}>{t.scorePct != null ? `${t.scorePct}%` : '—'}</span>
+                {onDelete && <button onClick={() => onDelete(t.id, report.email)} className="text-ink-muted hover:text-incorrect-fg text-[12px]" aria-label="Delete test result">✕</button>}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {adding && onAdd && (
+        <div className="mt-3 pt-3 border-t border-hairline flex flex-wrap items-center gap-2">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Test name" className="text-[12px] border border-hairline rounded-tile px-2 py-1 flex-1 min-w-[120px]" />
+          <input value={date} onChange={(e) => setDate(e.target.value)} type="date" className="text-[12px] border border-hairline rounded-tile px-2 py-1" aria-label="Test date" />
+          <input value={score} onChange={(e) => setScore(e.target.value)} type="number" placeholder="Score" className="text-[12px] border border-hairline rounded-tile px-2 py-1 w-20" aria-label="Score" />
+          <span className="text-[12px] text-ink-muted">/</span>
+          <input value={max} onChange={(e) => setMax(e.target.value)} type="number" className="text-[12px] border border-hairline rounded-tile px-2 py-1 w-16" aria-label="Max score" />
+          <select value={source} onChange={(e) => setSource(e.target.value)} className="text-[12px] border border-hairline rounded-tile px-2 py-1" aria-label="Source">
+            <option>Written</option>
+            <option>Oral</option>
+            <option>Platform</option>
+          </select>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={async () => {
+              const sc = parseFloat(score)
+              const mx = parseFloat(max) || 100
+              if (!name.trim() || isNaN(sc)) return
+              setSaving(true)
+              await onAdd(report.email, { name: name.trim(), date, score: sc, max: mx, source })
+              setSaving(false)
+              setAdding(false)
+              setName(''); setDate(''); setScore(''); setMax('100'); setSource('Written')
+            }}
+          >
+            {saving ? 'Saving…' : 'Add'}
+          </Button>
+          <button onClick={() => setAdding(false)} className="text-[12px] text-ink-muted">Cancel</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest }: {
   courseName: string
   students: StudentReport[]
   onRegenerate?: (email: string) => void
@@ -243,6 +336,8 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   courseGoalLevel?: string | null
   onSetProgress?: (email: string, pct: number) => Promise<void> | void
   onSetLevels?: (current: string, goal: string) => Promise<void> | void
+  onAddTest?: (email: string, t: { name: string; date: string; score: number; max: number; source: string }) => Promise<void> | void
+  onDeleteTest?: (id: string, email: string) => Promise<void> | void
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const s = students.find((x) => x.email === sel) || null
@@ -376,18 +471,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             </div>
           </Card>
 
-          <Card title="Tests">
-            {s.tests.length === 0 ? <p className="text-[13px] text-ink-muted">No tests yet.</p> : (
-              <div className="space-y-1.5">
-                {s.tests.map((t) => (
-                  <div key={t.title} className="flex items-center justify-between text-[13px]">
-                    <span className="text-ink-body">{t.title}</span>
-                    <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${t.score >= 80 ? 'bg-correct-bg text-correct-fg' : 'bg-sky-wash text-sky-text'}`}>{t.score}%</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          <TestsCard report={s} onAdd={onAddTest} onDelete={onDeleteTest} />
 
           <Card title="Attendance">
             {s.attendance.length === 0 ? (

@@ -118,6 +118,7 @@ export async function GET(req: NextRequest) {
       vocabSrs: [],
       notes: [],
       courseProgress: {},
+      assessments: [],
     })
   }
 
@@ -331,6 +332,27 @@ export async function GET(req: NextRequest) {
       notes = (noteRows || []) as typeof notes
     }
 
+    // 12. Manual assessments (offline / written / oral tests). Best-effort —
+    //     the table may not exist before the P5 migration; never 500 the report.
+    let assessments: {
+      id: string
+      student_email: string
+      name: string
+      test_date: string | null
+      score: number | null
+      max_score: number | null
+      source: string | null
+    }[] = []
+    if (studentEmails.length > 0) {
+      const { data: aRows, error: aErr } = await supabase
+        .from('assessments')
+        .select('id, student_email, name, test_date, score, max_score, source')
+        .eq('course_id', courseId)
+        .in('student_email', studentEmails)
+        .order('test_date', { ascending: false })
+      if (!aErr && aRows) assessments = aRows as typeof assessments
+    }
+
     return NextResponse.json({
       courses: (courses || []) as Course[],
       course: { ...(course as Course), current_level: currentLevel, goal_level: goalLevel },
@@ -346,6 +368,7 @@ export async function GET(req: NextRequest) {
       vocabSrs,
       notes,
       courseProgress,
+      assessments,
     })
   } catch (err) {
     console.error('Reports GET error:', err)

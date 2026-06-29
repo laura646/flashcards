@@ -105,6 +105,16 @@ export interface ReportsNoteRow {
   created_at: string
 }
 
+export interface ReportsAssessment {
+  id: string
+  student_email: string
+  name: string
+  test_date: string | null
+  score: number | null
+  max_score: number | null
+  source: string | null
+}
+
 export interface ReportsData {
   courses: ReportsCourse[]
   course: ReportsCourse | null
@@ -120,6 +130,7 @@ export interface ReportsData {
   vocabSrs: ReportsVocabSrsRow[]
   notes: ReportsNoteRow[]
   courseProgress: Record<string, { pct: number | null; updatedAt: string | null }>
+  assessments: ReportsAssessment[]
 }
 
 // ─────────── StudentReport (ReportsView contract) ───────────
@@ -150,6 +161,7 @@ export interface StudentReport {
   vocab: number[] // 5 counts: New, Learning, Familiar, Known, Mastered
   attendance: { lesson: string; status: AttendanceStatus }[]
   tests: { title: string; type: string; score: number }[]
+  manualTests: { id: string; name: string; date: string | null; scorePct: number | null; source: string }[]
   notes: { tag: string; author: string; text: string }[]
 }
 
@@ -625,6 +637,17 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
         tests: detail
           ? detail.tests.map((t) => ({ title: t.title, type: t.test_type, score: t.first ?? t.latest ?? 0 }))
           : [],
+        manualTests: (data.assessments || [])
+          .filter((a) => a.student_email === student.email)
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            date: a.test_date
+              ? new Date(a.test_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+              : null,
+            scorePct: a.score != null && a.max_score ? Math.round((a.score / a.max_score) * 100) : null,
+            source: a.source || 'Written',
+          })),
         notes: studentNotes,
         aiSummary: null,
         aiGeneratedAt: null,

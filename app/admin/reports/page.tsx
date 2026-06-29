@@ -218,6 +218,56 @@ export default function ReportsBetaPage() {
     [courseId]
   )
 
+  // Add / delete a manual test result (teacher/admin only).
+  const handleAddTest = useCallback(
+    async (email: string, t: { name: string; date: string; score: number; max: number; source: string }) => {
+      if (!courseId) return
+      try {
+        const res = await fetch('/api/assessments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courseId, studentEmail: email, ...t }),
+        })
+        const body = await res.json()
+        if (body.assessment) {
+          const a = body.assessment
+          const mt = {
+            id: a.id,
+            name: a.name,
+            date: a.test_date ? new Date(a.test_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null,
+            scorePct: a.score != null && a.max_score ? Math.round((a.score / a.max_score) * 100) : null,
+            source: a.source || 'Written',
+          }
+          setStudents((prev) => prev.map((s) => (s.email === email ? { ...s, manualTests: [mt, ...s.manualTests] } : s)))
+        }
+      } catch {
+        /* swallow — teacher can retry */
+      }
+    },
+    [courseId]
+  )
+
+  const handleDeleteTest = useCallback(
+    async (id: string, email: string) => {
+      if (!courseId) return
+      try {
+        const res = await fetch('/api/assessments', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, courseId }),
+        })
+        if (res.ok) {
+          setStudents((prev) =>
+            prev.map((s) => (s.email === email ? { ...s, manualTests: s.manualTests.filter((m) => m.id !== id) } : s))
+          )
+        }
+      } catch {
+        /* swallow — teacher can retry */
+      }
+    },
+    [courseId]
+  )
+
   if (status === 'authenticated' && !isAdmin) {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
@@ -270,6 +320,8 @@ export default function ReportsBetaPage() {
           courseGoalLevel={data?.course?.goal_level ?? null}
           onSetProgress={session?.user?.role === 'hr' ? undefined : handleSetProgress}
           onSetLevels={session?.user?.role === 'hr' ? undefined : handleSetLevels}
+          onAddTest={session?.user?.role === 'hr' ? undefined : handleAddTest}
+          onDeleteTest={session?.user?.role === 'hr' ? undefined : handleDeleteTest}
         />
       )}
     </div>
