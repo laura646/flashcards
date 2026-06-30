@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
 
       const [courseRes, studentsRes, lessonsRes] = await Promise.all([
         supabase.from('courses').select('*').eq('id', courseId).single(),
-        supabase.from('course_students').select('student_email').eq('course_id', courseId).is('removed_at', null),
+        supabase.from('course_students').select('student_email, archived_at').eq('course_id', courseId).is('removed_at', null),
         supabase.from('lessons').select('id, title, created_at, status, template_category, template_level, is_template, lesson_date').eq('course_id', courseId).order('lesson_date', { ascending: false }),
       ])
 
@@ -141,6 +141,10 @@ export async function GET(req: NextRequest) {
 
       // Get student user details + profile data
       const studentEmails = (studentsRes.data || []).map((s: { student_email: string }) => s.student_email)
+      const archivedByEmail = new Map<string, string | null>()
+      for (const s of (studentsRes.data || []) as { student_email: string; archived_at: string | null }[]) {
+        archivedByEmail.set(s.student_email, s.archived_at ?? null)
+      }
       let students: Record<string, unknown>[] = []
       if (studentEmails.length > 0) {
         const { data: userData } = await supabase
@@ -170,6 +174,7 @@ export async function GET(req: NextRequest) {
             ...user,
             last_activity: lastActivity,
             total_sessions: totalSessions,
+            archived_at: archivedByEmail.get(user.email as string) ?? null,
           }
         })
       }

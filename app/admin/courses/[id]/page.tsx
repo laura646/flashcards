@@ -335,6 +335,43 @@ export default function CourseDetailBetaPage() {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
 
+  const callStudentAction = useCallback(
+    async (action: string, email: string) => {
+      try {
+        const res = await fetch('/api/course-students', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, courseId: id, email }),
+        })
+        const b = await res.json().catch(() => ({}))
+        if (res.ok) {
+          setToast(
+            action === 'add' ? 'Student added — join link emailed.'
+            : action === 'remove' ? 'Student removed.'
+            : action === 'archive' ? 'Student archived.'
+            : 'Student unarchived.'
+          )
+          load()
+        } else {
+          setToast(b.error || 'Action failed.')
+        }
+      } catch {
+        setToast('Action failed.')
+      }
+    },
+    [id, load]
+  )
+  const onAddStudent = useCallback((email: string) => callStudentAction('add', email), [callStudentAction])
+  const onArchiveStudent = useCallback((email: string) => { callStudentAction('archive', email) }, [callStudentAction])
+  const onUnarchiveStudent = useCallback((email: string) => { callStudentAction('unarchive', email) }, [callStudentAction])
+  const onRemoveStudent = useCallback(
+    (email: string) => {
+      if (!window.confirm(`Remove ${email} from this course and delete their practice data for it? This can't be undone.`)) return
+      callStudentAction('remove', email)
+    },
+    [callStudentAction]
+  )
+
   return (
     <>
       <CourseDetailView
@@ -358,6 +395,10 @@ export default function CourseDetailBetaPage() {
         onSaveCourseInfo={onSaveCourseInfo}
         onSaveInviteCode={onSaveInviteCode}
         onSendTelegramTest={onSendTelegramTest}
+        onAddStudent={onAddStudent}
+        onRemoveStudent={onRemoveStudent}
+        onArchiveStudent={onArchiveStudent}
+        onUnarchiveStudent={onUnarchiveStudent}
         canEdit={session?.user?.role !== 'hr'}
         manageHr={isSuperadmin ? { all: allHr, assigned: assignedHr, onAdd: onAddHrCourse, onRemove: onRemoveHrCourse } : undefined}
       />

@@ -56,6 +56,7 @@ export interface CourseStudentRow {
   blocked: boolean
   total_sessions: number
   last_activity: string | null
+  archived_at: string | null
 }
 
 export interface CourseLessonRow {
@@ -168,6 +169,10 @@ interface CourseDetailViewProps {
   // Invite-code change is a separate concern (kept via update-course).
   onSaveInviteCode: (code: string) => Promise<{ ok: boolean; error?: string }>
   onSendTelegramTest: () => Promise<{ ok: boolean; error?: string }>
+  onAddStudent?: (email: string) => Promise<void> | void
+  onRemoveStudent?: (email: string) => void
+  onArchiveStudent?: (email: string) => void
+  onUnarchiveStudent?: (email: string) => void
   canEdit?: boolean
   manageHr?: {
     all: { email: string; name: string }[]
@@ -191,6 +196,34 @@ function InfoRow({ icon, label, children }: { icon: React.ReactNode; label: stri
   )
 }
 
+// Add a student to the course by email (pre-enrol + emails them the join link).
+function AddStudentRow({ onAdd }: { onAdd: (email: string) => Promise<void> | void }) {
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const submit = async () => {
+    const e = email.trim()
+    if (!e || busy) return
+    setBusy(true)
+    await onAdd(e)
+    setBusy(false)
+    setEmail('')
+  }
+  return (
+    <div className="bg-white rounded-card border border-hairline p-3 flex items-center gap-2">
+      <input
+        type="email"
+        value={email}
+        onChange={(ev) => setEmail(ev.target.value)}
+        onKeyDown={(ev) => { if (ev.key === 'Enter') submit() }}
+        placeholder="student@email.com"
+        className="flex-1 text-sm border border-hairline rounded-tile px-3 py-2 focus:outline-none focus:border-sky"
+        aria-label="Student email"
+      />
+      <Button variant="primary" size="sm" onClick={submit}>{busy ? 'Adding…' : '+ Add student'}</Button>
+    </div>
+  )
+}
+
 export function CourseDetailView({
   course,
   students,
@@ -210,6 +243,10 @@ export function CourseDetailView({
   onSaveCourseInfo,
   onSaveInviteCode,
   onSendTelegramTest,
+  onAddStudent,
+  onRemoveStudent,
+  onArchiveStudent,
+  onUnarchiveStudent,
   canEdit = true,
   manageHr,
 }: CourseDetailViewProps) {
@@ -481,41 +518,54 @@ export function CourseDetailView({
 
             {/* Students */}
             {tab === 'students' && (
-              <div className="bg-white rounded-card border border-hairline overflow-hidden">
-                {students.length === 0 ? (
-                  <EmptyState icon="🦗" title="No students enrolled" hint="When a student signs up with this course's invite code, they'll appear here." />
-                ) : (
-                  <div className="max-h-[60vh] overflow-y-auto divide-y divide-hairline">
-                    {students.map((student) => (
-                      <button
-                        key={student.email}
-                        onClick={() => onOpenStudent(student.email)}
-                        className="w-full text-left px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-bold text-ink-black truncate">{student.name || 'Unknown'}</p>
-                            {student.level && <Pill variant="level">{student.level}</Pill>}
-                            {student.blocked && (
-                              <span className="text-[10px] font-bold bg-incorrect-bg text-incorrect-fg px-2 py-0.5 rounded-full">BLOCKED</span>
+              <div className="space-y-3">
+                {canEdit && onAddStudent && <AddStudentRow onAdd={onAddStudent} />}
+                <div className="bg-white rounded-card border border-hairline overflow-hidden">
+                  {students.length === 0 ? (
+                    <EmptyState icon="🦗" title="No students yet" hint="Add a student by email above, or share the invite link." />
+                  ) : (
+                    <div className="max-h-[60vh] overflow-y-auto divide-y divide-hairline">
+                      {students.map((student) => (
+                        <div key={student.email} className={`px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors ${student.archived_at ? 'opacity-70' : ''}`}>
+                          <button
+                            onClick={() => onOpenStudent(student.email)}
+                            className="min-w-0 flex-1 text-left rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40"
+                          >
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-ink-black truncate">{student.name || 'Unknown'}</p>
+                              {student.level && <Pill variant="level">{student.level}</Pill>}
+                              {student.archived_at && (
+                                <span className="text-[10px] font-bold bg-streak-fill text-streak-ink px-2 py-0.5 rounded-full">ARCHIVED</span>
+                              )}
+                              {student.blocked && (
+                                <span className="text-[10px] font-bold bg-incorrect-bg text-incorrect-fg px-2 py-0.5 rounded-full">BLOCKED</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-ink-muted mt-0.5 truncate">{student.email}</p>
+                          </button>
+                          <div className="flex items-center gap-4 shrink-0 text-center">
+                            <div>
+                              <p className="text-sm font-bold text-sky-text">{student.total_sessions}</p>
+                              <p className="text-[10px] text-ink-muted">sessions</p>
+                            </div>
+                            <div className="hidden sm:block">
+                              <p className="text-xs text-ink-muted">{timeAgo(student.last_activity)}</p>
+                              <p className="text-[10px] text-ink-muted">last active</p>
+                            </div>
+                            {canEdit && (
+                              <div className="flex items-center gap-1.5">
+                                {student.archived_at
+                                  ? onUnarchiveStudent && <button onClick={() => onUnarchiveStudent(student.email)} className="text-[11px] font-bold text-sky-text border border-hairline rounded-tile px-2 py-1 hover:bg-surface">Unarchive</button>
+                                  : onArchiveStudent && <button onClick={() => onArchiveStudent(student.email)} className="text-[11px] font-bold text-ink-body border border-hairline rounded-tile px-2 py-1 hover:bg-surface">Archive</button>}
+                                {onRemoveStudent && <button onClick={() => onRemoveStudent(student.email)} className="text-[11px] font-bold text-incorrect-fg border border-hairline rounded-tile px-2 py-1 hover:bg-incorrect-bg">Remove</button>}
+                              </div>
                             )}
                           </div>
-                          <p className="text-xs text-ink-muted mt-0.5 truncate">{student.email}</p>
                         </div>
-                        <div className="flex items-center gap-4 shrink-0 text-center">
-                          <div>
-                            <p className="text-sm font-bold text-sky-text">{student.total_sessions}</p>
-                            <p className="text-[10px] text-ink-muted">sessions</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-ink-muted">{timeAgo(student.last_activity)}</p>
-                            <p className="text-[10px] text-ink-muted">last active</p>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
