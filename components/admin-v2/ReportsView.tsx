@@ -568,7 +568,6 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             <h1 className="text-xl font-bold text-ink-black leading-tight">{courseName}</h1>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <CourseLevels current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} onSet={onSetLevels} />
             {students.length > 0 && (
               <button onClick={() => setExporting(true)} className="text-[12px] font-bold text-white bg-sky rounded-tile px-3 py-1.5 hover:opacity-90">Export</button>
             )}
@@ -673,21 +672,50 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
           <Stat label="Group rank" value={s.groupRank != null ? `#${s.groupRank} of ${s.groupSize}` : '—'} />
         </div>
 
-        <CefrProgress
-          report={s}
-          current={courseCurrentLevel ?? null}
-          goal={courseGoalLevel || null}
-          onSet={onSetProgress}
-        />
+        {/* Personal CEFR progress — temporarily hidden via CSS (kept in code, not deleted) */}
+        <div className="hidden">
+          <CefrProgress report={s} current={courseCurrentLevel ?? null} goal={courseGoalLevel || null} onSet={onSetProgress} />
+        </div>
+
+        {/* Course goal (group level) — editable, applies to the whole group */}
+        <div className="bg-white rounded-card border border-hairline p-5 mb-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">Course goal</p>
+              <p className="text-[12px] text-ink-muted mt-0.5">Applies to the whole group</p>
+            </div>
+            <CourseLevels current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} onSet={onSetLevels} />
+          </div>
+        </div>
 
         <div className="grid md:grid-cols-2 gap-4">
           {/* Skill breakdown — hidden for now (s.skills still computed; revisit later) */}
 
           <Card title="Score trend">
-            <div className="flex items-end gap-2 h-28">
-              {s.trend.map((h, i) => <div key={i} className="flex-1 bg-sky rounded-t" style={{ height: `${h}%` }} />)}
-            </div>
-            <p className="text-[11px] text-ink-muted mt-2">Last {s.trend.length} exercises</p>
+            {s.trend.length === 0 ? (
+              <p className="text-[13px] text-ink-muted">No exercises yet.</p>
+            ) : (() => {
+              const vals = s.trend
+              const W = 320
+              const H = 96
+              const pad = 14
+              const lo = Math.min(...vals)
+              const hi = Math.max(...vals)
+              const flat = hi === lo
+              const xs = (i: number) => (vals.length === 1 ? W / 2 : pad + (i * (W - 2 * pad)) / (vals.length - 1))
+              const ys = (v: number) => (flat ? H / 2 : H - pad - ((v - lo) / (hi - lo)) * (H - 2 * pad))
+              const linePts = vals.map((v, i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(' ')
+              const areaPts = `${xs(0).toFixed(1)},${H - pad} ${linePts} ${xs(vals.length - 1).toFixed(1)},${H - pad}`
+              return (
+                <>
+                  <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-28" role="img" aria-label="Score per exercise">
+                    <polygon points={areaPts} fill="#E1F5FE" />
+                    <polyline points={linePts} fill="none" stroke="#0098D4" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+                  </svg>
+                  <p className="text-[11px] text-ink-muted mt-2">Score per exercise · last {vals.length}</p>
+                </>
+              )
+            })()}
           </Card>
 
           <Card title="Vocabulary mastery">
