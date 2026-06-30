@@ -13,11 +13,15 @@ import type { StudentReport } from '@/components/admin-v2/ReportsView'
 
 export type ExportSection = 'summary' | 'kpis' | 'cefr' | 'attendance' | 'tests' | 'notes'
 
+export type GroupSection = 'summary' | 'progress' | 'overview'
+
 export interface ExportOptions {
   courseName: string
   currentLevel: string | null
   goalLevel: string | null
   sections: Set<ExportSection>
+  groupSections?: Set<GroupSection>
+  overview?: { summary: string; needs: string; ready: string } | null
   groupProgressPct?: number | null
 }
 
@@ -102,19 +106,48 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
   const avgScore = mean(students.map((s) => s.avgLatestPct).filter((x): x is number => x != null))
   const avgAtt = mean(students.map((s) => s.attendancePct).filter((x): x is number => x != null))
   const streaks = students.filter((s) => s.streak > 0).length
-  const cover =
-    `<section class="page">` +
-    `<div class="hd"><div><div class="brand">English with Laura</div><div class="subh">Group report</div></div><div class="meta">${esc(generatedOn)}</div></div>` +
-    `<div class="who"><div class="nm">${esc(opts.courseName)}</div><div class="em">${n} learner${n === 1 ? '' : 's'} · Level ${esc(opts.currentLevel || '—')} → ${esc(opts.goalLevel || '—')}${opts.groupProgressPct != null ? ` · group ${opts.groupProgressPct}% of the way` : ''}</div></div>` +
-    `<div class="sec"><div class="h">Group summary</div><table class="kpi"><tr>` +
-    `<td><b>${n}</b><span>Learners</span></td>` +
-    `<td><b>${avgCompletion}%</b><span>Avg completion</span></td>` +
-    `<td><b>${avgScore != null ? avgScore + '%' : '—'}</b><span>Avg score</span></td>` +
-    `<td><b>${avgAtt != null ? avgAtt + '%' : '—'}</b><span>Attendance</span></td>` +
-    `<td><b>${streaks}/${n}</b><span>On a streak</span></td>` +
-    `</tr></table></div>` +
-    `<div class="ft">English with Laura · Confidential</div>` +
-    `</section>`
+  const gs = opts.groupSections ?? new Set<GroupSection>(['summary', 'progress', 'overview'])
+  const ov = opts.overview
+  const gp = opts.groupProgressPct
+  const cur = esc(opts.currentLevel || '—')
+  const gl = esc(opts.goalLevel || '—')
+  const coverParts: string[] = []
+  if (gs.has('progress')) {
+    coverParts.push(
+      `<div class="sec"><div class="h">Where the group is</div>` +
+        `<div style="font-size:11px;font-weight:700;display:flex;justify-content:space-between;margin-bottom:6px;"><span style="color:#0098D4">Current · ${cur}</span><span style="color:#1A7F46">Goal · ${gl}</span></div>` +
+        `<div style="height:10px;background:#E6ECF3;border-radius:20px;overflow:hidden;"><div style="height:100%;width:${gp ?? 0}%;background:#1A9E5C;border-radius:20px;"></div></div>` +
+        `<p style="font-size:11px;color:#6B7280;margin-top:6px;">${gp != null ? `The group is ${gp}% of the way from ${cur} to ${gl}.` : 'Not set.'}</p></div>`
+    )
+  }
+  if (gs.has('summary')) {
+    coverParts.push(
+      `<div class="sec"><div class="h">Group summary</div><table class="kpi"><tr>` +
+        `<td><b>${n}</b><span>Learners</span></td>` +
+        `<td><b>${avgCompletion}%</b><span>Avg completion</span></td>` +
+        `<td><b>${avgScore != null ? avgScore + '%' : '—'}</b><span>Avg score</span></td>` +
+        `<td><b>${avgAtt != null ? avgAtt + '%' : '—'}</b><span>Attendance</span></td>` +
+        `<td><b>${streaks}/${n}</b><span>On a streak</span></td>` +
+        `</tr></table></div>`
+    )
+  }
+  if (gs.has('overview') && ov && (ov.summary || ov.needs || ov.ready)) {
+    coverParts.push(
+      `<div class="sec"><div class="h">AI overview</div>` +
+        (ov.summary ? `<p><b>Summary.</b> ${esc(ov.summary)}</p>` : '') +
+        (ov.needs ? `<p style="margin-top:6px;"><b>Needs attention.</b> ${esc(ov.needs)}</p>` : '') +
+        (ov.ready ? `<p style="margin-top:6px;"><b>Ready to level up.</b> ${esc(ov.ready)}</p>` : '') +
+        `</div>`
+    )
+  }
+  const cover = coverParts.length
+    ? `<section class="page">` +
+      `<div class="hd"><div><div class="brand">English with Laura</div><div class="subh">Group report</div></div><div class="meta">${esc(generatedOn)}</div></div>` +
+      `<div class="who"><div class="nm">${esc(opts.courseName)}</div><div class="em">${n} learner${n === 1 ? '' : 's'} · Level ${cur} → ${gl}</div></div>` +
+      coverParts.join('') +
+      `<div class="ft">English with Laura · Confidential</div>` +
+      `</section>`
+    : ''
 
   const pages = students
     .map((r) => {

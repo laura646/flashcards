@@ -12,7 +12,7 @@
 
 import { useState, useEffect } from 'react'
 import { Pill, EmptyState, Button, Spinner } from '@/components/student-ui'
-import { buildReportCsv, downloadCsv, buildReportHtml, openPrintWindow, type ExportSection } from '@/lib/reports-export'
+import { buildReportCsv, downloadCsv, buildReportHtml, openPrintWindow, type ExportSection, type GroupSection } from '@/lib/reports-export'
 import type { CourseRollup } from '@/lib/reports-compute'
 
 export interface StudentReport {
@@ -341,16 +341,24 @@ const EXPORT_SECTIONS: { key: ExportSection; label: string }[] = [
   { key: 'notes', label: "Teacher's notes" },
 ]
 
-function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProgress, onClose }: {
+const GROUP_SECTIONS: { key: GroupSection; label: string }[] = [
+  { key: 'summary', label: 'Group summary (KPIs)' },
+  { key: 'progress', label: 'Where the group is' },
+  { key: 'overview', label: 'AI overview' },
+]
+
+function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProgress, overview, onClose }: {
   students: StudentReport[]
   courseName: string
   currentLevel: string | null
   goalLevel: string | null
   groupProgress: number | null
+  overview: CourseOverviewData | null
   onClose: () => void
 }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(students.map((s) => s.email)))
   const [sections, setSections] = useState<Set<ExportSection>>(() => new Set(EXPORT_SECTIONS.map((s) => s.key)))
+  const [groupSections, setGroupSections] = useState<Set<GroupSection>>(() => new Set(GROUP_SECTIONS.map((s) => s.key)))
   const [fmt, setFmt] = useState<'pdf' | 'excel'>('pdf')
   const allOn = picked.size === students.length
 
@@ -368,11 +376,18 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProg
       else n.add(k)
       return n
     })
+  const toggleGroupSection = (k: GroupSection) =>
+    setGroupSections((p) => {
+      const n = new Set(p)
+      if (n.has(k)) n.delete(k)
+      else n.add(k)
+      return n
+    })
 
   const run = () => {
     const chosen = students.filter((s) => picked.has(s.email))
     if (chosen.length === 0) return
-    const opts = { courseName, currentLevel, goalLevel, sections, groupProgressPct: groupProgress }
+    const opts = { courseName, currentLevel, goalLevel, sections, groupSections, overview, groupProgressPct: groupProgress }
     if (fmt === 'excel') {
       const safe = (courseName || 'report').replace(/[^a-z0-9.\-]+/gi, '_')
       downloadCsv(`${safe}.csv`, buildReportCsv(chosen, opts))
@@ -406,7 +421,16 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProg
             </div>
           </div>
           <div>
-            <span className="text-[12px] font-bold text-ink-black">Include</span>
+            <span className="text-[12px] font-bold text-ink-black">Group page</span>
+            <div className="mt-1.5 space-y-1">
+              {GROUP_SECTIONS.map((sec) => (
+                <label key={sec.key} className="flex items-center gap-2 text-[13px] cursor-pointer">
+                  <input type="checkbox" checked={groupSections.has(sec.key)} onChange={() => toggleGroupSection(sec.key)} />
+                  {sec.label}
+                </label>
+              ))}
+            </div>
+            <span className="text-[12px] font-bold text-ink-black mt-3 block">Per learner</span>
             <div className="mt-1.5 space-y-1">
               {EXPORT_SECTIONS.map((sec) => (
                 <label key={sec.key} className="flex items-center gap-2 text-[13px] cursor-pointer">
@@ -597,6 +621,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             currentLevel={courseCurrentLevel ?? null}
             goalLevel={courseGoalLevel ?? null}
             groupProgress={courseGroupProgress ?? null}
+            overview={courseOverview ?? null}
             onClose={() => setExporting(false)}
           />
         )}
