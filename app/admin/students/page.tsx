@@ -18,6 +18,20 @@ export default function StudentsBetaPage() {
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
   const isSuperadmin = session?.user?.role === 'superadmin'
 
+  useEffect(() => {
+    if (status === 'unauthenticated') router.replace('/')
+  }, [status, router])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin?action=my-students')
+      const data = await res.json()
+      setStudents(data.students || [])
+    } catch { /* swallow */ }
+    setLoading(false)
+  }, [])
+
   const handleDeleteStudent = useCallback(async (email: string) => {
     try {
       const res = await fetch('/api/students', {
@@ -35,20 +49,6 @@ export default function StudentsBetaPage() {
       alert('Failed to delete the account.')
     }
   }, [load])
-
-  useEffect(() => {
-    if (status === 'unauthenticated') router.replace('/')
-  }, [status, router])
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/admin?action=my-students')
-      const data = await res.json()
-      setStudents(data.students || [])
-    } catch { /* swallow */ }
-    setLoading(false)
-  }, [])
 
   useEffect(() => {
     if (status === 'authenticated' && isAdmin) load()
