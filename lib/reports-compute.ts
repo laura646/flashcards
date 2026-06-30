@@ -131,6 +131,9 @@ export interface ReportsData {
   vocabSrs: ReportsVocabSrsRow[]
   notes: ReportsNoteRow[]
   courseProgress: Record<string, { pct: number | null; updatedAt: string | null }>
+  // Manual attendance summary (bulk backfill) per student. When present (total>0)
+  // it overrides session-based attendance in buildStudentReports.
+  attendanceSummary?: Record<string, { present: number; late: number; absent: number; excused: number; total: number }>
   assessments: ReportsAssessment[]
 }
 
@@ -613,12 +616,40 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
         .filter((n) => n.student_email === student.email)
         .map((n) => ({ tag: n.tag, author: n.author_email, text: n.text }))
 
+      // Manual attendance summary (bulk backfill) overrides session-based
+      // attendance when present. It's a course-to-date total with no per-date
+      // detail, so it ignores the days window; synthesizing rows lets the export
+      // breakdown and on-screen viz reflect it with no downstream changes.
+      const attSum = data.attendanceSummary?.[student.email]
+      const hasAttSum = !!attSum && attSum.total > 0
+      // Clamp once, then derive BOTH the headline % and the synthesized rows from
+      // the same clamped values — so they can never diverge or exceed 100%, even
+      // if a stored row ever drifts (the API is the only writer, but this keeps
+      // the compute layer independently safe). absent is derived from total so
+      // present+late+absent+excused === total and rowCount === att_total.
+      let attSumPct: number | null = null
+      let attSumRows: { lesson: string; status: AttendanceStatus }[] = []
+      if (attSum && hasAttSum) {
+        const total = attSum.total
+        const p = Math.min(Math.max(0, attSum.present), total)
+        const l = Math.min(Math.max(0, attSum.late), total - p)
+        const e = Math.min(Math.max(0, attSum.excused), total - p - l)
+        const a = Math.max(0, total - p - l - e)
+        attSumPct = Math.round(((p + l) / total) * 100)
+        attSumRows = ([
+          ...Array(p).fill('present' as AttendanceStatus),
+          ...Array(l).fill('late' as AttendanceStatus),
+          ...Array(a).fill('absent' as AttendanceStatus),
+          ...Array(e).fill('excused' as AttendanceStatus),
+        ] as AttendanceStatus[]).map((status, i) => ({ lesson: `Class ${i + 1}`, status }))
+      }
+
       const report: StudentReport = {
         email: student.email,
         name: student.name || student.email, // never empty
         completionPct: overview.completionPct,
         avgLatestPct: overview.avgLatest,
-        attendancePct: overview.attendancePct,
+        attendancePct: hasAttSum ? attSumPct : overview.attendancePct,
         streak: computeStreak(
           data.progress.filter((p) => p.user_email === student.email).map((p) => p.completed_at)
         ),
@@ -632,9 +663,11 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
         // stageCounts is [0, New, Learning, Familiar, Known, Mastered];
         // slice(1, 6) yields the 5 real stage counts the View expects.
         vocab: detail ? detail.vocab.stageCounts.slice(1, 6) : [0, 0, 0, 0, 0],
-        attendance: detail
-          ? detail.attendanceRows.map((r) => ({ lesson: r.lesson_title, status: toAttendanceStatus(r.status) }))
-          : [],
+        attendance: hasAttSum
+          ? attSumRows
+          : detail
+            ? detail.attendanceRows.map((r) => ({ lesson: r.lesson_title, status: toAttendanceStatus(r.status) }))
+            : [],
         tests: detail
           ? detail.tests.map((t) => ({ title: t.title, type: t.test_type, score: t.first ?? t.latest ?? 0 }))
           : [],

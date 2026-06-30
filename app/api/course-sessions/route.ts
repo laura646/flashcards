@@ -307,6 +307,63 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ session_id: data.id })
     }
 
+    // ── bulk-summary (manual attendance backfill: per-student totals) ──
+    // Writes a course-to-date attendance summary onto course_students; reports
+    // prefer it over session marks. Setting total=0 for a student clears it.
+    if (action === 'bulk-summary') {
+      const courseId = body.course_id as string | undefined
+      const records = body.records as
+        | { student_email: string; present?: number; late?: number; absent?: number; excused?: number; total?: number }[]
+        | undefined
+      if (!courseId || !Array.isArray(records)) {
+        return NextResponse.json({ error: 'course_id and records[] required' }, { status: 400 })
+      }
+      if (!(await canAccessCourse(auth.email, auth.role, courseId))) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      const int = (v: unknown) => {
+        const n = Math.round(Number(v))
+        return Number.isFinite(n) && n >= 0 ? Math.min(n, 100000) : 0
+      }
+      // Normalize + validate ALL rows before writing any (no partial writes).
+      // present is derived server-side so stored counts always sum to total —
+      // keeps the headline % and the per-row breakdown in lockstep.
+      const clean = records
+        .filter((r) => r.student_email)
+        .map((r) => {
+          const total = int(r.total)
+          const late = int(r.late)
+          const absent = int(r.absent)
+          const excused = int(r.excused)
+          return { email: r.student_email, total, late, absent, excused, present: Math.max(0, total - late - absent - excused) }
+        })
+      const over = clean.find((r) => r.late + r.absent + r.excused > r.total)
+      if (over) {
+        return NextResponse.json({ error: `Late + absent + excused exceed the total for ${over.email}.` }, { status: 400 })
+      }
+      const nowIso = new Date().toISOString()
+      let updated = 0
+      for (const r of clean) {
+        const { error } = await supabase
+          .from('course_students')
+          .update({
+            att_present: r.present,
+            att_late: r.late,
+            att_absent: r.absent,
+            att_excused: r.excused,
+            att_total: r.total,
+            att_updated_at: nowIso,
+            att_updated_by: auth.email,
+          })
+          .eq('course_id', courseId)
+          .eq('student_email', r.email)
+          .is('removed_at', null)
+        if (error) throw error
+        updated++
+      }
+      return NextResponse.json({ ok: true, updated })
+    }
+
     // ── save-attendance (replace-all for the session) ──
     if (action === 'save-attendance') {
       const sessionId = body.session_id as string | undefined

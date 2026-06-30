@@ -119,6 +119,7 @@ export async function GET(req: NextRequest) {
       vocabSrs: [],
       notes: [],
       courseProgress: {},
+      attendanceSummary: {},
       assessments: [],
     })
   }
@@ -192,6 +193,37 @@ export async function GET(req: NextRequest) {
           courseProgress[r.student_email] = {
             pct: r.course_progress_pct ?? null,
             updatedAt: r.course_progress_updated_at ?? null,
+          }
+        }
+      }
+    }
+
+    // Manual attendance summary (bulk backfill). Separate best-effort query so a
+    // missing column (pre-migration) can't break course progress or the page.
+    const attendanceSummary: Record<string, { present: number; late: number; absent: number; excused: number; total: number }> = {}
+    {
+      const { data: attRows, error: attErr } = await supabase
+        .from('course_students')
+        .select('student_email, att_present, att_late, att_absent, att_excused, att_total')
+        .eq('course_id', courseId)
+        .is('removed_at', null)
+      if (!attErr && attRows) {
+        for (const r of attRows as {
+          student_email: string
+          att_present: number | null
+          att_late: number | null
+          att_absent: number | null
+          att_excused: number | null
+          att_total: number | null
+        }[]) {
+          if (r.att_total != null && r.att_total > 0) {
+            attendanceSummary[r.student_email] = {
+              present: r.att_present ?? 0,
+              late: r.att_late ?? 0,
+              absent: r.att_absent ?? 0,
+              excused: r.att_excused ?? 0,
+              total: r.att_total,
+            }
           }
         }
       }
@@ -381,6 +413,7 @@ export async function GET(req: NextRequest) {
       vocabSrs,
       notes,
       courseProgress,
+      attendanceSummary,
       assessments,
     })
   } catch (err) {

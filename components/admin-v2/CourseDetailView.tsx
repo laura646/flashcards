@@ -22,6 +22,7 @@ import { Pill, EmptyState, Skeleton, Button, InlineError, TextField, SegmentedCo
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import { COMMON_ISSUES_BY_LEVEL } from '@/lib/common-issues'
 import AttendanceRail, { AttendanceOverview } from '@/components/admin-v2/AttendanceRail'
+import BulkAttendanceModal from '@/components/admin-v2/BulkAttendanceModal'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
 
@@ -262,6 +263,7 @@ export function CourseDetailView({
   const [tgState, setTgState] = useState<{ kind: 'ok' | 'error'; message: string } | null>(null)
   const [tgSending, setTgSending] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [bulkAttOpen, setBulkAttOpen] = useState(false)
 
   // Invite-code change (inside the edit form).
   const [inviteCode, setInviteCode] = useState('')
@@ -803,15 +805,32 @@ export function CourseDetailView({
 
             {/* Attendance card — only for non-self-study courses */}
             {!course.self_study && (
-              <AttendanceRail
-                overview={overview}
-                loading={overviewLoading}
-                onMarkToday={onMarkToday}
-                onNewClass={onNewClass}
-                onOpenSession={onOpenSession}
-                onViewAll={onViewAllSessions}
-                canEdit={canEdit}
-              />
+              <>
+                <AttendanceRail
+                  overview={overview}
+                  loading={overviewLoading}
+                  onMarkToday={onMarkToday}
+                  onNewClass={onNewClass}
+                  onOpenSession={onOpenSession}
+                  onViewAll={onViewAllSessions}
+                  canEdit={canEdit}
+                />
+                {canEdit && (
+                  <button
+                    onClick={() => setBulkAttOpen(true)}
+                    className="mt-2 w-full text-[12px] font-bold text-sky-text border border-hairline rounded-tile py-2 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40"
+                  >
+                    Bulk attendance backfill
+                  </button>
+                )}
+                {bulkAttOpen && (
+                  <BulkAttendanceModal
+                    courseId={course.id}
+                    students={students.map((s) => ({ email: s.email, name: s.name, archived_at: s.archived_at }))}
+                    onClose={() => setBulkAttOpen(false)}
+                  />
+                )}
+              </>
             )}
           </div>
         </div>
