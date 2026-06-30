@@ -234,9 +234,13 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
     .join('')
 
   return (
-    `<!doctype html><html><head><meta charset="utf-8"><title>Report — ${esc(opts.courseName)}</title><style>` +
-    `*{box-sizing:border-box;margin:0;padding:0}` +
-    `body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#333}` +
+    `<!doctype html><html><head><meta charset="utf-8"><title>Report — ${esc(opts.courseName)}</title>` +
+    `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` +
+    `<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">` +
+    `<style>` +
+    `*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}` +
+    `html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}` +
+    `body{font-family:'Lato',Arial,Helvetica,sans-serif;color:#333}` +
     `.page{padding:32px;max-width:760px;margin:0 auto}` +
     `.page+.page{page-break-before:always}` +
     `.hd{display:flex;justify-content:space-between;align-items:center;background:#00AFF0;color:#fff;padding:16px 22px;border-radius:10px}` +
@@ -250,7 +254,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
     `.hl{display:flex;flex-direction:column;gap:3px;align-items:flex-start}` +
     `.logo{height:30px;width:auto}` +
     `.ft{margin-top:24px;border-top:1px solid #E4EBF3;padding-top:8px;font-size:10px;color:#9AA3AF;display:flex;justify-content:space-between}` +
-    `@media print{.page{padding:0}}` +
+    `@media print{html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{padding:0}}` +
     `</style></head><body>${cover}${pages}</body></html>`
   )
 }
@@ -261,16 +265,25 @@ export function openPrintWindow(html: string): void {
   w.document.open()
   w.document.write(html)
   w.document.close()
-  w.onload = () => {
-    w.focus()
-    w.print()
-  }
-  setTimeout(() => {
+  // Print exactly once, and only after the Lato webfont (and logo) have loaded —
+  // otherwise the dialog can fire before Lato arrives and the PDF renders in a
+  // fallback font. fonts.ready resolves when all used fonts settle; a timer is
+  // the safety net if the font API is unavailable or hangs.
+  let printed = false
+  const go = () => {
+    if (printed) return
+    printed = true
     try {
       w.focus()
       w.print()
     } catch {
       /* user can print manually */
     }
-  }, 500)
+  }
+  w.onload = () => {
+    const fonts = (w.document as Document & { fonts?: FontFaceSet }).fonts
+    if (fonts && typeof fonts.ready?.then === 'function') fonts.ready.then(go).catch(go)
+    else go()
+  }
+  setTimeout(go, 2500)
 }
