@@ -16,6 +16,25 @@ export default function StudentsBetaPage() {
   const [loading, setLoading] = useState(true)
 
   const isAdmin = session?.user?.role === 'superadmin' || session?.user?.role === 'teacher' || session?.user?.role === 'hr'
+  const isSuperadmin = session?.user?.role === 'superadmin'
+
+  const handleDeleteStudent = useCallback(async (email: string) => {
+    try {
+      const res = await fetch('/api/students', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (res.ok) {
+        load()
+      } else {
+        const b = await res.json().catch(() => ({}))
+        alert(b.error || 'Failed to delete the account.')
+      }
+    } catch {
+      alert('Failed to delete the account.')
+    }
+  }, [load])
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/')
@@ -44,6 +63,7 @@ export default function StudentsBetaPage() {
       students={students}
       loading={status === 'loading' || loading}
       onOpenStudent={(email) => router.push(`/admin/students/${encodeURIComponent(email)}`)}
+      onDeleteStudent={isSuperadmin ? handleDeleteStudent : undefined}
     />
   )
 }

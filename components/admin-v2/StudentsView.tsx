@@ -28,12 +28,16 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   )
 }
 
-export function StudentsView({ students, loading, onOpenStudent }: {
+export function StudentsView({ students, loading, onOpenStudent, onDeleteStudent }: {
   students: StudentSummary[]
   loading: boolean
   onOpenStudent: (email: string) => void
+  onDeleteStudent?: (email: string) => Promise<void> | void
 }) {
   const [search, setSearch] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<StudentSummary | null>(null)
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
   const [accountFilter, setAccountFilter] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
   const q = search.trim().toLowerCase()
@@ -120,10 +124,10 @@ export function StudentsView({ students, loading, onOpenStudent }: {
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
             {filtered.map((s) => (
+              <div key={s.email} className="relative">
               <button
-                key={s.email}
                 onClick={() => onOpenStudent(s.email)}
-                className="text-left bg-white rounded-card border border-hairline p-4 hover:border-sky transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40 flex flex-col min-h-[118px]"
+                className="w-full text-left bg-white rounded-card border border-hairline p-4 hover:border-sky transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky/40 flex flex-col min-h-[118px]"
               >
                 <div className="flex gap-3">
                   <div className="w-10 h-10 rounded-full bg-sky-wash text-sky-text flex items-center justify-center text-sm font-bold shrink-0" aria-hidden="true">
@@ -150,7 +154,52 @@ export function StudentsView({ students, loading, onOpenStudent }: {
                   {s.courses.length === 0 && !s.company && <span className="text-[10px] text-ink-muted">Not enrolled yet</span>}
                 </div>
               </button>
+              {onDeleteStudent && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmText(''); setDeleteTarget(s) }}
+                  className="absolute top-2 right-2 text-[10px] font-bold text-incorrect-fg bg-white border border-hairline rounded-tile px-2 py-1 hover:bg-incorrect-bg"
+                  aria-label={`Delete ${s.name || s.email}`}
+                >
+                  Delete
+                </button>
+              )}
+              </div>
             ))}
+          </div>
+        )}
+
+        {deleteTarget && onDeleteStudent && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => { if (!deleting) setDeleteTarget(null) }}>
+            <div className="bg-white rounded-card border border-hairline p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-bold text-ink-black mb-1">Delete student</h2>
+              <p className="text-[13px] text-ink-body mb-3">
+                This permanently deletes <strong>{deleteTarget.name || deleteTarget.email}</strong> and <strong>all their data</strong> — progress, vocabulary, enrolments, attendance, notes, and tests. This can&rsquo;t be undone.
+              </p>
+              <p className="text-[12px] text-ink-muted mb-1.5">Type the email to confirm: <span className="font-mono font-bold text-ink-black">{deleteTarget.email}</span></p>
+              <input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={deleteTarget.email}
+                className="w-full text-sm border border-hairline rounded-tile px-3 py-2 mb-4 focus:outline-none focus:border-incorrect-fg"
+                aria-label="Type email to confirm deletion"
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setDeleteTarget(null)} className="text-[13px] font-bold text-ink-muted px-3 py-2">Cancel</button>
+                <button
+                  disabled={confirmText.trim().toLowerCase() !== deleteTarget.email.toLowerCase() || deleting}
+                  onClick={async () => {
+                    setDeleting(true)
+                    await onDeleteStudent(deleteTarget.email)
+                    setDeleting(false)
+                    setDeleteTarget(null)
+                    setConfirmText('')
+                  }}
+                  className="text-[13px] font-bold text-white bg-incorrect-fg rounded-tile px-4 py-2 disabled:opacity-40"
+                >
+                  {deleting ? 'Deleting…' : 'Delete permanently'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
