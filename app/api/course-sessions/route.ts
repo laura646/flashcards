@@ -479,6 +479,11 @@ export async function POST(req: NextRequest) {
       if (body.description !== undefined)
         updateData.description = (body.description as string)?.trim() || null
       if (body.level !== undefined) updateData.level = (body.level as string) || null
+      if (body.current_level !== undefined) updateData.current_level = (body.current_level as string) || null
+      if (body.goal_level !== undefined) updateData.goal_level = (body.goal_level as string) || null
+      if (body.group_progress_pct !== undefined)
+        updateData.group_progress_pct =
+          typeof body.group_progress_pct === 'number' ? Math.max(0, Math.min(100, Math.round(body.group_progress_pct))) : null
       if (body.telegram_link !== undefined)
         updateData.telegram_link = (body.telegram_link as string)?.trim() || null
       if (body.lesson_link !== undefined)

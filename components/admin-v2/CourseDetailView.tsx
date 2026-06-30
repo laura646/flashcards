@@ -25,6 +25,8 @@ import AttendanceRail, { AttendanceOverview } from '@/components/admin-v2/Attend
 import BulkAttendanceModal from '@/components/admin-v2/BulkAttendanceModal'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
+// CEFR half-steps for the group level (starting → goal); mirrors the Reports view.
+const CEFR_LEVELS = ['A1.1', 'A1.2', 'A2.1', 'A2.2', 'B1.1', 'B1.2', 'B2.1', 'B2.2', 'C1.1', 'C1.2', 'C2.1', 'C2.2']
 
 const WEEKDAY_TOKENS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -37,6 +39,9 @@ export interface CourseDetailData {
   course_type: string | null
   course_category: string | null
   level: string | null
+  current_level?: string | null
+  goal_level?: string | null
+  group_progress_pct?: number | null
   telegram_chat_id: string | null
   archived_at: string | null
   // ── Course-native schedule fields ──
@@ -74,6 +79,9 @@ export interface CourseLessonRow {
 export interface CourseInfoForm {
   description: string
   level: string
+  current_level: string
+  goal_level: string
+  group_progress_pct: number | null
   schedule_days: string // "Mon,Wed"
   schedule_time: string
   schedule_duration_min: number
@@ -254,7 +262,8 @@ export function CourseDetailView({
   const [tab, setTab] = useState<Tab>('lessons')
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<CourseInfoForm>({
-    description: '', level: '', schedule_days: '', schedule_time: '',
+    description: '', level: '', current_level: '', goal_level: '', group_progress_pct: null,
+    schedule_days: '', schedule_time: '',
     schedule_duration_min: 60, start_date: '', self_study: false,
     telegram_link: '', lesson_link: '',
   })
@@ -292,6 +301,9 @@ export function CourseDetailView({
     setForm({
       description: course.description || '',
       level: course.level || '',
+      current_level: course.current_level || '',
+      goal_level: course.goal_level || '',
+      group_progress_pct: course.group_progress_pct ?? null,
       schedule_days: course.schedule_days || '',
       schedule_time: course.schedule_time || '',
       schedule_duration_min: course.schedule_duration_min || 60,
@@ -657,6 +669,47 @@ export function CourseDetailView({
                         <option value="">Not set</option>
                         {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
                       </select>
+                    </div>
+                  </div>
+                  {/* Group level (CEFR) — starting → goal + % achieved (shown in the report) */}
+                  <div className="rounded-tile border border-hairline px-3 py-2.5">
+                    <span className="text-[10px] font-extrabold text-ink-muted uppercase tracking-eyebrow mb-2 block">Group level (CEFR)</span>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-ink-muted uppercase tracking-eyebrow mb-1 block">Starting level</label>
+                        <select
+                          value={form.current_level}
+                          onChange={(e) => setForm({ ...form, current_level: e.target.value })}
+                          className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                        >
+                          <option value="">Not set</option>
+                          {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-ink-muted uppercase tracking-eyebrow mb-1 block">Goal level</label>
+                        <select
+                          value={form.goal_level}
+                          onChange={(e) => setForm({ ...form, goal_level: e.target.value })}
+                          className="w-full text-sm text-ink-body border border-hairline rounded-tile px-3 py-2 bg-white focus:outline-none focus:border-sky"
+                        >
+                          <option value="">Not set</option>
+                          {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <label className="text-[10px] font-bold text-ink-muted uppercase tracking-eyebrow mb-1 block">% achieved</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={form.group_progress_pct ?? 0}
+                        onChange={(e) => setForm({ ...form, group_progress_pct: parseInt(e.target.value, 10) })}
+                        className="flex-1"
+                        aria-label="Percent achieved"
+                      />
+                      <span className="text-sm font-bold text-ink-black w-10 text-right">{form.group_progress_pct ?? 0}%</span>
                     </div>
                   </div>
                   {/* Self-study toggle */}
