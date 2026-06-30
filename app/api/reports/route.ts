@@ -120,6 +120,7 @@ export async function GET(req: NextRequest) {
       notes: [],
       courseProgress: {},
       attendanceSummary: {},
+      archivedEmails: [],
       assessments: [],
     })
   }
@@ -170,10 +171,12 @@ export async function GET(req: NextRequest) {
     // 2. Students enrolled in this course (active only)
     const { data: enrollments } = await supabase
       .from('course_students')
-      .select('student_email')
+      .select('student_email, archived_at')
       .eq('course_id', courseId)
       .is('removed_at', null)
-    const studentEmails = (enrollments || []).map((e: { student_email: string }) => e.student_email)
+    const enrollRows = (enrollments || []) as { student_email: string; archived_at: string | null }[]
+    const studentEmails = enrollRows.map((e) => e.student_email)
+    const archivedEmails = enrollRows.filter((e) => !!e.archived_at).map((e) => e.student_email)
 
     // 2b. Manual course-progress % per student (best-effort — columns may not
     //     exist before the P4 migration). HR sees the value; only teachers edit.
@@ -414,6 +417,7 @@ export async function GET(req: NextRequest) {
       notes,
       courseProgress,
       attendanceSummary,
+      archivedEmails,
       assessments,
     })
   } catch (err) {

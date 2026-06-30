@@ -134,6 +134,7 @@ export interface ReportsData {
   // Manual attendance summary (bulk backfill) per student. When present (total>0)
   // it overrides session-based attendance in buildStudentReports.
   attendanceSummary?: Record<string, { present: number; late: number; absent: number; excused: number; total: number }>
+  archivedEmails?: string[]
   assessments: ReportsAssessment[]
 }
 
@@ -167,6 +168,7 @@ export interface StudentReport {
   tests: { title: string; type: string; score: number }[]
   manualTests: { id: string; name: string; date: string | null; scorePct: number | null; source: string }[]
   notes: { tag: string; author: string; text: string }[]
+  archived?: boolean
 }
 
 // ─────────── DigestPayload (/api/student-summary contract) ───────────
@@ -581,6 +583,7 @@ function toAttendanceStatus(status: string): AttendanceStatus {
 export function buildStudentReports(data: ReportsData, days: ReportsDays): StudentReport[] {
   const courseExerciseIds = new Set(data.exercises.map((e) => e.id))
   const sessionsInRangeIds = sessionsInRangeIdSet(data, days)
+  const archivedSet = new Set(data.archivedEmails || [])
 
   // Words learned (vocab_srs rows per student) + group rank (by points earned
   // in the period, across the cohort). Rank 1 = most points.
@@ -685,6 +688,7 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
         notes: studentNotes,
         aiSummary: null,
         aiGeneratedAt: null,
+        archived: archivedSet.has(student.email),
       }
       if (cefr !== undefined) report.cefr = cefr
 

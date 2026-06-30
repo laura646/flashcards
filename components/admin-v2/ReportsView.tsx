@@ -37,6 +37,7 @@ export interface StudentReport {
   tests: { title: string; type: string; score: number }[]
   manualTests: { id: string; name: string; date: string | null; scorePct: number | null; source: string }[]
   notes: { tag: string; author: string; text: string }[]
+  archived?: boolean
 }
 
 const VOCAB_LABELS = ['New', 'Learning', 'Familiar', 'Known', 'Mastered']
@@ -739,7 +740,10 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
                     >
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${on ? 'bg-sky text-white' : 'bg-sky-wash text-sky-text'}`} aria-hidden="true">{st.name[0]}</div>
                       <span className="flex-1 min-w-0">
-                        <span className="block text-[13px] font-bold text-ink-black truncate">{st.name}</span>
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[13px] font-bold text-ink-black truncate">{st.name}</span>
+                          {st.archived && <span className="text-[9px] font-bold bg-surface text-ink-muted px-1.5 py-0.5 rounded-full shrink-0">Archived</span>}
+                        </span>
                         <span className="block text-[11px] text-ink-muted">{st.completionPct}% done · {st.avgLatestPct != null ? `${st.avgLatestPct}%` : '—'}</span>
                       </span>
                     </button>
@@ -752,7 +756,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             <div className="min-w-0">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-11 h-11 rounded-full bg-sky-wash text-sky-text flex items-center justify-center font-bold" aria-hidden="true">{s.name[0]}</div>
-                <div><h2 className="text-lg font-bold text-ink-black leading-tight">{s.name}</h2>{courseCurrentLevel && <p className="text-[12px] text-ink-muted">Working at {courseCurrentLevel} (group level)</p>}</div>
+                <div><h2 className="text-lg font-bold text-ink-black leading-tight flex items-center gap-2">{s.name}{s.archived && <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Archived</span>}</h2>{courseCurrentLevel && <p className="text-[12px] text-ink-muted">Working at {courseCurrentLevel} (group level)</p>}</div>
               </div>
 
         {/* AI summary — on demand: generate / loading / cached */}

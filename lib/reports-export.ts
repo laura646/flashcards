@@ -191,7 +191,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
       const att = attendanceCounts(r)
       const parts: string[] = []
       parts.push(hdr('Learner progress report', `${esc(opts.courseName)}<br>${period}${esc(generatedOn)}`))
-      parts.push(`<div class="who"><div class="nm">${esc(r.name)}</div><div class="em">${esc(r.email)}</div></div>`)
+      parts.push(`<div class="who"><div class="nm">${esc(r.name)}${r.archived ? ' <span style="font-size:11px;font-weight:700;color:#6B7280;background:#EEF2F7;padding:2px 8px;border-radius:10px;vertical-align:middle">Archived</span>' : ''}</div><div class="em">${esc(r.email)}</div></div>`)
       if (has(opts.sections, 'summary') && r.aiSummary) {
         parts.push(`<div class="sec"><div class="h">Summary</div><p>${esc(r.aiSummary)}</p></div>`)
       }
