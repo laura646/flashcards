@@ -42,6 +42,7 @@ export default function ReportsCoursePicker({
   const [courseType, setCourseType] = useState<string | null>(null)
   const [category, setCategory] = useState<string | null>(null)
   const [sort, setSort] = useState<SortKey>('newest')
+  const [collapsed, setCollapsed] = useState(false)
 
   const levelOptions = useMemo(
     () => Array.from(new Set(courses.map((c) => c.level).filter((l): l is string => !!l))).sort(),
@@ -93,8 +94,29 @@ export default function ReportsCoursePicker({
     return ts.length === 1 ? first : `${first} +${ts.length - 1}`
   }
 
+  const selected = courses.find((c) => c.id === selectedId)
+
   return (
     <div className="bg-sky-wash rounded-card border border-sky-border p-3 flex flex-col gap-3">
+      {/* Collapsible header — shows the selected course; click to hide/show the filters + list */}
+      <button
+        onClick={() => setCollapsed((v) => !v)}
+        className="flex items-center justify-between gap-2 w-full text-left focus:outline-none"
+        aria-expanded={!collapsed}
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-xs font-extrabold uppercase tracking-eyebrow text-ink-muted">Course</span>
+          <span className="text-[14px] font-bold text-ink-black truncate">{selected ? selected.name : 'Select a course'}</span>
+          {selected?.level && <span className="text-[10px] font-bold bg-white text-ink-body px-2 py-0.5 rounded-full">{selected.level}</span>}
+        </span>
+        <span className="flex items-center gap-1 text-[12px] font-bold text-sky-text shrink-0">
+          {collapsed ? 'Change' : 'Hide'}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${collapsed ? '' : 'rotate-180'}`}><path d="m6 9 6 6 6-6" /></svg>
+        </span>
+      </button>
+
+      {!collapsed && (
+        <>
       {/* Row 1: search + status + sort — identical to the Courses header */}
       <div className="flex flex-wrap items-end gap-3">
         <TextField
@@ -188,6 +210,8 @@ export default function ReportsCoursePicker({
           })
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }
