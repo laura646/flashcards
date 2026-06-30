@@ -14,6 +14,8 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import ReportsView, { StudentReport } from '@/components/admin-v2/ReportsView'
 import { buildStudentReports, buildDigestPayload, buildCourseDigest, buildCourseRollup, ReportsData, ReportsDays, CourseRollup } from '@/lib/reports-compute'
+import ReportsCoursePicker from '@/components/admin-v2/ReportsCoursePicker'
+import type { CourseSummary } from '@/components/admin-v2/CoursesView'
 import { Skeleton } from '@/components/student-ui'
 
 const DAY_OPTIONS: { value: ReportsDays; label: string }[] = [
@@ -31,6 +33,7 @@ export default function ReportsBetaPage() {
   const router = useRouter()
 
   const [courses, setCourses] = useState<{ id: string; name: string }[]>([])
+  const [richCourses, setRichCourses] = useState<CourseSummary[]>([])
   const [courseId, setCourseId] = useState('')
   const [days, setDays] = useState<ReportsDays>('30')
   const [data, setData] = useState<ReportsData | null>(null)
@@ -54,6 +57,15 @@ export default function ReportsBetaPage() {
       const d = await res.json()
       const list: { id: string; name: string }[] = d.courses || []
       setCourses(list)
+      // Rich course list (same source as the Courses area) for the search/filter
+      // picker. Best-effort: if it fails, the picker falls back to a dropdown.
+      try {
+        const rc = await fetch('/api/admin?action=my-courses&include_archived=true')
+        const rj = await rc.json()
+        setRichCourses(rj.courses || [])
+      } catch {
+        /* fall back to the simple course dropdown */
+      }
       const urlCourseId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('courseId') : null
       const preferred = urlCourseId && list.some((c) => c.id === urlCourseId) ? urlCourseId : (list[0]?.id ?? '')
       setCourseId((prev) => prev || preferred)
@@ -296,30 +308,36 @@ export default function ReportsBetaPage() {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
 
-  const courseName = courses.find((c) => c.id === courseId)?.name || ''
+  const courseName = courses.find((c) => c.id === courseId)?.name || richCourses.find((c) => c.id === courseId)?.name || ''
   const periodLabel = DAY_OPTIONS.find((o) => o.value === days)?.label || ''
 
   return (
     <div className="font-rubik min-h-screen bg-surface">
       {/* Course + time-range pickers (ReportsView has no picker of its own) */}
-      <div className="max-w-5xl mx-auto px-4 pt-6 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2">
-          <span className="text-xs font-extrabold uppercase tracking-eyebrow text-ink-muted">Course</span>
-          <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={selectCls} aria-label="Course">
-            {courses.length === 0 && <option value="">No courses</option>}
-            {courses.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2">
+      <div className="max-w-5xl mx-auto px-4 pt-6 space-y-3">
+        {/* Period (report time-range) on its own row */}
+        <div className="flex items-center justify-end gap-2">
           <span className="text-xs font-extrabold uppercase tracking-eyebrow text-ink-muted">Period</span>
           <select value={days} onChange={(e) => setDays(e.target.value as ReportsDays)} className={selectCls} aria-label="Time range">
             {DAY_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-        </label>
+        </div>
+        {/* Course picker — same search + filters as the Courses area */}
+        {richCourses.length > 0 ? (
+          <ReportsCoursePicker courses={richCourses} selectedId={courseId} onSelect={setCourseId} />
+        ) : (
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-extrabold uppercase tracking-eyebrow text-ink-muted">Course</span>
+            <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={selectCls} aria-label="Course">
+              {courses.length === 0 && <option value="">No courses</option>}
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       {status === 'loading' || loading ? (
