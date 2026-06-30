@@ -22,6 +22,29 @@ export async function GET(req: NextRequest) {
     // Get courses this user can access
     const accessibleCourseIds = await getAccessibleCourseIds(email, role)
 
+    // Archive map (students only): course_id → archived_at. An archived learner
+    // keeps everything up to the archive date but doesn't see lessons dated
+    // after it. Fail-safe: if the column/query errors, nobody is hidden.
+    const archivedAtByCourse: Record<string, string> = {}
+    if (role === 'student') {
+      const { data: enr, error: enrErr } = await supabase
+        .from('course_students')
+        .select('course_id, archived_at')
+        .eq('student_email', email)
+        .not('archived_at', 'is', null)
+      if (!enrErr && enr) {
+        for (const e of enr as { course_id: string; archived_at: string | null }[]) {
+          if (e.archived_at) archivedAtByCourse[e.course_id] = e.archived_at
+        }
+      }
+    }
+    const isHiddenByArchive = (cId: string | null | undefined, lessonDate: string | null | undefined): boolean => {
+      if (!cId) return false
+      const arch = archivedAtByCourse[cId]
+      if (!arch || !lessonDate) return false
+      return new Date(lessonDate).getTime() > new Date(arch).getTime()
+    }
+
     // Get all vocabulary across all published lessons the user has access to
     if (allVocabulary === 'true') {
       let query = supabase
@@ -68,6 +91,11 @@ export async function GET(req: NextRequest) {
 
       // Non-staff users can only view published lessons
       if (!isStaff && lessonRes.data?.status !== 'published') {
+        return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+      }
+
+      // Archived learners can't open lessons dated after their archive date.
+      if (role === 'student' && isHiddenByArchive(lessonRes.data?.course_id, lessonRes.data?.lesson_date)) {
         return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
       }
 
@@ -138,8 +166,13 @@ export async function GET(req: NextRequest) {
     const { data: lessons, error } = await query
     if (error) throw error
 
+    // Hide lessons dated after a student's archive date for that course.
+    const visibleLessons = (lessons || []).filter(
+      (l: { course_id?: string | null; lesson_date?: string | null }) => !isHiddenByArchive(l.course_id, l.lesson_date)
+    )
+
     // Get flashcard and exercise counts per lesson
-    const lessonIds = (lessons || []).map((l: { id: string }) => l.id)
+    const lessonIds = visibleLessons.map((l: { id: string }) => l.id)
 
     if (lessonIds.length === 0) {
       return NextResponse.json({ lessons: [] })
@@ -268,7 +301,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const lessonsWithCounts = (lessons || []).map((lesson: { id: string }) => ({
+    const lessonsWithCounts = visibleLessons.map((lesson: { id: string }) => ({
       ...lesson,
       flashcard_count: flashcardCounts[lesson.id] || 0,
       exercise_count: exerciseCounts[lesson.id] || 0,
