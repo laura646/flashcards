@@ -459,6 +459,52 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProg
   )
 }
 
+// Picks which learners the course AI overview should be about — lets teachers
+// exclude archived learners and dummy/test accounts so HR isn't confused.
+function OverviewPicker({ students, onConfirm, onClose }: {
+  students: StudentReport[]
+  onConfirm: (emails: string[]) => void
+  onClose: () => void
+}) {
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(students.map((s) => s.email)))
+  const allOn = picked.size === students.length
+  const toggle = (email: string) =>
+    setPicked((p) => {
+      const n = new Set(p)
+      if (n.has(email)) n.delete(email)
+      else n.add(email)
+      return n
+    })
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-card border border-hairline p-5 w-full max-w-md max-h-[85vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-ink-black">AI overview — who to include</h2>
+          <button onClick={onClose} className="text-ink-muted" aria-label="Close">✕</button>
+        </div>
+        <p className="text-[12px] text-ink-muted mb-3">Untick anyone who shouldn&rsquo;t shape the overview — e.g. archived learners or test accounts.</p>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[12px] font-bold text-ink-black">Learners ({picked.size}/{students.length})</span>
+          <button onClick={() => setPicked(allOn ? new Set() : new Set(students.map((s) => s.email)))} className="text-[11px] font-bold text-sky-text">{allOn ? 'Clear' : 'Select all'}</button>
+        </div>
+        <div className="border border-hairline rounded-tile max-h-64 overflow-auto p-1">
+          {students.map((s) => (
+            <label key={s.email} className="flex items-center gap-2 px-2 py-1.5 text-[13px] cursor-pointer hover:bg-surface rounded">
+              <input type="checkbox" checked={picked.has(s.email)} onChange={() => toggle(s.email)} />
+              <span className="truncate">{s.name}</span>
+              <span className="text-[11px] text-ink-muted truncate ml-auto">{s.email}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="text-[13px] font-bold text-ink-muted px-3 py-2">Cancel</button>
+          <Button variant="primary" size="sm" onClick={() => { if (picked.size > 0) onConfirm(Array.from(picked)) }}>✨ Generate for {picked.size}</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Course-level HR rollup — cohort KPIs, a weekly score trend, and a
 // needs-attention list (click a learner to drill in). Sits atop the report.
 function CohortRollup({ cohort, onSelect, view = 'kpis' }: { cohort: CourseRollup; onSelect: (email: string) => void; view?: 'kpis' | 'detail' }) {
@@ -585,7 +631,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   onGenerate?: (email: string) => void
   generatingEmail?: string | null
   courseOverview?: CourseOverviewData | null
-  onGenerateOverview?: () => void
+  onGenerateOverview?: (emails?: string[]) => void
   generatingOverview?: boolean
   cohort?: CourseRollup | null
   courseCurrentLevel?: string | null
@@ -600,6 +646,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [overviewPickerOpen, setOverviewPickerOpen] = useState(false)
   const s = students.find((x) => x.email === sel) || students[0] || null
 
   return (
@@ -633,7 +680,14 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
         {cohort && students.length > 0 && <CohortRollup cohort={cohort} onSelect={setSel} view="kpis" />}
 
         {(courseOverview || onGenerateOverview) && (
-          <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview} generating={generatingOverview} />
+          <CourseOverview overview={courseOverview ?? null} onGenerate={onGenerateOverview ? () => setOverviewPickerOpen(true) : undefined} generating={generatingOverview} />
+        )}
+        {overviewPickerOpen && onGenerateOverview && (
+          <OverviewPicker
+            students={students}
+            onClose={() => setOverviewPickerOpen(false)}
+            onConfirm={(emails) => { setOverviewPickerOpen(false); onGenerateOverview(emails) }}
+          />
         )}
 
         {students.length > 0 && (

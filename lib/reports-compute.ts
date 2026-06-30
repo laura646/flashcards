@@ -837,10 +837,14 @@ export interface CourseDigestPayload {
 export function buildCourseDigest(
   data: ReportsData,
   courseName: string,
-  days: ReportsDays
+  days: ReportsDays,
+  includeEmails?: string[]
 ): CourseDigestPayload | null {
   if (!data.course) return null
-  const reports = buildStudentReports(data, days)
+  let reports = buildStudentReports(data, days)
+  if (includeEmails && includeEmails.length > 0) {
+    reports = reports.filter((r) => includeEmails.includes(r.email))
+  }
   const n = reports.length
   const mean = (arr: number[]): number | null =>
     arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null

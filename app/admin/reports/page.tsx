@@ -152,10 +152,10 @@ export default function ReportsBetaPage() {
   )
 
   // Generate (or regenerate) the course-level AI overview on demand, then cache it.
-  const handleGenerateOverview = useCallback(async () => {
+  const handleGenerateOverview = useCallback(async (emails?: string[]) => {
     if (!data) return
     const cName = courses.find((c) => c.id === courseId)?.name || ''
-    const payload = buildCourseDigest(data, cName, days)
+    const payload = buildCourseDigest(data, cName, days, emails)
     if (!payload) return
     setGeneratingOverview(true)
     try {

@@ -111,7 +111,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
   // Branding + period + reusable header. Logo is absolute (the print window
   // has no base URL); logo-onblue.png suits the blue header band.
   const ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://app.englishwithlaura.com'
-  const logo = `<img src="${ORIGIN}/logo-onblue.png" alt="English with Laura" style="height:28px;width:auto;display:block" />`
+  const logo = `<img class="logo" src="${ORIGIN}/logo-onblue.png" alt="English with Laura" />`
   const period = opts.periodLabel ? `${esc(opts.periodLabel)} · ` : ''
   const hdr = (subtitle: string, metaLines: string) =>
     `<div class="hd"><div class="hl">${logo}<div class="subh">${subtitle}</div></div><div class="meta">${metaLines}</div></div>`
@@ -247,7 +247,8 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
     `.sec p{font-size:13px;line-height:1.5;margin:4px 0}` +
     `.sec ul{margin:4px 0 4px 18px}.sec li{font-size:13px;line-height:1.6}` +
     `table.kpi{width:100%;border-collapse:collapse}table.kpi td{text-align:left;padding:4px 8px 4px 0;vertical-align:top}table.kpi b{display:block;font-size:18px;color:#1A1A1A}table.kpi span{font-size:11px;color:#6B7280}` +
-    `.hl{display:flex;flex-direction:column;gap:3px}` +
+    `.hl{display:flex;flex-direction:column;gap:3px;align-items:flex-start}` +
+    `.logo{height:30px;width:auto}` +
     `.ft{margin-top:24px;border-top:1px solid #E4EBF3;padding-top:8px;font-size:10px;color:#9AA3AF;display:flex;justify-content:space-between}` +
     `@media print{.page{padding:0}}` +
     `</style></head><body>${cover}${pages}</body></html>`
