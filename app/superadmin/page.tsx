@@ -118,6 +118,18 @@ export default function SuperadminPage() {
   const [view, setView] = useState<View>('courses')
   const [courses, setCourses] = useState<Course[]>([])
   const [archivedCourses, setArchivedCourses] = useState<Course[]>([])
+  // ── All Courses search/filter (mirrors the Courses area) ──
+  const [caSearch, setCaSearch] = useState('')
+  const [caStatus, setCaStatus] = useState<'active' | 'archived' | 'all'>('active')
+  const [caSort, setCaSort] = useState<'newest' | 'students' | 'az'>('newest')
+  const [caLevel, setCaLevel] = useState<string | null>(null)
+  const [caType, setCaType] = useState<string | null>(null)
+  const caAllCourses = [...courses, ...archivedCourses]
+  const caLevelOptions = Array.from(new Set(caAllCourses.map((c) => c.level).filter((l): l is string => !!l))).sort()
+  const caTypeOptions = Array.from(new Set(caAllCourses.map((c) => c.course_type).filter((t): t is string => !!t))).sort()
+  const caFiltered = (caStatus === 'active' ? courses : caStatus === 'archived' ? archivedCourses : caAllCourses)
+    .filter((c) => (!caLevel || c.level === caLevel) && (!caType || c.course_type === caType) && (!caSearch.trim() || c.name.toLowerCase().includes(caSearch.trim().toLowerCase())))
+    .sort((a, b) => (caSort === 'students' ? (b.student_count || 0) - (a.student_count || 0) : caSort === 'az' ? a.name.localeCompare(b.name) : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()))
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [allStudents, setAllStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
@@ -1430,19 +1442,66 @@ export default function SuperadminPage() {
         <main className="min-h-screen flex flex-col px-4 py-8 max-w-2xl mx-auto">
           <button onClick={() => setView('courses')} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors mb-4">&larr; Back to dashboard</button>
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-bold text-[#416ebe]">All Courses <span className="text-sm font-normal text-gray-400">({courses.length})</span></h1>
+            <h1 className="text-xl font-bold text-[#416ebe]">All Courses <span className="text-sm font-normal text-gray-400">({caFiltered.length})</span></h1>
             <div className="flex gap-2">
               <button onClick={() => { setView('archived'); loadArchivedCourses() }} className="text-xs text-gray-400 hover:text-[#416ebe] transition-colors">View Archived</button>
               <button onClick={() => { setShowNewCourse(true); setEditingCourse(null); setCourseName(''); setCourseDesc(''); setCourseSelfStudy(false) }} className="px-4 py-2 bg-[#416ebe] text-white text-xs font-bold rounded-lg hover:bg-[#3560b0] transition-colors">+ New Course</button>
             </div>
           </div>
-          {courses.length === 0 ? (
+
+          {/* Search + filters (same as the Courses area) */}
+          <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-3 mb-4 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={caSearch}
+                onChange={(e) => setCaSearch(e.target.value)}
+                placeholder="Search courses…"
+                className="flex-1 min-w-[200px] border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#416ebe]"
+              />
+              <div className="flex rounded-xl border-2 border-[#cddcf0] overflow-hidden text-xs font-bold">
+                {(['active', 'archived', 'all'] as const).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => { setCaStatus(st); if (st !== 'active' && archivedCourses.length === 0) loadArchivedCourses() }}
+                    className={`px-3 py-2 capitalize transition-colors ${caStatus === st ? 'bg-[#416ebe] text-white' : 'text-gray-500 hover:bg-[#e6f0fa]'}`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+              <select
+                value={caSort}
+                onChange={(e) => setCaSort(e.target.value as 'newest' | 'students' | 'az')}
+                className="border-2 border-[#cddcf0] rounded-xl px-3 py-2 text-xs font-bold text-gray-600 focus:outline-none focus:border-[#416ebe]"
+              >
+                <option value="newest">Newest</option>
+                <option value="students">Most students</option>
+                <option value="az">A–Z</option>
+              </select>
+            </div>
+            {(caLevelOptions.length > 0 || caTypeOptions.length > 0) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {caLevelOptions.length > 0 && <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mr-0.5">Level</span>}
+                {caLevelOptions.map((l) => (
+                  <button key={l} onClick={() => setCaLevel(caLevel === l ? null : l)} className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${caLevel === l ? 'bg-[#416ebe] text-white border-[#416ebe]' : 'bg-white text-gray-600 border-[#cddcf0] hover:border-[#416ebe]'}`}>{l}</button>
+                ))}
+                {caTypeOptions.length > 0 && <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 ml-2 mr-0.5">Type</span>}
+                {caTypeOptions.map((t) => (
+                  <button key={t} onClick={() => setCaType(caType === t ? null : t)} className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${caType === t ? 'bg-[#416ebe] text-white border-[#416ebe]' : 'bg-white text-gray-600 border-[#cddcf0] hover:border-[#416ebe]'}`}>{t}</button>
+                ))}
+                {(caLevel || caType || caSearch) && <button onClick={() => { setCaLevel(null); setCaType(null); setCaSearch('') }} className="text-xs text-gray-400 hover:text-[#416ebe] ml-1">Clear</button>}
+              </div>
+            )}
+          </div>
+
+          {caFiltered.length === 0 ? (
             <div className="bg-white rounded-2xl border-2 border-[#cddcf0] p-8 text-center">
-              <p className="text-sm text-gray-400">No courses yet. Create your first one!</p>
+              <p className="text-sm text-gray-400">{courses.length === 0 && archivedCourses.length === 0 ? 'No courses yet. Create your first one!' : 'No courses match your search or filters.'}</p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {courses.map(course => (
+              {caFiltered.map(course => (
                 <button key={course.id} onClick={() => loadCourseDetail(course)} className="bg-white rounded-2xl border-2 border-[#cddcf0] hover:border-[#416ebe] p-5 text-left transition-all group">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -1451,6 +1510,7 @@ export default function SuperadminPage() {
                       <div className="flex items-center gap-3 mt-2">
                         {course.course_type && <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full">{course.course_type}</span>}
                         {course.level && <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full">{course.level}</span>}
+                        {course.archived_at && <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-xs rounded-full">Archived</span>}
                       </div>
                       <div className="flex items-center gap-4 mt-2">
                         <span className="text-xs text-gray-400">{course.teacher_count} teacher{course.teacher_count !== 1 ? 's' : ''}</span>
