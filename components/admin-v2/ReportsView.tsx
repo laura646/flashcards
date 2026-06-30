@@ -344,16 +344,18 @@ const EXPORT_SECTIONS: { key: ExportSection; label: string }[] = [
 const GROUP_SECTIONS: { key: GroupSection; label: string }[] = [
   { key: 'summary', label: 'Group summary (KPIs)' },
   { key: 'progress', label: 'Where the group is' },
+  { key: 'shortlists', label: 'Top performers + needs attention' },
   { key: 'overview', label: 'AI overview' },
 ]
 
-function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProgress, overview, onClose }: {
+function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProgress, overview, periodLabel, onClose }: {
   students: StudentReport[]
   courseName: string
   currentLevel: string | null
   goalLevel: string | null
   groupProgress: number | null
   overview: CourseOverviewData | null
+  periodLabel: string
   onClose: () => void
 }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(students.map((s) => s.email)))
@@ -387,7 +389,7 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProg
   const run = () => {
     const chosen = students.filter((s) => picked.has(s.email))
     if (chosen.length === 0) return
-    const opts = { courseName, currentLevel, goalLevel, sections, groupSections, overview, groupProgressPct: groupProgress }
+    const opts = { courseName, currentLevel, goalLevel, sections, groupSections, overview, groupProgressPct: groupProgress, periodLabel }
     if (fmt === 'excel') {
       const safe = (courseName || 'report').replace(/[^a-z0-9.\-]+/gi, '_')
       downloadCsv(`${safe}.csv`, buildReportCsv(chosen, opts))
@@ -576,7 +578,7 @@ function GroupLevelStrip({ current, goal, progress, onSet }: { current: string |
   )
 }
 
-export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, cohort, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest, courseGroupProgress, onSetGroupProgress }: {
+export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, cohort, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest, courseGroupProgress, onSetGroupProgress, periodLabel }: {
   courseName: string
   students: StudentReport[]
   onRegenerate?: (email: string) => void
@@ -594,6 +596,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   onDeleteTest?: (id: string, email: string) => Promise<void> | void
   courseGroupProgress?: number | null
   onSetGroupProgress?: (pct: number) => Promise<void> | void
+  periodLabel?: string
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -622,6 +625,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
             goalLevel={courseGoalLevel ?? null}
             groupProgress={courseGroupProgress ?? null}
             overview={courseOverview ?? null}
+            periodLabel={periodLabel ?? ''}
             onClose={() => setExporting(false)}
           />
         )}

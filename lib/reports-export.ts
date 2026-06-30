@@ -13,7 +13,7 @@ import type { StudentReport } from '@/components/admin-v2/ReportsView'
 
 export type ExportSection = 'summary' | 'kpis' | 'cefr' | 'attendance' | 'tests' | 'notes'
 
-export type GroupSection = 'summary' | 'progress' | 'overview'
+export type GroupSection = 'summary' | 'progress' | 'overview' | 'shortlists'
 
 export interface ExportOptions {
   courseName: string
@@ -23,6 +23,7 @@ export interface ExportOptions {
   groupSections?: Set<GroupSection>
   overview?: { summary: string; needs: string; ready: string } | null
   groupProgressPct?: number | null
+  periodLabel?: string
 }
 
 function has(sections: Set<ExportSection>, s: ExportSection): boolean {
@@ -106,6 +107,24 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
   const avgScore = mean(students.map((s) => s.avgLatestPct).filter((x): x is number => x != null))
   const avgAtt = mean(students.map((s) => s.attendancePct).filter((x): x is number => x != null))
   const streaks = students.filter((s) => s.streak > 0).length
+
+  // Branding + period + reusable header. Logo is absolute (the print window
+  // has no base URL); logo-onblue.png suits the blue header band.
+  const ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://app.englishwithlaura.com'
+  const logo = `<img src="${ORIGIN}/logo-onblue.png" alt="English with Laura" style="height:28px;width:auto;display:block" />`
+  const period = opts.periodLabel ? `${esc(opts.periodLabel)} · ` : ''
+  const hdr = (subtitle: string, metaLines: string) =>
+    `<div class="hd"><div class="hl">${logo}<div class="subh">${subtitle}</div></div><div class="meta">${metaLines}</div></div>`
+
+  // Cohort shortlists for the cover.
+  const topPerformers = students
+    .slice()
+    .sort((a, b) => (b.avgLatestPct ?? -1) - (a.avgLatestPct ?? -1) || b.completionPct - a.completionPct)
+    .slice(0, 3)
+  const needsList = students
+    .filter((s) => s.completionPct < 50 || (s.attendancePct != null && s.attendancePct < 70) || (s.avgLatestPct != null && s.avgLatestPct < 60))
+    .sort((a, b) => a.completionPct - b.completionPct)
+    .slice(0, 3)
   const gs = opts.groupSections ?? new Set<GroupSection>(['summary', 'progress', 'overview'])
   const ov = opts.overview
   const gp = opts.groupProgressPct
@@ -140,22 +159,38 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
         `</div>`
     )
   }
-  const cover = coverParts.length
+  if (gs.has('shortlists')) {
+    coverParts.push(
+      `<div class="sec"><div class="h">Top performers</div>` +
+        (topPerformers.length
+          ? `<ul>${topPerformers.map((s) => `<li>${esc(s.name)} — ${s.avgLatestPct != null ? s.avgLatestPct + '% avg score' : 'no score'}, ${s.completionPct}% complete</li>`).join('')}</ul>`
+          : '<p>—</p>') +
+        `</div>` +
+        `<div class="sec"><div class="h">Needs attention</div>` +
+        (needsList.length
+          ? `<ul>${needsList.map((s) => `<li>${esc(s.name)} — ${s.completionPct}% complete${s.avgLatestPct != null ? `, ${s.avgLatestPct}% avg score` : ''}</li>`).join('')}</ul>`
+          : '<p>Everyone is on track.</p>') +
+        `</div>`
+    )
+  }
+  const coverShown = coverParts.length > 0
+  const totalPages = (coverShown ? 1 : 0) + students.length
+  const footer = (pageNum: number) =>
+    `<div class="ft"><span>English with Laura · Confidential</span><span>Page ${pageNum} of ${totalPages}</span></div>`
+  const cover = coverShown
     ? `<section class="page">` +
-      `<div class="hd"><div><div class="brand">English with Laura</div><div class="subh">Group report</div></div><div class="meta">${esc(generatedOn)}</div></div>` +
+      hdr('Group report', `${period}${esc(generatedOn)}`) +
       `<div class="who"><div class="nm">${esc(opts.courseName)}</div><div class="em">${n} learner${n === 1 ? '' : 's'} · Level ${cur} → ${gl}</div></div>` +
       coverParts.join('') +
-      `<div class="ft">English with Laura · Confidential</div>` +
+      footer(1) +
       `</section>`
     : ''
 
   const pages = students
-    .map((r) => {
+    .map((r, i) => {
       const att = attendanceCounts(r)
       const parts: string[] = []
-      parts.push(
-        `<div class="hd"><div><div class="brand">English with Laura</div><div class="subh">Learner progress report</div></div><div class="meta">${esc(opts.courseName)}<br>${esc(generatedOn)}</div></div>`
-      )
+      parts.push(hdr('Learner progress report', `${esc(opts.courseName)}<br>${period}${esc(generatedOn)}`))
       parts.push(`<div class="who"><div class="nm">${esc(r.name)}</div><div class="em">${esc(r.email)}</div></div>`)
       if (has(opts.sections, 'summary') && r.aiSummary) {
         parts.push(`<div class="sec"><div class="h">Summary</div><p>${esc(r.aiSummary)}</p></div>`)
@@ -193,7 +228,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
           `<div class="sec"><div class="h">Teacher's notes</div>${r.notes.length ? r.notes.map((n) => `<p><b>${esc(n.tag)}</b> ${esc(n.text)}</p>`).join('') : '<p>No notes.</p>'}</div>`
         )
       }
-      parts.push(`<div class="ft">English with Laura · Confidential</div>`)
+      parts.push(footer((coverShown ? 1 : 0) + i + 1))
       return `<section class="page">${parts.join('')}</section>`
     })
     .join('')
@@ -212,7 +247,8 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
     `.sec p{font-size:13px;line-height:1.5;margin:4px 0}` +
     `.sec ul{margin:4px 0 4px 18px}.sec li{font-size:13px;line-height:1.6}` +
     `table.kpi{width:100%;border-collapse:collapse}table.kpi td{text-align:left;padding:4px 8px 4px 0;vertical-align:top}table.kpi b{display:block;font-size:18px;color:#1A1A1A}table.kpi span{font-size:11px;color:#6B7280}` +
-    `.ft{margin-top:24px;border-top:1px solid #E4EBF3;padding-top:8px;font-size:10px;color:#9AA3AF}` +
+    `.hl{display:flex;flex-direction:column;gap:3px}` +
+    `.ft{margin-top:24px;border-top:1px solid #E4EBF3;padding-top:8px;font-size:10px;color:#9AA3AF;display:flex;justify-content:space-between}` +
     `@media print{.page{padding:0}}` +
     `</style></head><body>${cover}${pages}</body></html>`
   )

@@ -297,6 +297,7 @@ export default function ReportsBetaPage() {
   }
 
   const courseName = courses.find((c) => c.id === courseId)?.name || ''
+  const periodLabel = DAY_OPTIONS.find((o) => o.value === days)?.label || ''
 
   return (
     <div className="font-rubik min-h-screen bg-surface">
@@ -341,6 +342,7 @@ export default function ReportsBetaPage() {
           onGenerateOverview={session?.user?.role === 'hr' ? undefined : handleGenerateOverview}
           generatingOverview={generatingOverview}
           cohort={rollup}
+          periodLabel={periodLabel}
           courseCurrentLevel={data?.course?.current_level ?? null}
           courseGoalLevel={data?.course?.goal_level ?? null}
           onSetProgress={session?.user?.role === 'hr' ? undefined : handleSetProgress}
