@@ -580,14 +580,18 @@ function CohortRollup({ cohort, onSelect, view = 'kpis' }: { cohort: CourseRollu
 // per learner at their course-progress %, so you see where everyone sits.
 // "Where the group is" — a single, manually-set group progress % along the
 // Current → Goal journey. Teacher edits it with a slider; HR sees it read-only.
-function GroupLevelStrip({ current, goal, progress, onSet }: { current: string | null; goal: string | null; progress: number | null; onSet?: (pct: number) => Promise<void> | void }) {
+function GroupLevelStrip({ current, goal, progress, onSet, onSetLevels }: { current: string | null; goal: string | null; progress: number | null; onSet?: (pct: number) => Promise<void> | void; onSetLevels?: (current: string, goal: string) => Promise<void> | void }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(progress ?? 0)
+  const [c, setC] = useState(current || '')
+  const [g, setG] = useState(goal || '')
   const [saving, setSaving] = useState(false)
   useEffect(() => {
     setVal(progress ?? 0)
+    setC(current || '')
+    setG(goal || '')
     setEditing(false)
-  }, [progress])
+  }, [progress, current, goal])
   const shown = editing ? val : progress ?? 0
   return (
     <div className="bg-white rounded-card border border-hairline p-5 mb-4">
@@ -595,7 +599,7 @@ function GroupLevelStrip({ current, goal, progress, onSet }: { current: string |
         <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">Where the group is</p>
         <div className="flex items-center gap-3">
           <span className="text-[12px] font-bold"><span className="text-sky-text">{current || '—'}</span> <span className="text-ink-muted">→</span> <span className="text-correct-fg">{goal || '—'}</span></span>
-          {onSet && !editing && (
+          {(onSet || onSetLevels) && !editing && (
             <button onClick={() => setEditing(true)} className="text-[12px] text-sky-text border border-hairline rounded-tile px-2.5 py-1 hover:bg-surface">✎ Edit</button>
           )}
         </div>
@@ -611,14 +615,34 @@ function GroupLevelStrip({ current, goal, progress, onSet }: { current: string |
         <span>{goal || 'goal'}</span>
       </div>
       {editing ? (
-        <div className="flex items-center gap-3 mt-3">
-          <input type="range" min={0} max={100} value={val} onChange={(e) => setVal(parseInt(e.target.value, 10))} className="flex-1" aria-label="Group progress percent" />
-          <span className="text-[13px] font-bold text-ink-black w-10 text-right">{val}%</span>
-          <Button variant="primary" size="sm" onClick={async () => { if (!onSet) return; setSaving(true); await onSet(val); setSaving(false); setEditing(false) }}>{saving ? 'Saving…' : 'Save'}</Button>
-          <button onClick={() => setEditing(false)} className="text-[12px] text-ink-muted">Cancel</button>
+        <div className="mt-3 space-y-3">
+          {onSetLevels && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">CEFR</span>
+              <label className="flex items-center gap-1 text-[12px] text-ink-muted">From
+                <select value={c} onChange={(e) => setC(e.target.value)} className="text-[12px] border border-hairline rounded-tile px-1.5 py-1" aria-label="Current (start) level">
+                  <option value="">—</option>
+                  {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </label>
+              <span className="text-ink-muted">→</span>
+              <label className="flex items-center gap-1 text-[12px] text-ink-muted">To
+                <select value={g} onChange={(e) => setG(e.target.value)} className="text-[12px] border border-hairline rounded-tile px-1.5 py-1" aria-label="Goal level">
+                  <option value="">—</option>
+                  {CEFR_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <input type="range" min={0} max={100} value={val} onChange={(e) => setVal(parseInt(e.target.value, 10))} className="flex-1" aria-label="Group progress percent" />
+            <span className="text-[13px] font-bold text-ink-black w-10 text-right">{val}%</span>
+            <Button variant="primary" size="sm" onClick={async () => { setSaving(true); if (onSetLevels) await onSetLevels(c, g); if (onSet) await onSet(val); setSaving(false); setEditing(false) }}>{saving ? 'Saving…' : 'Save'}</Button>
+            <button onClick={() => setEditing(false)} className="text-[12px] text-ink-muted">Cancel</button>
+          </div>
         </div>
       ) : (
-        <p className="text-[12px] text-ink-muted mt-2">{progress != null ? `The group is ${progress}% of the way from ${current || '—'} to ${goal || '—'}.` : 'Not set — click Edit to set where the group is.'}</p>
+        <p className="text-[12px] text-ink-muted mt-2">{progress != null ? `The group is ${progress}% of the way from ${current || '—'} to ${goal || '—'}.` : 'Not set — click Edit to set the CEFR levels and where the group is.'}</p>
       )}
     </div>
   )
@@ -691,7 +715,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
         )}
 
         {students.length > 0 && (
-          <GroupLevelStrip current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} progress={courseGroupProgress ?? null} onSet={onSetGroupProgress} />
+          <GroupLevelStrip current={courseCurrentLevel ?? null} goal={courseGoalLevel ?? null} progress={courseGroupProgress ?? null} onSet={onSetGroupProgress} onSetLevels={onSetLevels} />
         )}
 
         {students.length === 0 ? (
