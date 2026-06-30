@@ -316,7 +316,8 @@ export function CourseDetailView({
   const handleCopyInvite = async () => {
     if (!course) return
     try {
-      await navigator.clipboard.writeText(course.invite_code)
+      const base = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
+      await navigator.clipboard.writeText(`${base}/join/${course.invite_code}`)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch { /* clipboard unavailable */ }
