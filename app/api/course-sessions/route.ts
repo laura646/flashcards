@@ -358,7 +358,14 @@ export async function POST(req: NextRequest) {
           .eq('course_id', courseId)
           .eq('student_email', r.email)
           .is('removed_at', null)
-        if (error) throw error
+        if (error) {
+          // Surface the real DB reason (e.g. missing column / stale PostgREST
+          // schema cache) instead of a generic 500, so backfill is debuggable.
+          return NextResponse.json(
+            { error: `Attendance save failed: ${error.message || 'database error'}`, code: (error as { code?: string }).code || null },
+            { status: 500 }
+          )
+        }
         updated++
       }
       return NextResponse.json({ ok: true, updated })
