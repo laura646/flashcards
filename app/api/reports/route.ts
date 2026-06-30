@@ -26,6 +26,7 @@ interface Course {
   description: string | null
   current_level?: string | null
   goal_level?: string | null
+  group_progress_pct?: number | null
 }
 
 interface Student {
@@ -151,6 +152,18 @@ export async function GET(req: NextRequest) {
         currentLevel = (lv as { current_level: string | null }).current_level ?? null
         goalLevel = (lv as { goal_level: string | null }).goal_level ?? null
       }
+    }
+
+    // 1c. Group-level manual progress % (best-effort, separate query so a
+    //     missing column never breaks the current/goal fetch above).
+    let groupProgressPct: number | null = null
+    {
+      const { data: gp, error: gpErr } = await supabase
+        .from('courses')
+        .select('group_progress_pct')
+        .eq('id', courseId)
+        .maybeSingle()
+      if (!gpErr && gp) groupProgressPct = (gp as { group_progress_pct: number | null }).group_progress_pct ?? null
     }
 
     // 2. Students enrolled in this course (active only)
@@ -355,7 +368,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       courses: (courses || []) as Course[],
-      course: { ...(course as Course), current_level: currentLevel, goal_level: goalLevel },
+      course: { ...(course as Course), current_level: currentLevel, goal_level: goalLevel, group_progress_pct: groupProgressPct },
       students,
       lessons: (lessons || []) as Lesson[],
       exercises,

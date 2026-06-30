@@ -18,6 +18,7 @@ export interface ExportOptions {
   currentLevel: string | null
   goalLevel: string | null
   sections: Set<ExportSection>
+  groupProgressPct?: number | null
 }
 
 function has(sections: Set<ExportSection>, s: ExportSection): boolean {
@@ -94,6 +95,27 @@ function esc(s: unknown): string {
 }
 
 export function buildReportHtml(students: StudentReport[], opts: ExportOptions, generatedOn: string): string {
+  // Page 1 — group summary (cohort overview).
+  const n = students.length
+  const mean = (arr: number[]): number | null => (arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null)
+  const avgCompletion = mean(students.map((s) => s.completionPct)) ?? 0
+  const avgScore = mean(students.map((s) => s.avgLatestPct).filter((x): x is number => x != null))
+  const avgAtt = mean(students.map((s) => s.attendancePct).filter((x): x is number => x != null))
+  const streaks = students.filter((s) => s.streak > 0).length
+  const cover =
+    `<section class="page">` +
+    `<div class="hd"><div><div class="brand">English with Laura</div><div class="subh">Group report</div></div><div class="meta">${esc(generatedOn)}</div></div>` +
+    `<div class="who"><div class="nm">${esc(opts.courseName)}</div><div class="em">${n} learner${n === 1 ? '' : 's'} · Level ${esc(opts.currentLevel || '—')} → ${esc(opts.goalLevel || '—')}${opts.groupProgressPct != null ? ` · group ${opts.groupProgressPct}% of the way` : ''}</div></div>` +
+    `<div class="sec"><div class="h">Group summary</div><table class="kpi"><tr>` +
+    `<td><b>${n}</b><span>Learners</span></td>` +
+    `<td><b>${avgCompletion}%</b><span>Avg completion</span></td>` +
+    `<td><b>${avgScore != null ? avgScore + '%' : '—'}</b><span>Avg score</span></td>` +
+    `<td><b>${avgAtt != null ? avgAtt + '%' : '—'}</b><span>Attendance</span></td>` +
+    `<td><b>${streaks}/${n}</b><span>On a streak</span></td>` +
+    `</tr></table></div>` +
+    `<div class="ft">English with Laura · Confidential</div>` +
+    `</section>`
+
   const pages = students
     .map((r) => {
       const att = attendanceCounts(r)
@@ -159,7 +181,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
     `table.kpi{width:100%;border-collapse:collapse}table.kpi td{text-align:left;padding:4px 8px 4px 0;vertical-align:top}table.kpi b{display:block;font-size:18px;color:#1A1A1A}table.kpi span{font-size:11px;color:#6B7280}` +
     `.ft{margin-top:24px;border-top:1px solid #E4EBF3;padding-top:8px;font-size:10px;color:#9AA3AF}` +
     `@media print{.page{padding:0}}` +
-    `</style></head><body>${pages}</body></html>`
+    `</style></head><body>${cover}${pages}</body></html>`
   )
 }
 

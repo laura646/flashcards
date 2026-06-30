@@ -29,6 +29,7 @@ export interface ReportsCourse {
   description: string | null
   current_level?: string | null
   goal_level?: string | null
+  group_progress_pct?: number | null
 }
 
 export interface ReportsStudent {

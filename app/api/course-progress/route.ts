@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     pct?: number
     currentLevel?: string
     goalLevel?: string
+    groupProgress?: number
   }
   try {
     body = await req.json()
@@ -70,6 +71,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to save levels' }, { status: 500 })
     }
     return NextResponse.json({ ok: true })
+  }
+
+  // ── Group-level manual progress % (where the whole group is) ──
+  if (typeof body.groupProgress === 'number') {
+    const pct = Math.max(0, Math.min(100, Math.round(body.groupProgress)))
+    const { error } = await supabase.from('courses').update({ group_progress_pct: pct }).eq('id', courseId)
+    if (error) {
+      console.error('course-progress (group) update failed:', error)
+      return NextResponse.json({ error: 'Failed to save group progress' }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true, pct })
   }
 
   return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })

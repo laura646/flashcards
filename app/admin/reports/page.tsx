@@ -273,6 +273,25 @@ export default function ReportsBetaPage() {
     [courseId]
   )
 
+  const handleSetGroupProgress = useCallback(
+    async (pct: number) => {
+      if (!courseId) return
+      try {
+        const res = await fetch('/api/course-progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courseId, groupProgress: pct }),
+        })
+        if (res.ok) {
+          setData((prev) => (prev && prev.course ? { ...prev, course: { ...prev.course, group_progress_pct: pct } } : prev))
+        }
+      } catch {
+        /* swallow — teacher can retry */
+      }
+    },
+    [courseId]
+  )
+
   if (status === 'authenticated' && !isAdmin) {
     return <div className="p-8 text-sm text-incorrect-fg font-rubik">Access denied — admin or teacher only.</div>
   }
@@ -328,6 +347,8 @@ export default function ReportsBetaPage() {
           onSetLevels={session?.user?.role === 'hr' ? undefined : handleSetLevels}
           onAddTest={session?.user?.role === 'hr' ? undefined : handleAddTest}
           onDeleteTest={session?.user?.role === 'hr' ? undefined : handleDeleteTest}
+          courseGroupProgress={data?.course?.group_progress_pct ?? null}
+          onSetGroupProgress={session?.user?.role === 'hr' ? undefined : handleSetGroupProgress}
         />
       )}
     </div>
