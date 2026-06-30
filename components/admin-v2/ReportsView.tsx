@@ -768,7 +768,6 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
           <Stat label="Completion" value={`${s.completionPct}%`} />
           <Stat label="Avg. score" value={s.avgLatestPct != null ? `${s.avgLatestPct}%` : '—'} />
           <Stat label="Attendance" value={s.attendancePct != null ? `${s.attendancePct}%` : '—'} />
-          <Stat label="Streak" value={s.streak ? `${s.streak}🔥` : '—'} />
           <Stat label="Group rank" value={s.groupRank != null ? `#${s.groupRank} of ${s.groupSize}` : '—'} />
         </div>
 

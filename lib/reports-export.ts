@@ -201,7 +201,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
             `<td><b>${r.wordsLearned}</b><span>Words learned</span></td>` +
             `<td><b>${r.completionPct}%</b><span>Completion</span></td>` +
             `<td><b>${r.avgLatestPct ?? '—'}${r.avgLatestPct != null ? '%' : ''}</b><span>Avg score</span></td>` +
-            `<td><b>${r.streak}</b><span>Streak</span></td>` +
+            `<td><b>${r.attendancePct != null ? r.attendancePct + '%' : '—'}</b><span>Attendance</span></td>` +
             `<td><b>${r.groupRank != null ? '#' + r.groupRank : '—'}</b><span>Group rank</span></td>` +
             `</tr></table></div>`
         )
