@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { requireRole, hasAccessToCourse, getTeacherCourseIds } from '@/lib/roles'
+import { isCompletableBlock } from '@/lib/block-completion'
 
 // ═══════════════════════════════════════════════════════════════
 // GET /api/reports
@@ -114,6 +115,7 @@ export async function GET(req: NextRequest) {
       attendance: [],
       sessions: [],
       writingBlocks: [],
+      blocks: [],
       vocabStruggles: {},
       lessonFlashcards: [],
       vocabSrs: [],
@@ -248,7 +250,7 @@ export async function GET(req: NextRequest) {
     // 3. Published lessons in this course
     const { data: lessons } = await supabase
       .from('lessons')
-      .select('id, title, lesson_date')
+      .select('id, title, lesson_date, flashcards_published')
       .eq('course_id', courseId)
       .eq('status', 'published')
       .order('lesson_date', { ascending: true })
@@ -259,10 +261,15 @@ export async function GET(req: NextRequest) {
     if (lessonIds.length > 0) {
       const { data: exRows } = await supabase
         .from('lesson_exercises')
-        .select('id, lesson_id, title, exercise_type, is_mandatory, skills, cefr_level, test_type')
+        .select('id, lesson_id, title, exercise_type, is_mandatory, skills, cefr_level, test_type, published')
         .in('lesson_id', lessonIds)
         .order('order_index', { ascending: true })
-      exercises = (exRows || []) as Exercise[]
+      // Students can't see (or attempt) unpublished exercises — the lesson
+      // page hides them — so they must not sit in the completion denominator
+      // either, or one eye-hidden exercise caps everyone below 100% forever.
+      exercises = ((exRows || []) as (Exercise & { published?: boolean | null })[]).filter(
+        (e) => e.published !== false
+      )
     }
 
     // 5. Progress records for these students, optionally filtered by date
@@ -317,6 +324,30 @@ export async function GET(req: NextRequest) {
         .in('lesson_id', lessonIds)
         .eq('block_type', 'writing')
       writingBlocks = (blockRows || []) as WritingBlock[]
+    }
+
+    // 7b. Completable lesson blocks — block-based lessons (e.g. AI review
+    // lessons) have no lesson_exercises rows, so completion must also count
+    // interactive blocks + flashcards or those lessons never register. Only
+    // blocks a student can actually finish make the payload: published, and
+    // either an always-completable type or carrying practice/comprehension
+    // exercises (a bare video/article with no questions has no completion
+    // path and would cap everyone below 100%).
+    let blocks: { id: string; lesson_id: string; block_type: string }[] = []
+    if (lessonIds.length > 0) {
+      const { data: allBlockRows } = await supabase
+        .from('lesson_blocks')
+        .select('id, lesson_id, block_type, published, content')
+        .in('lesson_id', lessonIds)
+      blocks = ((allBlockRows || []) as {
+        id: string
+        lesson_id: string
+        block_type: string
+        published?: boolean | null
+        content?: unknown
+      }[])
+        .filter((b) => b.published !== false && isCompletableBlock(b.block_type, b.content))
+        .map((b) => ({ id: b.id, lesson_id: b.lesson_id, block_type: b.block_type }))
     }
 
     // 8. Vocabulary "leeches" — words a student keeps failing. SM-2
@@ -411,6 +442,7 @@ export async function GET(req: NextRequest) {
       attendance,
       sessions,
       writingBlocks,
+      blocks,
       vocabStruggles,
       lessonFlashcards,
       vocabSrs,

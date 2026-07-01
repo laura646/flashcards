@@ -30,6 +30,8 @@ interface Lesson {
   exercises_completed?: number
   flashcards_studied?: boolean
   points_earned?: number
+  item_count?: number
+  items_completed?: number
 }
 
 export default function HomePage() {
@@ -303,8 +305,13 @@ export default function HomePage() {
             {lessons.map((lesson, index) => {
               const lessonNumber = lessons.length - index
               const isTest = lesson.lesson_type && lesson.lesson_type !== 'lesson'
-              const exDone = (lesson.exercises_completed || 0) === lesson.exercise_count && lesson.exercise_count > 0
-              const pct = lesson.exercise_count > 0 ? Math.round(((lesson.exercises_completed || 0) / lesson.exercise_count) * 100) : 0
+              // Items = exercises + interactive blocks + flashcard set, so
+              // block-based lessons (no classic exercises) register too.
+              // Falls back to exercise counts if the API predates item_count.
+              const itemTotal = lesson.item_count ?? lesson.exercise_count
+              const itemsDone = lesson.items_completed ?? (lesson.exercises_completed || 0)
+              const exDone = itemsDone >= itemTotal && itemTotal > 0
+              const pct = itemTotal > 0 ? Math.round((Math.min(itemsDone, itemTotal) / itemTotal) * 100) : 0
               return (
                 <button key={lesson.id} onClick={() => router.push(`/lessons/${lesson.id}`)} className="text-left">
                   <Card className="hover:border-sky transition-colors">
@@ -326,14 +333,16 @@ export default function HomePage() {
                               {lesson.flashcards_studied ? '✅' : '🃏'} {lesson.flashcard_count} words
                             </span>
                           )}
-                          <span className="text-xs text-ink-muted flex items-center gap-1">
-                            {exDone ? '✅' : '✏️'} {lesson.exercises_completed || 0}/{lesson.exercise_count} exercises
-                          </span>
+                          {itemTotal > 0 && (
+                            <span className="text-xs text-ink-muted flex items-center gap-1">
+                              {exDone ? '✅' : '✏️'} {Math.min(itemsDone, itemTotal)}/{itemTotal} tasks
+                            </span>
+                          )}
                           {(lesson.points_earned || 0) > 0 && (
                             <span className="text-xs text-amber-500 font-bold flex items-center gap-0.5">⭐ {lesson.points_earned} pts</span>
                           )}
                         </div>
-                        {lesson.exercise_count > 0 && (
+                        {itemTotal > 0 && (
                           <div className="mt-2 h-1.5 bg-[#eef1f6] rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-300 ${exDone ? 'bg-correct-fg' : 'bg-sky'}`}

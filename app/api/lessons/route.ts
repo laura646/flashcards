@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { getAccessibleCourseIds, requireRole } from '@/lib/roles'
+import { isCompletableBlock, CONDITIONAL_BLOCK_TYPES } from '@/lib/block-completion'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -181,9 +182,9 @@ export async function GET(req: NextRequest) {
     const [flashcardCountsRes, exerciseCountsRes, blockCountsRes, exerciseIdsRes, folderLinksRes] = await Promise.all([
       supabase.from('lesson_flashcards').select('lesson_id').in('lesson_id', lessonIds),
       supabase.from('lesson_exercises').select('lesson_id, is_mandatory').in('lesson_id', lessonIds),
-      supabase.from('lesson_blocks').select('lesson_id, block_type').in('lesson_id', lessonIds),
+      supabase.from('lesson_blocks').select('id, lesson_id, block_type, published').in('lesson_id', lessonIds),
       // Pre-fetch exercise IDs for progress query (students only, but cheap to run always)
-      supabase.from('lesson_exercises').select('id, lesson_id, is_mandatory').in('lesson_id', lessonIds),
+      supabase.from('lesson_exercises').select('id, lesson_id, is_mandatory, published').in('lesson_id', lessonIds),
       // Folder membership for My Library: bulk lesson→folder links, grouped
       // client-side into folder_ids[] per lesson (avoids per-lesson N+1).
       supabase.from('lesson_folders').select('lesson_id, folder_id').in('lesson_id', lessonIds),
@@ -206,9 +207,20 @@ export async function GET(req: NextRequest) {
         mandatoryExerciseCounts[e.lesson_id] = (mandatoryExerciseCounts[e.lesson_id] || 0) + 1
       }
     })
-    ;(blockCountsRes.data || []).forEach((b: { lesson_id: string; block_type: string }) => {
+    // Completable blocks count toward a lesson's items so block-based lessons
+    // register progress. A block qualifies only if a student can actually see
+    // AND finish it: published, and either an always-completable type
+    // (dialogue/writing/ielts_reading — credited here via isCompletableBlock
+    // with no content) or a media/grammar/mistakes block whose content carries
+    // practice items (checked in the student branch, where content is loaded).
+    const completableBlockIdsByLesson: Record<string, string[]> = {}
+    ;(blockCountsRes.data || []).forEach((b: { id: string; lesson_id: string; block_type: string; published?: boolean | null }) => {
       if (!blockCounts[b.lesson_id]) blockCounts[b.lesson_id] = {}
       blockCounts[b.lesson_id][b.block_type] = (blockCounts[b.lesson_id][b.block_type] || 0) + 1
+      if (b.published !== false && isCompletableBlock(b.block_type, undefined)) {
+        if (!completableBlockIdsByLesson[b.lesson_id]) completableBlockIdsByLesson[b.lesson_id] = []
+        completableBlockIdsByLesson[b.lesson_id].push(b.id)
+      }
     })
 
     // Group folder links into folder_ids[] per lesson for My Library.
@@ -222,18 +234,28 @@ export async function GET(req: NextRequest) {
     let exerciseCompletedCounts: Record<string, number> = {}
     let mandatoryCompletedCounts: Record<string, number> = {}
     let bonusCompletedCounts: Record<string, number> = {}
+    let blocksCompletedCounts: Record<string, number> = {}
     let flashcardCompleted: Record<string, boolean> = {}
     let pointsPerLesson: Record<string, number> = {}
     let totalPoints = 0
+    // Item denominators (student home) use only content the student can SEE:
+    // published exercises/blocks, flashcards unless the lesson hides them.
+    let visibleExerciseCounts: Record<string, number> = {}
+    let visibleExerciseCompletedCounts: Record<string, number> = {}
 
     if (role === 'student') {
       // exerciseIdsRes already fetched in the Promise.all above
       const exerciseIdsByLesson: Record<string, string[]> = {}
       const mandatoryIdsByLesson: Record<string, string[]> = {}
       const bonusIdsByLesson: Record<string, string[]> = {}
-      ;(exerciseIdsRes.data || []).forEach((e: { id: string; lesson_id: string; is_mandatory?: boolean }) => {
+      const visibleExerciseIdsByLesson: Record<string, string[]> = {}
+      ;(exerciseIdsRes.data || []).forEach((e: { id: string; lesson_id: string; is_mandatory?: boolean; published?: boolean | null }) => {
         if (!exerciseIdsByLesson[e.lesson_id]) exerciseIdsByLesson[e.lesson_id] = []
         exerciseIdsByLesson[e.lesson_id].push(e.id)
+        if (e.published !== false) {
+          if (!visibleExerciseIdsByLesson[e.lesson_id]) visibleExerciseIdsByLesson[e.lesson_id] = []
+          visibleExerciseIdsByLesson[e.lesson_id].push(e.id)
+        }
         if (e.is_mandatory === false) {
           if (!bonusIdsByLesson[e.lesson_id]) bonusIdsByLesson[e.lesson_id] = []
           bonusIdsByLesson[e.lesson_id].push(e.id)
@@ -242,18 +264,54 @@ export async function GET(req: NextRequest) {
           mandatoryIdsByLesson[e.lesson_id].push(e.id)
         }
       })
+      for (const [lid, ids] of Object.entries(visibleExerciseIdsByLesson)) {
+        visibleExerciseCounts[lid] = ids.length
+      }
+
+      // Conditional block types (media/grammar/mistakes) only complete via
+      // practice items in their content — load content to tell bare blocks
+      // (no completion path, excluded) from ones with questions (included).
+      if (lessonIds.length > 0) {
+        const { data: condRows } = await supabase
+          .from('lesson_blocks')
+          .select('id, lesson_id, block_type, published, content')
+          .in('lesson_id', lessonIds)
+          .in('block_type', CONDITIONAL_BLOCK_TYPES)
+        ;(condRows || []).forEach((b: { id: string; lesson_id: string; block_type: string; published?: boolean | null; content?: unknown }) => {
+          if (b.published !== false && isCompletableBlock(b.block_type, b.content)) {
+            if (!completableBlockIdsByLesson[b.lesson_id]) completableBlockIdsByLesson[b.lesson_id] = []
+            completableBlockIdsByLesson[b.lesson_id].push(b.id)
+          }
+        })
+      }
 
       const allExerciseIds = (exerciseIdsRes.data || []).map((e: { id: string }) => e.id)
+      const allBlockIds = Object.values(completableBlockIdsByLesson).flat()
+      // Flashcard completions are written as "<lessonId>:<mode>" — enumerate
+      // the three modes per lesson so the .in() filter matches them exactly.
+      const flashcardIds = lessonIds
+        .filter((lid: string) => (flashcardCounts[lid] || 0) > 0)
+        .flatMap((lid: string) => [`${lid}:flip`, `${lid}:self-assess`, `${lid}:quiz`])
+      const allActivityIds = [...allExerciseIds, ...allBlockIds, ...flashcardIds]
 
-      if (allExerciseIds.length > 0) {
-        // Filter progress at DB level — only fetch records for exercises in these lessons
-        const allActivityIds = [...allExerciseIds, ...lessonIds] // exercise IDs + lesson IDs (for flashcard progress)
-        const progressRes = await supabase
-          .from('progress')
-          .select('activity_type, activity_id, points_earned')
-          .eq('user_email', email)
-          .in('activity_type', ['exercise', 'flashcard'])
-          .in('activity_id', allActivityIds)
+      if (allActivityIds.length > 0) {
+        // Filter progress at DB level — only fetch records for items in these
+        // lessons. Chunked: the id list (exercises + blocks + 3 flashcard ids
+        // per lesson) can approach PostgREST's URL cap on large courses.
+        const progressRows: { activity_type: string; activity_id: string; points_earned: number | null }[] = []
+        for (let i = 0; i < allActivityIds.length; i += 150) {
+          const { data: rows, error: chunkErr } = await supabase
+            .from('progress')
+            .select('activity_type, activity_id, points_earned')
+            .eq('user_email', email)
+            .in('activity_type', ['exercise', 'flashcard', 'block', 'writing'])
+            .in('activity_id', allActivityIds.slice(i, i + 150))
+          // A failed chunk only UNDER-counts completion for this request;
+          // log it so degradation is observable instead of silent.
+          if (chunkErr) console.error('lessons progress chunk failed:', chunkErr.message)
+          progressRows.push(...((rows || []) as typeof progressRows))
+        }
+        const progressRes = { data: progressRows }
 
         const completedActivityIds = new Set(
           (progressRes.data || [])
@@ -271,37 +329,43 @@ export async function GET(req: NextRequest) {
             }
           })
 
-        const flashcardActivityIds = new Set(
+        // Interactive blocks completed ('block' rows, or 'writing' submissions).
+        const doneBlockIds = new Set(
           (progressRes.data || [])
-            .filter((p: { activity_type: string }) => p.activity_type === 'flashcard')
+            .filter((p: { activity_type: string }) => p.activity_type === 'block' || p.activity_type === 'writing')
             .map((p: { activity_id: string }) => p.activity_id)
         )
+
+        // Flashcards done per lesson — matched by the "<lessonId>:<mode>" id,
+        // so ONLY that lesson's set is credited (previously any flashcard
+        // activity anywhere marked every lesson's flashcards as studied).
+        ;(progressRes.data || [])
+          .filter((p: { activity_type: string }) => p.activity_type === 'flashcard')
+          .forEach((p: { activity_id: string }) => {
+            const lid = p.activity_id.split(':')[0]
+            if ((flashcardCounts[lid] || 0) > 0) flashcardCompleted[lid] = true
+          })
 
         // Count completed exercises per lesson + aggregate points
         for (const [lid, exIds] of Object.entries(exerciseIdsByLesson)) {
           exerciseCompletedCounts[lid] = exIds.filter(id => completedActivityIds.has(id)).length
           mandatoryCompletedCounts[lid] = (mandatoryIdsByLesson[lid] || []).filter(id => completedActivityIds.has(id)).length
           bonusCompletedCounts[lid] = (bonusIdsByLesson[lid] || []).filter(id => completedActivityIds.has(id)).length
+          visibleExerciseCompletedCounts[lid] = (visibleExerciseIdsByLesson[lid] || []).filter(id => completedActivityIds.has(id)).length
           let lessonPts = 0
           exIds.forEach(id => { lessonPts += pointsByActivityId[id] || 0 })
           pointsPerLesson[lid] = lessonPts
           totalPoints += lessonPts
         }
 
-        // Check if student has done any flashcard activity (modes: flip, self-assess, quiz)
-        // Flashcard progress activity_id is the mode name, not lesson-specific
-        // So we just check if they have any flashcard progress at all
-        if (flashcardActivityIds.size > 0) {
-          lessonIds.forEach((lid: string) => {
-            if (flashcardCounts[lid] > 0) {
-              flashcardCompleted[lid] = true
-            }
-          })
+        // Count completed blocks per lesson
+        for (const [lid, blockIds] of Object.entries(completableBlockIdsByLesson)) {
+          blocksCompletedCounts[lid] = blockIds.filter(id => doneBlockIds.has(id)).length
         }
       }
     }
 
-    const lessonsWithCounts = visibleLessons.map((lesson: { id: string }) => ({
+    const lessonsWithCounts = visibleLessons.map((lesson: { id: string; flashcards_published?: boolean | null }) => ({
       ...lesson,
       flashcard_count: flashcardCounts[lesson.id] || 0,
       exercise_count: exerciseCounts[lesson.id] || 0,
@@ -314,6 +378,19 @@ export async function GET(req: NextRequest) {
       bonus_completed: bonusCompletedCounts[lesson.id] || 0,
       flashcards_studied: flashcardCompleted[lesson.id] || false,
       points_earned: pointsPerLesson[lesson.id] || 0,
+      // All completable items (exercises + interactive blocks + flashcard set)
+      // so block-based lessons (no lesson_exercises) still register progress.
+      // Students: only items they can SEE and FINISH count (published rows,
+      // blocks with a completion path, flashcards unless the lesson hides
+      // them) — otherwise the lesson could never reach 100%.
+      item_count:
+        (role === 'student' ? visibleExerciseCounts[lesson.id] || 0 : exerciseCounts[lesson.id] || 0) +
+        (completableBlockIdsByLesson[lesson.id]?.length || 0) +
+        ((flashcardCounts[lesson.id] || 0) > 0 && lesson.flashcards_published !== false ? 1 : 0),
+      items_completed:
+        (visibleExerciseCompletedCounts[lesson.id] || 0) +
+        (blocksCompletedCounts[lesson.id] || 0) +
+        (flashcardCompleted[lesson.id] && lesson.flashcards_published !== false ? 1 : 0),
     }))
 
     return NextResponse.json({ lessons: lessonsWithCounts, total_points: totalPoints })

@@ -41,6 +41,7 @@ export interface ReportsLesson {
   id: string
   title: string
   lesson_date: string | null
+  flashcards_published?: boolean | null
 }
 
 export interface ReportsExercise {
@@ -126,6 +127,10 @@ export interface ReportsData {
   attendance: ReportsAttendanceRow[]
   sessions: ReportsSession[]
   writingBlocks: ReportsWritingBlock[]
+  // ALL lesson blocks (optional — older payloads omit it). Block-based lessons
+  // (e.g. AI review lessons) have no lesson_exercises, so completion counts
+  // interactive blocks + flashcards too.
+  blocks?: { id: string; lesson_id: string; block_type: string }[]
   vocabStruggles: Record<string, number>
   lessonFlashcards: ReportsLessonFlashcard[]
   vocabSrs: ReportsVocabSrsRow[]
@@ -305,6 +310,44 @@ interface OverviewAggregate {
   attendanceMarked: number
 }
 
+// Completion counted over ALL completable items, not just classic exercises —
+// block-based lessons (AI review lessons) have no lesson_exercises rows, so
+// without blocks + flashcards they never register progress. The route only
+// sends blocks a student can actually finish (published + has a completion
+// path — see lib/block-completion.ts); flashcard sets count 1 item per lesson
+// with cards (completions land as activity_id "<lessonId>:<mode>"), skipped
+// when the lesson hides its flashcards. Shared by the report card and the AI
+// digest so the narrative can never contradict the KPIs beside it.
+function computeItemCompletion(
+  data: ReportsData,
+  email: string,
+  attemptedExerciseIds: Set<string>
+): { assigned: number; completed: number; completionPct: number } {
+  const completableBlockIds = new Set(
+    (data.blocks || []).filter((b) => b.block_type !== 'pronunciation').map((b) => b.id)
+  )
+  const hiddenFlashcardLessons = new Set(
+    data.lessons.filter((l) => l.flashcards_published === false).map((l) => l.id)
+  )
+  const flashcardLessonIds = new Set(
+    (data.lessonFlashcards || []).map((f) => f.lesson_id).filter((lid) => !hiddenFlashcardLessons.has(lid))
+  )
+  const doneBlockIds = new Set<string>()
+  const doneFlashcardLessons = new Set<string>()
+  for (const p of data.progress) {
+    if (p.user_email !== email) continue
+    if ((p.activity_type === 'block' || p.activity_type === 'writing') && completableBlockIds.has(p.activity_id)) {
+      doneBlockIds.add(p.activity_id)
+    } else if (p.activity_type === 'flashcard') {
+      const lid = p.activity_id.split(':')[0]
+      if (flashcardLessonIds.has(lid)) doneFlashcardLessons.add(lid)
+    }
+  }
+  const assigned = data.exercises.length + completableBlockIds.size + flashcardLessonIds.size
+  const completed = attemptedExerciseIds.size + doneBlockIds.size + doneFlashcardLessons.size
+  return { assigned, completed, completionPct: assigned > 0 ? Math.round((completed / assigned) * 100) : 0 }
+}
+
 function computeOverviewAggregate(
   data: ReportsData,
   student: ReportsStudent,
@@ -320,9 +363,8 @@ function computeOverviewAggregate(
 
   // Unique exercises attempted
   const attemptedIds = new Set(studentExerciseProgress.map((p) => p.activity_id))
-  const assigned = data.exercises.length
-  const completed = attemptedIds.size
-  const completionPct = assigned > 0 ? Math.round((completed / assigned) * 100) : 0
+
+  const { assigned, completed, completionPct } = computeItemCompletion(data, student.email, attemptedIds)
 
   // For each unique exercise, find latest and best percentages
   const latestPcts: number[] = []
@@ -736,9 +778,14 @@ export function buildDigestPayload(
     return { id: ex.id, title: ex.title, attempts: attempts.length, latest: latestPct, best }
   })
 
-  const attempted = perEx.filter((p) => p.attempts > 0).length
-  const assigned = data.exercises.length
-  const completionPct = assigned > 0 ? Math.round((attempted / assigned) * 100) : 0
+  // Items-based completion — same math as the report card (blocks + flashcards
+  // included), so the AI narrative can't contradict the KPIs it sits next to.
+  const attemptedExIds = new Set(perEx.filter((p) => p.attempts > 0).map((p) => p.id))
+  const {
+    assigned,
+    completed: attempted,
+    completionPct,
+  } = computeItemCompletion(data, email, attemptedExIds)
   const totalAttempts = perEx.reduce((s, p) => s + p.attempts, 0)
 
   const latestPcts = perEx.map((p) => p.latest).filter((x): x is number => x != null)
