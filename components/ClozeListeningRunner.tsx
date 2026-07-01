@@ -366,7 +366,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
               disabled={isPlaying}
               className="flex items-center gap-2 bg-sky-wash hover:bg-sky-border text-ink-body font-bold py-3 px-5 rounded-xl text-sm transition-colors disabled:opacity-50"
             >
-              <span className="text-lg">🐢</span> Slow
+              <span className="text-lg">🐌</span> Slow
             </button>
           </div>
           {playCount === 0 && mode === 'listen_first' && (

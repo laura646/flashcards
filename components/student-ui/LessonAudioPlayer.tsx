@@ -21,12 +21,20 @@ export default function LessonAudioPlayer({ src }: { src: string }) {
   const [current, setCurrent] = useState(0)
   const [duration, setDuration] = useState(0)
   const [muted, setMuted] = useState(false)
+  const [slow, setSlow] = useState(false)
 
   const toggle = () => {
     const a = audioRef.current
     if (!a) return
-    if (a.paused) { a.play(); setPlaying(true) }
+    if (a.paused) { a.playbackRate = slow ? 0.7 : 1; a.play(); setPlaying(true) }
     else { a.pause(); setPlaying(false) }
+  }
+
+  const toggleSlow = () => {
+    const next = !slow
+    setSlow(next)
+    const a = audioRef.current
+    if (a) a.playbackRate = next ? 0.7 : 1
   }
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -70,6 +78,17 @@ export default function LessonAudioPlayer({ src }: { src: string }) {
         ) : (
           <svg className="w-5 h-5 ml-0.5" viewBox="0 0 20 20" fill="currentColor"><path d="M6 4l10 6-10 6z" /></svg>
         )}
+      </button>
+
+      {/* Play slower */}
+      <button
+        onClick={toggleSlow}
+        aria-label="Play slower"
+        aria-pressed={slow}
+        title="Play slower"
+        className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center border text-base transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky/40 ${slow ? 'bg-sky border-sky' : 'bg-white border-sky-border hover:border-sky'}`}
+      >
+        <span aria-hidden="true">🐌</span>
       </button>
 
       {/* Timecode + scrubber */}
