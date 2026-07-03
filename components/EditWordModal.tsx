@@ -18,14 +18,17 @@ interface Props {
   existing: EditWordData
   onClose: () => void
   onSaved: (word: string) => void
+  onDeleted: (word: string) => void
 }
 
 // Per-word editing for the My Vocabulary list. vocab_srs is per-user, so a
 // student only ever changes their OWN copy of a word — never the shared
 // lesson flashcard. Mirrors the fields the old trainer editor exposed.
-export default function EditWordModal({ existing, onClose, onSaved }: Props) {
+export default function EditWordModal({ existing, onClose, onSaved, onDeleted }: Props) {
   const [form, setForm] = useState<EditWordData>(existing)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const update = (key: keyof EditWordData, value: string) =>
@@ -77,6 +80,28 @@ export default function EditWordModal({ existing, onClose, onSaved }: Props) {
     }
   }
 
+  const remove = async () => {
+    setDeleting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/vocab-srs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', word_id: existing.id, word: existing.word }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error || 'Failed to remove. Please try again.')
+        setDeleting(false)
+        return
+      }
+      onDeleted(existing.word)
+    } catch {
+      setError('Network error — could not remove.')
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
       <div
@@ -124,10 +149,32 @@ export default function EditWordModal({ existing, onClose, onSaved }: Props) {
 
         {error && <p className="text-xs text-incorrect-fg mb-3">{error}</p>}
 
-        <button onClick={save} disabled={saving || !form.word.trim()}
+        <button onClick={save} disabled={saving || deleting || !form.word.trim()}
           className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
           {saving ? 'Saving…' : 'Save changes'}
         </button>
+
+        {/* Remove — two-tap confirm, since it drops the word + its review progress. */}
+        <div className="mt-3 text-center">
+          {confirmRemove ? (
+            <div className="flex items-center justify-center gap-3">
+              <span className="text-xs text-ink-muted">Remove this word?</span>
+              <button onClick={remove} disabled={deleting}
+                className="text-xs font-bold text-incorrect-fg hover:underline disabled:opacity-50">
+                {deleting ? 'Removing…' : 'Yes, remove'}
+              </button>
+              <button onClick={() => setConfirmRemove(false)} disabled={deleting}
+                className="text-xs font-bold text-ink-muted hover:text-ink-body">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmRemove(true)}
+              className="text-xs font-bold text-ink-muted hover:text-incorrect-fg transition-colors">
+              Remove from my vocabulary
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

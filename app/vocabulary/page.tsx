@@ -69,8 +69,14 @@ export default function VocabularyPage() {
       fetch('/api/vocab-srs?action=all').then((r) => r.json()),
       fetch('/api/vocab-srs?action=stats').then((r) => r.json()),
       fetch('/api/vocab-srs?action=streak').then((r) => r.json()),
+      fetch('/api/vocab-srs?action=removed').then((r) => r.json()),
     ])
-      .then(([lessonData, srsData, statsData, streakData]) => {
+      .then(([lessonData, srsData, statsData, streakData, removedData]) => {
+        // Words the student removed — hide any that still exist as lesson
+        // flashcards (their SRS row is already gone).
+        const removedSet = new Set<string>(
+          ((removedData?.words || []) as string[]).map((w) => w.toLowerCase())
+        )
         const srsWords = (srsData.words || []) as Array<{
           id: string; word: string; phonetic?: string; meaning?: string
           example?: string; image_url?: string; notes?: string
@@ -85,7 +91,7 @@ export default function VocabularyPage() {
         // meaning/phonetic/translation) when one exists in their SRS.
         ;(lessonData.flashcards || []).forEach((w: VocabWord) => {
           const key = w.word.toLowerCase()
-          if (seen.has(key)) return
+          if (seen.has(key) || removedSet.has(key)) return
           seen.add(key)
           const sw = srsByKey.get(key)
           merged.push({
@@ -98,7 +104,7 @@ export default function VocabularyPage() {
         // Student-added words live only in vocab_srs (never in a lesson).
         srsWords.forEach((sw) => {
           const key = (sw.word || '').toLowerCase()
-          if (!key || seen.has(key)) return
+          if (!key || seen.has(key) || removedSet.has(key)) return
           seen.add(key)
           merged.push({
             id: sw.id,
@@ -545,6 +551,12 @@ export default function VocabularyPage() {
             setEditData(null)
             loadAll(true)
             setToast('Changes saved')
+            setTimeout(() => setToast(null), 2400)
+          }}
+          onDeleted={(w) => {
+            setEditData(null)
+            loadAll(true)
+            setToast(`“${w}” removed from your vocabulary`)
             setTimeout(() => setToast(null), 2400)
           }}
         />

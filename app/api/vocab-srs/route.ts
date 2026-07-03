@@ -220,6 +220,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ words: data || [] })
     }
 
+    // Words the student removed — so the My Vocabulary list can hide any that
+    // still exist as lesson flashcards. Fail open (empty) if the table's absent.
+    if (action === 'removed') {
+      const { data } = await supabase
+        .from('vocab_removed')
+        .select('word')
+        .eq('user_email', email)
+      return NextResponse.json({ words: (data || []).map((r: { word: string }) => r.word) })
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {
     console.error('Vocab SRS GET error:', err)
@@ -301,6 +311,17 @@ export async function POST(req: NextRequest) {
       ;(existing || []).forEach((w: { word: string; source_word: string | null }) => {
         if (w.word) existingWords.add(w.word.toLowerCase())
         if (w.source_word) existingWords.add(w.source_word.toLowerCase())
+      })
+
+      // Words the student has explicitly removed from their vocabulary. Add
+      // them to the "existing" set so they are NOT re-imported from a lesson
+      // (or a struggle) on this sync. Fail open if the table is absent.
+      const { data: removedWords } = await supabase
+        .from('vocab_removed')
+        .select('word')
+        .eq('user_email', email)
+      ;(removedWords || []).forEach((r: { word: string }) => {
+        if (r.word) existingWords.add(r.word.toLowerCase())
       })
 
       // Build a lookup of flashcard metadata by lowercased word so we can
@@ -576,6 +597,48 @@ Format: {"phonetic": "...", "meaning": "...", "example": "..."}`,
       }, { onConflict: 'user_email,word' })
 
       if (error) throw error
+      // Re-adding a word un-removes it (clears any prior removal so it can
+      // sync/display normally again). Best-effort; fine if the table is absent.
+      await supabase
+        .from('vocab_removed')
+        .delete()
+        .eq('user_email', email)
+        .eq('word', String(word).toLowerCase())
+      return NextResponse.json({ ok: true })
+    }
+
+    // Remove a word from the student's vocabulary. Hard-deletes their SRS row
+    // and records the removal (by the sync dedup key) so a lesson-derived word
+    // is not resurrected on the next sync. Per-user by construction.
+    if (action === 'delete') {
+      const wordId = typeof body.word_id === 'string' ? body.word_id : ''
+      const wordText = typeof body.word === 'string' ? body.word.trim() : ''
+      if (!wordId && !wordText) {
+        return NextResponse.json({ error: 'Missing word' }, { status: 400 })
+      }
+
+      // Look up the row first so we can exclude BOTH its current word and its
+      // original source_word (the key sync re-imports by).
+      let lookup = supabase.from('vocab_srs').select('word, source_word').eq('user_email', email)
+      lookup = wordId ? lookup.eq('id', wordId) : lookup.eq('word', wordText)
+      const { data: row } = await lookup.maybeSingle()
+
+      let del = supabase.from('vocab_srs').delete().eq('user_email', email)
+      del = wordId ? del.eq('id', wordId) : del.eq('word', wordText)
+      const { error: delErr } = await del
+      if (delErr) throw delErr
+
+      const keys = new Set<string>()
+      if (row?.word) keys.add(row.word.toLowerCase())
+      if (row?.source_word) keys.add(row.source_word.toLowerCase())
+      if (!row && wordText) keys.add(wordText.toLowerCase())
+      if (keys.size > 0) {
+        // Best-effort; fail open if the vocab_removed table isn't there yet.
+        await supabase.from('vocab_removed').upsert(
+          Array.from(keys).map((w) => ({ user_email: email, word: w })),
+          { onConflict: 'user_email,word' }
+        )
+      }
       return NextResponse.json({ ok: true })
     }
 
