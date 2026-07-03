@@ -103,13 +103,19 @@ export default function GapFillEditor({ questions, onChange }: Props) {
   // ── Mode ──
   const setMode = (mode: GapFillMode) => {
     if (mode === 'dropdown') {
-      // Entering dropdown mode: every gap needs selectable `options`. Gaps made in
-      // another mode (or before this fix) have none, which renders an EMPTY popup
-      // ("dropdown doesn't work"). Seed missing options from each gap's answers so
-      // the correct choice is always present; the teacher can then add distractors.
-      const gaps = cfg.gaps.map((g) =>
-        g.options && g.options.length ? g : { ...g, options: [...g.answers] },
-      )
+      // Entering dropdown mode: every gap needs selectable `options`, and every
+      // accepted answer must appear among them (otherwise the answer isn't
+      // pickable). Seed from answers when empty, then union-in any answer that's
+      // missing — this heals gaps authored in another mode or with a desynced list.
+      const gaps = cfg.gaps.map((g) => {
+        const opts = g.options && g.options.length ? [...g.options] : [...g.answers]
+        for (const a of g.answers) {
+          if (a.trim() && !opts.some((o) => o.trim().toLowerCase() === a.trim().toLowerCase())) {
+            opts.push(a)
+          }
+        }
+        return { ...g, options: opts }
+      })
       emit({ mode, gaps })
       return
     }
@@ -164,9 +170,37 @@ export default function GapFillEditor({ questions, onChange }: Props) {
     updateGap(gapId, { answers })
   }
 
-  const setGapOptions = (gapId: string, raw: string) => {
-    const options = raw.split(',').map((s) => s.trim()).filter(Boolean)
-    updateGap(gapId, { options })
+  // ── Dropdown choice editor (one row per choice; answers = the marked ones) ──
+  // `options` is the full choice list a student picks from; `answers` is the
+  // subset marked correct. We keep them in sync so the answer is always a choice.
+  const sameWord = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+  const addGapChoice = (g: GapFillGap) => {
+    updateGap(g.id, { options: [...(g.options || []), ''] })
+  }
+
+  const setGapChoiceText = (g: GapFillGap, idx: number, val: string) => {
+    const prev = (g.options || [])[idx] ?? ''
+    const options = (g.options || []).map((o, i) => (i === idx ? val : o))
+    // If this choice was marked correct, rename it in the answer key too.
+    const answers = (g.answers || []).map((a) => (sameWord(a, prev) ? val : a))
+    updateGap(g.id, { options, answers })
+  }
+
+  const removeGapChoice = (g: GapFillGap, idx: number) => {
+    const prev = (g.options || [])[idx] ?? ''
+    const options = (g.options || []).filter((_, i) => i !== idx)
+    const answers = (g.answers || []).filter((a) => !sameWord(a, prev))
+    updateGap(g.id, { options, answers })
+  }
+
+  const toggleGapChoiceCorrect = (g: GapFillGap, choice: string) => {
+    if (!choice.trim()) return
+    const isCorrect = (g.answers || []).some((a) => sameWord(a, choice))
+    const answers = isCorrect
+      ? (g.answers || []).filter((a) => !sameWord(a, choice))
+      : [...(g.answers || []), choice]
+    updateGap(g.id, { answers })
   }
 
   const setDistractors = (raw: string) => {
@@ -297,31 +331,75 @@ export default function GapFillEditor({ questions, onChange }: Props) {
                   </button>
                 </div>
 
-                {/* Accepted answers */}
-                <div>
-                  <label className="block text-[9px] font-bold text-ink-muted uppercase mb-0.5">
-                    Accepted answers (comma-separated; first is canonical)
-                  </label>
-                  <input
-                    type="text"
-                    value={g.answers.join(', ')}
-                    onChange={(e) => setGapAnswers(g.id, e.target.value)}
-                    placeholder="went, travelled"
-                    className="w-full px-2.5 py-1.5 text-xs text-ink-body bg-white border border-[#cddcf0] rounded-lg focus:outline-none focus:border-sky placeholder:text-[#b6bac2]"
-                  />
-                </div>
-
-                {/* Dropdown options (dropdown mode only) */}
-                {cfg.mode === 'dropdown' && (
+                {cfg.mode === 'dropdown' ? (
+                  /* Dropdown: one row per choice, tap the check to mark correct. */
+                  <div>
+                    <label className="block text-[9px] font-bold text-ink-muted uppercase mb-1">
+                      Choices — tap the check to mark the correct answer
+                    </label>
+                    <div className="space-y-1.5">
+                      {(g.options || []).map((opt, ci) => {
+                        const correct =
+                          opt.trim() !== '' && (g.answers || []).some((a) => sameWord(a, opt))
+                        return (
+                          <div key={ci} className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleGapChoiceCorrect(g, opt)}
+                              aria-pressed={correct}
+                              aria-label={correct ? 'Correct answer — tap to unmark' : 'Mark as correct answer'}
+                              className={`flex-none w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                correct
+                                  ? 'border-green-600 bg-green-50 text-green-700'
+                                  : 'border-[#d3dde8] text-transparent hover:border-sky'
+                              }`}
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5}>
+                                <path d="M5 12l5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={(e) => setGapChoiceText(g, ci, e.target.value)}
+                              placeholder="type a choice"
+                              className="flex-1 px-2.5 py-1.5 text-xs text-ink-body bg-white border border-[#cddcf0] rounded-lg focus:outline-none focus:border-sky placeholder:text-[#b6bac2]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeGapChoice(g, ci)}
+                              className="flex-none text-gray-300 hover:text-red-400 text-xs p-1"
+                              aria-label="Remove choice"
+                              title="Remove choice"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addGapChoice(g)}
+                      className="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold text-sky-text bg-sky-wash border border-dashed border-sky-border rounded-lg hover:bg-[#daf0fd] transition-colors"
+                    >
+                      + Add choice
+                    </button>
+                    {!(g.options || []).some((o) => o.trim() !== '' && (g.answers || []).some((a) => sameWord(a, o))) && (
+                      <p className="mt-1 text-[10px] font-bold text-red-400">Mark at least one choice as the correct answer.</p>
+                    )}
+                  </div>
+                ) : (
+                  /* Open / word-bank: accepted answers as a comma list. */
                   <div>
                     <label className="block text-[9px] font-bold text-ink-muted uppercase mb-0.5">
-                      Choices for this gap (include the correct answer + wrong options)
+                      Accepted answers (comma-separated; first is canonical)
                     </label>
                     <input
                       type="text"
-                      value={(g.options || []).join(', ')}
-                      onChange={(e) => setGapOptions(g.id, e.target.value)}
-                      placeholder="went, go, gone, going"
+                      value={g.answers.join(', ')}
+                      onChange={(e) => setGapAnswers(g.id, e.target.value)}
+                      placeholder="went, travelled"
                       className="w-full px-2.5 py-1.5 text-xs text-ink-body bg-white border border-[#cddcf0] rounded-lg focus:outline-none focus:border-sky placeholder:text-[#b6bac2]"
                     />
                   </div>
