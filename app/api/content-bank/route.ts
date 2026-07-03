@@ -65,6 +65,35 @@ async function checkLessonEditAccess(
   return null
 }
 
+// Access gate for READING a SOURCE lesson/template whose content is about to be
+// copied into caller-owned content (clone/save/copy actions). Superadmin
+// bypasses. Broader than the edit gate: library content is meant to be
+// reusable, so a source is viewable if the caller owns it, has access to its
+// course, OR it's shared to the School Library (is_shared) OR it's a template
+// (is_template). Only someone else's PRIVATE, unshared, non-template lesson is
+// forbidden — closes a read-exposure where a teacher could exfiltrate another
+// teacher's private lesson content by cloning it into their own library.
+async function checkSourceReadAccess(
+  user: { email: string; role: UserRole },
+  lessonId: string
+): Promise<NextResponse | null> {
+  if (user.role === 'superadmin') return null
+  const { data: lesson } = await supabase
+    .from('lessons')
+    .select('created_by, course_id, is_shared, is_template')
+    .eq('id', lessonId)
+    .single()
+  if (!lesson) return NextResponse.json({ error: 'Source not found' }, { status: 404 })
+  const accessible = await getAccessibleCourseIds(user.email, user.role)
+  const ok =
+    lesson.created_by === user.email ||
+    (lesson.course_id && accessible.includes(lesson.course_id)) ||
+    lesson.is_shared === true ||
+    lesson.is_template === true
+  if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return null
+}
+
 // Resolve an exercise to its lesson, then apply the lesson-edit gate. Closes a
 // pre-existing hole where update/delete-exercise had no ownership check.
 async function checkExerciseEditAccess(
@@ -403,6 +432,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Gate the SOURCE: caller must be allowed to view the template being cloned.
+      const srcGate = await checkSourceReadAccess(user, template_id)
+      if (srcGate) return srcGate
+
       // Fetch template and all its content
       const [lessonRes, fcRes, exRes, blockRes] = await Promise.all([
         supabase.from('lessons').select('*').eq('id', template_id).single(),
@@ -507,6 +540,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Gate the SOURCE: caller must be allowed to view the template items come from.
+      const srcGate = await checkSourceReadAccess(user, template_id)
+      if (srcGate) return srcGate
+
       // Get current max order_index in target lesson to append after existing content
       const [fcMax, exMax, blockMax] = await Promise.all([
         supabase.from('lesson_flashcards').select('order_index').eq('lesson_id', target_lesson_id).order('order_index', { ascending: false }).limit(1),
@@ -551,6 +588,7 @@ export async function POST(req: NextRequest) {
         const { data: exercises } = await supabase
           .from('lesson_exercises')
           .select('*')
+          .eq('lesson_id', template_id)
           .in('id', item_ids.exercise_ids)
 
         if (exercises && exercises.length > 0) {
@@ -574,6 +612,7 @@ export async function POST(req: NextRequest) {
         const { data: blocks } = await supabase
           .from('lesson_blocks')
           .select('*')
+          .eq('lesson_id', template_id)
           .in('id', item_ids.block_ids)
 
         if (blocks && blocks.length > 0) {
@@ -762,6 +801,10 @@ export async function POST(req: NextRequest) {
     if (action === 'save-lesson-to-bank') {
       const { lesson_id, template_category, template_level, folder_id } = body
       if (!lesson_id) return NextResponse.json({ error: 'Lesson ID required' }, { status: 400 })
+
+      // Gate the SOURCE: caller must be allowed to view the lesson being saved.
+      const srcGate = await checkSourceReadAccess(user, lesson_id)
+      if (srcGate) return srcGate
 
       // Fetch source lesson and all content
       const [lessonRes, fcRes, exRes, blockRes] = await Promise.all([
@@ -1002,6 +1045,10 @@ export async function POST(req: NextRequest) {
       // Must be allowed to mutate the TARGET lesson (was ungated).
       const gate = await checkLessonEditAccess(user, target_lesson_id)
       if (gate) return gate
+
+      // Gate the SOURCE: caller must be allowed to view the template being copied.
+      const srcGate = await checkSourceReadAccess(user, template_id)
+      if (srcGate) return srcGate
 
       // Fetch template content
       const [fcRes, exRes, blockRes] = await Promise.all([
