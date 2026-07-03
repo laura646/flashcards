@@ -26,6 +26,8 @@ export default function AddWordModal({ onClose, onSaved }: Props) {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // AI generations left in the student's daily quota (null = unknown/unlimited).
+  const [remaining, setRemaining] = useState<number | null>(null)
 
   const generate = async () => {
     const w = word.trim()
@@ -44,6 +46,7 @@ export default function AddWordModal({ onClose, onSaved }: Props) {
         setGenerating(false)
         return
       }
+      setRemaining(typeof data.remaining === 'number' ? data.remaining : null)
       setDraft({
         word: data.word || w,
         phonetic: data.phonetic || '',
@@ -129,7 +132,12 @@ export default function AddWordModal({ onClose, onSaved }: Props) {
           </>
         ) : (
           <>
-            <p className="text-[10px] font-bold text-sky-dark uppercase tracking-wide mb-2">Generated for you — check &amp; edit</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold text-sky-dark uppercase tracking-wide">Generated for you — check &amp; edit</p>
+              {remaining !== null && (
+                <span className="text-[10px] text-ink-muted">{remaining} new word{remaining === 1 ? '' : 's'} left today</span>
+              )}
+            </div>
             <div className="space-y-3 mb-4">
               <div>
                 <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">Word</label>

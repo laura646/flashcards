@@ -23,6 +23,10 @@ const DEFAULT_EASE = 2.5
 // freshly-synced backlog doesn't overwhelm the student in one sitting.
 const NEW_WORDS_PER_FETCH = 15
 
+// Max AI word-generations a student may make per (UTC) day. Enforced via the
+// vocab_ai_usage table so the count is durable across serverless instances.
+const DAILY_GEN_LIMIT = 20
+
 interface Sm2State {
   ease_factor: number
   interval_days: number
@@ -481,6 +485,29 @@ export async function POST(req: NextRequest) {
       if (!apiKey) {
         return NextResponse.json({ error: 'AI is not configured' }, { status: 500 })
       }
+
+      // Daily quota: cap AI-generated new words per student per (UTC) day.
+      // Fail open if the usage table is missing/unreachable so a schema gap
+      // never locks students out of the feature.
+      const today = new Date().toISOString().slice(0, 10)
+      let usedToday = 0
+      let quotaEnforced = true
+      const { data: usage, error: usageErr } = await supabase
+        .from('vocab_ai_usage')
+        .select('count')
+        .eq('user_email', email)
+        .eq('used_on', today)
+        .maybeSingle()
+      if (usageErr) quotaEnforced = false
+      else usedToday = usage?.count ?? 0
+
+      if (quotaEnforced && usedToday >= DAILY_GEN_LIMIT) {
+        return NextResponse.json({
+          error: `You've reached your daily limit of ${DAILY_GEN_LIMIT} new words. Come back tomorrow!`,
+          limitReached: true,
+        }, { status: 429 })
+      }
+
       const client = new Anthropic({ apiKey })
       const message = await client.messages.create({
         model: HAIKU_MODEL,
@@ -509,11 +536,23 @@ Format: {"phonetic": "...", "meaning": "...", "example": "..."}`,
         }
         parsed = JSON.parse(m[0])
       }
+
+      // Count this generation against today's quota (best-effort; a soft cap,
+      // so a race that lets through one extra is acceptable).
+      let remaining: number | null = null
+      if (quotaEnforced) {
+        await supabase
+          .from('vocab_ai_usage')
+          .upsert({ user_email: email, used_on: today, count: usedToday + 1 }, { onConflict: 'user_email,used_on' })
+        remaining = Math.max(0, DAILY_GEN_LIMIT - (usedToday + 1))
+      }
+
       return NextResponse.json({
         word: rawWord,
         phonetic: parsed.phonetic || '',
         meaning: parsed.meaning || '',
         example: parsed.example || '',
+        remaining,
       })
     }
 
