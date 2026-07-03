@@ -37,7 +37,7 @@ export default function EditWordModal({ existing, onClose, onSaved }: Props) {
     setError(null)
     try {
       // Update an existing SRS row by id; otherwise upsert it by word.
-      const body = form.id
+      const body: Record<string, unknown> = form.id
         ? {
             action: 'update',
             word_id: form.id,
@@ -45,7 +45,6 @@ export default function EditWordModal({ existing, onClose, onSaved }: Props) {
             phonetic: form.phonetic,
             meaning: form.meaning,
             example: form.example,
-            notes: form.notes,
             translation: form.translation,
           }
         : {
@@ -56,6 +55,10 @@ export default function EditWordModal({ existing, onClose, onSaved }: Props) {
             example: form.example.trim(),
             translation: form.translation.trim() || null,
           }
+      // Only write `notes` when the student actually changed it. Avoids
+      // touching vocab_srs.notes (a column flagged as possibly absent on the
+      // live DB) for the common edit that never opens the notes field.
+      if (form.id && form.notes !== existing.notes) body.notes = form.notes
       const res = await fetch('/api/vocab-srs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
