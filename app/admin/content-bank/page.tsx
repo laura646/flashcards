@@ -1472,6 +1472,9 @@ export default function ContentBankBetaPage() {
                         </h3>
                         <div className="flex flex-wrap gap-1.5 mb-2">
                           <Pill variant="correct">✓ Shared</Pill>
+                          {t.block_counts?.presentation ? (
+                            <Pill variant="wash">▶ Presentation</Pill>
+                          ) : null}
                           {t.template_level && (
                             <Pill variant="level">{t.template_level}</Pill>
                           )}
@@ -1482,11 +1485,22 @@ export default function ContentBankBetaPage() {
                             <Pill variant="wash">{LESSON_TYPE_LABELS[t.lesson_type]?.label}</Pill>
                           )}
                         </div>
-                        <p className="text-xs text-ink-muted">{contentSummary(t)}</p>
+                        <p className="text-xs text-ink-muted">{t.block_counts?.presentation ? 'Presentation deck' : contentSummary(t)}</p>
                         {t.summary && (
                           <p className="text-xs text-ink-muted mt-2 line-clamp-2">{t.summary}</p>
                         )}
                       </button>
+                      {t.block_counts?.presentation ? (
+                        <a
+                          href={`/present/${t.id}?t=${encodeURIComponent(t.title)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 mb-1 text-sm font-extrabold text-white bg-sky hover:bg-[#0099d6] px-3 py-1.5 rounded-tile transition-colors"
+                        >
+                          ▶ Present
+                        </a>
+                      ) : null}
                       <p className="text-xs text-ink-muted mt-2">
                         Shared by{' '}
                         <button
