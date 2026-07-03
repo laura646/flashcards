@@ -330,6 +330,10 @@ export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
       const opts = dropdownOptions[g.id] || []
       const picked = values[g.id]
       const isOpen = openGap === g.id && !checked
+      // Underlined trigger — reads like a fill-in blank with a chevron cue, not a
+      // boxed control. Colour the underline + text; open/checked states tint it.
+      const lineColor = checked ? (correct ? CORRECT_FG : WRONG_FG) : isOpen ? SKY : '#9fd5f4'
+      const textColor = checked ? (correct ? CORRECT_FG : WRONG_FG) : picked ? INK_BODY : INK_MUTED
       return (
         <span key={`g-${idx}`} style={{ position: 'relative', display: 'inline-block', whiteSpace: 'nowrap' }}>
           <button
@@ -338,63 +342,99 @@ export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
             onClick={() => setOpenGap((cur) => (cur === g.id ? null : g.id))}
             aria-haspopup="listbox"
             aria-expanded={isOpen}
-            className="gapfill-dropdown-trigger"
+            aria-label={`Gap ${idx + 1}`}
             style={{
-              ...blankBase,
-              ...stateStyle,
-              minWidth: 92,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              verticalAlign: 'middle',
+              margin: '0 2px',
+              padding: '2px 5px 3px',
+              border: 'none',
+              borderBottom: `2px solid ${lineColor}`,
+              borderRadius: '5px 5px 0 0',
+              background: checked ? (correct ? CORRECT_BG : WRONG_BG) : isOpen ? SKY_WASH : 'transparent',
+              color: textColor,
+              fontFamily: 'inherit',
+              fontSize: 15,
+              lineHeight: 1.4,
               cursor: checked ? 'default' : 'pointer',
-              textAlign: 'left',
-              color: checked ? stateStyle.color : picked ? INK_BODY : INK_MUTED,
-              background: checked ? stateStyle.background : '#fff',
             }}
           >
-            {picked || '   ▾'}
+            <span style={{ display: 'inline-block', minWidth: picked ? 0 : 44, textAlign: 'center' }}>
+              {picked || ''}
+            </span>
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={checked ? 'currentColor' : SKY_TEXT}
+              strokeWidth={3}
+              aria-hidden="true"
+              style={{ flexShrink: 0, transition: 'transform .15s', transform: isOpen ? 'rotate(180deg)' : 'none' }}
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
           {isOpen && (
             <span
               role="listbox"
               style={{
                 position: 'absolute',
-                top: BLANK_H + 4,
+                top: 'calc(100% + 6px)',
                 left: 0,
                 zIndex: 20,
-                minWidth: 120,
+                minWidth: 150,
                 background: '#fff',
-                border: `1px solid ${SKY_BORDER}`,
-                borderRadius: 10,
-                boxShadow: '0 6px 20px rgba(15,22,40,0.12)',
-                padding: 4,
+                border: '1px solid #e0ecf8',
+                borderRadius: 12,
+                boxShadow: '0 12px 30px rgba(15,22,40,0.16)',
+                padding: 5,
                 display: 'flex',
                 flexDirection: 'column',
               }}
             >
-              {opts.map((opt, oi) => (
-                <button
-                  key={oi}
-                  type="button"
-                  role="option"
-                  aria-selected={picked === opt}
-                  onClick={() => {
-                    setValues((p) => ({ ...p, [g.id]: opt }))
-                    setOpenGap(null)
-                  }}
-                  className="gapfill-option"
-                  style={{
-                    textAlign: 'left',
-                    fontSize: 14,
-                    padding: '7px 10px',
-                    borderRadius: 7,
-                    border: 'none',
-                    background: picked === opt ? SKY_WASH : 'transparent',
-                    color: INK_BODY,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {opt}
-                </button>
-              ))}
+              {opts.map((opt, oi) => {
+                const sel = picked === opt
+                return (
+                  <button
+                    key={oi}
+                    type="button"
+                    role="option"
+                    aria-selected={sel}
+                    onClick={() => {
+                      setValues((p) => ({ ...p, [g.id]: opt }))
+                      setOpenGap(null)
+                    }}
+                    className="gapfill-option"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      textAlign: 'left',
+                      fontSize: 15,
+                      padding: '9px 12px',
+                      borderRadius: 8,
+                      border: 'none',
+                      background: sel ? SKY_WASH : 'transparent',
+                      color: sel ? SKY_TEXT : INK_BODY,
+                      fontWeight: sel ? 500 : 400,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {opt}
+                    {sel && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={SKY} strokeWidth={3} aria-hidden="true">
+                        <path d="M5 12l5 5L20 7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </button>
+                )
+              })}
             </span>
           )}
           {answerHint}
@@ -459,6 +499,7 @@ export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
 
   return (
     <div className="font-rubik flex flex-col gap-4">
+      <style>{`.gapfill-option:not([aria-selected="true"]):hover{background:#f0f9fe !important;}`}</style>
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky transition-colors">
