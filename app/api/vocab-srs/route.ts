@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
+import Anthropic from '@anthropic-ai/sdk'
+import { rateLimit } from '@/lib/rate-limit'
+import { HAIKU_MODEL } from '@/lib/ai-models'
 
 // ── SM-2 (SuperMemo 2) ──
 // 4 grade buttons map to SM-2 quality scores:
@@ -19,6 +22,10 @@ const DEFAULT_EASE = 2.5
 // Max brand-new words (never reviewed) to surface per fetch, so a big
 // freshly-synced backlog doesn't overwhelm the student in one sitting.
 const NEW_WORDS_PER_FETCH = 15
+
+// Max AI word-generations a student may make per (UTC) day. Enforced via the
+// vocab_ai_usage table so the count is durable across serverless instances.
+const DAILY_GEN_LIMIT = 20
 
 interface Sm2State {
   ease_factor: number
@@ -456,6 +463,96 @@ export async function POST(req: NextRequest) {
         new_box: next.box_level,
         interval_days: next.interval_days,
         next_review_at: next.next_review_at,
+      })
+    }
+
+    // AI-draft a flashcard from just the word. The student types a word and
+    // we write phonetic/meaning/example so they don't have to. This does NOT
+    // save — it returns a draft the student reviews/edits, then 'add' persists
+    // it. Student-authenticated (any logged-in user), unlike the teacher-only
+    // /api/generate-content route.
+    if (action === 'generate') {
+      const rawWord = typeof body.word === 'string' ? body.word.trim() : ''
+      if (!rawWord) {
+        return NextResponse.json({ error: 'Missing word' }, { status: 400 })
+      }
+      // Cap AI cost/abuse: 15 generations per minute per student.
+      const { allowed } = rateLimit(`vocab-gen:${email}`, 15)
+      if (!allowed) {
+        return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })
+      }
+      const apiKey = process.env.ANTHROPIC_API_KEY
+      if (!apiKey) {
+        return NextResponse.json({ error: 'AI is not configured' }, { status: 500 })
+      }
+
+      // Daily quota: cap AI-generated new words per student per (UTC) day.
+      // Fail open if the usage table is missing/unreachable so a schema gap
+      // never locks students out of the feature.
+      const today = new Date().toISOString().slice(0, 10)
+      let usedToday = 0
+      let quotaEnforced = true
+      const { data: usage, error: usageErr } = await supabase
+        .from('vocab_ai_usage')
+        .select('count')
+        .eq('user_email', email)
+        .eq('used_on', today)
+        .maybeSingle()
+      if (usageErr) quotaEnforced = false
+      else usedToday = usage?.count ?? 0
+
+      if (quotaEnforced && usedToday >= DAILY_GEN_LIMIT) {
+        return NextResponse.json({
+          error: `You've reached your daily limit of ${DAILY_GEN_LIMIT} new words. Come back tomorrow!`,
+          limitReached: true,
+        }, { status: 429 })
+      }
+
+      const client = new Anthropic({ apiKey })
+      const message = await client.messages.create({
+        model: HAIKU_MODEL,
+        max_tokens: 512,
+        messages: [{
+          role: 'user',
+          content: `You are an English vocabulary tutor. For the word or phrase "${rawWord}", return ONLY a valid JSON object (no markdown, no explanation) with:
+- "phonetic": a simple pronunciation guide (e.g. "yoo-BIK-wi-tuhs", not IPA)
+- "meaning": a clear, student-friendly definition in 1-2 short sentences
+- "example": one natural example sentence using the word
+
+Format: {"phonetic": "...", "meaning": "...", "example": "..."}`,
+        }],
+      })
+      const textContent = message.content.find((c) => c.type === 'text')
+      if (!textContent || textContent.type !== 'text') {
+        return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+      }
+      let parsed: { phonetic?: string; meaning?: string; example?: string }
+      try {
+        parsed = JSON.parse(textContent.text)
+      } catch {
+        const m = textContent.text.match(/\{[\s\S]*\}/)
+        if (!m) {
+          return NextResponse.json({ error: 'AI generation failed. Please try again.' }, { status: 500 })
+        }
+        parsed = JSON.parse(m[0])
+      }
+
+      // Count this generation against today's quota (best-effort; a soft cap,
+      // so a race that lets through one extra is acceptable).
+      let remaining: number | null = null
+      if (quotaEnforced) {
+        await supabase
+          .from('vocab_ai_usage')
+          .upsert({ user_email: email, used_on: today, count: usedToday + 1 }, { onConflict: 'user_email,used_on' })
+        remaining = Math.max(0, DAILY_GEN_LIMIT - (usedToday + 1))
+      }
+
+      return NextResponse.json({
+        word: rawWord,
+        phonetic: parsed.phonetic || '',
+        meaning: parsed.meaning || '',
+        example: parsed.example || '',
+        remaining,
       })
     }
 
