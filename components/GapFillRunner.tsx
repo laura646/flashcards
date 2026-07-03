@@ -182,7 +182,20 @@ export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
   const dropdownOptions = useMemo(() => {
     if (mode !== 'dropdown') return {} as Record<string, string[]>
     const map: Record<string, string[]> = {}
-    for (const g of gaps) map[g.id] = shuffle(g.options || [])
+    for (const g of gaps) {
+      let opts = (g.options ?? []).filter(Boolean)
+      // Fallback for exercises saved without per-gap options (mode switched after
+      // authoring, AI/seeded configs, pre-fix content): fall back to the answers so
+      // the dropdown is never empty.
+      if (opts.length === 0) opts = (g.answers ?? []).filter(Boolean)
+      // Guarantee the correct answer is always selectable, even if a teacher's
+      // options list accidentally omits it.
+      const answer = (g.answers ?? []).find(Boolean)
+      if (answer && !opts.some((o) => o.toLowerCase() === answer.toLowerCase())) {
+        opts = [...opts, answer]
+      }
+      map[g.id] = shuffle(opts)
+    }
     return map
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])

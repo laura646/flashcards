@@ -101,7 +101,20 @@ export default function GapFillEditor({ questions, onChange }: Props) {
   const tokens = useMemo(() => tokenize(cfg.text), [cfg.text])
 
   // ── Mode ──
-  const setMode = (mode: GapFillMode) => emit({ mode })
+  const setMode = (mode: GapFillMode) => {
+    if (mode === 'dropdown') {
+      // Entering dropdown mode: every gap needs selectable `options`. Gaps made in
+      // another mode (or before this fix) have none, which renders an EMPTY popup
+      // ("dropdown doesn't work"). Seed missing options from each gap's answers so
+      // the correct choice is always present; the teacher can then add distractors.
+      const gaps = cfg.gaps.map((g) =>
+        g.options && g.options.length ? g : { ...g, options: [...g.answers] },
+      )
+      emit({ mode, gaps })
+      return
+    }
+    emit({ mode })
+  }
 
   // ── Paragraph text ──
   const setText = (text: string) => {
