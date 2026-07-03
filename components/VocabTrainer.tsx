@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import AudioButton from '@/components/AudioButton'
-import { RatingRow, type Rating } from '@/components/student-ui'
+import { RatingRow } from '@/components/student-ui'
 
 interface SrsWord {
   id: string
@@ -35,38 +35,39 @@ interface SessionResults {
 
 interface Props {
   onBack: () => void
-  // Deep-link entry from the Home quick-action tiles:
-  //   'add'  → open the add-word view
-  //   'flip' / 'quiz' → open the Start-Review modal with that mode preset
-  // (always over the student's REAL SRS words, never a demo deck).
-  initialAction?: 'flip' | 'quiz' | 'add' | null
+  // ?mode=flip|quiz deep-link from Home → preselect that mode in the setup.
+  initialAction?: 'flip' | 'quiz' | null
+  // "Practice these N" from a My Vocabulary progress bucket → jump straight
+  // into a flip review of just that mastery stage (1–5).
+  initialStage?: number | null
 }
 
 type ReviewMode = 'flip' | 'quiz'
 type ReviewFilter = 'due' | 'hard' | 'easy' | 'all'
 
 const BOX_LABELS = ['', 'New', 'Learning', 'Familiar', 'Known', 'Mastered']
-// Leitner ramp (brief §3) — used ONLY for the box-distribution bar chart.
+// Leitner ramp — used only for the session-summary box chart.
 const BOX_COLORS = ['', 'bg-leitner-new', 'bg-leitner-learning', 'bg-leitner-familiar', 'bg-leitner-known', 'bg-leitner-mastered']
 
-// Session-summary chips use the 10B rating tokens so they match the
-// one-tap RatingRow (again=grey, hard=indigo, good=sky-wash, easy=sky).
 const GRADE_CONFIG = [
-  { grade: 'again' as Grade, label: 'Again', sub: 'forgot',   dot: 'bg-rating-again-fg', pill: 'bg-rating-again-bg text-rating-again-fg' },
-  { grade: 'hard'  as Grade, label: 'Hard',  sub: 'barely',   dot: 'bg-rating-hard-fg',  pill: 'bg-rating-hard-bg text-rating-hard-fg'  },
-  { grade: 'good'  as Grade, label: 'Good',  sub: 'got it',   dot: 'bg-sky-dark',        pill: 'bg-sky-wash text-sky-dark'              },
-  { grade: 'easy'  as Grade, label: 'Easy',  sub: 'too easy', dot: 'bg-sky',             pill: 'bg-sky text-white'                      },
+  { grade: 'again' as Grade, label: 'Again', dot: 'bg-rating-again-fg', pill: 'bg-rating-again-bg text-rating-again-fg' },
+  { grade: 'hard'  as Grade, label: 'Hard',  dot: 'bg-rating-hard-fg',  pill: 'bg-rating-hard-bg text-rating-hard-fg'  },
+  { grade: 'good'  as Grade, label: 'Good',  dot: 'bg-sky-dark',        pill: 'bg-sky-wash text-sky-dark'              },
+  { grade: 'easy'  as Grade, label: 'Easy',  dot: 'bg-sky',             pill: 'bg-sky text-white'                      },
 ]
 
-export default function VocabTrainer({ onBack, initialAction = null }: Props) {
+// The Vocabulary Trainer is now purely the PRACTICE surface: a setup screen
+// (how many · which words · mode) → a flip/quiz session → a summary. Word
+// browsing, adding and editing live on the My Vocabulary page.
+export default function VocabTrainer({ onBack, initialAction = null, initialStage = null }: Props) {
   const { data: session } = useSession()
   const studentEmail = session?.user?.email || ''
-  const initialActionDone = useRef(false)
-  // Guard so a fast double-tap on the one-tap RatingRow can't rate two
-  // cards from a single render (it commits an irreversible SRS write).
+  const initialDone = useRef(false)
+  // Guard so a fast double-tap on the one-tap RatingRow can't rate two cards
+  // from a single render (each tap commits an irreversible SRS write).
   const ratingInFlight = useRef(false)
 
-  const [view, setView] = useState<'home' | 'review' | 'add'>('home')
+  const [view, setView] = useState<'setup' | 'review'>('setup')
   const [stats, setStats] = useState<Stats | null>(null)
   const [dueWords, setDueWords] = useState<SrsWord[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,144 +78,24 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
   const [currentIdx, setCurrentIdx] = useState(0)
   const [flipped, setFlipped] = useState(false)
   const [hasFlipped, setHasFlipped] = useState(false)
-  const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null)
   const [quizOptions, setQuizOptions] = useState<string[]>([])
   const [quizSelected, setQuizSelected] = useState<number | null>(null)
   const [sessionResults, setSessionResults] = useState<SessionResults>({ again: 0, hard: 0, good: 0, easy: 0, total: 0 })
   const [sessionDone, setSessionDone] = useState(false)
 
-  // Pre-review modal
-  const [showReviewModal, setShowReviewModal] = useState(false)
-  const [reviewWordCount, setReviewWordCount] = useState(15)
-  const [wordCountInput, setWordCountInput] = useState('15')
-  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('due')
-  const [modalMode, setModalMode] = useState<ReviewMode>('flip')
-  const [modalLoading, setModalLoading] = useState(false)
-  const [modalError, setModalError] = useState('')
-
-  // Add word
-  const [addWord, setAddWord] = useState('')
-  const [addMeaning, setAddMeaning] = useState('')
-  const [addPhonetic, setAddPhonetic] = useState('')
-  const [addExample, setAddExample] = useState('')
-  const [addTranslation, setAddTranslation] = useState('')
-
-  // Streak + focus
-  const [streak, setStreak] = useState(0)
-  const [reviewedToday, setReviewedToday] = useState(false)
-  const [focusWords, setFocusWords] = useState<{ id: string; word: string; meaning: string }[]>([])
-  const [showFocus, setShowFocus] = useState(false)
-
-  // Stage browser
-  const [stageBox, setStageBox] = useState<number | null>(null)
-  const [stageWords, setStageWords] = useState<SrsWord[]>([])
-  const [stageLoading, setStageLoading] = useState(false)
-
-  // Inline edit
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ word: '', phonetic: '', meaning: '', example: '', notes: '', translation: '', image_url: '' })
-  const [editSaving, setEditSaving] = useState(false)
-
-  const startEdit = (w: SrsWord) => {
-    setEditingId(w.id)
-    setEditForm({
-      word: w.word || '',
-      phonetic: w.phonetic || '',
-      meaning: w.meaning || '',
-      example: w.example || '',
-      notes: w.notes || '',
-      translation: w.translation || '',
-      image_url: w.image_url || '',
-    })
-  }
-
-  const cancelEdit = () => setEditingId(null)
-
-  const saveEdit = async (id: string) => {
-    if (!editForm.word.trim()) return
-    setEditSaving(true)
-    try {
-      const res = await fetch('/api/vocab-srs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update',
-          word_id: id,
-          word: editForm.word.trim(),
-          phonetic: editForm.phonetic,
-          meaning: editForm.meaning,
-          example: editForm.example,
-          notes: editForm.notes,
-          translation: editForm.translation,
-          image_url: editForm.image_url || null,
-        }),
-      })
-      if (res.ok) {
-        setStageWords((prev) =>
-          prev.map((w) =>
-            w.id === id
-              ? {
-                  ...w,
-                  word: editForm.word.trim(),
-                  phonetic: editForm.phonetic,
-                  meaning: editForm.meaning,
-                  example: editForm.example,
-                  notes: editForm.notes || null,
-                  translation: editForm.translation || null,
-                  image_url: editForm.image_url || null,
-                }
-              : w
-          )
-        )
-        setEditingId(null)
-      } else {
-        setError('Could not save your changes. Please try again.')
-      }
-    } catch {
-      setError('Network error — changes not saved.')
-    }
-    setEditSaving(false)
-  }
-
-  const openStage = useCallback(async (box: number) => {
-    setStageBox(box)
-    setStageLoading(true)
-    setStageWords([])
-    try {
-      const res = await fetch('/api/vocab-srs?action=all')
-      const data = await res.json()
-      const all: SrsWord[] = data.words || []
-      setStageWords(all.filter((w) => (w.box_level || 1) === box).sort((a, b) => a.word.localeCompare(b.word)))
-    } catch { /* leave empty */ }
-    setStageLoading(false)
-  }, [])
+  // Setup
+  const [setupCount, setSetupCount] = useState(15)
+  const [setupCountInput, setSetupCountInput] = useState('15')
+  const [setupFilter, setSetupFilter] = useState<ReviewFilter>('due')
+  const [setupMode, setSetupMode] = useState<ReviewMode>('flip')
+  const [setupLoading, setSetupLoading] = useState(false)
+  const [setupError, setSetupError] = useState('')
 
   const loadStats = useCallback(async () => {
-    const res = await fetch('/api/vocab-srs?action=stats')
-    const data = await res.json()
-    if (data.stats) setStats(data.stats)
-  }, [])
-
-  const loadDueWords = useCallback(async () => {
-    const res = await fetch('/api/vocab-srs?action=due')
-    const data = await res.json()
-    setDueWords(data.words || [])
-  }, [])
-
-  const loadStreak = useCallback(async () => {
     try {
-      const res = await fetch('/api/vocab-srs?action=streak')
+      const res = await fetch('/api/vocab-srs?action=stats')
       const data = await res.json()
-      setStreak(data.streak || 0)
-      setReviewedToday(!!data.reviewedToday)
-    } catch { /* non-blocking */ }
-  }, [])
-
-  const loadFocus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/vocab-srs?action=focus')
-      const data = await res.json()
-      setFocusWords(data.words || [])
+      if (data.stats) setStats(data.stats)
     } catch { /* non-blocking */ }
   }, [])
 
@@ -227,121 +108,88 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
           body: JSON.stringify({ action: 'sync' }),
         })
       } catch { /* non-blocking */ }
-      await Promise.all([loadStats(), loadDueWords(), loadStreak(), loadFocus()])
+      await loadStats()
       setLoading(false)
     }
     init()
-  }, [loadStats, loadDueWords, loadStreak, loadFocus])
+  }, [loadStats])
 
-  // Deep-link entry from the Home quick-action tiles. Runs once, after the
-  // trainer has loaded, so review starts over real (synced) SRS words.
-  useEffect(() => {
-    if (loading || !initialAction || initialActionDone.current) return
-    initialActionDone.current = true
-    if (initialAction === 'add') {
-      setView('add')
-    } else if (initialAction === 'flip' || initialAction === 'quiz') {
-      setModalMode(initialAction)
-      setModalError('')
-      setShowReviewModal(true)
-    }
-  }, [loading, initialAction])
-
-  const handleAddWord = async () => {
-    if (!addWord.trim()) return
-    setError(null)
-    try {
-      const res = await fetch('/api/vocab-srs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'add',
-          word: addWord.trim(),
-          meaning: addMeaning.trim(),
-          phonetic: addPhonetic.trim(),
-          example: addExample.trim(),
-          translation: addTranslation.trim() || null,
-        }),
-      })
-      if (!res.ok) { setError('Failed to add word. Please try again.'); return }
-      setAddWord(''); setAddMeaning(''); setAddPhonetic(''); setAddExample(''); setAddTranslation('')
-      await Promise.all([loadStats(), loadDueWords()])
-      setView('home')
-    } catch {
-      setError('Network error — could not add word.')
-    }
-  }
-
-  const generateQuizOptions = useCallback((idx: number) => {
-    if (dueWords.length === 0) return
-    const correct = dueWords[idx]
-    // Distinct wrong meanings, excluding any that match the correct answer
-    // (two words can share a meaning → otherwise the quiz shows two correct
-    // options). Tiny decks may yield <3 distractors; that's fine.
+  const generateQuizOptions = useCallback((idx: number, words: SrsWord[]) => {
+    if (words.length === 0) return
+    const correct = words[idx]
+    // Distinct wrong meanings, excluding any that match the correct answer.
     const wrongPool = Array.from(new Set(
-      dueWords
+      words
         .filter((_, i) => i !== idx)
         .map((w) => w.meaning)
         .filter((m) => m && m.length > 0 && m !== correct.meaning)
     ))
     const shuffled = wrongPool.sort(() => Math.random() - 0.5).slice(0, 3)
     setQuizOptions([...shuffled, correct.meaning].sort(() => Math.random() - 0.5))
-  }, [dueWords])
+  }, [])
 
-  const startReview = (mode: ReviewMode) => {
+  const startReview = useCallback((mode: ReviewMode, words: SrsWord[]) => {
     setReviewMode(mode)
+    setDueWords(words)
     setCurrentIdx(0)
     setFlipped(false)
     setHasFlipped(false)
-    setSelectedGrade(null)
     setQuizSelected(null)
     setSessionResults({ again: 0, hard: 0, good: 0, easy: 0, total: 0 })
     setSessionDone(false)
     setView('review')
-    if (mode === 'quiz') generateQuizOptions(0)
-  }
+    if (mode === 'quiz') generateQuizOptions(0, words)
+  }, [generateQuizOptions])
 
-  const reviewStage = () => {
-    if (stageWords.length === 0) return
-    setDueWords(stageWords)
-    setStageBox(null)
-    startReview('flip')
-  }
-
-  const openReviewModal = () => {
-    setModalError('')
-    setShowReviewModal(true)
-  }
-
-  const startModalReview = async () => {
-    setModalLoading(true)
-    setModalError('')
+  const startSetupReview = async () => {
+    setSetupLoading(true)
+    setSetupError('')
     try {
-      const actionMap: Record<ReviewFilter, string> = {
-        due: 'due', hard: 'focus', easy: 'easy', all: 'all',
-      }
-      const res = await fetch(`/api/vocab-srs?action=${actionMap[reviewFilter]}`)
+      const actionMap: Record<ReviewFilter, string> = { due: 'due', hard: 'focus', easy: 'easy', all: 'all' }
+      const res = await fetch(`/api/vocab-srs?action=${actionMap[setupFilter]}`)
       const data = await res.json()
       let words: SrsWord[] = data.words || []
-      if (reviewFilter === 'all') words = [...words].sort(() => Math.random() - 0.5)
-      words = words.slice(0, reviewWordCount)
-
+      if (setupFilter === 'all') words = [...words].sort(() => Math.random() - 0.5)
+      words = words.slice(0, setupCount)
       if (words.length === 0) {
-        setModalError('No words match this filter. Try a different one.')
-        setModalLoading(false)
+        setSetupError('No words match this filter. Try a different one.')
+        setSetupLoading(false)
         return
       }
-      setDueWords(words)
-      setShowReviewModal(false)
-      startReview(modalMode)
+      startReview(setupMode, words)
     } catch {
-      setModalError('Could not load words. Please try again.')
+      setSetupError('Could not load words. Please try again.')
     }
-    setModalLoading(false)
+    setSetupLoading(false)
   }
 
+  // Entry: a direct stage review ("Practice these N"), or a mode preset.
+  useEffect(() => {
+    if (loading || initialDone.current) return
+    initialDone.current = true
+    if (initialStage != null) {
+      ;(async () => {
+        try {
+          const res = await fetch('/api/vocab-srs?action=all')
+          const data = await res.json()
+          const all: SrsWord[] = data.words || []
+          const inStage = all
+            .filter((w) => (w.box_level || 1) === initialStage)
+            .sort(() => Math.random() - 0.5)
+          if (inStage.length > 0) startReview('flip', inStage)
+          else onBack()
+        } catch {
+          onBack()
+        }
+      })()
+      return
+    }
+    if (initialAction === 'flip' || initialAction === 'quiz') setSetupMode(initialAction)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, initialAction, initialStage])
+
   const handleReviewResult = async (grade: Grade) => {
-    if (ratingInFlight.current) return // block double-tap rating two cards
+    if (ratingInFlight.current) return
     const word = dueWords[currentIdx]
     if (!word) return
     ratingInFlight.current = true
@@ -353,7 +201,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
         body: JSON.stringify({ action: 'review', word_id: word.id, grade }),
       })
       if (!res.ok) setError('Failed to save review. Progress may be lost.')
-      else setError(null) // clear any prior transient failure on success
+      else setError(null)
     } catch {
       setError('Network error — review not saved.')
     }
@@ -365,18 +213,19 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
     }
     setSessionResults(newResults)
 
-    // Re-queue failed words at the end so they come back in the same session
+    // Re-queue failed words at the end so they come back this session.
+    let queue = dueWords
     if (grade === 'again') {
-      setDueWords(prev => [...prev, word])
+      queue = [...dueWords, word]
+      setDueWords(queue)
     }
 
-    if (currentIdx + 1 < dueWords.length) {
+    if (currentIdx + 1 < queue.length) {
       setCurrentIdx(currentIdx + 1)
       setFlipped(false)
       setHasFlipped(false)
-      setSelectedGrade(null)
       setQuizSelected(null)
-      if (reviewMode === 'quiz') generateQuizOptions(currentIdx + 1)
+      if (reviewMode === 'quiz') generateQuizOptions(currentIdx + 1, queue)
     } else {
       setSessionDone(true)
       if (studentEmail) {
@@ -393,7 +242,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
         }).catch(() => { /* non-blocking */ })
       }
       loadStats()
-      loadStreak()
     }
     ratingInFlight.current = false
   }
@@ -462,12 +310,20 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
           </div>
         )}
 
-        <button
-          onClick={() => { setView('home'); loadDueWords(); loadStats() }}
-          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
-        >
-          Done
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setSessionDone(false); setView('setup') }}
+            className="flex-1 bg-white border-2 border-sky-border text-ink-body font-bold py-3 rounded-xl text-sm hover:border-sky hover:text-sky transition-colors"
+          >
+            Practice more
+          </button>
+          <button
+            onClick={onBack}
+            className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+          >
+            Done
+          </button>
+        </div>
       </div>
     )
   }
@@ -480,7 +336,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setView('home')} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+          <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky">← Back</button>
           <h2 className="text-sm font-bold text-brandblue flex-1">Vocabulary Review</h2>
           <span className="text-xs text-ink-muted">{currentIdx + 1}/{dueWords.length}</span>
         </div>
@@ -489,8 +345,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
           <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* Save-failure feedback on the active card — the dashboard banner
-            isn't visible mid-session, so surface it here too. */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between">
             <p className="text-xs text-red-500">{error}</p>
@@ -498,12 +352,9 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
           </div>
         )}
 
-        {/* 3D flip card — auto-height so long words/translations/examples
-            on the back never clip (grid-stacks both faces). */}
+        {/* 3D flip card — auto-height so long backs never clip. */}
         <div className="card-flip w-full" style={{ minHeight: '280px' }}>
           <div className={`card-flip-inner flip-autoheight w-full h-full${flipped ? ' flipped' : ''}`}>
-
-            {/* FRONT — word only */}
             <div
               className="card-front bg-white border-2 border-sky rounded-flashcard p-8 flex flex-col items-center justify-center cursor-pointer transition-colors"
               onClick={() => { setFlipped(true); setHasFlipped(true) }}
@@ -521,7 +372,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
               <p className="text-xs text-ink-muted mt-2">Tap to flip</p>
             </div>
 
-            {/* BACK — meaning, photo, translation, example */}
             <div
               className="card-back bg-white border-2 border-sky rounded-flashcard p-6 flex flex-col items-center justify-center cursor-pointer"
               onClick={() => setFlipped(false)}
@@ -538,12 +388,9 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
               )}
               <p className="text-[10px] text-ink-muted mt-3">Tap to flip back</p>
             </div>
-
           </div>
         </div>
 
-        {/* One-tap rating (brief §6): tapping a grade commits the SRS
-            review and advances immediately — no confirm step. */}
         {hasFlipped && (
           <RatingRow
             onRate={(r) => handleReviewResult(r as Grade)}
@@ -563,7 +410,7 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setView('home')} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+          <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky">← Back</button>
           <h2 className="text-sm font-bold text-brandblue flex-1">Vocabulary Quiz</h2>
           <span className="text-xs text-ink-muted">{currentIdx + 1}/{dueWords.length}</span>
         </div>
@@ -572,7 +419,6 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
           <div className="h-full bg-sky rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* Save-failure feedback on the active card (see flip mode). */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between">
             <p className="text-xs text-red-500">{error}</p>
@@ -614,338 +460,83 @@ export default function VocabTrainer({ onBack, initialAction = null }: Props) {
     )
   }
 
-  // ── ADD WORD ──
-  if (view === 'add') {
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setView('home')} className="text-sm text-ink-muted hover:text-sky">← Back</button>
-          <h2 className="text-sm font-bold text-brandblue">Add a Word</h2>
-        </div>
-
-        <div className="space-y-3">
-          {[
-            { label: 'Word *', value: addWord, setter: setAddWord, placeholder: 'e.g. ubiquitous' },
-            { label: 'Meaning', value: addMeaning, setter: setAddMeaning, placeholder: 'e.g. found everywhere' },
-            { label: 'Phonetic', value: addPhonetic, setter: setAddPhonetic, placeholder: 'e.g. /juːˈbɪkwɪtəs/' },
-            { label: 'Example sentence', value: addExample, setter: setAddExample, placeholder: 'e.g. Smartphones are ubiquitous in modern life.' },
-            { label: 'Translation (your language, optional)', value: addTranslation, setter: setAddTranslation, placeholder: 'e.g. повсюду, überall…' },
-          ].map(({ label, value, setter, placeholder }) => (
-            <div key={label}>
-              <label className="block text-[10px] font-bold text-ink-muted uppercase mb-1">{label}</label>
-              <input type="text" value={value} onChange={(e) => setter(e.target.value)} placeholder={placeholder}
-                className="w-full text-sm text-ink-body border border-sky-border rounded-lg px-3 py-2 focus:outline-none focus:border-sky" />
-            </div>
-          ))}
-        </div>
-
-        <button onClick={handleAddWord} disabled={!addWord.trim()}
-          className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
-          Add Word
-        </button>
-      </div>
-    )
-  }
-
-  // ── STAGE WORD LIST ──
-  if (stageBox !== null) {
-    const label = BOX_LABELS[stageBox]
-    const isWeakStage = stageBox <= 3
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <button onClick={() => setStageBox(null)} className="text-sm text-ink-muted hover:text-sky">← Back</button>
-          <h2 className="text-sm font-bold text-brandblue flex-1">
-            <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold text-white mr-2 bg-sky">
-              {label}
-            </span>
-            {stageWords.length} word{stageWords.length === 1 ? '' : 's'}
-          </h2>
-        </div>
-
-        {isWeakStage && stageWords.length > 0 && (
-          <button onClick={reviewStage}
-            className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors">
-            Review these {stageWords.length} word{stageWords.length === 1 ? '' : 's'} now
-          </button>
-        )}
-
-        {stageLoading ? (
-          <div className="text-sm text-ink-muted text-center py-8">Loading…</div>
-        ) : stageWords.length === 0 ? (
-          <div className="bg-surface rounded-xl border border-hairline p-6 text-center">
-            <div className="text-3xl mb-2">{stageBox === 5 ? '🏆' : '📭'}</div>
-            <p className="text-xs text-ink-muted">
-              {stageBox === 5
-                ? "No mastered words yet — keep reviewing and they'll land here."
-                : 'No words in this stage right now.'}
-            </p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-sky-border shadow-sm overflow-hidden divide-y divide-hairline">
-            {stageWords.map((w) =>
-              editingId === w.id ? (
-                <div key={w.id} className="px-4 py-3 bg-surface space-y-2">
-                  {[
-                    { key: 'word' as const, label: 'Word', placeholder: '' },
-                    { key: 'phonetic' as const, label: 'Phonetic', placeholder: '' },
-                    { key: 'meaning' as const, label: 'Meaning', placeholder: '' },
-                    { key: 'translation' as const, label: 'Translation (your language)', placeholder: 'e.g. your own-language word' },
-                    { key: 'example' as const, label: 'Example', placeholder: '' },
-                    { key: 'notes' as const, label: 'My notes (memory tricks, personal associations…)', placeholder: 'e.g. sounds like "ubiquitous" → think of ants everywhere' },
-                    { key: 'image_url' as const, label: 'Image URL (optional — paste a direct image link)', placeholder: 'https://…' },
-                  ].map(({ key, label, placeholder }) => (
-                    <div key={key}>
-                      <label className="block text-[10px] font-bold text-ink-muted uppercase mb-0.5">{label}</label>
-                      <input type="text" value={editForm[key]}
-                        onChange={(e) => setEditForm((f) => ({ ...f, [key]: e.target.value }))}
-                        placeholder={placeholder}
-                        className="w-full text-sm text-ink-body border border-sky-border rounded-lg px-2 py-1.5 focus:outline-none focus:border-sky" />
-                    </div>
-                  ))}
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={() => saveEdit(w.id)} disabled={editSaving || !editForm.word.trim()}
-                      className="flex-1 bg-sky hover:brightness-95 text-white font-bold py-2 rounded-lg text-xs transition-colors disabled:opacity-50">
-                      {editSaving ? 'Saving…' : 'Save'}
-                    </button>
-                    <button onClick={cancelEdit} disabled={editSaving}
-                      className="px-4 text-xs font-bold text-ink-muted hover:text-ink-body">
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div key={w.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <h4 className="text-sm font-bold text-ink-body truncate">{w.word}</h4>
-                      <AudioButton text={w.word} />
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {w.phonetic && <span className="text-xs text-ink-muted">{w.phonetic}</span>}
-                      <button onClick={() => startEdit(w)} title="Edit this word (only you see your changes)"
-                        className="text-xs text-ink-muted hover:text-sky transition-colors">
-                        ✎ Edit
-                      </button>
-                    </div>
-                  </div>
-                  {w.meaning && <p className="text-xs text-ink-muted mt-0.5">{w.meaning}</p>}
-                  {w.translation && <p className="text-xs text-brandblue mt-0.5">🌐 {w.translation}</p>}
-                </div>
-              )
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // ── HOME / DASHBOARD ──
-  const dueCount = (stats?.review_due ?? 0) + (stats?.new_words ?? 0) || dueWords.length
-
+  // ── SETUP (default entry) ──
   return (
-    <>
-      {/* Pre-review modal */}
-      {showReviewModal && (
-        <div
-          className="fixed inset-0 bg-black/40 z-50 flex items-end justify-center"
-          onClick={() => setShowReviewModal(false)}
-        >
-          <div
-            className="bg-white rounded-t-2xl p-6 w-full max-w-lg pb-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-base font-bold text-ink-body mb-5">Start Review</h3>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky">← Back</button>
+        <h2 className="text-sm font-bold text-brandblue flex-1">Set up your practice</h2>
+      </div>
 
-            <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">How many words?</label>
-            <div className="flex items-center gap-3 mb-5">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={wordCountInput}
-                onChange={(e) => setWordCountInput(e.target.value.replace(/[^0-9]/g, ''))}
-                onBlur={() => {
-                  const n = parseInt(wordCountInput, 10)
-                  const clamped = isNaN(n) || n < 1 ? 15 : n
-                  setWordCountInput(String(clamped))
-                  setReviewWordCount(clamped)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                }}
-                className="w-20 text-sm text-center text-ink-body border border-sky-border rounded-lg px-3 py-2 focus:outline-none focus:border-sky"
-              />
-              <span className="text-xs text-ink-muted">words</span>
-            </div>
-
-            <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">Which words?</label>
-            <div className="grid grid-cols-2 gap-2 mb-5">
-              {([
-                { value: 'due' as ReviewFilter,  label: 'Due today' },
-                { value: 'hard' as ReviewFilter, label: 'Hard words' },
-                { value: 'easy' as ReviewFilter, label: 'Easy words' },
-                { value: 'all' as ReviewFilter,  label: 'All (shuffle)' },
-              ]).map(({ value, label }) => (
-                <button key={value} onClick={() => setReviewFilter(value)}
-                  className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
-                    reviewFilter === value
-                      ? 'bg-sky border-sky text-white'
-                      : 'bg-white border-sky-border text-ink-body hover:border-sky'
-                  }`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">Mode</label>
-            <div className="grid grid-cols-2 gap-2 mb-5">
-              {([
-                { value: 'flip' as ReviewMode, label: '🃏 Flip cards' },
-                { value: 'quiz' as ReviewMode, label: '📝 Quiz' },
-              ]).map(({ value, label }) => (
-                <button key={value} onClick={() => setModalMode(value)}
-                  className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
-                    modalMode === value
-                      ? 'bg-sky border-sky text-white'
-                      : 'bg-white border-sky-border text-ink-body hover:border-sky'
-                  }`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {modalError && <p className="text-xs text-red-500 mb-3">{modalError}</p>}
-
-            <button onClick={startModalReview} disabled={modalLoading}
-              className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 mb-2">
-              {modalLoading ? 'Loading…' : 'Start →'}
-            </button>
-            <button onClick={() => setShowReviewModal(false)}
-              className="w-full text-sm text-ink-muted hover:text-ink-body py-2">
-              Cancel
-            </button>
-          </div>
-        </div>
+      {stats && (
+        <p className="text-xs text-ink-muted -mt-1">
+          {stats.review_due} due for review · {stats.new_words} new waiting
+        </p>
       )}
 
-      <div className="flex flex-col gap-4">
+      <div>
+        <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">How many words?</label>
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-sm text-ink-muted hover:text-sky">← Back</button>
-          <h2 className="text-sm font-bold text-brandblue flex-1">Vocabulary Trainer</h2>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={setupCountInput}
+            onChange={(e) => setSetupCountInput(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={() => {
+              const n = parseInt(setupCountInput, 10)
+              const clamped = isNaN(n) || n < 1 ? 15 : n
+              setSetupCountInput(String(clamped))
+              setSetupCount(clamped)
+            }}
+            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            className="w-20 text-sm text-center text-ink-body border border-sky-border rounded-lg px-3 py-2 focus:outline-none focus:border-sky"
+          />
+          <span className="text-xs text-ink-muted">words</span>
         </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between">
-            <p className="text-xs text-red-500">{error}</p>
-            <button onClick={() => setError(null)} className="text-xs text-red-400 hover:text-red-600 font-bold ml-2">✕</button>
-          </div>
-        )}
-
-        {/* Streak banner — white card + sky-wash icon tile */}
-        {streak > 0 && (
-          <div className="bg-white rounded-card border border-hairline p-4 flex items-center gap-3">
-            <div className="w-11 h-11 shrink-0 flex items-center justify-center text-2xl bg-sky-wash rounded-tile">🔥</div>
-            <div className="flex-1">
-              <p className="text-base font-extrabold text-ink-black leading-tight">{streak}-day streak</p>
-              <p className="text-[11px] text-ink-muted">
-                {reviewedToday
-                  ? 'Reviewed today — nice. Keep it going tomorrow!'
-                  : `Review today to keep your ${streak}-day streak alive`}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Due words card — solid sky */}
-        <div className="bg-sky rounded-card p-5 text-white">
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-white/15 rounded-tile p-3">
-              <p className="text-[10px] text-white uppercase font-bold tracking-wide">Due for review</p>
-              <p className="text-[40px] leading-none font-extrabold mt-1 tracking-hero">{stats?.review_due ?? 0}</p>
-              <p className="text-[10px] text-white mt-1">already seen, time to repeat</p>
-            </div>
-            <div className="bg-white/15 rounded-tile p-3">
-              <p className="text-[10px] text-white uppercase font-bold tracking-wide">New words</p>
-              <p className="text-[40px] leading-none font-extrabold mt-1 tracking-hero">{stats?.new_words ?? 0}</p>
-              <p className="text-[10px] text-white mt-1">waiting to be introduced</p>
-            </div>
-          </div>
-          {dueCount > 0 ? (
-            <button onClick={openReviewModal}
-              className="w-full bg-white text-ink-body font-extrabold py-2.5 rounded-tile text-sm hover:bg-white/95 transition-colors">
-              🃏 Start Review
-            </button>
-          ) : (
-            <p className="text-xs text-white text-center">All caught up! Come back later for more reviews.</p>
-          )}
-        </div>
-
-        {/* Box distribution */}
-        {stats && stats.total > 0 && (
-          <div className="bg-white rounded-2xl border border-sky-border p-4">
-            <p className="text-xs font-bold text-ink-muted uppercase mb-3">Your words — {stats.total} total</p>
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((box) => {
-                const count = stats[box as keyof Stats] as number || 0
-                const pctHeight = stats.total > 0 ? Math.max((count / stats.total) * 100, count > 0 ? 10 : 0) : 0
-                return (
-                  <button key={box} onClick={() => count > 0 && openStage(box)} disabled={count === 0}
-                    className={`flex-1 flex flex-col items-center gap-1 rounded-lg p-1 transition-colors ${count > 0 ? 'hover:bg-surface cursor-pointer' : 'cursor-default'}`}
-                    title={count > 0 ? `See your ${count} ${BOX_LABELS[box]} word${count === 1 ? '' : 's'}` : undefined}>
-                    <div className="w-full h-20 bg-[#eef1f6] rounded-tile relative overflow-hidden">
-                      <div className={`absolute bottom-0 w-full rounded-tile ${BOX_COLORS[box]} transition-all duration-500`} style={{ height: `${pctHeight}%` }} />
-                    </div>
-                    <span className="text-xs font-bold text-ink-muted">{count}</span>
-                    <span className="text-[9px] text-ink-muted">{BOX_LABELS[box]}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <p className="text-[10px] text-ink-muted text-center mt-2">Tap a bar to see those words</p>
-          </div>
-        )}
-
-        {/* Add word */}
-        <button onClick={() => setView('add')}
-          className="w-full bg-white border-2 border-sky-border text-ink-body font-bold py-3 rounded-xl text-sm hover:border-sky hover:text-sky transition-colors">
-          + Add word
-        </button>
-
-        {/* Focus words */}
-        {focusWords.length > 0 && (
-          <div className="bg-white rounded-2xl border border-sky-border p-4">
-            <button onClick={() => setShowFocus((v) => !v)} className="w-full flex items-center justify-between">
-              <p className="text-xs font-bold text-ink-muted uppercase flex items-center gap-1.5">
-                <span>🎯</span> {focusWords.length} word{focusWords.length === 1 ? '' : 's'} need extra attention
-              </p>
-              <span className="text-xs text-ink-muted">{showFocus ? '▲' : '▼'}</span>
-            </button>
-            {showFocus && (
-              <div className="mt-3 space-y-1.5">
-                {focusWords.map((w) => (
-                  <div key={w.id} className="flex items-baseline justify-between gap-2 border-b border-[#f0f4f9] pb-1.5 last:border-b-0">
-                    <span className="text-sm font-bold text-ink-body">{w.word}</span>
-                    <span className="text-xs text-ink-muted text-right">{w.meaning || '—'}</span>
-                  </div>
-                ))}
-                <p className="text-[10px] text-ink-muted pt-1">
-                  These come back often in your reviews until they stick. That&apos;s the system working.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {stats && stats.total === 0 && (
-          <div className="bg-surface rounded-xl border border-hairline p-4 text-center">
-            <p className="text-xs text-ink-muted">
-              No words yet. Your vocabulary imports automatically from your lessons —
-              once your teacher publishes lessons with flashcards, they&apos;ll appear
-              here. You can also add words manually.
-            </p>
-          </div>
-        )}
       </div>
-    </>
+
+      <div>
+        <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">Which words?</label>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { value: 'due' as ReviewFilter,  label: 'Due today' },
+            { value: 'hard' as ReviewFilter, label: 'Hard words' },
+            { value: 'easy' as ReviewFilter, label: 'Easy words' },
+            { value: 'all' as ReviewFilter,  label: 'All (shuffle)' },
+          ]).map(({ value, label }) => (
+            <button key={value} onClick={() => setSetupFilter(value)}
+              className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
+                setupFilter === value ? 'bg-sky border-sky text-white' : 'bg-white border-sky-border text-ink-body hover:border-sky'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[10px] font-bold text-ink-muted uppercase mb-2">Mode</label>
+        <div className="grid grid-cols-2 gap-2">
+          {([
+            { value: 'flip' as ReviewMode, label: '🃏 Flip cards' },
+            { value: 'quiz' as ReviewMode, label: '📝 Quiz' },
+          ]).map(({ value, label }) => (
+            <button key={value} onClick={() => setSetupMode(value)}
+              className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
+                setupMode === value ? 'bg-sky border-sky text-white' : 'bg-white border-sky-border text-ink-body hover:border-sky'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {setupError && <p className="text-xs text-red-500">{setupError}</p>}
+
+      <button onClick={startSetupReview} disabled={setupLoading}
+        className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50">
+        {setupLoading ? 'Loading…' : 'Start practice →'}
+      </button>
+    </div>
   )
 }
