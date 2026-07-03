@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
-import { getAccessibleCourseIds, requireRole } from '@/lib/roles'
+import { getAccessibleCourseIds, requireRole, isEditor } from '@/lib/roles'
 import { isCompletableBlock, CONDITIONAL_BLOCK_TYPES } from '@/lib/block-completion'
 
 export async function GET(req: NextRequest) {
@@ -488,12 +488,18 @@ export async function POST(req: NextRequest) {
     if (lessonId) {
       // Update existing lesson — verify ownership for teachers
       if (user.role === 'teacher') {
-        const { data: existing } = await supabase.from('lessons').select('created_by, course_id').eq('id', lessonId).single()
+        const { data: existing } = await supabase.from('lessons').select('created_by, course_id, is_shared, is_template').eq('id', lessonId).single()
         if (!existing) {
           return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
         }
         const accessible = await getAccessibleCourseIds(user.email, user.role)
-        const hasAccess = existing.created_by === user.email || (existing.course_id && accessible.includes(existing.course_id))
+        // Editors may edit any SHARED School Library lesson, even one they
+        // didn't create. Scoped to shared content only (not private templates).
+        const editorCanEdit = existing.is_shared === true && (await isEditor(user.email))
+        const hasAccess =
+          existing.created_by === user.email ||
+          (existing.course_id && accessible.includes(existing.course_id)) ||
+          editorCanEdit
         if (!hasAccess) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
         }

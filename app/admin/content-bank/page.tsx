@@ -204,9 +204,16 @@ export default function ContentBankBetaPage() {
   const role = session?.user?.role
   const isAdmin = role === 'superadmin' || role === 'teacher'
   const isSuperadmin = role === 'superadmin'
+  const isEd = session?.user?.is_editor === true
   const myEmail = session?.user?.email || ''
-  // Owner-or-superadmin gate: who may edit / unshare a shared item.
-  const canManage = (t: { author_email: string | null } | null) =>
+  // Who may edit a shared item: superadmin, the author, OR an Editor (any
+  // shared/template item). Editors can fix shared School Library content they
+  // didn't create. (Unshare stays author/superadmin — see per-button checks.)
+  const canManage = (t: { author_email: string | null; is_shared?: boolean | null } | null) =>
+    !!t && (isSuperadmin || (!!t.author_email && t.author_email === myEmail) || (isEd && t.is_shared === true))
+  // Unshare / remove-from-library is owner-destructive: author or superadmin
+  // ONLY (editors edit content, they don't restructure the library).
+  const canUnshare = (t: { author_email: string | null } | null) =>
     !!t && (isSuperadmin || (!!t.author_email && t.author_email === myEmail))
 
   // ── Load folders ──
@@ -897,24 +904,25 @@ export default function ContentBankBetaPage() {
               )}
             </div>
             <div className="flex gap-2 shrink-0 flex-wrap">
-              {/* Owner-destructive actions: only the owner (or superadmin). */}
+              {/* Unshare: author or superadmin only (not editors). */}
+              {canUnshare(selectedTemplate) && (
+                <button
+                  onClick={() => unshareFromSchool(selectedTemplate)}
+                  className="px-3 py-2 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors"
+                  title="Remove this content from the School Library (stays in your library)"
+                >
+                  Unshare
+                </button>
+              )}
+              {/* Edit: author, superadmin, OR an Editor — opens the full editor. */}
               {canManage(selectedTemplate) && (
-                <>
-                  <button
-                    onClick={() => unshareFromSchool(selectedTemplate)}
-                    className="px-3 py-2 border border-incorrect-border text-incorrect-fg text-xs font-extrabold rounded-tile hover:bg-incorrect-bg transition-colors"
-                    title="Remove this content from the School Library (stays in your library)"
-                  >
-                    Unshare
-                  </button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => router.push(`/admin/lessons?id=${selectedTemplate.id}`)}
-                  >
-                    Edit
-                  </Button>
-                </>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => router.push(`/admin/lessons?id=${selectedTemplate.id}`)}
+                >
+                  Edit
+                </Button>
               )}
               {/* Reuse actions: available to everyone (they COPY into your own
                   lesson/course/folder — they don't mutate the shared item). */}
@@ -1502,7 +1510,7 @@ export default function ContentBankBetaPage() {
                           Folder
                         </button>
                         {/* Unshare: owner or superadmin only. */}
-                        {canManage(t) && (
+                        {canUnshare(t) && (
                           <button
                             onClick={e => { e.stopPropagation(); unshareFromSchool(t) }}
                             className="px-2 py-1 bg-white border border-hairline rounded-tile text-xs text-ink-muted hover:text-incorrect-fg hover:border-incorrect-border"

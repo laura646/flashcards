@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { requireRole, getAccessibleCourseIds, type UserRole } from '@/lib/roles'
+import { requireRole, getAccessibleCourseIds, isEditor, type UserRole } from '@/lib/roles'
 
 // Access gate for filing a lesson into a folder (assign / remove).
 // Superadmins bypass. Content-bank folders are SHARED org structure (the School
@@ -36,6 +36,45 @@ async function checkFolderAssignAccess(
   }
 
   return null
+}
+
+// Access gate for MUTATING a lesson's content (editing/deleting its exercises,
+// or copying/adding content INTO it as a target). Superadmin bypasses. A
+// teacher may mutate if they own the lesson, have access to its course, OR
+// they're an Editor AND the lesson is SHARED to the School Library. Editors are
+// scoped to shared content only — a private (is_shared=false) lesson or
+// template is NOT editable by an editor.
+async function checkLessonEditAccess(
+  user: { email: string; role: UserRole },
+  lessonId: string
+): Promise<NextResponse | null> {
+  if (user.role === 'superadmin') return null
+  const { data: lesson } = await supabase
+    .from('lessons')
+    .select('created_by, course_id, is_shared')
+    .eq('id', lessonId)
+    .single()
+  if (!lesson) return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+  const accessible = await getAccessibleCourseIds(user.email, user.role)
+  const editorOk = lesson.is_shared === true && (await isEditor(user.email))
+  const ok =
+    lesson.created_by === user.email ||
+    (lesson.course_id && accessible.includes(lesson.course_id)) ||
+    editorOk
+  if (!ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  return null
+}
+
+// Resolve an exercise to its lesson, then apply the lesson-edit gate. Closes a
+// pre-existing hole where update/delete-exercise had no ownership check.
+async function checkExerciseEditAccess(
+  user: { email: string; role: UserRole },
+  exerciseId: string
+): Promise<NextResponse | null> {
+  if (user.role === 'superadmin') return null
+  const { data: exRow } = await supabase.from('lesson_exercises').select('lesson_id').eq('id', exerciseId).single()
+  if (!exRow) return NextResponse.json({ error: 'Exercise not found' }, { status: 404 })
+  return checkLessonEditAccess(user, exRow.lesson_id)
 }
 
 export async function GET(req: NextRequest) {
@@ -684,6 +723,8 @@ export async function POST(req: NextRequest) {
     if (action === 'update-exercise') {
       const { exercise_id, title, subtitle, icon, instructions, exercise_type, questions, groupData } = body
       if (!exercise_id) return NextResponse.json({ error: 'Exercise ID required' }, { status: 400 })
+      const gate = await checkExerciseEditAccess(user, exercise_id)
+      if (gate) return gate
 
       const updateData: Record<string, unknown> = {}
       if (title !== undefined) updateData.title = title
@@ -706,6 +747,8 @@ export async function POST(req: NextRequest) {
     if (action === 'delete-exercise') {
       const { exercise_id } = body
       if (!exercise_id) return NextResponse.json({ error: 'Exercise ID required' }, { status: 400 })
+      const gate = await checkExerciseEditAccess(user, exercise_id)
+      if (gate) return gate
 
       const { error } = await supabase
         .from('lesson_exercises')
@@ -956,6 +999,9 @@ export async function POST(req: NextRequest) {
       if (!template_id || !target_lesson_id) {
         return NextResponse.json({ error: 'Template ID and target lesson ID required' }, { status: 400 })
       }
+      // Must be allowed to mutate the TARGET lesson (was ungated).
+      const gate = await checkLessonEditAccess(user, target_lesson_id)
+      if (gate) return gate
 
       // Fetch template content
       const [fcRes, exRes, blockRes] = await Promise.all([
@@ -1062,6 +1108,9 @@ export async function POST(req: NextRequest) {
     if (action === 'add-content-to-template') {
       const { template_id, exercises = [], flashcards = [], blocks = [] } = body
       if (!template_id) return NextResponse.json({ error: 'Template ID required' }, { status: 400 })
+      // Must be allowed to mutate the TARGET template (was ungated).
+      const gate = await checkLessonEditAccess(user, template_id)
+      if (gate) return gate
 
       // Get current max order_index for each content type
       const [existingFc, existingEx, existingBlocks] = await Promise.all([

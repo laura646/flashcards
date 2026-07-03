@@ -162,9 +162,27 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Editor flags (best-effort — separate query so a missing is_editor
+      // column pre-migration can't break the whole teachers list).
+      let editorFlags: Record<string, boolean> = {}
+      if (teacherEmails.length > 0) {
+        try {
+          const { data: efData, error: efErr } = await supabase
+            .from('users')
+            .select('email, is_editor')
+            .in('email', teacherEmails)
+          if (!efErr) {
+            for (const u of (efData || []) as { email: string; is_editor: boolean }[]) {
+              editorFlags[u.email] = u.is_editor === true
+            }
+          }
+        } catch { /* column may not exist yet */ }
+      }
+
       const teachersWithCounts = (data || []).map((t: { email: string }) => ({
         ...t,
         course_count: courseCounts[t.email] || 0,
+        is_editor: editorFlags[t.email] || false,
       }))
 
       return NextResponse.json({ teachers: teachersWithCounts })
@@ -323,6 +341,26 @@ export async function POST(req: NextRequest) {
   const { action } = body
 
   try {
+    // ── Grant / revoke the Editor permission (OWNER ONLY) ──
+    // Editors can edit any shared School Library lesson. Only teachers can
+    // hold the flag (the .eq('role','teacher') guard).
+    if (action === 'set-editor') {
+      if (!isOwner(user.email)) {
+        return NextResponse.json({ error: 'Only the owner can change Editor access' }, { status: 403 })
+      }
+      const targetEmail = (typeof body.email === 'string' ? body.email : '').trim().toLowerCase()
+      if (!targetEmail) {
+        return NextResponse.json({ error: 'Email required' }, { status: 400 })
+      }
+      const { error } = await supabase
+        .from('users')
+        .update({ is_editor: !!body.is_editor })
+        .eq('email', targetEmail)
+        .eq('role', 'teacher')
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
     // ── Create a new course ──
     if (action === 'create-course') {
       const {

@@ -149,3 +149,20 @@ export async function getCourseTeachers(courseId: string): Promise<string[]> {
 
   return (data || []).map((t: { teacher_email: string }) => t.teacher_email)
 }
+
+/**
+ * Editor permission — a teacher flagged is_editor may edit ANY shared School
+ * Library lesson (not just ones they created). Fail-safe: if the column
+ * doesn't exist yet (pre-migration) or the lookup errors, returns false so
+ * the permission is never granted by accident.
+ */
+export async function isEditor(email: string): Promise<boolean> {
+  if (!email) return false
+  try {
+    const { data, error } = await supabase.from('users').select('is_editor').eq('email', email).single()
+    if (error) return false
+    return data?.is_editor === true
+  } catch {
+    return false
+  }
+}

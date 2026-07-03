@@ -76,6 +76,7 @@ interface Teacher {
   country: string | null
   specialization: string | null
   course_count: number
+  is_editor?: boolean
 }
 
 interface Student {
@@ -278,6 +279,27 @@ export default function SuperadminPage() {
       setTeachers(data.teachers || [])
     } catch {}
   }, [])
+
+  // Owner-only: grant/revoke a teacher's Editor permission (edit any shared
+  // School Library lesson). Optimistic, then reload to confirm.
+  const toggleEditor = useCallback(async (email: string, next: boolean) => {
+    setTeachers((prev) => prev.map((t) => (t.email === email ? { ...t, is_editor: next } : t)))
+    try {
+      const res = await fetch('/api/superadmin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-editor', email, is_editor: next }),
+      })
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}))
+        showToast(b.error || 'Failed to update Editor access')
+      }
+      await loadTeachers()
+    } catch {
+      showToast('Failed to update Editor access')
+      await loadTeachers()
+    }
+  }, [loadTeachers])
 
   const loadSuperadmins = useCallback(async () => {
     try {
@@ -1093,9 +1115,20 @@ export default function SuperadminPage() {
                       <div>
                         <p className="text-sm font-bold text-[#46464b]">{t.name || 'Unnamed'}</p>
                         <p className="text-xs text-gray-400">{t.email}</p>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
+                        <div className="flex flex-wrap gap-1.5 mt-1 items-center">
                           {t.specialization && <span className="px-2 py-0.5 bg-purple-50 text-purple-600 text-xs rounded-full">{t.specialization}</span>}
                           <span className="px-2 py-0.5 bg-[#e6f0fa] text-[#416ebe] text-xs rounded-full">{t.course_count} course{t.course_count !== 1 ? 's' : ''}</span>
+                          {amOwner ? (
+                            <button
+                              onClick={() => toggleEditor(t.email, !t.is_editor)}
+                              title="Editors can edit any shared School Library lesson, even ones they didn't create"
+                              className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${t.is_editor ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-white text-gray-400 border-[#cddcf0] hover:border-[#416ebe]'}`}
+                            >
+                              {t.is_editor ? '✎ Editor ✓' : '✎ Make Editor'}
+                            </button>
+                          ) : (
+                            t.is_editor && <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs rounded-full">✎ Editor</span>
+                          )}
                         </div>
                       </div>
                     </div>

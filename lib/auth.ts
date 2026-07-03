@@ -92,14 +92,24 @@ export const authOptions: NextAuthOptions = {
       const email = user?.email || token.email
       if (email) {
         try {
-          const { data } = await supabase
+          // One query normally; falls back to role-only if is_editor doesn't
+          // exist yet (pre-migration), so a missing column can't break auth.
+          const { data, error } = await supabase
             .from('users')
-            .select('role')
+            .select('role, is_editor')
             .eq('email', email as string)
             .single()
+          if (error) throw error
           token.role = data?.role || 'student'
+          token.is_editor = data?.is_editor === true
         } catch {
-          token.role = token.role || 'student'
+          try {
+            const { data } = await supabase.from('users').select('role').eq('email', email as string).single()
+            token.role = data?.role || 'student'
+          } catch {
+            token.role = token.role || 'student'
+          }
+          token.is_editor = false
         }
       }
       if (user) {
@@ -113,6 +123,7 @@ export const authOptions: NextAuthOptions = {
         session.user.email = token.email as string
         session.user.name = token.name as string
         session.user.role = (token.role as 'superadmin' | 'teacher' | 'student' | 'hr') || 'student'
+        session.user.is_editor = token.is_editor === true
       }
       return session
     },
