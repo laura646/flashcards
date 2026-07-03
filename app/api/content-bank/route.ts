@@ -645,6 +645,90 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, folder: data })
     }
 
+    // ── Finalize a presentation upload (superadmin only) ──
+    // The deck HTML is uploaded browser→Storage directly (Vercel caps API
+    // bodies at 4.5MB); this creates the shared library lesson + presentation
+    // block and files it into the Presentations folder tree.
+    if (action === 'create-presentation') {
+      if (user.role !== 'superadmin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      const { title, level, deck_path, folder_id, new_folder_name } = body
+      if (!title?.trim() || !deck_path) {
+        return NextResponse.json({ error: 'Title and deck required' }, { status: 400 })
+      }
+
+      const ensurePresentationsRoot = async (): Promise<string> => {
+        const { data: root } = await supabase
+          .from('content_bank_folders')
+          .select('id')
+          .eq('name', 'Presentations')
+          .is('parent_id', null)
+          .limit(1)
+          .maybeSingle()
+        if (root) return root.id
+        const { data: made, error: mkErr } = await supabase
+          .from('content_bank_folders')
+          .insert({ name: 'Presentations', parent_id: null, created_by: user.email })
+          .select('id')
+          .single()
+        if (mkErr) throw mkErr
+        return made.id
+      }
+
+      // Resolve target folder — always inside the Presentations tree.
+      let targetFolderId: string
+      if (new_folder_name?.trim()) {
+        const presId = await ensurePresentationsRoot()
+        const { data: made, error: fErr } = await supabase
+          .from('content_bank_folders')
+          .insert({ name: new_folder_name.trim(), parent_id: presId, created_by: user.email })
+          .select('id')
+          .single()
+        if (fErr) throw fErr
+        targetFolderId = made.id
+      } else if (folder_id) {
+        targetFolderId = folder_id
+      } else {
+        targetFolderId = await ensurePresentationsRoot()
+      }
+
+      const deckUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/exercise-images/${deck_path}`
+      const today = new Date().toISOString().split('T')[0]
+
+      const { data: lesson, error: lErr } = await supabase
+        .from('lessons')
+        .insert({
+          title: title.trim(),
+          summary: 'Class presentation (Claude Design) — full-screen slides. Present in class; share your screen on Zoom.',
+          lesson_date: today,
+          status: 'published',
+          lesson_type: 'lesson',
+          is_template: true,
+          is_shared: true,
+          template_level: level || null,
+          course_id: null,
+          created_by: user.email,
+        })
+        .select('id')
+        .single()
+      if (lErr) throw lErr
+
+      const { error: bErr } = await supabase.from('lesson_blocks').insert({
+        lesson_id: lesson.id,
+        block_type: 'presentation',
+        title: 'Presentation deck',
+        order_index: 0,
+        published: true,
+        content: { deck_url: deckUrl, source: 'claude-design', audio_bundled: true },
+      })
+      if (bErr) throw bErr
+
+      await supabase.from('lesson_folders').insert({ lesson_id: lesson.id, folder_id: targetFolderId })
+
+      return NextResponse.json({ ok: true, lesson_id: lesson.id })
+    }
+
     // ── Rename folder ──
     if (action === 'rename-folder') {
       const { folder_id, name } = body

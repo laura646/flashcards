@@ -154,6 +154,14 @@ export default function ContentBankBetaPage() {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
+  // Upload-presentation modal (superadmin)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [upFile, setUpFile] = useState<File | null>(null)
+  const [upTitle, setUpTitle] = useState('')
+  const [upLevel, setUpLevel] = useState('')
+  const [upFolderId, setUpFolderId] = useState('')
+  const [upNewFolder, setUpNewFolder] = useState('')
+  const [uploading, setUploading] = useState(false)
   const [renamingFolder, setRenamingFolder] = useState<Folder | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -485,6 +493,59 @@ export default function ContentBankBetaPage() {
     } catch {
       showToast('Failed to create folder')
     }
+  }
+
+  // Folders inside the Presentations tree (for the upload modal picker).
+  const presentationsSubtree = (): { id: string; name: string; depth: number }[] => {
+    const root = folders.find(f => f.name === 'Presentations' && !f.parent_id)
+    if (!root) return []
+    const out: { id: string; name: string; depth: number }[] = [{ id: root.id, name: root.name, depth: 0 }]
+    const walk = (parentId: string, depth: number) => {
+      folders.filter(f => f.parent_id === parentId).forEach(f => { out.push({ id: f.id, name: f.name, depth }); walk(f.id, depth + 1) })
+    }
+    walk(root.id, 1)
+    return out
+  }
+
+  // Upload a Claude Design HTML deck: browser→Storage direct (Vercel caps API
+  // bodies at 4.5MB), then finalize (create the library lesson + block + folder link).
+  const uploadPresentation = async () => {
+    if (!upFile || !upTitle.trim()) return
+    if (upFolderId === '__new__' && !upNewFolder.trim()) return
+    setUploading(true)
+    try {
+      const slug = upTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'deck'
+      const rand = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '').slice(0, 8)
+      const deckPath = `presentations/${slug}-${rand}.html`
+      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      const up = await fetch(`${sbUrl}/storage/v1/object/exercise-images/${deckPath}`, {
+        method: 'POST',
+        headers: { apikey: sbKey!, Authorization: `Bearer ${sbKey}`, 'Content-Type': 'text/html', 'x-upsert': 'true' },
+        body: upFile,
+      })
+      if (!up.ok) throw new Error('storage upload failed')
+      const res = await fetch('/api/content-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create-presentation',
+          title: upTitle.trim(),
+          level: upLevel || null,
+          deck_path: deckPath,
+          folder_id: upFolderId && upFolderId !== '__new__' ? upFolderId : null,
+          new_folder_name: upFolderId === '__new__' ? upNewFolder.trim() : null,
+        }),
+      })
+      if (!res.ok) throw new Error('finalize failed')
+      showToast('Presentation uploaded')
+      setShowUploadModal(false)
+      setUpFile(null); setUpTitle(''); setUpLevel(''); setUpFolderId(''); setUpNewFolder('')
+      loadTemplates(); loadFolders()
+    } catch {
+      showToast('Upload failed — check the file and try again')
+    }
+    setUploading(false)
   }
 
   const renameFolder = async () => {
@@ -1253,13 +1314,23 @@ export default function ContentBankBetaPage() {
               <h1 className="text-2xl font-bold text-brandblue">School Library</h1>
               <p className="text-xs text-ink-muted mt-1">Shared content from across the school — reuse it in your lessons.</p>
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => router.push('/admin/lessons?mode=content-bank&share=school')}
-            >
-              ＋ New
-            </Button>
+            <div className="flex items-center gap-2">
+              {isSuperadmin && (
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="text-sm font-bold text-sky-text border border-sky-border px-4 py-2 rounded-tile hover:bg-sky-wash transition-colors"
+                >
+                  ▶ Upload presentation
+                </button>
+              )}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => router.push('/admin/lessons?mode=content-bank&share=school')}
+              >
+                ＋ New
+              </Button>
+            </div>
           </div>
 
           <div className="flex gap-4">
@@ -1552,6 +1623,77 @@ export default function ContentBankBetaPage() {
           </div>
         </div>
       )}
+      {/* Upload presentation modal (superadmin) */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-card p-5 w-full max-w-md">
+            <h3 className="font-bold text-lg text-ink-black mb-1">Upload presentation</h3>
+            <p className="text-xs text-ink-muted mb-4">Upload a Claude Design HTML deck. It joins the School Library and any teacher can present it full-screen.</p>
+
+            <label className="block text-xs font-bold text-ink-body mb-1">Deck file (.html)</label>
+            <input
+              type="file"
+              accept=".html,text/html"
+              onChange={e => {
+                const f = e.target.files?.[0] || null
+                setUpFile(f)
+                if (f && !upTitle.trim()) setUpTitle(f.name.replace(/\.html?$/i, ''))
+              }}
+              className="w-full text-sm mb-3 file:mr-3 file:px-3 file:py-1.5 file:rounded-tile file:border-0 file:bg-sky-wash file:text-sky-text file:font-bold file:text-xs"
+            />
+
+            <label className="block text-xs font-bold text-ink-body mb-1">Title</label>
+            <input
+              value={upTitle}
+              onChange={e => setUpTitle(e.target.value)}
+              placeholder="e.g. Unit 5C — Food and drink"
+              className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm mb-3 focus:outline-none focus:border-sky"
+            />
+
+            <div className="flex gap-3 mb-3">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-ink-body mb-1">Level</label>
+                <select value={upLevel} onChange={e => setUpLevel(e.target.value)} className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white focus:outline-none focus:border-sky">
+                  <option value="">— optional —</option>
+                  {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-ink-body mb-1">Folder</label>
+                <select value={upFolderId} onChange={e => setUpFolderId(e.target.value)} className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white focus:outline-none focus:border-sky">
+                  <option value="">Presentations (top level)</option>
+                  {presentationsSubtree().filter(f => f.depth > 0).map(f => (
+                    <option key={f.id} value={f.id}>{`${'  '.repeat(f.depth - 1)}${f.name}`}</option>
+                  ))}
+                  <option value="__new__">＋ New folder…</option>
+                </select>
+              </div>
+            </div>
+
+            {upFolderId === '__new__' && (
+              <input
+                value={upNewFolder}
+                onChange={e => setUpNewFolder(e.target.value)}
+                placeholder="New folder name (created under Presentations)"
+                className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm mb-3 focus:outline-none focus:border-sky"
+                autoFocus
+              />
+            )}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowUploadModal(false)} disabled={uploading} className="px-4 py-2 text-sm text-ink-muted hover:text-ink-body disabled:opacity-50">Cancel</button>
+              <button
+                onClick={uploadPresentation}
+                disabled={uploading || !upFile || !upTitle.trim() || (upFolderId === '__new__' && !upNewFolder.trim())}
+                className="px-4 py-2 bg-sky text-white text-sm font-extrabold rounded-tile disabled:opacity-50 hover:bg-[#0099d6] transition-colors"
+              >
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Exercise Preview Modal */}
       {previewExercise && (
         <ExercisePreview
