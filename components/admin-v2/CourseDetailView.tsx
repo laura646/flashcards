@@ -23,6 +23,7 @@ import { PageHeader } from '@/components/student-ui/PageHeader'
 import { COMMON_ISSUES_BY_LEVEL } from '@/lib/common-issues'
 import AttendanceRail, { AttendanceOverview } from '@/components/admin-v2/AttendanceRail'
 import BulkAttendanceModal from '@/components/admin-v2/BulkAttendanceModal'
+import CourseProgressTab from '@/components/admin-v2/CourseProgressTab'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
 // CEFR half-steps for the group level (starting → goal); mirrors the Reports view.
@@ -140,7 +141,7 @@ function formatSchedule(days: string | null, time: string | null, durationMin: n
 
 const INVITE_CODE_RE = /^[A-Za-z0-9]{3,20}$/
 
-type Tab = 'lessons' | 'students'
+type Tab = 'lessons' | 'students' | 'progress'
 
 // ── Tabler-style line icons for the Course-info rail ──
 const iconBase = {
@@ -433,6 +434,7 @@ export function CourseDetailView({
                   {([
                     { value: 'lessons' as Tab, label: `Lessons (${lessons.length})` },
                     { value: 'students' as Tab, label: `Students (${students.length})` },
+                    { value: 'progress' as Tab, label: 'Progress' },
                   ]).map((t) => {
                     const active = tab === t.value
                     return (
@@ -581,6 +583,11 @@ export function CourseDetailView({
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Progress (teacher triage grid) */}
+            {tab === 'progress' && course && (
+              <CourseProgressTab courseId={course.id} />
             )}
           </div>
 
