@@ -5,6 +5,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit } from '@/lib/rate-limit'
 import { SONNET_MODEL, HAIKU_MODEL } from '@/lib/ai-models'
 import { levelInstruction } from '@/lib/level-mapping'
+import { hasAccessToCourse } from '@/lib/roles'
+import { safeFetch } from '@/lib/ssrf'
 
 // Allow large request bodies (base64 images can be several MB)
 export const maxDuration = 60 // seconds (for Vercel serverless timeout)
@@ -586,8 +588,10 @@ For all other types, set groupData to null.`
       let fetchedSourceText = ''
       if (m === 'source' && source_url && typeof source_url === 'string' && source_url.trim()) {
         try {
-          const res = await fetch(source_url.trim(), { headers: { 'User-Agent': 'Mozilla/5.0 EwL-FlashcardsBot' } })
-          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          // SSRF guard: reject non-http(s) and any URL resolving to a private /
+          // loopback / link-local / metadata address, and re-check every redirect.
+          const res = await safeFetch(source_url.trim(), { headers: { 'User-Agent': 'Mozilla/5.0 EwL-FlashcardsBot' } })
+          if (!res.ok) throw new Error('fetch failed')
           const html = await res.text()
           // Strip <script> and <style> blocks, then strip all tags
           const stripped = html
@@ -598,8 +602,10 @@ For all other types, set groupData to null.`
             .replace(/\s+/g, ' ')
             .trim()
           fetchedSourceText = stripped.slice(0, 12000) // cap at ~3k tokens
-        } catch (err) {
-          return NextResponse.json({ error: `Could not fetch URL — ${err instanceof Error ? err.message : 'unknown error'}. Paste the text instead.` }, { status: 400 })
+        } catch {
+          // Generic message — don't reflect the upstream status/error (that was an
+          // SSRF probe oracle for internal hosts).
+          return NextResponse.json({ error: 'Could not fetch that URL. Please paste the text instead.' }, { status: 400 })
         }
       }
 
@@ -822,6 +828,13 @@ Return ONLY valid JSON (no markdown, no explanation):
       const { course_id } = body as { course_id?: string }
       if (!course_id) {
         return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+      }
+      // Access control: a teacher may only read vocabulary for a course they
+      // teach (superadmin passes). Without this, any teacher could read any
+      // course's lesson titles + vocabulary by supplying its id.
+      const canRead = await hasAccessToCourse(session!.user!.email as string, role as 'teacher' | 'superadmin', course_id)
+      if (!canRead) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
       const { createClient } = await import('@supabase/supabase-js')
       const supabase = createClient(

@@ -132,9 +132,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 })
     }
 
-    // Only author or superadmin can delete
+    // Only author or superadmin can delete. Return the same 404 as "not found"
+    // so a teacher can't use the 403-vs-404 difference to probe which note IDs
+    // exist across courses they don't teach.
     if (auth.role !== 'superadmin' && existing.author_email !== auth.email) {
-      return NextResponse.json({ error: 'You can only delete your own notes' }, { status: 403 })
+      return NextResponse.json({ error: 'Note not found' }, { status: 404 })
     }
 
     const { error } = await supabase

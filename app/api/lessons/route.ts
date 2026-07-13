@@ -148,7 +148,11 @@ export async function GET(req: NextRequest) {
       if (accessibleCourseIds.length > 0) {
         conditions.push(`course_id.in.(${accessibleCourseIds.join(',')})`)
       }
-      conditions.push(`created_by.eq.${email}`)
+      // Double-quote the email in the PostgREST filter (escaping any embedded
+      // quotes/backslashes) so an address containing a comma or paren can't break
+      // out of the created_by.eq clause and widen the OR to other teachers' lessons.
+      const safeEmail = `"${String(email).replace(/["\\]/g, '\\$&')}"`
+      conditions.push(`created_by.eq.${safeEmail}`)
       query = query.or(conditions.join(','))
     } else if (role === 'student') {
       // Students only see lessons in their enrolled courses

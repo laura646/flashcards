@@ -24,32 +24,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const email = req.nextUrl.searchParams.get('email')
+  const requested = req.nextUrl.searchParams.get('email')
+  // Default to the caller's OWN data. Never run an unscoped query — omitting the
+  // param previously skipped every guard and dumped all users' rows.
+  const target = requested || session.user.email
 
-  // Students can only view their own data
-  if (email && email !== session.user.email && session.user.role === 'student') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  // Teachers can only view data for students in their courses
-  if (email && email !== session.user.email && session.user.role === 'teacher') {
-    const canAccess = await teacherCanAccessStudent(session.user.email, email)
-    if (!canAccess) {
+  // Cross-user reads are allowed only for a superadmin, or a teacher who
+  // actually teaches this student. Everyone else (student, hr, …) is denied.
+  if (target !== session.user.email) {
+    const role = session.user.role
+    if (role === 'teacher') {
+      const canAccess = await teacherCanAccessStudent(session.user.email, target)
+      if (!canAccess) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (role !== 'superadmin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
   }
 
   try {
-    let query = supabase
+    const { data, error } = await supabase
       .from('word_struggles')
       .select('*')
+      .eq('user_email', target)
       .order('created_at', { ascending: false })
-
-    if (email) {
-      query = query.eq('user_email', email)
-    }
-
-    const { data, error } = await query
 
     if (error) {
       console.error('Word struggles GET error:', error)

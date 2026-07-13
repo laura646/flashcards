@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { Resend } from 'resend'
 import { escHtml } from '@/lib/esc'
@@ -21,46 +21,46 @@ export async function POST(req: NextRequest) {
 
     const trimmedEmail = email.toLowerCase().trim()
 
-    // Always return success to avoid revealing account existence
-    const successResponse = NextResponse.json({ ok: true })
-
-    // Look up user
+    // Look up the account, but respond IDENTICALLY and in constant time whether
+    // or not it exists (no enumeration oracle). The token write + email send —
+    // which happen only for a real password account and add a measurable delay —
+    // run AFTER the response via after(), which the serverless runtime keeps the
+    // function alive to finish.
     const { data: user } = await supabase
       .from('users')
       .select('email, name, password_hash')
       .eq('email', trimmedEmail)
       .single()
 
-    // If no user or no password (Google-only), silently succeed
-    if (!user || !user.password_hash) return successResponse
+    if (user && user.password_hash) {
+      after(async () => {
+        try {
+          // Generate reset token — hash before storing so a DB leak doesn't expose tokens
+          const resetToken = crypto.randomUUID()
+          const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex')
+          const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
 
-    // Generate reset token — hash before storing so DB leak doesn't expose tokens
-    const resetToken = crypto.randomUUID()
-    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex')
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+          await supabase
+            .from('users')
+            .update({ reset_token: hashedToken, reset_token_expires_at: expiresAt.toISOString() })
+            .eq('email', trimmedEmail)
 
-    await supabase
-      .from('users')
-      .update({ reset_token: hashedToken, reset_token_expires_at: expiresAt.toISOString() })
-      .eq('email', trimmedEmail)
+          const apiKey = process.env.RESEND_API_KEY
+          if (!apiKey) {
+            console.error('RESEND_API_KEY not configured')
+            return
+          }
 
-    // Send email via Resend
-    const apiKey = process.env.RESEND_API_KEY
-    if (!apiKey) {
-      console.error('RESEND_API_KEY not configured')
-      return successResponse
-    }
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
+          const resetUrl = `${appUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(trimmedEmail)}`
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.englishwithlaura.com'
-    const resetUrl = `${appUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(trimmedEmail)}`
-
-    const esc = escHtml
-    const resend = new Resend(apiKey)
-    await resend.emails.send({
-      from: 'English with Laura <noreply@learn.englishwithlaura.com>',
-      to: trimmedEmail,
-      subject: 'Reset your password — English with Laura',
-      html: `
+          const esc = escHtml
+          const resend = new Resend(apiKey)
+          await resend.emails.send({
+            from: 'English with Laura <noreply@learn.englishwithlaura.com>',
+            to: trimmedEmail,
+            subject: 'Reset your password — English with Laura',
+            html: `
         <div style="font-family: Lato, Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #46464b;">
           <div style="background: #416ebe; padding: 24px 32px; border-radius: 12px 12px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 20px;">English with Laura</h1>
@@ -82,9 +82,14 @@ export async function POST(req: NextRequest) {
           </div>
         </div>
       `,
-    })
+          })
+        } catch (e) {
+          console.error('Forgot password (deferred) error:', e)
+        }
+      })
+    }
 
-    return successResponse
+    return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('Forgot password error:', err)
     return NextResponse.json({ ok: true }) // Always succeed externally

@@ -40,6 +40,12 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Deny-by-default: hr (read-only) and any other non-self / non-teacher /
+  // non-superadmin role must not read another user's progress.
+  if (email !== session.user.email && session.user.role !== 'superadmin' && session.user.role !== 'teacher') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   try {
     const { data, error } = await supabase
       .from('progress')
@@ -103,6 +109,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // NOTE: self-reported score/total/points_earned are trusted here as-is.
+    // A student can only inflate their OWN numbers (the guards above prevent
+    // cross-user writes). Properly preventing self-forgery needs a server-side
+    // lookup of the activity's real total marks + server-recomputed points
+    // (client points = score×points_per_answer + bonus, so it can't be clamped
+    // against the client-sent total). Tracked as a follow-up, not shipped here.
     const { error } = await supabase
       .from('progress')
       .insert({
