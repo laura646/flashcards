@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { requireRole, hasAccessToCourse, getTeacherCourseIds } from '@/lib/roles'
+import { authoritativeExerciseTotal } from '@/lib/exercise-marks'
 
 // ═══════════════════════════════════════════════════════════════
 // /api/test-attempt
@@ -35,12 +36,19 @@ function err(message: string, status: number) {
 async function loadTestExercise(activityId: string) {
   const { data } = await supabase
     .from('lesson_exercises')
-    .select('id, lesson_id, title, test_type')
+    .select('id, lesson_id, title, test_type, exercise_type, questions')
     .eq('id', activityId)
     .single()
   if (!data) return null
   if (!data.test_type) return null
-  return data as { id: string; lesson_id: string; title: string; test_type: string }
+  return data as {
+    id: string
+    lesson_id: string
+    title: string
+    test_type: string
+    exercise_type?: string | null
+    questions?: unknown
+  }
 }
 
 // Helper: load the lesson's course_id (for access checks)
@@ -150,11 +158,26 @@ export async function PATCH(req: NextRequest) {
   if (!existing) return err('No started attempt to submit. Please reopen the test.', 404)
   if (existing.completed_at) return err('Test already submitted. Cannot submit again.', 409)
 
+  // Anti-forgery: never trust the self-reported test score. Clamp it to the
+  // exercise's authoritative mark total (same guard as /api/progress, via the
+  // shared lib/exercise-marks helper). Tests carry no points_earned, so there
+  // is nothing to recompute — only the score/total need bounding. Fail-safe: if
+  // the exercise can't be resolved (deleted / schema drift), fall back to
+  // clamping the score to its own reported total rather than blocking the save.
+  let safeTotal = Math.max(0, Math.round(total))
+  let safeScore = Math.max(0, Math.round(score))
+  const testEx = await loadTestExercise(activity_id)
+  if (testEx) {
+    const cap = authoritativeExerciseTotal(testEx)
+    safeTotal = safeTotal > 0 ? Math.min(safeTotal, cap) : cap
+  }
+  if (safeScore > safeTotal) safeScore = safeTotal
+
   const { data: updated, error: updErr } = await supabase
     .from('progress')
     .update({
-      score,
-      total,
+      score: safeScore,
+      total: safeTotal,
       completed_at: new Date().toISOString(),
       per_question_results: Array.isArray(per_question_results) ? per_question_results : null,
     })
