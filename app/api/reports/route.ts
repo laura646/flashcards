@@ -432,6 +432,30 @@ export async function GET(req: NextRequest) {
       if (!aErr && aRows) assessments = aRows as typeof assessments
     }
 
+    // 13. Graded writing submissions → folded into accuracy by reports-compute.
+    //     Best-effort (table may be pre-migration); never 500 the report.
+    let writingGrades: { student_email: string; score_pct: number }[] = []
+    if (studentEmails.length > 0) {
+      const { data: wRows, error: wErr } = await supabase
+        .from('writing_feedback')
+        .select('student_email, block_id, score_pct, graded_at')
+        .eq('course_id', courseId)
+        .not('score_pct', 'is', null)
+        .order('graded_at', { ascending: false })
+      if (!wErr && wRows) {
+        // Keep only the latest grade per (student, writing block) — mirrors the
+        // exercise "latest attempt per item" rule so a re-grade isn't double-counted.
+        const seen = new Set<string>()
+        for (const w of wRows as { student_email: string; block_id: string | null; score_pct: number | null }[]) {
+          if (typeof w.score_pct !== 'number') continue
+          const key = `${w.student_email}|${w.block_id ?? ''}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          writingGrades.push({ student_email: w.student_email, score_pct: w.score_pct })
+        }
+      }
+    }
+
     return NextResponse.json({
       courses: (courses || []) as Course[],
       course: { ...(course as Course), current_level: currentLevel, goal_level: goalLevel, group_progress_pct: groupProgressPct },
@@ -451,6 +475,7 @@ export async function GET(req: NextRequest) {
       attendanceSummary,
       archivedEmails,
       assessments,
+      writingGrades,
     })
   } catch (err) {
     console.error('Reports GET error:', err)

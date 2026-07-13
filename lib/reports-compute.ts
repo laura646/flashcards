@@ -141,6 +141,9 @@ export interface ReportsData {
   attendanceSummary?: Record<string, { present: number; late: number; absent: number; excused: number; total: number }>
   archivedEmails?: string[]
   assessments: ReportsAssessment[]
+  // Graded writing submissions (score_pct 0-100) — folded into accuracy so a
+  // teacher's writing grade "counts". Optional: older payloads omit it.
+  writingGrades?: { student_email: string; score_pct: number }[]
 }
 
 // ─────────── StudentReport (ReportsView contract) ───────────
@@ -389,6 +392,15 @@ function computeOverviewAggregate(
     }
     bestPcts.push(best)
   })
+
+  // Fold graded writing submissions in as scored items so the teacher's writing
+  // grade "counts" toward accuracy (W3). Each graded writing block = one pct.
+  for (const wg of data.writingGrades || []) {
+    if (wg.student_email === student.email && typeof wg.score_pct === 'number') {
+      latestPcts.push(wg.score_pct)
+      bestPcts.push(wg.score_pct)
+    }
+  }
 
   const avgLatest = latestPcts.length > 0 ? Math.round(latestPcts.reduce((a, b) => a + b, 0) / latestPcts.length) : null
   const avgBest = bestPcts.length > 0 ? Math.round(bestPcts.reduce((a, b) => a + b, 0) / bestPcts.length) : null
@@ -790,6 +802,14 @@ export function buildDigestPayload(
 
   const latestPcts = perEx.map((p) => p.latest).filter((x): x is number => x != null)
   const bestPcts = perEx.map((p) => p.best).filter((x): x is number => x != null)
+  // Fold graded writing in — same as the report card (W3), so the AI digest's
+  // average can't contradict the KPI it sits beside.
+  for (const wg of data.writingGrades || []) {
+    if (wg.student_email === email && typeof wg.score_pct === 'number') {
+      latestPcts.push(wg.score_pct)
+      bestPcts.push(wg.score_pct)
+    }
+  }
   const avgLatestPct = latestPcts.length > 0 ? Math.round(latestPcts.reduce((a, b) => a + b, 0) / latestPcts.length) : null
   const avgBestPct = bestPcts.length > 0 ? Math.round(bestPcts.reduce((a, b) => a + b, 0) / bestPcts.length) : null
 
