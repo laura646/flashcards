@@ -24,6 +24,7 @@ import { COMMON_ISSUES_BY_LEVEL } from '@/lib/common-issues'
 import AttendanceRail, { AttendanceOverview } from '@/components/admin-v2/AttendanceRail'
 import BulkAttendanceModal from '@/components/admin-v2/BulkAttendanceModal'
 import CourseProgressTab from '@/components/admin-v2/CourseProgressTab'
+import CourseWritingTab from '@/components/admin-v2/CourseWritingTab'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
 // CEFR half-steps for the group level (starting → goal); mirrors the Reports view.
@@ -141,7 +142,7 @@ function formatSchedule(days: string | null, time: string | null, durationMin: n
 
 const INVITE_CODE_RE = /^[A-Za-z0-9]{3,20}$/
 
-type Tab = 'lessons' | 'students' | 'progress'
+type Tab = 'lessons' | 'students' | 'progress' | 'writing'
 
 // ── Tabler-style line icons for the Course-info rail ──
 const iconBase = {
@@ -435,6 +436,7 @@ export function CourseDetailView({
                     { value: 'lessons' as Tab, label: `Lessons (${lessons.length})` },
                     { value: 'students' as Tab, label: `Students (${students.length})` },
                     { value: 'progress' as Tab, label: 'Progress' },
+                    { value: 'writing' as Tab, label: 'Writing' },
                   ]).map((t) => {
                     const active = tab === t.value
                     return (
@@ -588,6 +590,11 @@ export function CourseDetailView({
             {/* Progress (teacher triage grid) */}
             {tab === 'progress' && course && (
               <CourseProgressTab courseId={course.id} />
+            )}
+
+            {/* Writing (review + grading queue) */}
+            {tab === 'writing' && course && (
+              <CourseWritingTab courseId={course.id} canGrade={canEdit} />
             )}
           </div>
 
