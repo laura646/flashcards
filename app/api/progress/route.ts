@@ -3,6 +3,15 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { getTeacherCourseIds } from '@/lib/roles'
+import {
+  authoritativeExerciseTotal,
+  recomputeExercisePoints,
+  type ExerciseMarkRow,
+} from '@/lib/exercise-marks'
+
+function toFiniteNumber(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -73,7 +82,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { user_email, activity_type, activity_id, score, total, points_earned, response_text } = body
+    // points_earned is intentionally NOT read from the body — it is recomputed
+    // server-side below so a client can't inflate its own leaderboard points.
+    const { user_email, activity_type, activity_id, score, total, response_text } = body
 
     if (!user_email || !activity_type || !activity_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -109,21 +120,74 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // NOTE: self-reported score/total/points_earned are trusted here as-is.
-    // A student can only inflate their OWN numbers (the guards above prevent
-    // cross-user writes). Properly preventing self-forgery needs a server-side
-    // lookup of the activity's real total marks + server-recomputed points
-    // (client points = score×points_per_answer + bonus, so it can't be clamped
-    // against the client-sent total). Tracked as a follow-up, not shipped here.
+    // ── Anti-forgery: never trust client-reported marks for scored exercises ──
+    // A student can only write their OWN progress (guards above), but could
+    // still inflate their own score/total/points_earned. For lesson exercises
+    // we look up the authoritative mark total server-side, clamp the reported
+    // score to it, and RECOMPUTE points from the stored points_per_answer +
+    // completion_bonus (the client-sent points_earned is ignored entirely).
+    //
+    // Other activity types (blocks, flashcards, vocab, static /exercises
+    // practice) carry no points and have no server-side authoritative total, so
+    // we only sanity-bound score/total and force points to null — which already
+    // matches what those clients send today. Reads stay fail-safe: a lookup
+    // miss or error degrades to the no-points path rather than 500ing the save.
+    let scoreToSave = toFiniteNumber(score)
+    let totalToSave = toFiniteNumber(total)
+    if (scoreToSave != null) scoreToSave = Math.max(0, Math.round(scoreToSave))
+    if (totalToSave != null) totalToSave = Math.max(0, Math.round(totalToSave))
+    // Clamp a self-reported score to its self-reported total by default; the
+    // exercise branch below tightens this against the authoritative ceiling.
+    if (scoreToSave != null && totalToSave != null && scoreToSave > totalToSave) {
+      scoreToSave = totalToSave
+    }
+    let pointsToSave: number | null = null
+
+    if (activity_type === 'exercise') {
+      let ex: (ExerciseMarkRow & { test_type?: string | null }) | null = null
+      try {
+        const { data } = await supabase
+          .from('lesson_exercises')
+          .select('exercise_type, questions, points_per_answer, completion_bonus, test_type')
+          .eq('id', String(activity_id))
+          .maybeSingle()
+        ex = (data as (ExerciseMarkRow & { test_type?: string | null }) | null) ?? null
+      } catch {
+        // Invalid-UUID id (e.g. a static /exercises row) or a transient DB
+        // error → treat as "not a scored lesson exercise": keep sanitized
+        // score/total, points stay null. Fail-closed on points so an induced
+        // failure can't be used to inject leaderboard points.
+        ex = null
+      }
+
+      if (ex) {
+        // Tests must go through /api/test-attempt (single-attempt lock + no
+        // points). Block the bypass where a POST here would skip the lock and
+        // inject points onto a test. Legit clients never POST tests here.
+        if (ex.test_type) {
+          return NextResponse.json(
+            { error: 'Tests must be submitted through the test flow' },
+            { status: 400 }
+          )
+        }
+        const cap = authoritativeExerciseTotal(ex)
+        const safeTotal = totalToSave != null && totalToSave > 0 ? Math.min(totalToSave, cap) : cap
+        const safeScore = Math.min(scoreToSave ?? 0, safeTotal)
+        scoreToSave = safeScore
+        totalToSave = safeTotal
+        pointsToSave = recomputeExercisePoints(ex, safeScore)
+      }
+    }
+
     const { error } = await supabase
       .from('progress')
       .insert({
         user_email,
         activity_type,
         activity_id: String(activity_id),
-        score: score ?? null,
-        total: total ?? null,
-        points_earned: points_earned ?? null,
+        score: scoreToSave,
+        total: totalToSave,
+        points_earned: pointsToSave,
         // Writing submissions send the actual text here. Other activity
         // types don't, so this is just null for them.
         response_text: typeof response_text === 'string' && response_text.trim() ? response_text : null,
