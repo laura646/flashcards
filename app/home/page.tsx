@@ -42,6 +42,8 @@ export default function HomePage() {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [loading, setLoading] = useState(true)
   const [totalPoints, setTotalPoints] = useState(0)
+  // W2b: unseen writing feedback from the teacher (the "new feedback" nudge).
+  const [newFeedback, setNewFeedback] = useState<{ progress_id: string; lesson_id: string | null; lesson_title: string; block_title: string }[]>([])
   // Single source of truth for SRS data — fetched once here (sync + stats
   // + streak), surfaced in the hero AND passed into VocabDueCard, so the
   // two never disagree and we don't double-sync.
@@ -126,6 +128,40 @@ export default function HomePage() {
     }
   }, [status, session, router, role])
 
+  // W2b: load unseen writing feedback for the nudge.
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    fetch('/api/writing-feedback?mine=1')
+      .then((r) => r.json())
+      .then((d) => {
+        const unseen = (d?.feedback || []).filter((f: { student_seen_at: string | null }) => !f.student_seen_at)
+        setNewFeedback(unseen)
+      })
+      .catch(() => {})
+  }, [status])
+
+  const NewFeedbackBanner = newFeedback.length > 0 ? (
+    <div className="mb-5 bg-correct-bg border border-correct-border rounded-2xl p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-lg">✍️</span>
+        <span className="text-sm font-bold text-correct-fg">New feedback from your teacher</span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {newFeedback.slice(0, 4).map((f) => (
+          <button
+            key={f.progress_id}
+            onClick={() => f.lesson_id && router.push(`/lessons/${f.lesson_id}`)}
+            className="text-left text-[13px] text-ink-body hover:text-sky-text flex items-center gap-1.5"
+          >
+            <span className="text-correct-fg font-bold">›</span>
+            <span className="font-semibold">{f.block_title}</span>
+            {f.lesson_title && <span className="text-ink-muted">· {f.lesson_title}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null
+
   const loadLessons = (courseId: string) => {
     setLoading(true)
     fetch(`/api/lessons?course_id=${courseId}`)
@@ -187,6 +223,7 @@ export default function HomePage() {
           </div>
         </SkyHero>
         <div className="w-full max-w-lg mx-auto px-4 py-6 pb-24 flex-1">
+          {NewFeedbackBanner}
           <Eyebrow tone="brand" className="block mb-1">My courses</Eyebrow>
           <h2 className="text-lg font-extrabold text-brandblue mb-4">Choose a course</h2>
           <div className="flex flex-col gap-3">
@@ -231,6 +268,7 @@ export default function HomePage() {
       </SkyHero>
 
       <div className="w-full max-w-lg mx-auto px-4 py-6">
+        {NewFeedbackBanner}
         {/* Quick actions — HIDDEN per Laura (kept for later); flip SHOW_QUICK_ACTIONS to true to restore */}
         {SHOW_QUICK_ACTIONS && (
           <div className="grid grid-cols-3 gap-3 mb-6">

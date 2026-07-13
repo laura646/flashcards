@@ -35,12 +35,33 @@ export async function GET(req: NextRequest) {
         .eq('student_email', user.email)
         .order('graded_at', { ascending: false })
       if (error || !data) return NextResponse.json({ feedback: [] })
-      const byBlock = new Map<string, unknown>()
+      const byBlock = new Map<string, Record<string, unknown>>()
       for (const g of data) {
         const b = (g as { block_id: string | null }).block_id
-        if (b && !byBlock.has(b)) byBlock.set(b, g)
+        if (b && !byBlock.has(b)) byBlock.set(b, g as Record<string, unknown>)
       }
-      return NextResponse.json({ feedback: Array.from(byBlock.values()) })
+      // Enrich with the lesson each block belongs to (so the home nudge can link).
+      const blockIds = Array.from(byBlock.keys())
+      const lessonByBlock = new Map<string, { lesson_id: string; block_title: string }>()
+      const lessonTitle = new Map<string, string>()
+      if (blockIds.length) {
+        const { data: blks } = await supabase.from('lesson_blocks').select('id, lesson_id, title').in('id', blockIds)
+        for (const b of blks || []) {
+          const row = b as { id: string; lesson_id: string; title: string | null }
+          lessonByBlock.set(row.id, { lesson_id: row.lesson_id, block_title: row.title || 'Writing' })
+        }
+        const lessonIds = Array.from(new Set((blks || []).map((b) => (b as { lesson_id: string }).lesson_id)))
+        if (lessonIds.length) {
+          const { data: lss } = await supabase.from('lessons').select('id, title').in('id', lessonIds)
+          for (const l of lss || []) lessonTitle.set((l as { id: string }).id, (l as { title: string }).title)
+        }
+      }
+      const feedback = blockIds.map((bid) => {
+        const g = byBlock.get(bid) as Record<string, unknown>
+        const bl = lessonByBlock.get(bid)
+        return { ...g, lesson_id: bl?.lesson_id || null, lesson_title: bl ? lessonTitle.get(bl.lesson_id) || '' : '', block_title: bl?.block_title || 'Writing' }
+      })
+      return NextResponse.json({ feedback })
     } catch {
       return NextResponse.json({ feedback: [] })
     }
