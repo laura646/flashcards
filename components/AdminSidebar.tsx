@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense, type ReactNode } fr
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
+import NotificationsPanel from '@/components/NotificationsPanel'
 
 // ─────────── Types ───────────
 
@@ -373,7 +374,7 @@ function AdminSidebarInner() {
         <div className="w-[30px] h-[30px] shrink-0 rounded-[9px] bg-[#00aff0] text-white font-bold flex items-center justify-center text-sm">
           A
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[13px] font-bold text-[#2c3a52] leading-tight truncate">
             Admin workspace
           </p>
@@ -381,6 +382,7 @@ function AdminSidebarInner() {
             English with Laura
           </p>
         </div>
+        <NotificationsPanel />
       </div>
     </div>
   )

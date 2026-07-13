@@ -509,6 +509,25 @@ export async function GET(req: NextRequest) {
       })
     }
 
+    // ── Full notifications list for the bell panel ──
+    if (action === 'notifications-list') {
+      const [listRes, unreadRes] = await Promise.all([
+        supabase
+          .from('notifications')
+          .select('id, type, course_id, student_email, title, read_at, created_at')
+          .eq('recipient_email', email)
+          .order('created_at', { ascending: false })
+          .limit(30),
+        supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('recipient_email', email)
+          .is('read_at', null),
+      ])
+      if (listRes.error) throw listRes.error
+      return NextResponse.json({ notifications: listRes.data || [], unread: unreadRes.count || 0 })
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
   } catch (err) {
     console.error('Admin API error:', err)
@@ -864,6 +883,31 @@ export async function POST(req: NextRequest) {
         .eq('type', notifType)
         .is('read_at', null)
 
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Mark ONE notification read (bell panel) ──
+    if (action === 'notification-read') {
+      const { id } = body
+      if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('recipient_email', email)
+        .eq('id', id)
+        .is('read_at', null)
+      if (error) throw error
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── Mark ALL notifications read (bell panel) ──
+    if (action === 'notifications-read-all') {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('recipient_email', email)
+        .is('read_at', null)
       if (error) throw error
       return NextResponse.json({ ok: true })
     }
