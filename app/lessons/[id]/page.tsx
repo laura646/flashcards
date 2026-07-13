@@ -790,6 +790,12 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const [flashcardsCompleted, setFlashcardsCompleted] = useState(false)
   const [writingText, setWritingText] = useState('')
   const [writingSaved, setWritingSaved] = useState(false)
+  // W2: teacher's grade + feedback on this student's writing, keyed by block id.
+  type WritingFeedbackItem = {
+    progress_id: string; block_id: string; score_pct: number | null; cefr_band: string | null
+    rubric: Record<string, number> | null; feedback: string | null; graded_at: string; student_seen_at: string | null
+  }
+  const [writingFeedback, setWritingFeedback] = useState<Record<string, WritingFeedbackItem>>({})
   const [pointsToast, setPointsToast] = useState<number | null>(null)
 
   const studentName = session?.user?.name?.split(' ')[0] || 'Student'
@@ -899,6 +905,32 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentEmail, exercises.length, blocks.length])
+
+  // W2: load this student's own writing grades/feedback (keyed by block id).
+  useEffect(() => {
+    if (!studentEmail) return
+    fetch('/api/writing-feedback?mine=1')
+      .then((r) => r.json())
+      .then((d) => {
+        const map: Record<string, WritingFeedbackItem> = {}
+        for (const f of d?.feedback || []) if (f?.block_id) map[f.block_id] = f
+        setWritingFeedback(map)
+      })
+      .catch(() => {})
+  }, [studentEmail])
+
+  // W2: mark the open writing block's feedback as seen once the student views it.
+  useEffect(() => {
+    if (!selectedBlock || selectedBlock.block_type !== 'writing') return
+    const f = writingFeedback[selectedBlock.id]
+    if (!f || f.student_seen_at) return
+    fetch('/api/writing-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mark-seen', progress_ids: [f.progress_id] }),
+    }).catch(() => {})
+    setWritingFeedback((prev) => ({ ...prev, [selectedBlock.id]: { ...f, student_seen_at: new Date().toISOString() } }))
+  }, [selectedBlock, writingFeedback])
 
   // ── Progress & notification helpers ──
 
@@ -1671,6 +1703,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     // ── Writing Block ──
     if (selectedBlock.block_type === 'writing') {
       const content = selectedBlock.content as WritingContent
+      const fb = writingFeedback[selectedBlock.id]
 
       return (
         <main className="min-h-screen flex flex-col px-4 py-8 max-w-lg mx-auto">
@@ -1695,6 +1728,34 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             saved={writingSaved}
             onSubmit={handleWritingSubmit}
           />
+
+          {/* W2: teacher's grade + feedback (once graded) */}
+          {fb && (
+            <div className="mt-5 bg-white rounded-2xl border-[1.5px] border-correct-border p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="text-xs font-bold text-correct-fg uppercase tracking-wider">Teacher feedback</h2>
+                {!fb.student_seen_at && (
+                  <span className="text-[10px] font-bold bg-correct-bg text-correct-fg px-2 py-0.5 rounded-full">New</span>
+                )}
+              </div>
+              {(fb.score_pct != null || fb.cefr_band) && (
+                <div className="flex items-center gap-3 mb-3">
+                  {fb.score_pct != null && <span className="text-2xl font-bold text-correct-fg leading-none">{fb.score_pct}%</span>}
+                  {fb.cefr_band && <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-sky-wash text-sky-text">{fb.cefr_band}</span>}
+                </div>
+              )}
+              {fb.rubric && Object.keys(fb.rubric).length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {Object.entries(fb.rubric).map(([k, v]) => (
+                    <span key={k} className="text-[11px] text-ink-body bg-sky-wash rounded-lg px-2 py-1">
+                      <span className="capitalize">{k}</span> {v}/5
+                    </span>
+                  ))}
+                </div>
+              )}
+              {fb.feedback && <p className="text-sm text-ink-body leading-relaxed whitespace-pre-wrap">{fb.feedback}</p>}
+            </div>
+          )}
         </main>
       )
     }
