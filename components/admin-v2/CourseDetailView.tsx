@@ -175,6 +175,7 @@ interface CourseDetailViewProps {
   onOpenStudent: (email: string) => void
   onCreateLesson: () => void
   onAssignFromLibrary: () => void
+  onDeleteLesson?: (lessonId: string) => Promise<void> | void
   // Course-info save (update-schedule)
   onSaveCourseInfo: (form: CourseInfoForm) => Promise<{ ok: boolean; error?: string }>
   // Invite-code change is a separate concern (kept via update-course).
@@ -251,6 +252,7 @@ export function CourseDetailView({
   onOpenStudent,
   onCreateLesson,
   onAssignFromLibrary,
+  onDeleteLesson,
   onSaveCourseInfo,
   onSaveInviteCode,
   onSendTelegramTest,
@@ -262,6 +264,13 @@ export function CourseDetailView({
   manageHr,
 }: CourseDetailViewProps) {
   const [tab, setTab] = useState<Tab>('lessons')
+  const [deletingLesson, setDeletingLesson] = useState<CourseLessonRow | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const confirmDeleteLesson = async () => {
+    if (!deletingLesson || !onDeleteLesson) { setDeletingLesson(null); return }
+    setDeleteBusy(true)
+    try { await onDeleteLesson(deletingLesson.id) } finally { setDeleteBusy(false); setDeletingLesson(null) }
+  }
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<CourseInfoForm>({
     description: '', level: '', current_level: '', goal_level: '', group_progress_pct: null,
@@ -506,12 +515,14 @@ export function CourseDetailView({
                 ) : (
                   <div className="max-h-[60vh] overflow-y-auto divide-y divide-hairline">
                     {filteredLessons.map((lesson) => (
-                      <button
+                      <div
                         key={lesson.id}
-                        onClick={() => onOpenLesson(lesson.id)}
-                        className="w-full text-left px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40"
+                        className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors"
                       >
-                        <div className="min-w-0">
+                        <button
+                          onClick={() => onOpenLesson(lesson.id)}
+                          className="min-w-0 flex-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40 rounded"
+                        >
                           <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
                           <div className="flex gap-2 mt-1 flex-wrap">
                             {lesson.template_level && <Pill variant="level">{lesson.template_level}</Pill>}
@@ -520,14 +531,28 @@ export function CourseDetailView({
                               <span className="text-[10px] font-bold bg-surface text-ink-muted px-2 py-0.5 rounded-full">Template</span>
                             )}
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
+                        </button>
+                        <div className="flex items-center gap-2.5 shrink-0">
                           <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
                             {lesson.status === 'published' ? 'Published' : 'Draft'}
                           </Pill>
                           <span className="text-xs text-ink-muted hidden sm:inline">{formatDate(lesson.created_at)}</span>
+                          {canEdit && onDeleteLesson && (
+                            <button
+                              onClick={() => setDeletingLesson(lesson)}
+                              aria-label={`Delete ${lesson.title || 'lesson'}`}
+                              title="Delete lesson"
+                              className="p-1.5 rounded-lg text-ink-muted hover:text-red-500 hover:bg-red-50 transition-colors"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                <line x1="10" y1="11" x2="10" y2="17" />
+                                <line x1="14" y1="11" x2="14" y2="17" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -902,6 +927,32 @@ export function CourseDetailView({
           </div>
         </div>
       </div>
+
+      {/* Delete-lesson confirmation */}
+      {deletingLesson && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => !deleteBusy && setDeletingLesson(null)}
+        >
+          <div className="bg-white rounded-card border border-hairline p-5 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-ink-black mb-2">Delete this lesson?</h3>
+            <p className="text-sm text-ink-body mb-1">
+              <span className="font-semibold">{deletingLesson.title || 'Untitled'}</span> will be permanently deleted, along with its exercises, blocks and flashcards.
+            </p>
+            <p className="text-xs text-ink-muted mb-4">Any student progress on this lesson is lost. This can&apos;t be undone.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="neutral" size="sm" onClick={() => setDeletingLesson(null)} disabled={deleteBusy}>Cancel</Button>
+              <button
+                onClick={confirmDeleteLesson}
+                disabled={deleteBusy}
+                className="text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-full px-4 py-2 transition-colors disabled:opacity-50"
+              >
+                {deleteBusy ? 'Deleting…' : 'Delete lesson'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

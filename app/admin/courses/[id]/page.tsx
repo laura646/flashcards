@@ -395,6 +395,16 @@ export default function CourseDetailBetaPage() {
         onOpenStudent={(email) => router.push(`/admin/students/${encodeURIComponent(email)}`)}
         onCreateLesson={() => setShowLessonChooser(true)}
         onAssignFromLibrary={() => setShowAssignModal(true)}
+        onDeleteLesson={async (lessonId) => {
+          try {
+            const res = await fetch('/api/lessons', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lessonId }),
+            })
+            if (res.ok) await load()
+          } catch { /* swallow — list stays as-is */ }
+        }}
         onSaveCourseInfo={onSaveCourseInfo}
         onSaveInviteCode={onSaveInviteCode}
         onSendTelegramTest={onSendTelegramTest}
