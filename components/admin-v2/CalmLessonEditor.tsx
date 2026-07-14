@@ -146,6 +146,12 @@ export function CalmLessonEditor({
   templateLevel,
   onCategoryChange,
   onLevelChange,
+  testTimeLimit,
+  testRevealAnswers,
+  testRulesLang,
+  onTestTimeLimitChange,
+  onTestRevealAnswersChange,
+  onTestRulesLangChange,
   currentLessonStatus,
   editingLessonId,
   editingAuthorName,
@@ -210,6 +216,13 @@ export function CalmLessonEditor({
   templateLevel?: string
   onCategoryChange?: (v: string) => void
   onLevelChange?: (v: string) => void
+  // Exam-mode settings — rendered only when lessonType is a test type.
+  testTimeLimit?: number
+  testRevealAnswers?: boolean
+  testRulesLang?: 'hy' | 'en'
+  onTestTimeLimitChange?: (v: number) => void
+  onTestRevealAnswersChange?: (v: boolean) => void
+  onTestRulesLangChange?: (v: 'hy' | 'en') => void
   currentLessonStatus: 'draft' | 'published'
   editingLessonId: string | null
   editingAuthorName: string | null
@@ -774,6 +787,68 @@ export function CalmLessonEditor({
                   className="flex-wrap"
                 />
               </div>
+
+              {/* Exam-mode settings — only for test lessons */}
+              {['mid_course_test', 'final_test', 'review_test'].includes(lessonType) && (
+                <div className="rounded-tile border-[1.5px] border-[#e3e5e9] bg-surface/60 p-4 space-y-3.5">
+                  <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">
+                    ⏱ Test settings
+                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-ink-body">Time limit</p>
+                      <p className="text-[11px] text-ink-muted">Timer starts when the student accepts the rules; auto-submits at zero.</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min={1}
+                        max={600}
+                        value={testTimeLimit ?? 30}
+                        onChange={(e) => {
+                          const n = parseInt(e.target.value, 10)
+                          onTestTimeLimitChange?.(isNaN(n) ? 30 : Math.max(1, Math.min(600, n)))
+                        }}
+                        className="w-[72px] text-[14px] font-bold text-center text-ink-body bg-white rounded-tile px-2 h-[40px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky"
+                      />
+                      <span className="text-[11px] text-ink-muted font-bold">min</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-ink-body">Reveal correct answers after submit</p>
+                      <p className="text-[11px] text-ink-muted">Off = students see only right / wrong, so the answer key can&apos;t circulate.</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={testRevealAnswers !== false}
+                      onClick={() => onTestRevealAnswersChange?.(!(testRevealAnswers !== false))}
+                      className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${testRevealAnswers !== false ? 'bg-sky' : 'bg-[#d6dde6]'}`}
+                    >
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${testRevealAnswers !== false ? 'left-[22px]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-ink-body">Rules &amp; disclaimers language</p>
+                      <p className="text-[11px] text-ink-muted">Armenian for lower levels; English is fine for higher ones.</p>
+                    </div>
+                    <div className="shrink-0 inline-flex bg-white border-[1.5px] border-[#e3e5e9] rounded-full p-0.5">
+                      {([['hy', 'Հայերեն'], ['en', 'English']] as const).map(([v, label]) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => onTestRulesLangChange?.(v)}
+                          className={`text-[11px] font-extrabold px-3 py-1.5 rounded-full transition-colors ${(testRulesLang ?? 'hy') === v ? 'bg-sky text-white' : 'text-ink-muted hover:text-ink-body'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Date + Level + Category — Level/Category shown for EVERY lesson so
                   course-free drafts stay filterable in My Library; required only

@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       const [courseRes, studentsRes, lessonsRes] = await Promise.all([
         supabase.from('courses').select('*').eq('id', courseId).single(),
         supabase.from('course_students').select('student_email, archived_at').eq('course_id', courseId).is('removed_at', null),
-        supabase.from('lessons').select('id, title, created_at, status, template_category, template_level, is_template, lesson_date').eq('course_id', courseId).order('lesson_date', { ascending: false }),
+        supabase.from('lessons').select('id, title, created_at, status, template_category, template_level, is_template, lesson_date, lesson_type').eq('course_id', courseId).order('lesson_date', { ascending: false }),
       ])
 
       if (courseRes.error) throw courseRes.error
