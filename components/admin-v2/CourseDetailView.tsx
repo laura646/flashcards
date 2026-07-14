@@ -25,6 +25,7 @@ import AttendanceRail, { AttendanceOverview } from '@/components/admin-v2/Attend
 import BulkAttendanceModal from '@/components/admin-v2/BulkAttendanceModal'
 import CourseProgressTab from '@/components/admin-v2/CourseProgressTab'
 import CourseWritingTab from '@/components/admin-v2/CourseWritingTab'
+import CourseTestsTab from '@/components/admin-v2/CourseTestsTab'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
 // CEFR half-steps for the group level (starting → goal); mirrors the Reports view.
@@ -71,6 +72,7 @@ export interface CourseLessonRow {
   id: string
   title: string
   status: 'draft' | 'published'
+  lesson_type?: string | null
   template_category: string | null
   template_level: string | null
   is_template: boolean
@@ -142,7 +144,7 @@ function formatSchedule(days: string | null, time: string | null, durationMin: n
 
 const INVITE_CODE_RE = /^[A-Za-z0-9]{3,20}$/
 
-type Tab = 'lessons' | 'students' | 'progress' | 'writing'
+type Tab = 'lessons' | 'students' | 'progress' | 'writing' | 'tests'
 
 // ── Tabler-style line icons for the Course-info rail ──
 const iconBase = {
@@ -446,6 +448,7 @@ export function CourseDetailView({
                     { value: 'students' as Tab, label: `Students (${students.length})` },
                     { value: 'progress' as Tab, label: 'Progress' },
                     { value: 'writing' as Tab, label: 'Writing' },
+                    { value: 'tests' as Tab, label: 'Tests' },
                   ]).map((t) => {
                     const active = tab === t.value
                     return (
@@ -620,6 +623,11 @@ export function CourseDetailView({
             {/* Writing (review + grading queue) */}
             {tab === 'writing' && course && (
               <CourseWritingTab courseId={course.id} canGrade={canEdit} />
+            )}
+
+            {/* Tests (exam-mode results per test lesson) */}
+            {tab === 'tests' && course && (
+              <CourseTestsTab lessons={lessons} canEdit={canEdit} />
             )}
           </div>
 

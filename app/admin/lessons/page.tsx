@@ -234,6 +234,12 @@ function LessonsBetaBody() {
           templateLevel={editor.templateLevel}
           onCategoryChange={editor.setTemplateCategory}
           onLevelChange={editor.setTemplateLevel}
+          testTimeLimit={editor.testTimeLimit}
+          testRevealAnswers={editor.testRevealAnswers}
+          testRulesLang={editor.testRulesLang}
+          onTestTimeLimitChange={editor.setTestTimeLimit}
+          onTestRevealAnswersChange={editor.setTestRevealAnswers}
+          onTestRulesLangChange={editor.setTestRulesLang}
           currentLessonStatus={editor.currentLessonStatus}
           editingLessonId={editor.editingLessonId}
           editingAuthorName={editor.editingAuthorName}

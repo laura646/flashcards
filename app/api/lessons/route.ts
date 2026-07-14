@@ -473,6 +473,9 @@ export async function POST(req: NextRequest) {
       exercises,
       blocks,
       flashcards_published,
+      time_limit_minutes,
+      test_reveal_answers,
+      test_rules_lang,
     } = body
 
     if (!title?.trim()) {
@@ -549,6 +552,27 @@ export async function POST(req: NextRequest) {
         .single()
       if (error) throw error
       lessonId = data.id
+    }
+
+    // Exam-mode settings (test lessons) — separate best-effort update so a
+    // DB missing the migrated columns can never break lesson saving. Static
+    // import path per Vercel serverless rule; columns simply no-op when the
+    // update errors (fail-open until migration-test-mode.sql is run).
+    if (
+      time_limit_minutes !== undefined ||
+      test_reveal_answers !== undefined ||
+      test_rules_lang !== undefined
+    ) {
+      const testPatch: Record<string, unknown> = {}
+      if (typeof time_limit_minutes === 'number' && time_limit_minutes >= 1) {
+        testPatch.time_limit_minutes = Math.round(time_limit_minutes)
+      }
+      if (typeof test_reveal_answers === 'boolean') testPatch.test_reveal_answers = test_reveal_answers
+      if (test_rules_lang === 'hy' || test_rules_lang === 'en') testPatch.test_rules_lang = test_rules_lang
+      if (Object.keys(testPatch).length > 0) {
+        const { error: testErr } = await supabase.from('lessons').update(testPatch).eq('id', lessonId)
+        if (testErr) console.error('lessons: test settings not saved (migration pending?):', testErr.message)
+      }
     }
 
     // Save flashcards

@@ -12,6 +12,8 @@ import {
   ExerciseLoadingFallback,
 } from '@/components/lesson-render/exerciseRunner'
 import { MistakesView } from '@/components/lesson-render/blocks/MistakesView'
+import { isTestLessonType } from '@/lib/test-mode'
+import TestSession from '@/components/TestSession'
 import { VideoView } from '@/components/lesson-render/blocks/VideoView'
 import { AudioView } from '@/components/lesson-render/blocks/AudioView'
 import { ArticleView } from '@/components/lesson-render/blocks/ArticleView'
@@ -1172,6 +1174,24 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             ← Back to home
           </button>
         </div>
+      </main>
+    )
+  }
+
+  // ── EXAM MODE ──
+  // Test lessons (mid_course / final / review) get the full exam experience:
+  // rules gate → server-timed attempt → unified submit → results. The whole
+  // per-exercise flow below is bypassed; TestSession drives the runners.
+  if (isTestLessonType(lessonType) && exercises.length > 0) {
+    return (
+      <main className="min-h-screen flex flex-col px-4 py-6 max-w-lg mx-auto w-full">
+        <TestSession
+          lessonId={id}
+          lessonTitle={lesson.title}
+          lessonType={lessonType}
+          exercises={exercises}
+          onExit={() => router.push('/home')}
+        />
       </main>
     )
   }

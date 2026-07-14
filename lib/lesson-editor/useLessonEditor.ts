@@ -67,6 +67,11 @@ export function useLessonEditor() {
   const [currentLessonStatus, setCurrentLessonStatus] = useState<'draft' | 'published'>('draft')
   const [flashcardsPublished, setFlashcardsPublished] = useState(true)
 
+  // ── Exam-mode settings (used only when lessonType is a test type) ──
+  const [testTimeLimit, setTestTimeLimit] = useState<number>(30)
+  const [testRevealAnswers, setTestRevealAnswers] = useState(true)
+  const [testRulesLang, setTestRulesLang] = useState<'hy' | 'en'>('hy')
+
   const [isTemplate, setIsTemplate] = useState(false)
   const [templateCategory, setTemplateCategory] = useState('')
   const [templateLevel, setTemplateLevel] = useState('')
@@ -111,9 +116,12 @@ export function useLessonEditor() {
         templateCategory,
         templateLevel,
         flashcardsPublished,
+        testTimeLimit,
+        testRevealAnswers,
+        testRulesLang,
         items: contentItems.map((i) => ({ type: i.type, data: i.data, order_index: i.order_index })),
       }),
-    [title, lessonDate, lessonType, summary, isTemplate, templateCategory, templateLevel, flashcardsPublished, contentItems],
+    [title, lessonDate, lessonType, summary, isTemplate, templateCategory, templateLevel, flashcardsPublished, testTimeLimit, testRevealAnswers, testRulesLang, contentItems],
   )
   useEffect(() => {
     if (pendingBaseline) {
@@ -171,6 +179,9 @@ export function useLessonEditor() {
       setTemplateCategory(lesson.template_category || '')
       setTemplateLevel(lesson.template_level || '')
       setCurrentLessonStatus(lesson.status === 'published' ? 'published' : 'draft')
+      setTestTimeLimit(typeof lesson.time_limit_minutes === 'number' && lesson.time_limit_minutes >= 1 ? lesson.time_limit_minutes : 30)
+      setTestRevealAnswers(lesson.test_reveal_answers !== false)
+      setTestRulesLang(lesson.test_rules_lang === 'en' ? 'en' : 'hy')
 
       setEditingAuthorName(lesson.author_name || null)
       setEditingCreatedAt(lesson.created_at || null)
@@ -265,6 +276,9 @@ export function useLessonEditor() {
     setTemplateLevel('')
     setCurrentLessonStatus('draft')
     setFlashcardsPublished(true)
+    setTestTimeLimit(30)
+    setTestRevealAnswers(true)
+    setTestRulesLang('hy')
     setView('editor')
     setPendingBaseline(true)
   }, [])
@@ -407,6 +421,9 @@ export function useLessonEditor() {
           template_category: templateCategory || null,
           template_level: templateLevel || null,
           course_id: courseId || null,
+          time_limit_minutes: testTimeLimit,
+          test_reveal_answers: testRevealAnswers,
+          test_rules_lang: testRulesLang,
           flashcards: flashcardItems.map((fc, i) => ({
             word: fc.word,
             phonetic: fc.phonetic,
@@ -687,6 +704,12 @@ export function useLessonEditor() {
     setTemplateLevel,
     flashcardsPublished,
     setFlashcardsPublished,
+    testTimeLimit,
+    setTestTimeLimit,
+    testRevealAnswers,
+    setTestRevealAnswers,
+    testRulesLang,
+    setTestRulesLang,
     contentBankMode,
 
     // content
