@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/progress-alerts",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/test-sweeper",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
