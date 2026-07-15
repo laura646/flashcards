@@ -377,7 +377,10 @@ export async function POST(req: NextRequest) {
 
       if (newWords.length > 0) {
         const { error } = await supabase.from('vocab_srs').insert(newWords)
-        if (error) throw error
+        // 23505 = unique_violation: a concurrent sync from the same user
+        // already inserted these words. Harmless — the dedup pass below
+        // handles any duplicates. Don't 500 the whole sync over a race.
+        if (error && error.code !== '23505') throw error
       }
 
       // Build the set of valid word keys from enrolled courses
