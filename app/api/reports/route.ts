@@ -250,7 +250,7 @@ export async function GET(req: NextRequest) {
     // 3. Published lessons in this course
     const { data: lessons } = await supabase
       .from('lessons')
-      .select('id, title, lesson_date, flashcards_published')
+      .select('id, title, lesson_date, flashcards_published, lesson_type')
       .eq('course_id', courseId)
       .eq('status', 'published')
       .order('lesson_date', { ascending: true })

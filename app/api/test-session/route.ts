@@ -96,11 +96,24 @@ export async function GET(req: NextRequest) {
     // ── teacher results table ──
     if (req.nextUrl.searchParams.get('view') === 'teacher') {
       if (role !== 'teacher' && role !== 'superadmin') return err('Forbidden', 403)
+      // Roster: course_students has NO name column — names live on users
+      // (same pattern as course-sessions / admin roster lookups).
       const { data: roster } = await supabase
         .from('course_students')
-        .select('student_email, student_name')
+        .select('student_email')
         .eq('course_id', lesson.course_id as string)
         .is('removed_at', null)
+      const rosterEmails = ((roster || []) as { student_email: string }[]).map((r) => r.student_email)
+      const nameByEmail = new Map<string, string>()
+      if (rosterEmails.length > 0) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('email, name')
+          .in('email', rosterEmails)
+        ;((users || []) as { email: string; name: string | null }[]).forEach((u) => {
+          if (u.name) nameByEmail.set(u.email, u.name)
+        })
+      }
       const { data: sessions } = await supabase
         .from('test_sessions')
         .select('*')
@@ -118,11 +131,11 @@ export async function GET(req: NextRequest) {
         .eq('lesson_id', lessonId)
       const byEmail = new Map<string, TestSessionRow>()
       ;((fresh || []) as TestSessionRow[]).forEach((s) => byEmail.set(s.user_email, s))
-      const rows = ((roster || []) as { student_email: string; student_name: string | null }[]).map((r) => {
-        const s = byEmail.get(r.student_email)
+      const rows = rosterEmails.map((email) => {
+        const s = byEmail.get(email)
         return {
-          student_email: r.student_email,
-          student_name: r.student_name || r.student_email,
+          student_email: email,
+          student_name: nameByEmail.get(email) || email,
           status: !s ? 'not_started' : s.submitted_at ? (s.auto_submitted ? 'auto_submitted' : 'submitted') : 'in_progress',
           score: s?.score ?? null,
           total: s?.total ?? null,
