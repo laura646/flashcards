@@ -393,16 +393,20 @@ export default function HomePage() {
                               {lesson.flashcards_studied ? '✅' : '🃏'} {lesson.flashcard_count} words
                             </span>
                           )}
-                          {itemTotal > 0 && (
+                          {/* Tests: no task counter / points — the ✓% score
+                              badge is the only progress signal that makes
+                              sense for an exam (a 0-score auto-submit would
+                              otherwise show a misleading "12/15 tasks"). */}
+                          {!isTest && itemTotal > 0 && (
                             <span className="text-xs text-ink-muted flex items-center gap-1">
                               {exDone ? '✅' : '✏️'} {Math.min(itemsDone, itemTotal)}/{itemTotal} tasks
                             </span>
                           )}
-                          {(lesson.points_earned || 0) > 0 && (
+                          {!isTest && (lesson.points_earned || 0) > 0 && (
                             <span className="text-xs text-amber-500 font-bold flex items-center gap-0.5">⭐ {lesson.points_earned} pts</span>
                           )}
                         </div>
-                        {itemTotal > 0 && (
+                        {!isTest && itemTotal > 0 && (
                           <div className="mt-2 h-1.5 bg-[#eef1f6] rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-300 ${exDone ? 'bg-correct-fg' : 'bg-sky'}`}
