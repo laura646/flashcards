@@ -85,6 +85,17 @@ export async function GET(req: NextRequest) {
   const email = session.user.email
   const role = (session.user as { role?: string }).role || 'student'
 
+  // All of MY submitted test scores in one call — powers the % badge on
+  // test cards in the student lesson list. Fail-open: [] if table absent.
+  if (req.nextUrl.searchParams.get('view') === 'mine') {
+    const { data } = await supabase
+      .from('test_sessions')
+      .select('lesson_id, score, total')
+      .eq('user_email', email)
+      .not('submitted_at', 'is', null)
+    return NextResponse.json({ sessions: data || [] })
+  }
+
   const lessonId = req.nextUrl.searchParams.get('lesson_id')
   if (!lessonId) return err('lesson_id required', 400)
 
