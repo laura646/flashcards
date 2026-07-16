@@ -56,6 +56,10 @@ export function renderStandaloneRunner(
     title: exercise.title,
     instructions: exercise.instructions,
     questions: exercise.questions,
+    // Exam mode: runners suppress ALL correctness feedback while test_type is
+    // set (TestSession forces it for test lessons). Runners that predate the
+    // field simply ignore it.
+    test_type: exercise.test_type ?? null,
   }
 
   if (exType === 'true_or_false') {

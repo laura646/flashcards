@@ -15,12 +15,15 @@ interface Props {
     title: string
     instructions: string
     questions: OddOneOutQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number) => void
   onBack: () => void
 }
 
 export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [results, setResults] = useState<(boolean | null)[]>(
@@ -53,6 +56,20 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
     const newResults = [...results]
     newResults[currentIndex] = isCorrect
     setResults(newResults)
+
+    // Exam mode: record and advance — no verdict until the test is submitted.
+    if (isTestMode) {
+      setSelectedIndex(null)
+      const nextIdx = newResults.findIndex((r) => r === null)
+      if (nextIdx === -1) {
+        setFinished(true)
+        onComplete(newResults.filter((r) => r === true).length, exercise.questions.length)
+      } else {
+        setCurrentIndex(nextIdx)
+      }
+      return
+    }
+
     setFeedback(isCorrect ? 'correct' : 'wrong')
   }
 

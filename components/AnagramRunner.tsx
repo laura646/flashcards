@@ -14,6 +14,7 @@ interface Props {
     title: string
     instructions: string
     questions: AnagramQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number) => void
   onBack: () => void
@@ -72,6 +73,8 @@ function checkAnswer(placed: Tile[], word: string): boolean {
 }
 
 export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
   const [pool, setPool] = useState<Tile[]>([])       // scrambled tiles (not yet placed)
   const [placed, setPlaced] = useState<Tile[]>([])    // tiles in the answer area
@@ -121,6 +124,16 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
   const submitAnswer = useCallback(() => {
     if (!current || placed.length === 0 || feedback !== null) return
     const correct = placed.length === targetLength && checkAnswer(placed, current.word)
+
+    // Exam mode: record and advance — never reveal the word mid-test.
+    if (isTestMode) {
+      const testResults = [...results]
+      testResults[currentIndex] = correct
+      setResults(testResults)
+      advance(testResults)
+      return
+    }
+
     if (correct) {
       setFeedback('correct')
       const newResults = [...results]
@@ -414,9 +427,11 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
               <button onClick={resetTiles} className="text-xs text-ink-muted hover:text-sky font-bold px-3 py-1.5 rounded-lg hover:bg-sky-wash transition-colors">
                 Reset
               </button>
-              <button onClick={showAnswer} className="text-xs text-ink-muted hover:text-amber-500 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors">
-                Show answer
-              </button>
+              {!isTestMode && (
+                <button onClick={showAnswer} className="text-xs text-ink-muted hover:text-amber-500 font-bold px-3 py-1.5 rounded-lg hover:bg-amber-50 transition-colors">
+                  Show answer
+                </button>
+              )}
             </div>
           </div>
         )}

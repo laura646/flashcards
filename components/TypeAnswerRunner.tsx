@@ -18,6 +18,7 @@ interface Props {
     title: string
     instructions: string
     questions: TypeAnswerQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number) => void
   onBack: () => void
@@ -29,6 +30,8 @@ type QuestionResult = {
 }
 
 export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
   const [inputValue, setInputValue] = useState('')
   const [results, setResults] = useState<(QuestionResult | null)[]>(
@@ -77,6 +80,14 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
     const newResults = [...results]
     newResults[currentIndex] = result
     setResults(newResults)
+
+    // Exam mode: record the answer and move straight on — no verdict,
+    // no correct answer, nothing to brute-force before the test is submitted.
+    if (isTestMode) {
+      advance(newResults)
+      return
+    }
+
     setFeedback(isCorrect ? 'correct' : 'wrong')
 
     if (isCorrect) {
