@@ -42,6 +42,9 @@ export interface ReportsLesson {
   title: string
   lesson_date: string | null
   flashcards_published?: boolean | null
+  // Exam-mode lessons (mid_course_test / final_test / review_test) surface as
+  // one aggregated row in the Tests card.
+  lesson_type?: string | null
 }
 
 export interface ReportsExercise {
@@ -557,9 +560,49 @@ function buildStudentDetail(data: ReportsData, selectedStudentEmail: string): St
       attempted: cefrSums[level].count,
     }))
 
-  // Tests: exercises tagged with a test_type. FIRST attempt is the real grade.
-  const tests = data.exercises
-    .filter((ex) => ex.test_type)
+  // Tests come from TWO sources:
+  //  (a) EXAM-MODE lessons (lesson_type mid_course_test / final_test /
+  //      review_test) — the whole lesson is one test taken in one sitting, so
+  //      it surfaces as ONE aggregated row: the student's scores summed across
+  //      the lesson's exercises (test-session finalize writes exactly one
+  //      progress row per exercise).
+  //  (b) LEGACY per-exercise tests (test_type set on the exercise) OUTSIDE
+  //      exam-mode lessons — unchanged: first attempt is the real grade.
+  const TEST_LESSON_TYPES = ['mid_course_test', 'final_test', 'review_test']
+  const testLessons = data.lessons.filter(
+    (l) => l.lesson_type && TEST_LESSON_TYPES.includes(l.lesson_type)
+  )
+  const testLessonIds = new Set(testLessons.map((l) => l.id))
+
+  const examTests = testLessons.map((lesson) => {
+    const lessonExercises = data.exercises.filter((ex) => ex.lesson_id === lesson.id)
+    let score = 0
+    let total = 0
+    let taken = false
+    let lastAt: string | null = null
+    lessonExercises.forEach((ex) => {
+      const attempts = studentExerciseProgress.filter((p) => p.activity_id === ex.id)
+      if (attempts.length === 0) return
+      taken = true
+      const a = attempts[0] // latest; exam mode keeps exactly one row per exercise
+      score += a.score ?? 0
+      total += a.total ?? 0
+      if (a.completed_at && (!lastAt || a.completed_at > lastAt)) lastAt = a.completed_at
+    })
+    const pct = taken && total > 0 ? Math.round((score / total) * 100) : null
+    return {
+      id: lesson.id,
+      title: lesson.title,
+      test_type: lesson.lesson_type as string,
+      attempts: taken ? 1 : 0,
+      first: pct,
+      latest: pct,
+      firstAt: lastAt,
+    }
+  })
+
+  const legacyTests = data.exercises
+    .filter((ex) => ex.test_type && !testLessonIds.has(ex.lesson_id))
     .map((ex) => {
       const attempts = studentExerciseProgress.filter((p) => p.activity_id === ex.id)
       if (attempts.length === 0) {
@@ -594,6 +637,8 @@ function buildStudentDetail(data: ReportsData, selectedStudentEmail: string): St
         firstAt: firstAttempt.completed_at,
       }
     })
+
+  const tests = [...examTests, ...legacyTests]
 
   // ─── Vocabulary breakdown ───
   const studentSrs = (data.vocabSrs || []).filter((v) => v.user_email === selectedStudentEmail)
