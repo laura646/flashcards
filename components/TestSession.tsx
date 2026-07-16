@@ -390,7 +390,11 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
         {toastEl}
         <Suspense fallback={<ExerciseLoadingFallback />}>
           {renderStandaloneRunner(
-            activeEx,
+            // Force exam mode on the runner regardless of the per-exercise
+            // test_type field: exam lessons set the LESSON type only, and
+            // without this ExerciseRunner falls back to practice mode with
+            // instant per-question feedback — revealing answers mid-test.
+            { ...activeEx, test_type: activeEx.test_type || lessonType },
             (score, total, per) => saveExercise(activeEx, score, total, per),
             () => { setActiveEx(null); setView('list') }
           )}
