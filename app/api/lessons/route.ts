@@ -555,9 +555,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Exam-mode settings (test lessons) — separate best-effort update so a
-    // DB missing the migrated columns can never break lesson saving. Static
-    // import path per Vercel serverless rule; columns simply no-op when the
-    // update errors (fail-open until migration-test-mode.sql is run).
+    // DB missing the migrated columns can never break lesson saving. The
+    // failure is NOT silent to the teacher: testSettingsSaved=false rides on
+    // the response and the editor surfaces a run-the-migration warning.
+    let testSettingsSaved = true
     if (
       time_limit_minutes !== undefined ||
       test_reveal_answers !== undefined ||
@@ -571,7 +572,10 @@ export async function POST(req: NextRequest) {
       if (test_rules_lang === 'hy' || test_rules_lang === 'en') testPatch.test_rules_lang = test_rules_lang
       if (Object.keys(testPatch).length > 0) {
         const { error: testErr } = await supabase.from('lessons').update(testPatch).eq('id', lessonId)
-        if (testErr) console.error('lessons: test settings not saved (migration pending?):', testErr.message)
+        if (testErr) {
+          testSettingsSaved = false
+          console.error('lessons: test settings not saved (migration pending?):', testErr.message)
+        }
       }
     }
 
@@ -631,7 +635,7 @@ export async function POST(req: NextRequest) {
       if (blockError) throw blockError
     }
 
-    return NextResponse.json({ ok: true, lessonId })
+    return NextResponse.json({ ok: true, lessonId, testSettingsSaved })
   } catch (err) {
     console.error('Lesson save error:', err)
     // Supabase errors aren't standard Error instances — they're plain
