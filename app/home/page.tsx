@@ -44,6 +44,8 @@ export default function HomePage() {
   const [totalPoints, setTotalPoints] = useState(0)
   // W2b: unseen writing feedback from the teacher (the "new feedback" nudge).
   const [newFeedback, setNewFeedback] = useState<{ progress_id: string; lesson_id: string | null; lesson_title: string; block_title: string }[]>([])
+  // lesson_id → submitted test score % (exam mode badge on test cards)
+  const [testScores, setTestScores] = useState<Record<string, number>>({})
   // Single source of truth for SRS data — fetched once here (sync + stats
   // + streak), surfaced in the hero AND passed into VocabDueCard, so the
   // two never disagree and we don't double-sync.
@@ -136,6 +138,21 @@ export default function HomePage() {
       .then((d) => {
         const unseen = (d?.feedback || []).filter((f: { student_seen_at: string | null }) => !f.student_seen_at)
         setNewFeedback(unseen)
+      })
+      .catch(() => {})
+  }, [status])
+
+  // Exam mode: my submitted test scores → "✓ 87%" badge on test cards.
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    fetch('/api/test-session?view=mine')
+      .then((r) => r.json())
+      .then((d) => {
+        const map: Record<string, number> = {}
+        ;(d?.sessions || []).forEach((s: { lesson_id: string; score: number | null; total: number | null }) => {
+          if (s.total) map[s.lesson_id] = Math.round(((s.score ?? 0) / s.total) * 100)
+        })
+        setTestScores(map)
       })
       .catch(() => {})
   }, [status])
@@ -362,6 +379,11 @@ export default function HomePage() {
                              lesson.lesson_type === 'review_test' ? '🔄 Review' :
                              `Lesson ${lessonNumber}`}
                           </span>
+                          {isTest && testScores[lesson.id] != null && (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-correct-bg text-correct-fg">
+                              ✓ {testScores[lesson.id]}%
+                            </span>
+                          )}
                           <span className="text-xs text-ink-muted">{formatDate(lesson.lesson_date)}</span>
                         </div>
                         <h3 className="text-sm font-bold text-brandblue">{lesson.title}</h3>
