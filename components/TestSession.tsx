@@ -104,6 +104,60 @@ function correctAnswerText(q: any): string | null {
   if (Array.isArray(direct) && direct.length && typeof direct[0] === 'string') return direct[0]
   return null
 }
+
+// Readable sentence snippet around one {{gN}} placeholder: the containing
+// sentence (length-capped) with the placeholder shown as a blank.
+function gapSnippet(text: string, id: unknown, index: number): string {
+  const candidates = [`{{${id}}}`, `{{g${id}}}`]
+  let ph = ''
+  let pos = -1
+  for (const c of candidates) {
+    const p = text.indexOf(c)
+    if (p !== -1) { ph = c; pos = p; break }
+  }
+  if (pos === -1) return `${index + 1}.`
+  const prevDot = text.lastIndexOf('.', Math.max(0, pos - 1))
+  const start = Math.max(prevDot + 1, pos - 80)
+  const nextDot = text.indexOf('.', pos + ph.length)
+  const end = nextDot === -1
+    ? Math.min(text.length, pos + ph.length + 60)
+    : Math.min(nextDot + 1, pos + ph.length + 100)
+  const before = text.slice(start, pos).trimStart()
+  const after = text.slice(pos + ph.length, end)
+  return `${start > prevDot + 1 ? '…' : ''}${before}____${after}${end < text.length ? '…' : ''}`.trim()
+}
+
+// One review row per QUESTION — and for paragraph types (gap_fill, cloze
+// listening) one row per GAP/BLANK, so the review reads like the other
+// exercise types instead of dumping the raw {{g1}} paragraph.
+function reviewRows(
+  exerciseType: string | undefined,
+  qs: any[],
+  fallbackLabel: string
+): { prompt: string; answer: string | null }[] {
+  const cfg = qs[0]
+  if (exerciseType === 'gap_fill' && cfg && Array.isArray(cfg.gaps)) {
+    const text = typeof cfg.text === 'string' ? cfg.text : ''
+    return cfg.gaps.map((g: any, i: number) => ({
+      prompt: gapSnippet(text, g?.id ?? i + 1, i),
+      answer: Array.isArray(g?.answers) && g.answers.length ? String(g.answers[0]) : null,
+    }))
+  }
+  if (exerciseType === 'cloze_listening') {
+    const rows: { prompt: string; answer: string | null }[] = []
+    qs.forEach((q: any) => {
+      const text = typeof q?.text === 'string' ? q.text : ''
+      Object.keys(q?.blanks || {}).forEach((bid, j) => {
+        rows.push({ prompt: gapSnippet(text, bid, j), answer: String(q.blanks[bid]) })
+      })
+    })
+    if (rows.length > 0) return rows
+  }
+  return qs.map((q, i) => ({
+    prompt: questionPrompt(q, i, fallbackLabel),
+    answer: correctAnswerText(q),
+  }))
+}
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function TestSession({ lessonId, lessonTitle, lessonType, exercises, blocks = [], onExit }: Props) {
@@ -609,33 +663,41 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
                     <p className="text-[12.5px] font-bold text-ink-black min-w-0 truncate">{i + 1} · {ex.title || TYPE_LABELS[ex.exercise_type] || 'Exercise'}</p>
                     <span className="shrink-0 text-[10.5px] font-bold text-ink-muted tabular-nums">{a ? `${a.score}/${a.total}` : '—'}</span>
                   </div>
-                  {qs.length > 0 || (Array.isArray(per) && per.length > 0) ? (
-                    <div className="divide-y divide-hairline">
-                      {(qs.length > 0 ? qs : new Array((per as boolean[]).length).fill(null)).map((q, qi) => {
-                        // true = right, false = wrong, undefined = never answered.
-                        // The correct answer shows for anything that isn't a ✓
-                        // (per Laura: after submit, students see ALL answers).
-                        const mark = Array.isArray(per) ? per[qi] : undefined
-                        const showCorrect = reveal && mark !== true ? correctAnswerText(q) : null
-                        return (
-                          <div key={qi} className="flex items-start gap-2.5 py-2">
-                            <span className={`shrink-0 w-5 h-5 rounded-full grid place-items-center text-[10px] font-extrabold mt-0.5 ${
-                              mark === true ? 'bg-correct-bg text-correct-fg'
-                              : mark === false ? 'bg-incorrect-bg text-incorrect-fg'
-                              : 'bg-surface text-ink-muted'}`}>
-                              {mark === true ? '✓' : mark === false ? '✗' : '–'}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="text-[11.5px] text-ink-muted leading-snug">{questionPrompt(q, qi, lang === 'hy' ? 'Հարց' : 'Question')}</p>
-                              {showCorrect && <p className="text-[11.5px] font-bold text-correct-fg mt-0.5">{S.correctAnswerWas} {showCorrect}</p>}
+                  {(() => {
+                    // One row per question — paragraph types (gap_fill /
+                    // cloze) expand to one row per gap, so this reads like
+                    // every other exercise instead of a raw {{g1}} blob.
+                    const rows = reviewRows(ex.exercise_type, qs, lang === 'hy' ? 'Հարց' : 'Question')
+                    if (rows.length === 0) {
+                      return <p className="text-[11px] text-ink-muted italic">{lang === 'hy' ? 'Չի պատասխանվել' : 'Not answered'}</p>
+                    }
+                    return (
+                      <div className="divide-y divide-hairline">
+                        {rows.map((row, qi) => {
+                          // true = right, false = wrong, undefined = never
+                          // answered. The correct answer shows for anything
+                          // that isn't a ✓ (after submit, students see ALL
+                          // answers when the reveal setting is on).
+                          const mark = Array.isArray(per) && per.length === rows.length ? per[qi] : undefined
+                          const showCorrect = reveal && mark !== true ? row.answer : null
+                          return (
+                            <div key={qi} className="flex items-start gap-2.5 py-2">
+                              <span className={`shrink-0 w-5 h-5 rounded-full grid place-items-center text-[10px] font-extrabold mt-0.5 ${
+                                mark === true ? 'bg-correct-bg text-correct-fg'
+                                : mark === false ? 'bg-incorrect-bg text-incorrect-fg'
+                                : 'bg-surface text-ink-muted'}`}>
+                                {mark === true ? '✓' : mark === false ? '✗' : '–'}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-[11.5px] text-ink-muted leading-snug">{row.prompt}</p>
+                                {showCorrect && <p className="text-[11.5px] font-bold text-correct-fg mt-0.5">{S.correctAnswerWas} {showCorrect}</p>}
+                              </div>
                             </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-ink-muted italic">{lang === 'hy' ? 'Չի պատասխանվել' : 'Not answered'}</p>
-                  )}
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -659,18 +721,19 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
                     <div className="divide-y divide-hairline">
                       {/* eslint-disable @typescript-eslint/no-explicit-any */}
                       {(((b.content as any)?.exercises || []) as any[]).flatMap((ax: any, axi: number) =>
-                        (Array.isArray(ax?.questions) ? ax.questions : []).map((q: any, qi: number) => {
-                          const c = correctAnswerText(q)
-                          return (
-                            <div key={`${axi}-${qi}`} className="flex items-start gap-2.5 py-2">
-                              <span className="shrink-0 w-5 h-5 rounded-full grid place-items-center text-[10px] font-extrabold mt-0.5 bg-surface text-ink-muted">–</span>
-                              <div className="min-w-0">
-                                <p className="text-[11.5px] text-ink-muted leading-snug">{questionPrompt(q, qi, lang === 'hy' ? 'Հարց' : 'Question')}</p>
-                                {c && <p className="text-[11.5px] font-bold text-correct-fg mt-0.5">{S.correctAnswerWas} {c}</p>}
-                              </div>
+                        reviewRows(
+                          ax?.exercise_type,
+                          Array.isArray(ax?.questions) ? ax.questions : [],
+                          lang === 'hy' ? 'Հարց' : 'Question'
+                        ).map((row, qi) => (
+                          <div key={`${axi}-${qi}`} className="flex items-start gap-2.5 py-2">
+                            <span className="shrink-0 w-5 h-5 rounded-full grid place-items-center text-[10px] font-extrabold mt-0.5 bg-surface text-ink-muted">–</span>
+                            <div className="min-w-0">
+                              <p className="text-[11.5px] text-ink-muted leading-snug">{row.prompt}</p>
+                              {row.answer && <p className="text-[11.5px] font-bold text-correct-fg mt-0.5">{S.correctAnswerWas} {row.answer}</p>}
                             </div>
-                          )
-                        })
+                          </div>
+                        ))
                       )}
                       {/* eslint-enable @typescript-eslint/no-explicit-any */}
                     </div>
