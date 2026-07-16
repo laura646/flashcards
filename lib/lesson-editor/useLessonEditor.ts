@@ -446,6 +446,24 @@ export function useLessonEditor() {
         setEditingLessonId(result.lessonId)
       }
 
+      // The lesson saved, but the exam-mode settings (time limit / reveal /
+      // language) could not be stored — almost always a pending DB migration.
+      // Surface it loudly for test lessons instead of failing silent: the
+      // student-facing timer would otherwise quietly run on defaults.
+      if (
+        result.testSettingsSaved === false &&
+        ['mid_course_test', 'final_test', 'review_test'].includes(lessonType)
+      ) {
+        const warn =
+          'Lesson saved, BUT the test settings (time limit / answers / language) were NOT stored — the database is missing the test-mode columns. Run migration-test-mode.sql in Supabase, then save again.'
+        setError(warn)
+        setSaving(false)
+        setPublishing(false)
+        await loadLessons()
+        setPendingBaseline(true)
+        return warn
+      }
+
       // legacy showToast(success) — handled by caller; reload list (verbatim).
       await loadLessons()
       setPendingBaseline(true)
