@@ -15,6 +15,17 @@ export function isTestLessonType(lessonType?: string | null): boolean {
 
 export const DEFAULT_TEST_TIME_LIMIT_MIN = 30
 
+// Block types whose attached follow-up exercises are auto-graded and count
+// toward the test score (they all run through BlockExercisesRunner, which
+// has exam-mode gating). Excluded: writing (teacher-graded), grammar
+// (legacy AttachedExercisesRunner/InlineQuiz widgets — no exam gating yet),
+// mistakes/dialogue (bespoke widgets).
+export const SCORABLE_BLOCK_TYPES = ['audio', 'video', 'article'] as const
+
+export function isScorableTestBlock(blockType?: string | null): boolean {
+  return !!blockType && (SCORABLE_BLOCK_TYPES as readonly string[]).includes(blockType)
+}
+
 export type TestLang = 'hy' | 'en'
 
 export interface TestSettings {

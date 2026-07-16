@@ -13,9 +13,12 @@ import type { ArticleContent } from '../types'
 export function ArticleView({
   content,
   onScore,
+  testMode = false,
 }: {
   content: ArticleContent
   onScore?: (score: number, total: number) => void
+  // Exam mode: follow-ups run without feedback (see BlockExercisesRunner).
+  testMode?: boolean
 }) {
   return (
     <>
@@ -59,6 +62,7 @@ export function ArticleView({
             <BlockExercisesRunner
               exercises={effective}
               onScore={(s, t) => onScore?.(s, t)}
+              testMode={testMode}
             />
           </div>
         )

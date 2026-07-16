@@ -104,9 +104,15 @@ export function renderStandaloneRunner(
 export function BlockExercisesRunner({
   exercises,
   onScore,
+  testMode = false,
 }: {
   exercises: Exercise[]
   onScore: (score: number, total: number) => void
+  // Exam mode: forces test_type onto every attached exercise (batch answering,
+  // no per-question feedback) and swaps a finished runner for a neutral
+  // "Answered" tile — embedded runners stay mounted, so without the swap
+  // their end-of-run summaries would reveal correct answers mid-test.
+  testMode?: boolean
 }) {
   const [scores, setScores] = useState<Record<string, { score: number; total: number }>>({})
 
@@ -130,6 +136,16 @@ export function BlockExercisesRunner({
     <div className="space-y-4">
       {exercises.map((ex, i) => {
         const key = ex.id || String(i)
+        if (testMode && scores[key]) {
+          return (
+            <div key={key} className="bg-white border border-sky-border rounded-card p-4">
+              <p className="text-[10px] font-bold text-brandblue uppercase tracking-wider mb-2">
+                {ex.icon} {ex.title}
+              </p>
+              <p className="text-xs font-bold text-correct-fg">✓ Պատասխանված · Answered</p>
+            </div>
+          )
+        }
         return (
           <div key={key} className="bg-white border border-sky-border rounded-card p-4">
             <p className="text-[10px] font-bold text-brandblue uppercase tracking-wider mb-3">
@@ -137,7 +153,7 @@ export function BlockExercisesRunner({
             </p>
             <Suspense fallback={<ExerciseLoadingFallback />}>
               {renderStandaloneRunner(
-                ex,
+                testMode ? { ...ex, test_type: ex.test_type || 'test' } : ex,
                 (s, t) => reportScore(key, s, t),
                 () => { /* embedded — no back nav */ }
               )}

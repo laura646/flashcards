@@ -13,9 +13,12 @@ import type { VideoContent } from '../types'
 export function VideoView({
   content,
   onScore,
+  testMode = false,
 }: {
   content: VideoContent
   onScore?: (score: number, total: number) => void
+  // Exam mode: follow-ups run without feedback (see BlockExercisesRunner).
+  testMode?: boolean
 }) {
   const videoId = getYouTubeId(content.youtube_url)
 
@@ -52,6 +55,7 @@ export function VideoView({
             <BlockExercisesRunner
               exercises={effective}
               onScore={(s, t) => onScore?.(s, t)}
+              testMode={testMode}
             />
           </div>
         )

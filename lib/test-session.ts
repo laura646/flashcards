@@ -13,7 +13,14 @@
 
 import { supabase } from '@/lib/supabase'
 import { authoritativeExerciseTotal, type ExerciseMarkRow } from '@/lib/exercise-marks'
-import { DEFAULT_TEST_TIME_LIMIT_MIN, type TestSettings, type TestLang } from '@/lib/test-mode'
+import { migrateBlockExercises } from '@/lib/block-exercise-migrate'
+import { isCompletableBlock } from '@/lib/block-completion'
+import {
+  DEFAULT_TEST_TIME_LIMIT_MIN,
+  isScorableTestBlock,
+  type TestSettings,
+  type TestLang,
+} from '@/lib/test-mode'
 
 export interface TestSessionRow {
   id: string
@@ -59,6 +66,46 @@ export async function loadTestExercises(lessonId: string): Promise<LessonExercis
   return ((data || []) as LessonExerciseRow[]).filter((e) => e.published !== false)
 }
 
+export interface TestBlockRow {
+  id: string
+  block_type: string
+  title: string | null
+  content: unknown
+  published?: boolean | null
+}
+
+// Scorable content blocks of a test lesson: audio/video/article/grammar
+// blocks that actually carry auto-graded follow-up exercises. Their marks
+// count toward the test total exactly like regular exercises.
+export async function loadTestBlocks(lessonId: string): Promise<TestBlockRow[]> {
+  const { data } = await supabase
+    .from('lesson_blocks')
+    .select('id, block_type, title, content, published')
+    .eq('lesson_id', lessonId)
+  return ((data || []) as TestBlockRow[])
+    .filter((b) => b.published !== false)
+    .filter((b) => isScorableTestBlock(b.block_type) && isCompletableBlock(b.block_type, b.content))
+}
+
+// Authoritative mark total of a block = the summed totals of its attached
+// exercises (same anti-forgery cap as lesson exercises).
+export function blockAuthoritativeTotal(block: TestBlockRow): number {
+  const c = (block.content ?? {}) as Record<string, unknown>
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const attached: any[] =
+    block.block_type === 'grammar'
+      ? ((c.practice_exercises as any[]) || (c.exercises as any[]) || [])
+      : migrateBlockExercises(
+          c.exercises as any,
+          block.block_type === 'audio' ? undefined : (c.questions as any)
+        )
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  return attached.reduce((sum, ex) => {
+    if (!ex || typeof ex !== 'object' || !ex.exercise_type) return sum
+    return sum + authoritativeExerciseTotal(ex as ExerciseMarkRow)
+  }, 0)
+}
+
 export async function loadAnswers(sessionId: string): Promise<Map<string, SessionAnswerRow>> {
   const { data } = await supabase
     .from('test_session_answers')
@@ -80,32 +127,40 @@ export async function finalizeTestSession(
   if (session.submitted_at) return session
 
   const exercises = await loadTestExercises(session.lesson_id)
+  const blocks = await loadTestBlocks(session.lesson_id)
   const answers = await loadAnswers(session.id)
   const now = new Date().toISOString()
 
   let totalScore = 0
   let totalMax = 0
 
-  for (const ex of exercises) {
-    const cap = authoritativeExerciseTotal(ex)
-    const saved = answers.get(ex.id)
-    const safeScore = saved ? Math.max(0, Math.min(Math.round(saved.score), cap)) : 0
+  // Score every test item — regular exercises AND scorable content blocks
+  // (audio/video/article/grammar follow-ups). One progress row per item, in
+  // the same shape normal lessons write ('exercise' / 'block'), so accuracy,
+  // items-completion and reports consume test results with no changes.
+  const items: { id: string; activityType: 'exercise' | 'block'; cap: number }[] = [
+    ...exercises.map((ex) => ({ id: ex.id, activityType: 'exercise' as const, cap: authoritativeExerciseTotal(ex) })),
+    ...blocks.map((b) => ({ id: b.id, activityType: 'block' as const, cap: blockAuthoritativeTotal(b) })),
+  ]
+
+  for (const item of items) {
+    const saved = answers.get(item.id)
+    const safeScore = saved ? Math.max(0, Math.min(Math.round(saved.score), item.cap)) : 0
     const per = saved && Array.isArray(saved.per_question_results) ? saved.per_question_results : null
     totalScore += safeScore
-    totalMax += cap
+    totalMax += item.cap
 
-    // One progress row per exercise — the shape reports/accuracy consume.
     const { data: existing } = await supabase
       .from('progress')
       .select('id')
       .eq('user_email', session.user_email)
-      .eq('activity_id', ex.id)
-      .eq('activity_type', 'exercise')
+      .eq('activity_id', item.id)
+      .eq('activity_type', item.activityType)
       .maybeSingle()
 
     const rowPatch = {
       score: safeScore,
-      total: cap,
+      total: item.cap,
       completed_at: now,
       per_question_results: per,
     }
@@ -114,8 +169,8 @@ export async function finalizeTestSession(
     } else {
       await supabase.from('progress').insert({
         user_email: session.user_email,
-        activity_id: ex.id,
-        activity_type: 'exercise',
+        activity_id: item.id,
+        activity_type: item.activityType,
         started_at: session.started_at,
         ...rowPatch,
       })

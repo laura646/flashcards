@@ -112,6 +112,7 @@ export async function GET(req: NextRequest) {
       lessons: [],
       exercises: [],
       progress: [],
+      testSessions: [],
       attendance: [],
       sessions: [],
       writingBlocks: [],
@@ -304,6 +305,18 @@ export async function GET(req: NextRequest) {
       .order('session_date', { ascending: false })
     const sessions = (sessionRows || []) as CourseSession[]
 
+    // Exam-mode attempts: one aggregated score per (lesson, student) —
+    // includes content-block marks, matching the teacher Tests tab exactly.
+    let testSessions: { lesson_id: string; user_email: string; score: number | null; total: number | null; submitted_at: string | null }[] = []
+    if (lessonIds.length > 0) {
+      const { data: tsRows } = await supabase
+        .from('test_sessions')
+        .select('lesson_id, user_email, score, total, submitted_at')
+        .in('lesson_id', lessonIds)
+        .not('submitted_at', 'is', null)
+      testSessions = (tsRows || []) as typeof testSessions
+    }
+
     let attendance: AttendanceRow[] = []
     const sessionIds = sessions.map((s) => s.id)
     if (sessionIds.length > 0) {
@@ -463,6 +476,7 @@ export async function GET(req: NextRequest) {
       lessons: (lessons || []) as Lesson[],
       exercises,
       progress,
+      testSessions,
       attendance,
       sessions,
       writingBlocks,

@@ -120,6 +120,14 @@ export interface ReportsAssessment {
   source: string | null
 }
 
+export interface ReportsTestSession {
+  lesson_id: string
+  user_email: string
+  score: number | null
+  total: number | null
+  submitted_at: string | null
+}
+
 export interface ReportsData {
   courses: ReportsCourse[]
   course: ReportsCourse | null
@@ -127,6 +135,9 @@ export interface ReportsData {
   lessons: ReportsLesson[]
   exercises: ReportsExercise[]
   progress: ReportsProgressRecord[]
+  // Exam-mode attempts (submitted only). When present for a test lesson,
+  // the Tests card uses this aggregate — it includes content-block marks.
+  testSessions?: ReportsTestSession[]
   attendance: ReportsAttendanceRow[]
   sessions: ReportsSession[]
   writingBlocks: ReportsWritingBlock[]
@@ -574,7 +585,28 @@ function buildStudentDetail(data: ReportsData, selectedStudentEmail: string): St
   )
   const testLessonIds = new Set(testLessons.map((l) => l.id))
 
+  const sessionByLesson = new Map<string, ReportsTestSession>()
+  ;(data.testSessions || [])
+    .filter((ts) => ts.user_email === selectedStudentEmail)
+    .forEach((ts) => sessionByLesson.set(ts.lesson_id, ts))
+
   const examTests = testLessons.map((lesson) => {
+    // Prefer the exam-mode session aggregate (exercises + block marks, the
+    // same number the teacher Tests tab shows). Fall back to summing the
+    // student's per-exercise progress for pre-exam-mode attempts.
+    const ts = sessionByLesson.get(lesson.id)
+    if (ts && ts.total) {
+      const pct = Math.round(((ts.score ?? 0) / ts.total) * 100)
+      return {
+        id: lesson.id,
+        title: lesson.title,
+        test_type: lesson.lesson_type as string,
+        attempts: 1,
+        first: pct,
+        latest: pct,
+        firstAt: ts.submitted_at,
+      }
+    }
     const lessonExercises = data.exercises.filter((ex) => ex.lesson_id === lesson.id)
     let score = 0
     let total = 0
