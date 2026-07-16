@@ -169,19 +169,44 @@ export async function GET(req: NextRequest) {
     }
 
     if (!attempt) {
-      // A test taken under the old per-exercise flow must stay locked.
+      // A test taken under the old per-exercise flow stays locked, but the
+      // student still gets the FULL results review — rebuilt from the old
+      // per-exercise attempt rows (score/total/per-question booleans).
       const exercises = await loadTestExercises(lessonId)
       if (exercises.length > 0) {
-        const { data: legacy } = await supabase
+        const { data: legacyRows } = await supabase
           .from('progress')
-          .select('id')
+          .select('activity_id, score, total, per_question_results, completed_at')
           .eq('user_email', email)
           .eq('activity_type', 'exercise')
           .in('activity_id', exercises.map((e) => e.id))
           .not('completed_at', 'is', null)
-          .limit(1)
-        if (legacy && legacy.length > 0) {
-          return NextResponse.json({ status: 'legacy_completed' })
+        if (legacyRows && legacyRows.length > 0) {
+          const answers: Record<string, { exercise_id: string; score: number; total: number; per_question_results: boolean[] | null }> = {}
+          let score = 0
+          let total = 0
+          let last: string | null = null
+          for (const r of legacyRows as { activity_id: string; score: number | null; total: number | null; per_question_results: boolean[] | null; completed_at: string }[]) {
+            answers[r.activity_id] = {
+              exercise_id: r.activity_id,
+              score: r.score ?? 0,
+              total: r.total ?? 0,
+              per_question_results: Array.isArray(r.per_question_results) ? r.per_question_results : null,
+            }
+            score += r.score ?? 0
+            total += r.total ?? 0
+            if (!last || r.completed_at > last) last = r.completed_at
+          }
+          return NextResponse.json({
+            status: 'submitted',
+            legacy: true,
+            settings,
+            submitted_at: last,
+            auto_submitted: false,
+            score,
+            total,
+            answers,
+          })
         }
       }
       return NextResponse.json({ status: 'none', settings })
