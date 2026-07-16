@@ -14,12 +14,15 @@ interface Props {
     title: string
     instructions: string
     questions: TrueOrFalseQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number) => void
   onBack: () => void
 }
 
 export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<(boolean | null)[]>(
     new Array(exercise.questions.length).fill(null)
@@ -56,6 +59,20 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
     const newAnswers = [...answers]
     newAnswers[currentIndex] = answer
     setAnswers(newAnswers)
+
+    // Exam mode: record and advance — no verdict until the test is submitted.
+    if (isTestMode) {
+      if (currentIndex < exercise.questions.length - 1) {
+        setCurrentIndex((prev) => prev + 1)
+      } else {
+        setFinished(true)
+        const score = exercise.questions.reduce(
+          (acc, q, i) => acc + (newAnswers[i] === q.isTrue ? 1 : 0), 0)
+        onComplete(score, exercise.questions.length)
+      }
+      return
+    }
+
     setFeedback(answer === current.isTrue ? 'correct' : 'wrong')
   }
 

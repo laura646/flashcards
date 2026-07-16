@@ -14,6 +14,7 @@ interface Props {
     title: string
     instructions: string
     questions: ErrorCorrectionQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number) => void
   onBack: () => void
@@ -107,6 +108,8 @@ function findErrors(incorrect: string, correct: string): Map<number, string> {
 }
 
 export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
   const [phase, setPhase] = useState<'highlight' | 'correct' | 'feedback'>('highlight')
   const [words, setWords] = useState<WordState[]>([])
@@ -205,6 +208,13 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
     const newResults = [...results]
     newResults[currentIndex] = result
     setResults(newResults)
+
+    // Exam mode: record and advance — the per-sentence corrections stay hidden.
+    if (isTestMode) {
+      advance(newResults)
+      return
+    }
+
     setPhase('feedback')
 
     // Perfect = found all errors and fixed them all

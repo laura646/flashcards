@@ -13,6 +13,7 @@ interface Props {
     title: string
     instructions: string
     questions: HangmanQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number) => void
   onBack: () => void
@@ -115,6 +116,8 @@ function FlowerSVG({ wrongCount, won }: { wrongCount: number; won: boolean }) {
 }
 
 export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
   const [guessedLetters, setGuessedLetters] = useState<Set<string>>(new Set())
   const [results, setResults] = useState<boolean[]>([])
@@ -329,7 +332,7 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
               <>
                 <p className="text-lg font-bold text-red-500">Game over</p>
                 <p className="text-sm text-red-400">
-                  The word was: <span className="font-bold">{current.word}</span>
+                  The word was: <span className="font-bold">{isTestMode ? '\u2022'.repeat(current.word.length) : current.word}</span>
                 </p>
               </>
             )}
