@@ -8,6 +8,8 @@ import { isTestLessonType } from '@/lib/test-mode'
 import {
   settingsFromLesson,
   loadTestExercises,
+  loadTestBlocks,
+  blockAuthoritativeTotal,
   loadAnswers,
   finalizeTestSession,
   type TestSessionRow,
@@ -223,6 +225,7 @@ export async function POST(req: NextRequest) {
     action?: string
     lesson_id?: string
     exercise_id?: string
+    item_type?: string
     score?: number
     total?: number
     per_question_results?: boolean[]
@@ -269,9 +272,12 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── save-exercise (continuous save; server enforces the deadline) ──
+    // ── save-exercise (continuous save; server enforces the deadline).
+    // item_type 'block' saves a content block's follow-up aggregate; the
+    // answers row is keyed by the block id in the same exercise_id column. ──
     if (action === 'save-exercise') {
       const { exercise_id, score, total, per_question_results } = body
+      const itemType = body.item_type === 'block' ? 'block' : 'exercise'
       if (!exercise_id || typeof score !== 'number' || typeof total !== 'number') {
         return err('exercise_id, score and total required', 400)
       }
@@ -284,15 +290,23 @@ export async function POST(req: NextRequest) {
         return err('Time is up', 410)
       }
 
-      // Clamp against the authoritative exercise total (anti-forgery, same
+      // Clamp against the authoritative item total (anti-forgery, same
       // posture as /api/progress and /api/test-attempt).
-      const { data: ex } = await supabase
-        .from('lesson_exercises')
-        .select('id, lesson_id, exercise_type, questions, points_per_answer, completion_bonus')
-        .eq('id', exercise_id)
-        .single()
-      if (!ex || ex.lesson_id !== lesson_id) return err('Exercise not in this test', 400)
-      const cap = authoritativeExerciseTotal(ex as ExerciseMarkRow)
+      let cap = 0
+      if (itemType === 'block') {
+        const blocks = await loadTestBlocks(lesson_id)
+        const block = blocks.find((b) => b.id === exercise_id)
+        if (!block) return err('Block not in this test', 400)
+        cap = blockAuthoritativeTotal(block)
+      } else {
+        const { data: ex } = await supabase
+          .from('lesson_exercises')
+          .select('id, lesson_id, exercise_type, questions, points_per_answer, completion_bonus')
+          .eq('id', exercise_id)
+          .single()
+        if (!ex || ex.lesson_id !== lesson_id) return err('Exercise not in this test', 400)
+        cap = authoritativeExerciseTotal(ex as ExerciseMarkRow)
+      }
       const safeTotal = cap
       const safeScore = Math.max(0, Math.min(Math.round(score), cap))
 
@@ -379,6 +393,15 @@ export async function DELETE(req: NextRequest) {
         .eq('user_email', student_email)
         .eq('activity_type', 'exercise')
         .in('activity_id', exercises.map((e) => e.id))
+    }
+    const blocks = await loadTestBlocks(lesson_id)
+    if (blocks.length > 0) {
+      await supabase
+        .from('progress')
+        .delete()
+        .eq('user_email', student_email)
+        .eq('activity_type', 'block')
+        .in('activity_id', blocks.map((b) => b.id))
     }
     return NextResponse.json({ ok: true })
   } catch (e) {

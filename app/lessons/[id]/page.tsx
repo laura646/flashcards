@@ -1182,7 +1182,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   // Test lessons (mid_course / final / review) get the full exam experience:
   // rules gate → server-timed attempt → unified submit → results. The whole
   // per-exercise flow below is bypassed; TestSession drives the runners.
-  if (isTestLessonType(lessonType) && exercises.length > 0) {
+  if (isTestLessonType(lessonType) && (exercises.length > 0 || blocks.length > 0)) {
     return (
       <main className="min-h-screen flex flex-col px-4 py-6 max-w-lg mx-auto w-full">
         <TestSession
@@ -1190,6 +1190,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           lessonTitle={lesson.title}
           lessonType={lessonType}
           exercises={exercises}
+          blocks={blocks}
           onExit={() => router.push('/home')}
         />
       </main>

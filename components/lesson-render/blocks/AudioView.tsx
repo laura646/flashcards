@@ -13,9 +13,12 @@ import type { AudioContent } from '../types'
 export function AudioView({
   content,
   onScore,
+  testMode = false,
 }: {
   content: AudioContent
   onScore?: (score: number, total: number) => void
+  // Exam mode: follow-ups run without feedback (see BlockExercisesRunner).
+  testMode?: boolean
 }) {
   return (
     <>
@@ -44,6 +47,7 @@ export function AudioView({
             <BlockExercisesRunner
               exercises={effective}
               onScore={(s, t) => onScore?.(s, t)}
+              testMode={testMode}
             />
           </div>
         )

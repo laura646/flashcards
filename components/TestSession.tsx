@@ -9,11 +9,16 @@ import {
 import { Suspense } from 'react'
 import {
   testStrings,
+  isScorableTestBlock,
   type TestLang,
   type TestSessionState,
   type TestExerciseResult,
   type TestSettings,
 } from '@/lib/test-mode'
+import { isCompletableBlock } from '@/lib/block-completion'
+import { AudioView } from '@/components/lesson-render/blocks/AudioView'
+import { VideoView } from '@/components/lesson-render/blocks/VideoView'
+import { ArticleView } from '@/components/lesson-render/blocks/ArticleView'
 
 // ═══════════════════════════════════════════════════════════════════
 // Exam mode (student): rules gate → timed attempt → unified submit →
@@ -31,15 +36,29 @@ export interface TestSessionExercise extends StandaloneRunnerExercise {
   id: string
 }
 
+export interface TestSessionBlock {
+  id: string
+  block_type: string
+  title: string | null
+  content: unknown
+}
+
 interface Props {
   lessonId: string
   lessonTitle: string
   lessonType: string
   exercises: TestSessionExercise[]
+  // Lesson content blocks (page passes them already published-filtered and
+  // media-migrated). Scorable ones (audio/video/article/grammar with
+  // follow-ups) join the test: playable media + follow-ups counted in the
+  // score exactly like regular exercises.
+  blocks?: TestSessionBlock[]
   onExit: () => void
 }
 
-type View = 'loading' | 'gate' | 'list' | 'runner' | 'results' | 'legacy' | 'error'
+type View = 'loading' | 'gate' | 'list' | 'runner' | 'block' | 'results' | 'legacy' | 'error'
+
+const BLOCK_ICONS: Record<string, string> = { audio: '🎧', video: '🎬', article: '📖', grammar: '📘' }
 
 const TYPE_LABELS: Record<string, string> = {
   multiple_choice: 'Multiple Choice', fill_blank: 'Fill in the Blank', match_halves: 'Match Halves',
@@ -87,8 +106,12 @@ function correctAnswerText(q: any): string | null {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export default function TestSession({ lessonId, lessonTitle, lessonType, exercises, onExit }: Props) {
+export default function TestSession({ lessonId, lessonTitle, lessonType, exercises, blocks = [], onExit }: Props) {
+  const scorableBlocks = blocks.filter(
+    (b) => isScorableTestBlock(b.block_type) && isCompletableBlock(b.block_type, b.content)
+  )
   const [view, setView] = useState<View>('loading')
+  const [activeBlock, setActiveBlock] = useState<TestSessionBlock | null>(null)
   const [settings, setSettings] = useState<TestSettings | null>(null)
   const [lang, setLang] = useState<TestLang>('hy')
   const [showRules, setShowRules] = useState(false)
@@ -268,8 +291,32 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     setSubmitting(false)
   }
 
-  const answeredCount = exercises.filter((e) => answers[e.id]).length
-  const unanswered = exercises.length - answeredCount
+  // Blocks save continuously as each follow-up completes (aggregate score).
+  const saveBlock = async (b: TestSessionBlock, score: number, total: number) => {
+    setAnswers((prev) => ({
+      ...prev,
+      [b.id]: { exercise_id: b.id, score, total, per_question_results: null },
+    }))
+    setSavedFlash(true)
+    setTimeout(() => setSavedFlash(false), 1600)
+    try {
+      const res = await fetch('/api/test-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save-exercise', lesson_id: lessonId, exercise_id: b.id,
+          item_type: 'block', score, total,
+        }),
+      })
+      if (res.status === 410) timeUp()
+    } catch { /* finalize uses the last server-accepted save */ }
+  }
+
+  const totalItems = exercises.length + scorableBlocks.length
+  const answeredCount =
+    exercises.filter((e) => answers[e.id]).length +
+    scorableBlocks.filter((b) => answers[b.id]).length
+  const unanswered = totalItems - answeredCount
 
   // ─────────────────────────── RENDER ───────────────────────────
 
@@ -311,7 +358,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
           <h2 className="text-lg font-bold text-ink-black mb-2">{lessonTitle}</h2>
           <div className="flex flex-wrap gap-1.5 mb-4">
             <span className="text-[10.5px] font-bold bg-sky-wash text-sky-text px-2.5 py-1 rounded-full">⏱ {settings.time_limit_minutes} {S.minutesShort}</span>
-            <span className="text-[10.5px] font-bold bg-surface text-ink-muted px-2.5 py-1 rounded-full">{exercises.length} {lang === 'hy' ? 'վարժություն' : `exercise${exercises.length === 1 ? '' : 's'}`}</span>
+            <span className="text-[10.5px] font-bold bg-surface text-ink-muted px-2.5 py-1 rounded-full">{totalItems} {lang === 'hy' ? 'առաջադրանք' : `task${totalItems === 1 ? '' : 's'}`}</span>
             <span className="text-[10.5px] font-bold bg-surface text-ink-muted px-2.5 py-1 rounded-full">{S.oneAttempt}</span>
           </div>
           <button onClick={() => { setLaterNote(false); setShowRules(true) }}
@@ -403,6 +450,31 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     )
   }
 
+  // ── BLOCK (running: playable media + follow-ups, saves continuously) ──
+  if (view === 'block' && activeBlock) {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const blockContent = activeBlock.content as any
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    const onScore = (s: number, t: number) => saveBlock(activeBlock, s, t)
+    return (
+      <div className="flex flex-col gap-4">
+        {timerBar}
+        {toastEl}
+        <div className="flex items-center gap-3">
+          <button onClick={() => { setActiveBlock(null); setView('list') }} className="text-sm text-ink-muted hover:text-sky">
+            ← {S.backToTest}
+          </button>
+          <h2 className="text-sm font-bold text-brandblue flex-1 truncate">
+            {BLOCK_ICONS[activeBlock.block_type] || '📦'} {activeBlock.title || ''}
+          </h2>
+        </div>
+        {activeBlock.block_type === 'audio' && <AudioView content={blockContent} onScore={onScore} testMode />}
+        {activeBlock.block_type === 'video' && <VideoView content={blockContent} onScore={onScore} testMode />}
+        {activeBlock.block_type === 'article' && <ArticleView content={blockContent} onScore={onScore} testMode />}
+      </div>
+    )
+  }
+
   // ── LIST (running) ──
   if (view === 'list') {
     return (
@@ -425,6 +497,31 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
               <p className="text-[11px] text-ink-muted mb-3">{TYPE_LABELS[ex.exercise_type] || ex.exercise_type}</p>
               <button
                 onClick={() => { setActiveEx(ex); setView('runner') }}
+                className={`w-full font-bold py-2.5 rounded-xl text-xs transition-colors ${
+                  done
+                    ? 'bg-white border-[1.5px] border-sky-border text-sky-text hover:border-sky'
+                    : 'bg-sky text-white hover:brightness-95'}`}>
+                {done ? `✎ ${S.changeAnswers}` : `${S.open} →`}
+              </button>
+            </div>
+          )
+        })}
+
+        {scorableBlocks.map((b, i) => {
+          const done = !!answers[b.id]
+          return (
+            <div key={b.id} className="bg-white border border-sky-border rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <h4 className="text-sm font-bold text-ink-black min-w-0 truncate">
+                  {exercises.length + i + 1} · {BLOCK_ICONS[b.block_type] || '📦'} {b.title || (lang === 'hy' ? 'Բաժին' : 'Section')}
+                </h4>
+                <span className={`shrink-0 text-[9.5px] font-extrabold px-2 py-0.5 rounded-full ${
+                  done ? 'bg-correct-bg text-correct-fg' : 'bg-surface text-ink-muted'}`}>
+                  {done ? S.statusAnswered : S.statusNotStarted}
+                </span>
+              </div>
+              <button
+                onClick={() => { setActiveBlock(b); setView('block') }}
                 className={`w-full font-bold py-2.5 rounded-xl text-xs transition-colors ${
                   done
                     ? 'bg-white border-[1.5px] border-sky-border text-sky-text hover:border-sky'
@@ -533,6 +630,22 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
                     </div>
                   ) : (
                     <p className="text-[11px] text-ink-muted italic">{a ? '' : lang === 'hy' ? 'Չի պատասխանվել' : 'Not answered'}</p>
+                  )}
+                </div>
+              )
+            })}
+            {scorableBlocks.map((b, i) => {
+              const a = answers[b.id]
+              return (
+                <div key={b.id}>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-[12.5px] font-bold text-ink-black min-w-0 truncate">
+                      {exercises.length + i + 1} · {BLOCK_ICONS[b.block_type] || '📦'} {b.title || (lang === 'hy' ? 'Բաժին' : 'Section')}
+                    </p>
+                    <span className="shrink-0 text-[10.5px] font-bold text-ink-muted tabular-nums">{a ? `${a.score}/${a.total}` : '—'}</span>
+                  </div>
+                  {!a && (
+                    <p className="text-[11px] text-ink-muted italic">{lang === 'hy' ? 'Չի պատասխանվել' : 'Not answered'}</p>
                   )}
                 </div>
               )
