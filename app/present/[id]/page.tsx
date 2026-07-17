@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
@@ -20,6 +20,9 @@ export default function PresentPage() {
   const { data: session, status } = useSession()
   const wrapRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  // Deck descriptor: html (proxied iframe + presenter notes), pdf (native
+  // browser viewer), or slides (this tab hands over to Google Slides).
+  const [meta, setMeta] = useState<{ kind: 'html' | 'pdf' | 'slides'; url: string } | null>(null)
 
   const id = params?.id
   const title = search?.get('t') || 'Presentation'
@@ -32,6 +35,25 @@ export default function PresentPage() {
 
   useEffect(() => {
     if (!isStaff || !id) return
+    let cancelled = false
+    fetch(`/api/present-deck/${id}?meta=1`)
+      .then((r) => r.json())
+      .then((m) => {
+        if (cancelled || !m?.kind) return
+        if (m.kind === 'slides') {
+          // Google's viewer takes over this (already new) tab.
+          window.location.replace(m.url)
+          return
+        }
+        setMeta(m)
+      })
+      .catch(() => { if (!cancelled) setMeta({ kind: 'html', url: `/api/present-deck/${id}` }) })
+    return () => { cancelled = true }
+  }, [isStaff, id])
+
+  useEffect(() => {
+    // Slide-sync + presenter notes only exist for HTML decks.
+    if (!isStaff || !id || meta?.kind !== 'html') return
     const bc = new BroadcastChannel(`present-${id}`)
     let lastIndex = -1
 
@@ -85,7 +107,7 @@ export default function PresentPage() {
 
     const iv = setInterval(() => broadcast(false), 300)
     return () => { clearInterval(iv); bc.close() }
-  }, [isStaff, id])
+  }, [isStaff, id, meta])
 
   const openPresenter = () => {
     window.open(`/present/${id}/presenter?t=${encodeURIComponent(title)}`, `presenter-${id}`, 'width=560,height=740')
@@ -107,14 +129,22 @@ export default function PresentPage() {
     <div ref={wrapRef} style={{ position: 'fixed', inset: 0, zIndex: 60, background: '#0e0d12', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 16px', background: '#17151d', borderBottom: '1px solid #2a2833', color: '#e9e8ef' }}>
         <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
-        <span style={{ fontSize: 12, color: '#a09eb0', whiteSpace: 'nowrap' }}>presentation</span>
+        <span style={{ fontSize: 12, color: '#a09eb0', whiteSpace: 'nowrap' }}>{meta?.kind === 'pdf' ? 'PDF presentation' : 'presentation'}</span>
         <span style={{ flex: 1 }} />
-        <button onClick={openPresenter} style={btnStyle}>▤ Presenter view</button>
+        {meta?.kind === 'html' && (
+          <button onClick={openPresenter} style={btnStyle}>▤ Presenter view</button>
+        )}
         <button onClick={toggleFullscreen} style={btnStyle}>⛶ Full screen</button>
         <button onClick={exit} style={btnStyle}>✕ Exit</button>
       </div>
       <div style={{ flex: 1, position: 'relative', background: '#0e0d12' }}>
-        {isStaff ? (
+        {isStaff && meta?.kind === 'pdf' ? (
+          <iframe
+            src={meta.url}
+            title={title}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0, background: '#525659' }}
+          />
+        ) : isStaff && meta?.kind === 'html' ? (
           <iframe
             ref={iframeRef}
             src={`/api/present-deck/${id}`}
