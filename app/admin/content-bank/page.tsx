@@ -175,12 +175,20 @@ export default function ContentBankBetaPage() {
   const [newFolderParentId, setNewFolderParentId] = useState<string | null>(null)
   // Upload-presentation modal (superadmin)
   const [showUploadModal, setShowUploadModal] = useState(false)
+  const [upKind, setUpKind] = useState<'pdf' | 'slides' | 'html'>('pdf')
+  const [upSlidesUrl, setUpSlidesUrl] = useState('')
   const [upFile, setUpFile] = useState<File | null>(null)
   const [upTitle, setUpTitle] = useState('')
   const [upLevel, setUpLevel] = useState('')
   const [upFolderId, setUpFolderId] = useState('')
   const [upNewFolder, setUpNewFolder] = useState('')
   const [uploading, setUploading] = useState(false)
+  // Deck comments (Live Session Content)
+  const [commentsFor, setCommentsFor] = useState<Template | null>(null)
+  const [deckComments, setDeckComments] = useState<{ id: string; author_name: string; text: string; created_at: string; can_delete: boolean }[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [commentBusy, setCommentBusy] = useState(false)
   const [renamingFolder, setRenamingFolder] = useState<Folder | null>(null)
   const [renameValue, setRenameValue] = useState('')
 
@@ -529,42 +537,105 @@ export default function ContentBankBetaPage() {
   // Upload a Claude Design HTML deck: browser→Storage direct (Vercel caps API
   // bodies at 4.5MB), then finalize (create the library lesson + block + folder link).
   const uploadPresentation = async () => {
-    if (!upFile || !upTitle.trim()) return
+    if (!upTitle.trim()) return
+    if (upKind === 'slides' ? !upSlidesUrl.trim() : !upFile) return
     if (upFolderId === '__new__' && !upNewFolder.trim()) return
     setUploading(true)
     try {
-      const slug = upTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'deck'
-      const rand = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '').slice(0, 8)
-      const deckPath = `presentations/${slug}-${rand}.html`
-      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      const up = await fetch(`${sbUrl}/storage/v1/object/exercise-images/${deckPath}`, {
-        method: 'POST',
-        headers: { apikey: sbKey!, Authorization: `Bearer ${sbKey}`, 'Content-Type': 'text/html', 'x-upsert': 'true' },
-        body: upFile,
-      })
-      if (!up.ok) throw new Error('storage upload failed')
+      let deckPath: string | null = null
+      if (upKind !== 'slides') {
+        const ext = upKind === 'pdf' ? 'pdf' : 'html'
+        const slug = upTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'deck'
+        const rand = (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '').slice(0, 8)
+        deckPath = `presentations/${slug}-${rand}.${ext}`
+        const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const sbKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        const up = await fetch(`${sbUrl}/storage/v1/object/exercise-images/${deckPath}`, {
+          method: 'POST',
+          headers: {
+            apikey: sbKey!,
+            Authorization: `Bearer ${sbKey}`,
+            'Content-Type': upKind === 'pdf' ? 'application/pdf' : 'text/html',
+            'x-upsert': 'true',
+          },
+          body: upFile,
+        })
+        if (!up.ok) throw new Error('storage upload failed')
+      }
       const res = await fetch('/api/content-bank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create-presentation',
+          kind: upKind,
           title: upTitle.trim(),
           level: upLevel || null,
           deck_path: deckPath,
+          external_url: upKind === 'slides' ? upSlidesUrl.trim() : null,
           folder_id: upFolderId && upFolderId !== '__new__' ? upFolderId : null,
           new_folder_name: upFolderId === '__new__' ? upNewFolder.trim() : null,
         }),
       })
-      if (!res.ok) throw new Error('finalize failed')
-      showToast('Presentation uploaded')
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error || 'finalize failed')
+      }
+      showToast('Live session content added')
       setShowUploadModal(false)
-      setUpFile(null); setUpTitle(''); setUpLevel(''); setUpFolderId(''); setUpNewFolder('')
+      setUpFile(null); setUpTitle(''); setUpLevel(''); setUpFolderId(''); setUpNewFolder(''); setUpSlidesUrl('')
       loadTemplates(); loadFolders()
-    } catch {
-      showToast('Upload failed — check the file and try again')
+    } catch (e) {
+      showToast(e instanceof Error && e.message !== 'storage upload failed' && e.message !== 'finalize failed' ? e.message : 'Upload failed — check the file and try again')
     }
     setUploading(false)
+  }
+
+  // ── Deck comments ──
+  const openComments = async (t: Template) => {
+    setCommentsFor(t)
+    setDeckComments([])
+    setCommentText('')
+    setCommentsLoading(true)
+    try {
+      const res = await fetch(`/api/deck-comments?lesson_id=${encodeURIComponent(t.id)}`)
+      const d = await res.json()
+      if (res.ok) setDeckComments(d.comments || [])
+    } catch { /* panel just shows none */ }
+    setCommentsLoading(false)
+  }
+
+  const postComment = async () => {
+    if (!commentsFor || !commentText.trim()) return
+    setCommentBusy(true)
+    try {
+      const res = await fetch('/api/deck-comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lesson_id: commentsFor.id, text: commentText.trim() }),
+      })
+      if (res.ok) {
+        setCommentText('')
+        await openComments(commentsFor)
+      } else {
+        const d = await res.json().catch(() => ({}))
+        showToast(d.error || 'Could not save the comment')
+      }
+    } catch {
+      showToast('Network error — comment not saved')
+    }
+    setCommentBusy(false)
+  }
+
+  const deleteComment = async (id: string) => {
+    if (!commentsFor) return
+    try {
+      const res = await fetch('/api/deck-comments', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (res.ok) await openComments(commentsFor)
+    } catch { /* leave as is */ }
   }
 
   const renameFolder = async () => {
@@ -1334,14 +1405,12 @@ export default function ContentBankBetaPage() {
               <p className="text-xs text-ink-muted mt-1">Shared content from across the school — reuse it in your lessons.</p>
             </div>
             <div className="flex items-center gap-2">
-              {isSuperadmin && (
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="text-sm font-bold text-sky-text border border-sky-border px-4 py-2 rounded-tile hover:bg-sky-wash transition-colors"
-                >
-                  ▶ Upload presentation
-                </button>
-              )}
+              <button
+                onClick={() => { setUpKind(isSuperadmin || isEd ? 'html' : 'pdf'); setShowUploadModal(true) }}
+                className="text-sm font-bold text-sky-text border border-sky-border px-4 py-2 rounded-tile hover:bg-sky-wash transition-colors"
+              >
+                ＋ Add live session content
+              </button>
               <Button
                 variant="primary"
                 size="sm"
@@ -1613,15 +1682,24 @@ export default function ContentBankBetaPage() {
                         )}
                       </button>
                       {t.block_counts?.presentation ? (
-                        <a
-                          href={`/present/${t.id}?t=${encodeURIComponent(t.title)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={e => e.stopPropagation()}
-                          className="inline-flex items-center gap-1.5 mb-1 text-sm font-extrabold text-white bg-sky hover:bg-[#0099d6] px-3 py-1.5 rounded-tile transition-colors"
-                        >
-                          ▶ Present
-                        </a>
+                        <span className="inline-flex items-center gap-2 mb-1">
+                          <a
+                            href={`/present/${t.id}?t=${encodeURIComponent(t.title)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 text-sm font-extrabold text-white bg-sky hover:bg-[#0099d6] px-3 py-1.5 rounded-tile transition-colors"
+                          >
+                            ▶ Present
+                          </a>
+                          <button
+                            onClick={e => { e.stopPropagation(); openComments(t) }}
+                            className="inline-flex items-center gap-1 text-xs font-bold text-ink-muted border border-hairline px-2.5 py-1.5 rounded-tile hover:text-sky-text hover:border-sky-border transition-colors"
+                            title="Teacher comments on this deck"
+                          >
+                            💬 Comments
+                          </button>
+                        </span>
                       ) : null}
                       <p className="text-xs text-ink-muted mt-2">
                         Shared by{' '}
@@ -1678,20 +1756,52 @@ export default function ContentBankBetaPage() {
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-card p-5 w-full max-w-md">
-            <h3 className="font-bold text-lg text-ink-black mb-1">Upload presentation</h3>
-            <p className="text-xs text-ink-muted mb-4">Upload a Claude Design HTML deck. It joins the School Library and any teacher can present it full-screen.</p>
+            <h3 className="font-bold text-lg text-ink-black mb-1">Add live session content</h3>
+            <p className="text-xs text-ink-muted mb-4">Class materials for the Live Session Content shelf. Decks always open in a new tab.</p>
 
-            <label className="block text-xs font-bold text-ink-body mb-1">Deck file (.html)</label>
-            <input
-              type="file"
-              accept=".html,text/html"
-              onChange={e => {
-                const f = e.target.files?.[0] || null
-                setUpFile(f)
-                if (f && !upTitle.trim()) setUpTitle(f.name.replace(/\.html?$/i, ''))
-              }}
-              className="w-full text-sm mb-3 file:mr-3 file:px-3 file:py-1.5 file:rounded-tile file:border-0 file:bg-sky-wash file:text-sky-text file:font-bold file:text-xs"
-            />
+            <div className="flex gap-1.5 mb-4">
+              {([
+                { k: 'pdf' as const, label: '📄 PDF file' },
+                { k: 'slides' as const, label: '🔗 Google Slides' },
+                ...(isSuperadmin || isEd ? [{ k: 'html' as const, label: '🌐 HTML deck' }] : []),
+              ]).map(({ k, label }) => (
+                <button
+                  key={k}
+                  onClick={() => { setUpKind(k); setUpFile(null) }}
+                  className={`px-3 py-1.5 rounded-tile text-xs font-bold border-[1.5px] transition-colors ${
+                    upKind === k ? 'bg-sky text-white border-sky' : 'bg-white text-ink-muted border-[#e3e5e9] hover:border-sky'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {upKind === 'slides' ? (
+              <>
+                <label className="block text-xs font-bold text-ink-body mb-1">Google Slides link</label>
+                <input
+                  value={upSlidesUrl}
+                  onChange={e => setUpSlidesUrl(e.target.value)}
+                  placeholder="https://docs.google.com/presentation/…"
+                  className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm mb-3 focus:outline-none focus:border-sky"
+                />
+              </>
+            ) : (
+              <>
+                <label className="block text-xs font-bold text-ink-body mb-1">{upKind === 'pdf' ? 'Deck file (.pdf)' : 'Deck file (.html)'}</label>
+                <input
+                  type="file"
+                  accept={upKind === 'pdf' ? '.pdf,application/pdf' : '.html,text/html'}
+                  onChange={e => {
+                    const f = e.target.files?.[0] || null
+                    setUpFile(f)
+                    if (f && !upTitle.trim()) setUpTitle(f.name.replace(/\.(html?|pdf)$/i, ''))
+                  }}
+                  className="w-full text-sm mb-3 file:mr-3 file:px-3 file:py-1.5 file:rounded-tile file:border-0 file:bg-sky-wash file:text-sky-text file:font-bold file:text-xs"
+                />
+              </>
+            )}
 
             <label className="block text-xs font-bold text-ink-body mb-1">Title</label>
             <input
@@ -1735,12 +1845,63 @@ export default function ContentBankBetaPage() {
               <button onClick={() => setShowUploadModal(false)} disabled={uploading} className="px-4 py-2 text-sm text-ink-muted hover:text-ink-body disabled:opacity-50">Cancel</button>
               <button
                 onClick={uploadPresentation}
-                disabled={uploading || !upFile || !upTitle.trim() || (upFolderId === '__new__' && !upNewFolder.trim())}
+                disabled={uploading || !upTitle.trim() || (upKind === 'slides' ? !upSlidesUrl.trim() : !upFile) || (upFolderId === '__new__' && !upNewFolder.trim())}
                 className="px-4 py-2 bg-sky text-white text-sm font-extrabold rounded-tile disabled:opacity-50 hover:bg-[#0099d6] transition-colors"
               >
-                {uploading ? 'Uploading…' : 'Upload'}
+                {uploading ? 'Saving…' : upKind === 'slides' ? 'Add link' : 'Upload'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deck comments modal */}
+      {commentsFor && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setCommentsFor(null)}>
+          <div className="bg-white rounded-card p-5 w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-base text-ink-black">💬 Comments</h3>
+              <button onClick={() => setCommentsFor(null)} aria-label="Close" className="text-ink-muted hover:text-ink-body text-lg leading-none">✕</button>
+            </div>
+            <p className="text-xs text-ink-muted mb-4 truncate">{commentsFor.title}</p>
+
+            {commentsLoading ? (
+              <p className="text-sm text-ink-muted text-center py-4">Loading…</p>
+            ) : deckComments.length === 0 ? (
+              <p className="text-xs text-ink-muted italic mb-4">No comments yet — spotted a typo or a broken slide? Leave a note for the team.</p>
+            ) : (
+              <div className="space-y-3 mb-4">
+                {deckComments.map(c => (
+                  <div key={c.id} className="bg-surface rounded-tile px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <span className="text-xs font-bold text-ink-body">{c.author_name}</span>
+                      <span className="text-[10.5px] text-ink-muted flex items-center gap-2">
+                        {new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {c.can_delete && (
+                          <button onClick={() => deleteComment(c.id)} className="text-ink-muted hover:text-incorrect-fg font-bold" title="Delete comment">✕</button>
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-[13px] text-ink-body leading-relaxed whitespace-pre-wrap">{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <textarea
+              value={commentText}
+              onChange={e => setCommentText(e.target.value)}
+              rows={3}
+              placeholder="e.g. Slide 8 — 'recieve' should be 'receive'"
+              className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm mb-2 focus:outline-none focus:border-sky resize-none"
+            />
+            <button
+              onClick={postComment}
+              disabled={commentBusy || !commentText.trim()}
+              className="w-full py-2 bg-sky text-white text-sm font-extrabold rounded-tile disabled:opacity-50 hover:bg-[#0099d6] transition-colors"
+            >
+              {commentBusy ? 'Posting…' : 'Post comment'}
+            </button>
           </div>
         </div>
       )}

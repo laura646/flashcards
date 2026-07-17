@@ -650,12 +650,32 @@ export async function POST(req: NextRequest) {
     // bodies at 4.5MB); this creates the shared library lesson + presentation
     // block and files it into the Presentations folder tree.
     if (action === 'create-presentation') {
-      if (user.role !== 'superadmin') {
+      // Live Session Content comes in three kinds:
+      //   html   — uploaded deck file. Superadmin/editor only (an HTML file
+      //            is a little web page; keep the XSS surface closed).
+      //   pdf    — uploaded file, rendered natively in the /present tab.
+      //   slides — a Google Slides link (no upload).
+      // Any teacher may add pdf/slides.
+      const kind = body.kind === 'pdf' ? 'pdf' : body.kind === 'slides' ? 'slides' : 'html'
+      if (kind === 'html') {
+        const editorOk = user.role === 'superadmin' || (await isEditor(user.email))
+        if (!editorOk) {
+          return NextResponse.json({ error: 'HTML decks can only be uploaded by a superadmin or editor' }, { status: 403 })
+        }
+      } else if (user.role !== 'superadmin' && user.role !== 'teacher') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-      const { title, level, deck_path, folder_id, new_folder_name } = body
-      if (!title?.trim() || !deck_path) {
-        return NextResponse.json({ error: 'Title and deck required' }, { status: 400 })
+      const { title, level, deck_path, folder_id, new_folder_name, external_url } = body
+      if (!title?.trim()) {
+        return NextResponse.json({ error: 'Title required' }, { status: 400 })
+      }
+      if (kind === 'slides') {
+        const u = String(external_url || '')
+        if (!/^https:\/\/docs\.google\.com\/presentation\//.test(u)) {
+          return NextResponse.json({ error: 'Paste a Google Slides link (it starts with https://docs.google.com/presentation/…)' }, { status: 400 })
+        }
+      } else if (!deck_path) {
+        return NextResponse.json({ error: 'Deck file required' }, { status: 400 })
       }
 
       const ensurePresentationsRoot = async (): Promise<string> => {
@@ -693,14 +713,21 @@ export async function POST(req: NextRequest) {
         targetFolderId = await ensurePresentationsRoot()
       }
 
-      const deckUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/exercise-images/${deck_path}`
+      const deckUrl = deck_path
+        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/exercise-images/${deck_path}`
+        : null
       const today = new Date().toISOString().split('T')[0]
+      const summaryByKind: Record<string, string> = {
+        html: 'Class presentation (Claude Design) — full-screen slides. Present in class; share your screen on Zoom.',
+        pdf: 'Class presentation (PDF) — opens full-screen in a new tab. Present in class; share your screen on Zoom.',
+        slides: 'Class presentation (Google Slides) — opens in a new tab. Present in class; share your screen on Zoom.',
+      }
 
       const { data: lesson, error: lErr } = await supabase
         .from('lessons')
         .insert({
           title: title.trim(),
-          summary: 'Class presentation (Claude Design) — full-screen slides. Present in class; share your screen on Zoom.',
+          summary: summaryByKind[kind],
           lesson_date: today,
           status: 'published',
           lesson_type: 'lesson',
@@ -720,7 +747,12 @@ export async function POST(req: NextRequest) {
         title: 'Presentation deck',
         order_index: 0,
         published: true,
-        content: { deck_url: deckUrl, source: 'claude-design', audio_bundled: true },
+        content:
+          kind === 'slides'
+            ? { kind, external_url: String(external_url) }
+            : kind === 'pdf'
+              ? { kind, deck_url: deckUrl }
+              : { kind, deck_url: deckUrl, source: 'claude-design', audio_bundled: true },
       })
       if (bErr) throw bErr
 

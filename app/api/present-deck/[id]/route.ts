@@ -28,7 +28,32 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .limit(1)
     .maybeSingle()
 
-  const deckUrl = (block?.content as { deck_url?: string } | null)?.deck_url
+  const content = (block?.content as { kind?: string; deck_url?: string; external_url?: string } | null) || null
+  const kind = content?.kind === 'pdf' ? 'pdf' : content?.kind === 'slides' ? 'slides' : 'html'
+
+  // ?meta=1 → JSON descriptor for the /present viewer: which kind this deck
+  // is and where to point the tab. URLs are validated per kind (our own
+  // storage for files; docs.google.com for Slides links) — never arbitrary.
+  if (_req.nextUrl.searchParams.get('meta')) {
+    const storageBase0 = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '')
+    if (kind === 'slides') {
+      const u = content?.external_url || ''
+      if (!/^https:\/\/docs\.google\.com\/presentation\//.test(u)) {
+        return NextResponse.json({ error: 'Invalid Slides link' }, { status: 400 })
+      }
+      return NextResponse.json({ kind, url: u })
+    }
+    const fileUrl = content?.deck_url || ''
+    if (!storageBase0 || !fileUrl.startsWith(`${storageBase0}/storage/v1/object/public/`)) {
+      return NextResponse.json({ error: 'Invalid deck URL' }, { status: 400 })
+    }
+    return NextResponse.json({ kind, url: kind === 'pdf' ? fileUrl : `/api/present-deck/${id}` })
+  }
+
+  // The streaming path below is the HTML content-type proxy — html decks only.
+  if (kind !== 'html') return new NextResponse('Not an HTML deck', { status: 400 })
+
+  const deckUrl = content?.deck_url
   if (!deckUrl) return new NextResponse('Presentation not found', { status: 404 })
 
   // SSRF guard: only ever fetch/re-serve decks from our own Supabase Storage,
