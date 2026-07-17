@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { requireRole, getAccessibleCourseIds, isEditor, type UserRole } from '@/lib/roles'
+import { deepCopyLesson } from '@/lib/lesson-copy'
 
 // Access gate for filing a lesson into a folder (assign / remove).
 // Superadmins bypass. Content-bank folders are SHARED org structure (the School
@@ -436,83 +437,24 @@ export async function POST(req: NextRequest) {
       const srcGate = await checkSourceReadAccess(user, template_id)
       if (srcGate) return srcGate
 
-      // Fetch template and all its content
-      const [lessonRes, fcRes, exRes, blockRes] = await Promise.all([
-        supabase.from('lessons').select('*').eq('id', template_id).single(),
-        supabase.from('lesson_flashcards').select('*').eq('lesson_id', template_id).order('order_index'),
-        supabase.from('lesson_exercises').select('*').eq('lesson_id', template_id).order('order_index'),
-        supabase.from('lesson_blocks').select('*').eq('lesson_id', template_id).order('order_index'),
-      ])
-
-      if (lessonRes.error || !lessonRes.data) {
-        return NextResponse.json({ error: 'Template not found' }, { status: 404 })
-      }
-
-      const template = lessonRes.data
-
-      // Create new lesson as draft in the target course
-      const { data: newLesson, error: insertErr } = await supabase
-        .from('lessons')
-        .insert({
-          title: template.title,
-          lesson_date: cloneDate,
-          lesson_type: template.lesson_type || 'lesson',
-          summary: template.summary,
-          status: cloneStatus,
-          course_id: course_id,
-          publish_at: publishAt,
+      // Field-complete deep copy (lib/lesson-copy) — carries flashcard
+      // images, exercise points/skills/mandatory/test_type, block published
+      // states and the exam settings (time limit / reveal / language), which
+      // the old inline clone silently dropped.
+      let newId: string
+      try {
+        const copied = await deepCopyLesson(template_id, {
+          courseId: course_id,
+          status: cloneStatus as 'draft' | 'published',
+          lessonDate: cloneDate,
+          publishAt,
         })
-        .select('id')
-        .single()
-
-      if (insertErr) throw insertErr
-      const newId = newLesson.id
-
-      // Copy flashcards
-      const flashcards = fcRes.data || []
-      if (flashcards.length > 0) {
-        const fcRows = flashcards.map((fc: { word: string; phonetic: string; meaning: string; example: string; notes: string; order_index: number }) => ({
-          lesson_id: newId,
-          word: fc.word,
-          phonetic: fc.phonetic,
-          meaning: fc.meaning,
-          example: fc.example,
-          notes: fc.notes,
-          order_index: fc.order_index,
-        }))
-        const { error } = await supabase.from('lesson_flashcards').insert(fcRows)
-        if (error) throw error
-      }
-
-      // Copy exercises
-      const exercises = exRes.data || []
-      if (exercises.length > 0) {
-        const exRows = exercises.map((ex: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; order_index: number }) => ({
-          lesson_id: newId,
-          title: ex.title,
-          subtitle: ex.subtitle,
-          icon: ex.icon,
-          instructions: ex.instructions,
-          exercise_type: ex.exercise_type,
-          questions: ex.questions,
-          order_index: ex.order_index,
-        }))
-        const { error } = await supabase.from('lesson_exercises').insert(exRows)
-        if (error) throw error
-      }
-
-      // Copy blocks (skip dialogue — those are interactive and shouldn't be cloned)
-      const blocks = blockRes.data || []
-      if (blocks.length > 0) {
-        const blockRows = blocks.map((b: { block_type: string; title: string; content: unknown; order_index: number }) => ({
-          lesson_id: newId,
-          block_type: b.block_type,
-          title: b.title,
-          content: b.content,
-          order_index: b.order_index,
-        }))
-        const { error } = await supabase.from('lesson_blocks').insert(blockRows)
-        if (error) throw error
+        newId = copied.lessonId
+      } catch (e) {
+        if (e instanceof Error && e.message === 'Template not found') {
+          return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+        }
+        throw e
       }
 
       return NextResponse.json({ ok: true, lesson_id: newId })

@@ -21,6 +21,7 @@ import ExercisePreview from '@/components/ExercisePreview'
 import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
 import { Button, Card, Pill, EmptyState, Skeleton } from '@/components/student-ui'
 import FolderTree, { getFolderDepth, type Folder } from '@/components/admin-v2/FolderTree'
+import CoursePacksShelf from '@/components/admin-v2/CoursePacksShelf'
 import { isTestLessonType } from '@/lib/test-mode'
 
 // ── Types ──
@@ -1598,15 +1599,7 @@ export default function ContentBankBetaPage() {
               {/* Templates grid */}
               {(() => {
                 if (shelf === 'packs') {
-                  return (
-                    <div className="bg-white rounded-card border border-hairline">
-                      <EmptyState
-                        icon="📦"
-                        title="No Course Packs yet."
-                        hint="Course Packs are ready-made curricula — an ordered bundle of homework, live decks and tests you import into a course in one go. Coming in the next update."
-                      />
-                    </div>
-                  )
+                  return <CoursePacksShelf canEdit={isSuperadmin || isEd} isSuperadmin={isSuperadmin} showToast={showToast} />
                 }
                 const q = search.trim().toLowerCase()
                 const filtered = templates.filter((t) => {
