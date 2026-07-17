@@ -21,6 +21,7 @@ import ExercisePreview from '@/components/ExercisePreview'
 import McqOptionsList, { validateMcqQuestion } from '@/components/McqOptionsList'
 import { Button, Card, Pill, EmptyState, Skeleton } from '@/components/student-ui'
 import FolderTree, { getFolderDepth, type Folder } from '@/components/admin-v2/FolderTree'
+import { isTestLessonType } from '@/lib/test-mode'
 
 // ── Types ──
 
@@ -42,6 +43,23 @@ interface Template {
   author_email: string | null
   author_name: string
 }
+
+// ── Library shelves ──
+// Every shared item sits on exactly one shelf, derived from data it
+// already carries: test lessons → Tests; anything holding a presentation
+// block → Live Session Content; the rest → Homework.
+type Shelf = 'homework' | 'live' | 'tests' | 'packs'
+function shelfOf(t: { lesson_type?: string | null; block_counts?: Record<string, number> }): Shelf {
+  if (isTestLessonType(t.lesson_type)) return 'tests'
+  if ((t.block_counts?.presentation || 0) > 0) return 'live'
+  return 'homework'
+}
+const SHELF_TABS: { key: Shelf; label: string }[] = [
+  { key: 'homework', label: '✏️ Homework' },
+  { key: 'live', label: '🎬 Live Session Content' },
+  { key: 'tests', label: '📝 Tests' },
+  { key: 'packs', label: '📦 Course Packs' },
+]
 
 // Formats a full ISO timestamp like "Mar 12, 2025"
 const formatAddedDate = (iso: string) => {
@@ -141,6 +159,7 @@ export default function ContentBankBetaPage() {
   const router = useRouter()
   const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
+  const [shelf, setShelf] = useState<Shelf>('homework')
   const [filterLevel, setFilterLevel] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
   const [filterAuthor, setFilterAuthor] = useState('')
@@ -1412,6 +1431,26 @@ export default function ContentBankBetaPage() {
 
             {/* ── Main Content ── */}
             <div className="flex-1 min-w-0">
+              {/* Shelf tabs — Homework / Live Session Content / Tests / Course Packs */}
+              <div className="flex flex-wrap items-center gap-1 border-b-[1.5px] border-hairline mb-4">
+                {SHELF_TABS.map(({ key, label }) => {
+                  const active = shelf === key
+                  const count = key === 'packs' ? 0 : templates.filter((t) => shelfOf(t) === key).length
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setShelf(key)}
+                      className={`relative pb-2 pt-1 px-2 text-[13.5px] font-bold transition-colors ${
+                        active ? 'text-brandblue' : 'text-ink-muted hover:text-ink-body'
+                      }`}
+                    >
+                      {label}
+                      {key !== 'packs' && <span className="ml-1 text-[11px] font-bold text-ink-muted">{count}</span>}
+                      {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 rounded-full bg-brandblue" />}
+                    </button>
+                  )
+                })}
+              </div>
               {/* Active folder label + Filters */}
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 {selectedFolderName && (
@@ -1489,8 +1528,20 @@ export default function ContentBankBetaPage() {
 
               {/* Templates grid */}
               {(() => {
+                if (shelf === 'packs') {
+                  return (
+                    <div className="bg-white rounded-card border border-hairline">
+                      <EmptyState
+                        icon="📦"
+                        title="No Course Packs yet."
+                        hint="Course Packs are ready-made curricula — an ordered bundle of homework, live decks and tests you import into a course in one go. Coming in the next update."
+                      />
+                    </div>
+                  )
+                }
                 const q = search.trim().toLowerCase()
                 const filtered = templates.filter((t) => {
+                  if (shelfOf(t) !== shelf) return false
                   if (q && !t.title.toLowerCase().includes(q)) return false
                   if (filterAuthor && (t.author_name || 'Unknown') !== filterAuthor) return false
                   return true
