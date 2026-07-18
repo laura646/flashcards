@@ -26,6 +26,7 @@ import BulkAttendanceModal from '@/components/admin-v2/BulkAttendanceModal'
 import CourseProgressTab from '@/components/admin-v2/CourseProgressTab'
 import CourseWritingTab from '@/components/admin-v2/CourseWritingTab'
 import CourseTestsTab from '@/components/admin-v2/CourseTestsTab'
+import CourseSyllabusTab from '@/components/admin-v2/CourseSyllabusTab'
 
 const LEVELS = Object.keys(COMMON_ISSUES_BY_LEVEL)
 // CEFR half-steps for the group level (starting → goal); mirrors the Reports view.
@@ -144,7 +145,7 @@ function formatSchedule(days: string | null, time: string | null, durationMin: n
 
 const INVITE_CODE_RE = /^[A-Za-z0-9]{3,20}$/
 
-type Tab = 'lessons' | 'students' | 'progress' | 'writing' | 'tests'
+type Tab = 'lessons' | 'students' | 'progress' | 'writing' | 'tests' | 'syllabus'
 
 // ── Tabler-style line icons for the Course-info rail ──
 const iconBase = {
@@ -449,6 +450,7 @@ export function CourseDetailView({
                     { value: 'progress' as Tab, label: 'Progress' },
                     { value: 'writing' as Tab, label: 'Writing' },
                     { value: 'tests' as Tab, label: 'Tests' },
+                    { value: 'syllabus' as Tab, label: '🔒 Syllabus' },
                   ]).map((t) => {
                     const active = tab === t.value
                     return (
@@ -628,6 +630,11 @@ export function CourseDetailView({
             {/* Tests (exam-mode results per test lesson) */}
             {tab === 'tests' && course && (
               <CourseTestsTab lessons={lessons} canEdit={canEdit} />
+            )}
+
+            {/* Syllabus (teacher-only Course Pack cockpit) */}
+            {tab === 'syllabus' && course && (
+              <CourseSyllabusTab courseId={course.id} canEdit={canEdit} />
             )}
           </div>
 

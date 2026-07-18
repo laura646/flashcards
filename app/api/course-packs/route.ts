@@ -72,6 +72,50 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ courses })
     }
 
+    // ── course syllabus: pack-imported lessons in teaching order ──
+    // Kept OUT of the course-detail query on purpose: if the pack columns
+    // aren't migrated, this endpoint returns empty instead of breaking the
+    // whole course page.
+    if (req.nextUrl.searchParams.get('view') === 'syllabus') {
+      const courseId = req.nextUrl.searchParams.get('course_id')
+      if (!courseId) return err('course_id required', 400)
+      if (auth.role !== 'superadmin') {
+        const accessible = await getAccessibleCourseIds(auth.email, auth.role)
+        if (!accessible.includes(courseId)) return err('Forbidden', 403)
+      }
+      const { data: rows, error: rowsErr } = await supabase
+        .from('lessons')
+        .select('id, title, status, lesson_type, syllabus_order, source_pack_id')
+        .eq('course_id', courseId)
+        .not('source_pack_id', 'is', null)
+        .order('syllabus_order', { ascending: true })
+      if (rowsErr) {
+        return NextResponse.json({ available: false, items: [], pack_name: null })
+      }
+      const items = (rows || []) as {
+        id: string; title: string; status: string; lesson_type: string | null
+        syllabus_order: number | null; source_pack_id: string | null
+      }[]
+      const shelves = await shelfByLessonId(items.map((i) => i.id))
+      let packName: string | null = null
+      const packId = items.find((i) => i.source_pack_id)?.source_pack_id
+      if (packId) {
+        const { data: pack } = await supabase.from('course_packs').select('name').eq('id', packId).maybeSingle()
+        packName = (pack as { name: string } | null)?.name || null
+      }
+      return NextResponse.json({
+        available: true,
+        pack_name: packName,
+        items: items.map((i) => ({
+          id: i.id,
+          title: i.title,
+          status: i.status === 'published' ? 'published' : 'draft',
+          shelf: shelves.get(i.id) || 'homework',
+          order: i.syllabus_order ?? 0,
+        })),
+      })
+    }
+
     // ── pack detail ──
     const id = req.nextUrl.searchParams.get('id')
     if (id) {
@@ -219,6 +263,31 @@ export async function POST(req: NextRequest) {
       await supabase.from('course_pack_items').delete().eq('pack_id', packId)
       await supabase.from('pack_comments').delete().eq('pack_id', packId)
       await supabase.from('course_packs').delete().eq('id', packId)
+      return NextResponse.json({ ok: true })
+    }
+
+    // ── publish / unpublish one syllabus lesson ──
+    if (action === 'set-lesson-status') {
+      const lessonId = body.lesson_id as string
+      const status = body.status === 'published' ? 'published' : 'draft'
+      if (!lessonId) return err('lesson_id required', 400)
+      const { data: lesson } = await supabase
+        .from('lessons')
+        .select('id, course_id')
+        .eq('id', lessonId)
+        .maybeSingle()
+      if (!lesson) return err('Lesson not found', 404)
+      const courseId = (lesson as { course_id: string | null }).course_id
+      if (auth.role !== 'superadmin') {
+        const accessible = await getAccessibleCourseIds(auth.email, auth.role)
+        if (!courseId || !accessible.includes(courseId)) return err('Forbidden', 403)
+      }
+      // Publishing stamps today's date so the lesson sorts as "assigned now"
+      // on the student's home; unpublishing leaves the date alone.
+      const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
+      if (status === 'published') patch.lesson_date = new Date().toISOString().split('T')[0]
+      const { error } = await supabase.from('lessons').update(patch).eq('id', lessonId)
+      if (error) throw error
       return NextResponse.json({ ok: true })
     }
 
