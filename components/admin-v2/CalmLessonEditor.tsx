@@ -28,7 +28,7 @@
 // remains in git history + the file is unchanged), and /admin/* does not import
 // either component, so /admin/* behavior is unaffected.
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Button, Card, Pill, TextField, SegmentedControl, EmptyState, InlineError } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import ContentItemCard from '@/components/admin-v2/lesson-editors/ContentItemCard'
@@ -302,6 +302,19 @@ export function CalmLessonEditor({
   // Lesson-details disclosure — collapsed by default to keep the top slim (the
   // builder is the focus); open for templates since Level + Category are required.
   const [detailsOpen, setDetailsOpen] = useState(templateMode)
+
+  // Time-limit field keeps its own draft string so the teacher can clear it
+  // and type freely (e.g. 30 -> "" -> 90). Clamping on every keystroke made
+  // an empty field snap straight back to 30, so a new number was impossible
+  // to type. Valid values propagate as you type; blur normalises/clamps.
+  const [timeDraft, setTimeDraft] = useState(String(testTimeLimit ?? 30))
+  useEffect(() => {
+    const n = parseInt(timeDraft, 10)
+    if (testTimeLimit != null && n !== testTimeLimit) setTimeDraft(String(testTimeLimit))
+    // Only re-sync when the lesson's stored value changes (e.g. a different
+    // lesson loads) — never while the teacher is mid-type.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testTimeLimit])
 
   // Local UI state — not part of the editor data contract.
   const [showDeleteIndex, setShowDeleteIndex] = useState<number | null>(null)
@@ -801,14 +814,22 @@ export function CalmLessonEditor({
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <input
-                        type="number"
-                        min={1}
-                        max={600}
-                        value={testTimeLimit ?? 30}
+                        type="text"
+                        inputMode="numeric"
+                        value={timeDraft}
                         onChange={(e) => {
-                          const n = parseInt(e.target.value, 10)
-                          onTestTimeLimitChange?.(isNaN(n) ? 30 : Math.max(1, Math.min(600, n)))
+                          const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 3)
+                          setTimeDraft(raw)
+                          const n = parseInt(raw, 10)
+                          if (!isNaN(n) && n >= 1) onTestTimeLimitChange?.(Math.min(600, n))
                         }}
+                        onBlur={() => {
+                          const n = parseInt(timeDraft, 10)
+                          const clamped = isNaN(n) || n < 1 ? 30 : Math.min(600, n)
+                          setTimeDraft(String(clamped))
+                          onTestTimeLimitChange?.(clamped)
+                        }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                         className="w-[72px] text-[14px] font-bold text-center text-ink-body bg-white rounded-tile px-2 h-[40px] border-[1.5px] border-[#e3e5e9] focus:outline-none focus:border-sky"
                       />
                       <span className="text-[11px] text-ink-muted font-bold">min</span>
