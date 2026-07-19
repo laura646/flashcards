@@ -482,6 +482,10 @@ export function useLessonEditor() {
   }, [
     title, lessonDate, contentItems, contentBankMode, isTemplate, isShared, templateCategory,
     templateLevel, editingLessonId, lessonType, summary, courseId, flashcardsPublished,
+    // Exam-mode settings MUST be listed: without them saveLesson closes over
+    // the values from first render (30 / reveal-on / hy) and silently saves
+    // those no matter what the teacher typed.
+    testTimeLimit, testRevealAnswers, testRulesLang,
     loadLessons,
   ])
 
