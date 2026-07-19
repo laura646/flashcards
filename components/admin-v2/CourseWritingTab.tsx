@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Spinner, EmptyState, Button } from '@/components/student-ui'
 
-const CEFR_BANDS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+const CEFR_BANDS = ['A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'C1', 'C2']
 const RUBRIC_KEYS = [
   { k: 'task', label: 'Task' },
   { k: 'grammar', label: 'Grammar' },

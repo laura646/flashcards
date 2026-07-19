@@ -21,7 +21,7 @@ const FRIENDLY_TO_CEFR: Record<string, string> = {
   Advanced: 'C1',
 }
 
-const CEFR_CODES = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+const CEFR_CODES = ['A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'C1', 'C2']
 
 /**
  * Normalize any level input to a CEFR code. Returns '' if the level

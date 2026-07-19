@@ -438,7 +438,7 @@ export default function CoursePacksShelf({
                   className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white focus:outline-none focus:border-sky"
                 >
                   <option value="">— optional —</option>
-                  {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((l) => <option key={l} value={l}>{l}</option>)}
+                  {['A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'C1', 'C2'].map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
             </div>

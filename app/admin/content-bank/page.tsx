@@ -109,6 +109,9 @@ interface Course {
 const CATEGORIES = ['General English', 'Business English']
 
 const LEVELS = [
+  // CEFR codes first (seeded packages store these as template_level)…
+  'A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'C1', 'C2',
+  // …then the descriptive names teacher-authored content uses.
   'Beginner',
   'Elementary Low', 'Elementary High',
   'Pre-Intermediate Low', 'Pre-Intermediate High',
@@ -1809,7 +1812,7 @@ export default function ContentBankBetaPage() {
                 <label className="block text-xs font-bold text-ink-body mb-1">Level</label>
                 <select value={upLevel} onChange={e => setUpLevel(e.target.value)} className="w-full px-3 py-2 border-[1.5px] border-[#e3e5e9] rounded-tile text-sm bg-white focus:outline-none focus:border-sky">
                   <option value="">— optional —</option>
-                  {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(l => <option key={l} value={l}>{l}</option>)}
+                  {['A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'C1', 'C2'].map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
               <div className="flex-1">
