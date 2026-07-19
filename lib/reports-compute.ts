@@ -241,7 +241,7 @@ const SKILL_LABELS: Record<string, string> = {
   pronunciation: 'Pronunciation',
 }
 
-const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+const CEFR_ORDER = ['A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'C1', 'C2']
 
 // Attendance counted as "present" for % calc if present or late (page.tsx ~L137).
 const ATTENDANCE_PRESENT_STATUSES = new Set(['present', 'late'])

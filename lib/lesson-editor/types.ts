@@ -330,7 +330,7 @@ export const SKILL_OPTIONS = [
 ] as const
 
 // (legacy page.tsx 115)
-export const CEFR_OPTIONS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const
+export const CEFR_OPTIONS = ['A1', 'A2', 'A2+', 'B1', 'B1+', 'B2', 'C1', 'C2'] as const
 
 // fill_blank and transform were removed from the picker — fill_blank was
 // effectively MCQ-with-a-blank (use multiple_choice instead) and transform
