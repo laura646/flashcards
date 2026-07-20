@@ -132,8 +132,13 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Get lessons list - scoped by course
-    let query = supabase.from('lessons').select('*').order('lesson_date', { ascending: false })
+    // Get lessons list - scoped by course. Date is the primary timeline;
+    // syllabus_order breaks same-day ties so pack imports read in pack
+    // sequence (1A, 1B, 1C…) instead of arbitrary insert order.
+    let query = supabase.from('lessons').select('*')
+      .order('lesson_date', { ascending: false })
+      .order('syllabus_order', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
 
     // Filter by specific course if provided — but still enforce access control
     if (courseId) {
