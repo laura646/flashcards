@@ -507,6 +507,70 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, status: nextStatus })
     }
 
+    // ── Lightweight BULK action ──
+    // Publish / unpublish / delete many lessons in one request (course
+    // Lessons tab select mode). Same permission rules as the single-lesson
+    // paths; the whole batch is rejected if ANY lesson fails the check, so
+    // a teacher can't smuggle an inaccessible id into a bulk delete.
+    if (body.action === 'bulk') {
+      const { op, lessonIds } = body as { op?: string; lessonIds?: unknown }
+      if (op !== 'publish' && op !== 'unpublish' && op !== 'delete') {
+        return NextResponse.json({ error: 'Invalid op' }, { status: 400 })
+      }
+      const ids = Array.from(new Set(Array.isArray(lessonIds) ? (lessonIds as string[]).filter((x) => typeof x === 'string') : []))
+      if (ids.length === 0 || ids.length > 200) {
+        return NextResponse.json({ error: 'lessonIds required (max 200)' }, { status: 400 })
+      }
+
+      const { data: rows } = await supabase
+        .from('lessons')
+        .select('id, created_by, course_id, is_shared')
+        .in('id', ids)
+      const found = (rows || []) as { id: string; created_by: string | null; course_id: string | null; is_shared: boolean | null }[]
+      if (found.length !== ids.length) {
+        return NextResponse.json({ error: 'Some lessons were not found' }, { status: 404 })
+      }
+      if (user.role === 'teacher') {
+        const accessible = await getAccessibleCourseIds(user.email, user.role)
+        const editor = await isEditor(user.email)
+        const blocked = found.some((l) =>
+          !(l.created_by === user.email ||
+            (l.course_id && accessible.includes(l.course_id)) ||
+            (editor && l.is_shared === true)))
+        if (blocked) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+
+      if (op === 'publish' || op === 'unpublish') {
+        // Publish stamps today's date (same as the Syllabus publish flow) so
+        // the batch surfaces as "assigned now"; syllabus_order keeps same-day
+        // batches in pack sequence. Unpublish leaves the date alone.
+        const patch: Record<string, unknown> = {
+          status: op === 'publish' ? 'published' : 'draft',
+          updated_at: new Date().toISOString(),
+        }
+        if (op === 'publish') patch.lesson_date = new Date().toISOString().split('T')[0]
+        const { error } = await supabase.from('lessons').update(patch).in('id', ids)
+        if (error) throw error
+        return NextResponse.json({ ok: true, count: ids.length })
+      }
+
+      // delete — mirror the single-lesson DELETE cascade, batched.
+      const { data: blockData } = await supabase.from('lesson_blocks').select('id').in('lesson_id', ids)
+      const blockIds = (blockData || []).map((b: { id: string }) => b.id)
+      if (blockIds.length > 0) {
+        await supabase.from('dialogue_messages').delete().in('block_id', blockIds)
+      }
+      await supabase.from('lesson_flashcards').delete().in('lesson_id', ids)
+      await supabase.from('lesson_exercises').delete().in('lesson_id', ids)
+      await supabase.from('lesson_blocks').delete().in('lesson_id', ids)
+      await supabase.from('lesson_folders').delete().in('lesson_id', ids)
+      const { error: delErr } = await supabase.from('lessons').delete().in('id', ids)
+      if (delErr) throw delErr
+      return NextResponse.json({ ok: true, count: ids.length })
+    }
+
     const {
       lessonId: existingLessonId,
       title,

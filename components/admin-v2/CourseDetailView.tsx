@@ -180,6 +180,7 @@ interface CourseDetailViewProps {
   onAssignFromLibrary: () => void
   onDeleteLesson?: (lessonId: string) => Promise<void> | void
   onSetLessonStatus?: (lessonId: string, status: 'draft' | 'published') => Promise<void> | void
+  onBulkLessons?: (op: 'publish' | 'unpublish' | 'delete', lessonIds: string[]) => Promise<void> | void
   // Course-info save (update-schedule)
   onSaveCourseInfo: (form: CourseInfoForm) => Promise<{ ok: boolean; error?: string }>
   // Invite-code change is a separate concern (kept via update-course).
@@ -258,6 +259,7 @@ export function CourseDetailView({
   onAssignFromLibrary,
   onDeleteLesson,
   onSetLessonStatus,
+  onBulkLessons,
   onSaveCourseInfo,
   onSaveInviteCode,
   onSendTelegramTest,
@@ -284,6 +286,35 @@ export function CourseDetailView({
     const next = lesson.status === 'published' ? 'draft' : 'published'
     setStatusBusyId(lesson.id)
     try { await onSetLessonStatus(lesson.id, next) } finally { setStatusBusyId(null) }
+  }
+  // ── Bulk select mode (lessons tab) ──
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false)
+  const toggleSelectMode = () => {
+    setSelectMode((v) => !v)
+    setSelectedIds(new Set())
+    setBulkConfirmDelete(false)
+  }
+  const toggleSelected = (id: string) => {
+    setBulkConfirmDelete(false)
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const runBulk = async (op: 'publish' | 'unpublish' | 'delete') => {
+    if (!onBulkLessons || selectedIds.size === 0 || bulkBusy) return
+    setBulkBusy(true)
+    try { await onBulkLessons(op, Array.from(selectedIds)) }
+    finally {
+      setBulkBusy(false)
+      setSelectedIds(new Set())
+      setBulkConfirmDelete(false)
+    }
   }
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<CourseInfoForm>({
@@ -487,6 +518,18 @@ export function CourseDetailView({
                     >
                       + Create
                     </button>
+                    {onBulkLessons && lessons.length > 0 && (
+                      <button
+                        onClick={toggleSelectMode}
+                        className={`inline-flex items-center justify-center gap-1 rounded-full border-[1.5px] font-bold text-[12px] px-3.5 py-2 transition-colors ${
+                          selectMode
+                            ? 'border-sky bg-sky-wash text-sky-text'
+                            : 'border-hairline bg-white text-ink-muted hover:text-ink-body hover:border-sky-border'
+                        }`}
+                      >
+                        {selectMode ? 'Done' : 'Select'}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -512,6 +555,69 @@ export function CourseDetailView({
               )}
             </div>
 
+            {/* BULK BAR — select mode on the lessons tab */}
+            {tab === 'lessons' && selectMode && canEdit && onBulkLessons && (
+              <div className="bg-sky-wash border border-sky-border rounded-card px-4 py-2.5 flex items-center gap-3 flex-wrap">
+                <span className="text-sm font-bold text-sky-text min-w-[92px]">{selectedIds.size} selected</span>
+                <button
+                  onClick={() => {
+                    setBulkConfirmDelete(false)
+                    setSelectedIds(
+                      selectedIds.size === filteredLessons.length && filteredLessons.length > 0
+                        ? new Set()
+                        : new Set(filteredLessons.map((l) => l.id)),
+                    )
+                  }}
+                  className="text-xs font-bold text-sky-text hover:underline"
+                >
+                  {selectedIds.size === filteredLessons.length && filteredLessons.length > 0 ? 'Clear all' : 'Select all'}
+                </button>
+                <span className="flex-1" />
+                <button
+                  onClick={() => runBulk('publish')}
+                  disabled={bulkBusy || selectedIds.size === 0}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-hairline bg-white text-ink-body hover:bg-surface disabled:opacity-50 transition-colors"
+                >
+                  {bulkBusy ? '…' : 'Publish'}
+                </button>
+                <button
+                  onClick={() => runBulk('unpublish')}
+                  disabled={bulkBusy || selectedIds.size === 0}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-hairline bg-white text-ink-body hover:bg-surface disabled:opacity-50 transition-colors"
+                >
+                  {bulkBusy ? '…' : 'Unpublish'}
+                </button>
+                <button
+                  onClick={() => setBulkConfirmDelete(true)}
+                  disabled={bulkBusy || selectedIds.size === 0}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+            {tab === 'lessons' && selectMode && bulkConfirmDelete && selectedIds.size > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-card px-4 py-2.5 flex items-center gap-3 flex-wrap">
+                <span className="text-sm text-red-600 flex-1 min-w-[200px]">
+                  Delete {selectedIds.size} lesson{selectedIds.size === 1 ? '' : 's'}? Student progress on them is removed too.
+                </span>
+                <button
+                  onClick={() => runBulk('delete')}
+                  disabled={bulkBusy}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                >
+                  {bulkBusy ? 'Deleting…' : 'Delete'}
+                </button>
+                <button
+                  onClick={() => setBulkConfirmDelete(false)}
+                  disabled={bulkBusy}
+                  className="text-xs font-bold px-3 py-1.5 rounded-lg border border-hairline bg-white text-ink-body hover:bg-surface transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
             {/* LIST CARD */}
             {/* Lessons */}
             {tab === 'lessons' && (
@@ -533,10 +639,21 @@ export function CourseDetailView({
                     {filteredLessons.map((lesson) => (
                       <div
                         key={lesson.id}
-                        className="group w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors"
+                        className={`group w-full px-4 py-3.5 flex items-center justify-between gap-3 transition-colors ${
+                          selectMode && selectedIds.has(lesson.id) ? 'bg-sky-wash' : 'hover:bg-sky-wash'
+                        }`}
                       >
+                        {selectMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(lesson.id)}
+                            onChange={() => toggleSelected(lesson.id)}
+                            aria-label={`Select ${lesson.title || 'lesson'}`}
+                            className="w-4 h-4 accent-sky shrink-0 cursor-pointer"
+                          />
+                        )}
                         <button
-                          onClick={() => onOpenLesson(lesson.id)}
+                          onClick={() => (selectMode ? toggleSelected(lesson.id) : onOpenLesson(lesson.id))}
                           className="min-w-0 flex-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky/40 rounded"
                         >
                           <p className="text-sm font-bold text-ink-black truncate">{lesson.title || 'Untitled'}</p>
@@ -549,7 +666,7 @@ export function CourseDetailView({
                           </div>
                         </button>
                         <div className="flex items-center gap-2.5 shrink-0">
-                          {canEdit && onSetLessonStatus && (
+                          {!selectMode && canEdit && onSetLessonStatus && (
                             <button
                               onClick={() => toggleLessonStatus(lesson)}
                               disabled={statusBusyId === lesson.id}
@@ -563,7 +680,7 @@ export function CourseDetailView({
                             {lesson.status === 'published' ? 'Published' : 'Draft'}
                           </Pill>
                           <span className="text-xs text-ink-muted hidden sm:inline">{formatDate(lesson.created_at)}</span>
-                          {canEdit && onDeleteLesson && (
+                          {!selectMode && canEdit && onDeleteLesson && (
                             <button
                               onClick={() => setDeletingLesson(lesson)}
                               aria-label={`Delete ${lesson.title || 'lesson'}`}
