@@ -415,6 +415,16 @@ export default function CourseDetailBetaPage() {
             if (res.ok) await load()
           } catch { /* swallow — list stays as-is */ }
         }}
+        onBulkLessons={async (op, lessonIds) => {
+          try {
+            const res = await fetch('/api/lessons', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'bulk', op, lessonIds }),
+            })
+            if (res.ok) await load()
+          } catch { /* swallow — list stays as-is */ }
+        }}
         onSaveCourseInfo={onSaveCourseInfo}
         onSaveInviteCode={onSaveInviteCode}
         onSendTelegramTest={onSendTelegramTest}
