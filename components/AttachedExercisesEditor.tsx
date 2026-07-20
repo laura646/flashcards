@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import TrueFalseEditor from './TrueFalseEditor'
 import TypeAnswerEditor from './TypeAnswerEditor'
+import ErrorCorrectionEditor from './ErrorCorrectionEditor'
 import GroupSortEditor from './GroupSortEditor'
 import RankOrderEditor from './RankOrderEditor'
 import UnjumbleEditor from './UnjumbleEditor'
@@ -206,6 +207,14 @@ function AttachedExerciseEditor({
       />
     )
   }
+  if (exercise.type === 'error_correction') {
+    return (
+      <ErrorCorrectionEditor
+        questions={(exercise.questions || []) as Parameters<typeof ErrorCorrectionEditor>[0]['questions']}
+        onChange={(qs) => setQuestions(qs)}
+      />
+    )
+  }
   // multiple_choice — small inline editor (the standalone one is inline
   // in admin/lessons and not yet extracted into a component).
   return <InlineMcqEditor exercise={exercise} onChange={onChange} />
@@ -281,7 +290,7 @@ function InlineMcqEditor({
             className="w-full px-2 py-1.5 text-sm text-[#46464b] border border-[#cddcf0] rounded focus:outline-none focus:border-[#416ebe]"
           />
           <McqOptionsList
-            options={q.options}
+            options={q.options || []}
             correctIndex={q.correctIndex}
             radioName={`mcq-correct-${q.id}`}
             onChange={({ options, correctIndex }) => update(qi, { options, correctIndex })}

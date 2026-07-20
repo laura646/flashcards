@@ -781,7 +781,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 
       const message = await client.messages.create({
         model: SONNET_MODEL,
-        max_tokens: 4096,
+        max_tokens: 8192, // 2 types x 10 questions + Long explanations exceeds 4096
         messages: [{ role: 'user', content: prompt }],
       })
       const textContent = message.content.find((c) => c.type === 'text')
