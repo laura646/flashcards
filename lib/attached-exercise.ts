@@ -10,6 +10,7 @@ export type AttachedExerciseType =
   | 'group_sort'
   | 'rank_order'
   | 'anagram'
+  | 'error_correction'
 
 export interface AttachedExercise {
   id: string
@@ -27,6 +28,7 @@ export const ATTACHED_TYPE_LABELS: Record<AttachedExerciseType, string> = {
   group_sort: 'Group Sort',
   rank_order: 'Rank Order',
   anagram: 'Unjumble',
+  error_correction: 'Error Correction',
 }
 
 export const ATTACHED_TYPE_ICONS: Record<AttachedExerciseType, string> = {
@@ -36,6 +38,7 @@ export const ATTACHED_TYPE_ICONS: Record<AttachedExerciseType, string> = {
   group_sort: '🗂️',
   rank_order: '🔢',
   anagram: '🔀',
+  error_correction: '🔍',
 }
 
 // Empty seed for a new attached exercise of the given type, mirroring
@@ -67,6 +70,8 @@ export function newAttachedExercise(type: AttachedExerciseType): AttachedExercis
       return { id, type, questions: [{ id: crypto.randomUUID(), criterion: '', items: ['', '', ''] }] }
     case 'anagram':
       return { id, type, questions: [{ id: crypto.randomUUID(), word: '', clue: '' }] }
+    case 'error_correction':
+      return { id, type, questions: [{ id: crypto.randomUUID(), incorrect: '', correct: '', hints: '' }] }
   }
 }
 
