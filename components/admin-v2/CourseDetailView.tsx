@@ -179,6 +179,7 @@ interface CourseDetailViewProps {
   onCreateLesson: () => void
   onAssignFromLibrary: () => void
   onDeleteLesson?: (lessonId: string) => Promise<void> | void
+  onSetLessonStatus?: (lessonId: string, status: 'draft' | 'published') => Promise<void> | void
   // Course-info save (update-schedule)
   onSaveCourseInfo: (form: CourseInfoForm) => Promise<{ ok: boolean; error?: string }>
   // Invite-code change is a separate concern (kept via update-course).
@@ -256,6 +257,7 @@ export function CourseDetailView({
   onCreateLesson,
   onAssignFromLibrary,
   onDeleteLesson,
+  onSetLessonStatus,
   onSaveCourseInfo,
   onSaveInviteCode,
   onSendTelegramTest,
@@ -273,6 +275,15 @@ export function CourseDetailView({
     if (!deletingLesson || !onDeleteLesson) { setDeletingLesson(null); return }
     setDeleteBusy(true)
     try { await onDeleteLesson(deletingLesson.id) } finally { setDeleteBusy(false); setDeletingLesson(null) }
+  }
+  // Publish/unpublish toggle. No confirm dialog: the action is reversible and
+  // the button itself flips to the inverse, so the row is its own undo.
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null)
+  const toggleLessonStatus = async (lesson: CourseLessonRow) => {
+    if (!onSetLessonStatus || statusBusyId) return
+    const next = lesson.status === 'published' ? 'draft' : 'published'
+    setStatusBusyId(lesson.id)
+    try { await onSetLessonStatus(lesson.id, next) } finally { setStatusBusyId(null) }
   }
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<CourseInfoForm>({
@@ -522,7 +533,7 @@ export function CourseDetailView({
                     {filteredLessons.map((lesson) => (
                       <div
                         key={lesson.id}
-                        className="w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors"
+                        className="group w-full px-4 py-3.5 flex items-center justify-between gap-3 hover:bg-sky-wash transition-colors"
                       >
                         <button
                           onClick={() => onOpenLesson(lesson.id)}
@@ -538,6 +549,16 @@ export function CourseDetailView({
                           </div>
                         </button>
                         <div className="flex items-center gap-2.5 shrink-0">
+                          {canEdit && onSetLessonStatus && (
+                            <button
+                              onClick={() => toggleLessonStatus(lesson)}
+                              disabled={statusBusyId === lesson.id}
+                              title={lesson.status === 'published' ? 'Move back to draft (hides it from students)' : 'Publish (makes it visible to students)'}
+                              className="text-xs font-bold px-2.5 py-1 rounded-lg border border-hairline text-ink-muted hover:text-ink-black hover:bg-surface disabled:opacity-50 transition-colors sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
+                            >
+                              {statusBusyId === lesson.id ? '…' : lesson.status === 'published' ? 'Unpublish' : 'Publish'}
+                            </button>
+                          )}
                           <Pill variant={lesson.status === 'published' ? 'correct' : 'wash'}>
                             {lesson.status === 'published' ? 'Published' : 'Draft'}
                           </Pill>

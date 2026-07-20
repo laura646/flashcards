@@ -462,6 +462,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+    // ── Lightweight SET-STATUS action ──
+    // Flips a lesson between published and draft. Returns early so we never
+    // run the heavy create/update upsert below (which deletes + reinserts all
+    // child content). Unpublishing only hides the lesson from students — it
+    // never touches progress, scores, or in-flight test attempts.
+    if (body.action === 'set-status') {
+      const { lessonId, status: nextStatus } = body
+      if (!lessonId) {
+        return NextResponse.json({ error: 'Lesson ID required' }, { status: 400 })
+      }
+      if (nextStatus !== 'published' && nextStatus !== 'draft') {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+      }
+
+      // Same permission as edit/delete: lesson owner, teacher with course
+      // access, editor on a SHARED School Library lesson, or superadmin.
+      if (user.role === 'teacher') {
+        const { data: existing } = await supabase
+          .from('lessons')
+          .select('created_by, course_id, is_shared')
+          .eq('id', lessonId)
+          .single()
+        if (!existing) {
+          return NextResponse.json({ error: 'Lesson not found' }, { status: 404 })
+        }
+        const accessible = await getAccessibleCourseIds(user.email, user.role)
+        const editorCanEdit = existing.is_shared === true && (await isEditor(user.email))
+        const hasAccess =
+          existing.created_by === user.email ||
+          (existing.course_id && accessible.includes(existing.course_id)) ||
+          editorCanEdit
+        if (!hasAccess) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+
+      const { error } = await supabase
+        .from('lessons')
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq('id', lessonId)
+      if (error) throw error
+
+      return NextResponse.json({ ok: true, status: nextStatus })
+    }
+
     const {
       lessonId: existingLessonId,
       title,

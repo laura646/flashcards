@@ -405,6 +405,16 @@ export default function CourseDetailBetaPage() {
             if (res.ok) await load()
           } catch { /* swallow — list stays as-is */ }
         }}
+        onSetLessonStatus={async (lessonId, status) => {
+          try {
+            const res = await fetch('/api/lessons', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'set-status', lessonId, status }),
+            })
+            if (res.ok) await load()
+          } catch { /* swallow — list stays as-is */ }
+        }}
         onSaveCourseInfo={onSaveCourseInfo}
         onSaveInviteCode={onSaveInviteCode}
         onSendTelegramTest={onSendTelegramTest}
