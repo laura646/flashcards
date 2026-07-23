@@ -6,3 +6,7 @@ node_modules/
 .vercel
 tsconfig.tsbuildinfo
 supabase-*.sql
+.a1-seed/
+.a2-seed/
+.a2plus-seed/
+.hint-backup-2026-07-23.json

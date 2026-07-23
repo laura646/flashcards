@@ -163,6 +163,19 @@ export default function TypeAnswerEditor({ questions, onChange }: Props) {
             <p className="text-[10px] text-gray-300 mt-1">Students can type any of these and get it right (useful for synonyms)</p>
           </div>
 
+          {/* Hint (manual only — never auto-generated, and hidden during tests) */}
+          <div className="mb-3">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Hint (optional)</label>
+            <input
+              type="text"
+              value={q.hint || ''}
+              onChange={(e) => updateQuestion(i, 'hint', e.target.value || undefined)}
+              placeholder="e.g. Use: didn't + base verb"
+              className="w-full px-3 py-2 text-sm text-[#46464b] border border-[#cddcf0] rounded-lg focus:outline-none focus:border-[#416ebe] transition-colors"
+            />
+            <p className="text-[10px] text-gray-300 mt-1">Shown to students under the prompt. Hidden automatically during tests.</p>
+          </div>
+
           {/* Image */}
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Image (optional)</label>

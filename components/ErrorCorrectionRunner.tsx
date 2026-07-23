@@ -398,7 +398,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
           Sentence {currentIndex + 1}
         </p>
 
-        {current.hints && phase === 'highlight' && (
+        {current.hints && !isTestMode && phase === 'highlight' && (
           <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2 mb-3">
             Hint: {current.hints}
           </p>

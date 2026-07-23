@@ -20,7 +20,7 @@ The document contains one or more exercises. For EACH exercise found, pick the b
 EXERCISE TYPES AND THEIR JSON FORMATS:
 
 1. "multiple_choice" — choose the correct answer from options. Also use this for any sentence with a blank that has a fixed set of options.
-   {"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}
+   {"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "explanation": "Why the correct answer is correct (1 short sentence)."}
 
 2. "match_halves" — match keywords/beginnings with definitions/endings (drag-and-drop matching)
    {"id": 1, "left": "to create", "right": "chairs"}
@@ -36,7 +36,7 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
    {"id": 1, "word": "VOCABULARY", "clue": "A collection of words known to a person"}
 
 8. "type_answer" — type the correct answer freely
-   {"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went", "hint": ""}
+   {"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went"}
 
 9. "group_sort" — sort items into correct category groups
     (uses groupData instead of questions)
@@ -46,7 +46,7 @@ EXERCISE TYPES AND THEIR JSON FORMATS:
    {"id": 1, "text": "She went to school yesterday.", "audio_url": "", "speed": "normal"}
 
 11. "error_correction" — find and correct errors in sentences
-   {"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday.", "hints": "Check the verb tense."}
+   {"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday."}
 
 12. "rank_order" — rank items according to a criterion (e.g. smallest to largest, earliest to latest)
    {"id": 1, "criterion": "Rank from smallest to largest", "items": ["ant", "cat", "elephant", "whale"]}
@@ -350,7 +350,7 @@ FOR "multiple_choice":
   "icon": "relevant emoji",
   "instructions": "Clear instructions",
   "exercise_type": "the_type",
-  "questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c"], "correctIndex": 0, "hint": "optional", "explanation": "Why the correct answer is correct (1 short sentence — optional but strongly preferred)."}]
+  "questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c"], "correctIndex": 0, "explanation": "Why the correct answer is correct (1 short sentence — optional but strongly preferred)."}]
 }
 
 FOR "true_or_false":
@@ -380,7 +380,7 @@ FOR "type_answer":
   "icon": "⌨️",
   "instructions": "Type the correct answer for each question.",
   "exercise_type": "type_answer",
-  "questions": [{"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went", "hint": "optional hint"}]
+  "questions": [{"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went"}]
 }
 
 FOR "group_sort":
@@ -476,7 +476,7 @@ ${exercise.groupData ? `- Group data: ${JSON.stringify(exercise.groupData)}` : '
 TARGET FORMAT for "${newType}":
 
 ${({
-  multiple_choice: `"questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "hint": "", "explanation": "Why the correct answer is correct (1 short sentence)."}]
+  multiple_choice: `"questions": [{"id": 1, "prompt": "Question text", "options": ["a", "b", "c", "d"], "correctIndex": 0, "explanation": "Why the correct answer is correct (1 short sentence)."}]
 - Each question needs a prompt, 3-4 options with one correct answer, and the correctIndex pointing to the right one. Include an optional "explanation" field that briefly justifies the correct answer — shown to the student after they check. Use this type also for sentences with a blank (prompt contains ___ and options are the candidate fills), and for transformation drills (prompt is the instruction, options are the candidate transformed sentences).`,
   match_halves: `"questions": [{"id": 1, "left": "to create", "right": "chairs"}, {"id": 2, "left": "it looks", "right": "colorful"}]
 - Each pair has a "left" (keyword/beginning) and "right" (definition/ending). Students drag left tiles to match right definitions.`,
@@ -486,14 +486,14 @@ ${({
 - Each question has a statement, isTrue boolean, and explanation.`,
   hangman: `"questions": [{"id": 1, "word": "VOCABULARY", "clue": "A collection of words known to a person"}]
 - Each question has a word (UPPERCASE) and a clue.`,
-  type_answer: `"questions": [{"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went", "hint": ""}]
-- Each question has a prompt and the expected typed answer.`,
+  type_answer: `"questions": [{"id": 1, "prompt": "What is the past tense of 'go'?", "answer": "went"}]
+- Each question has a prompt and the expected typed answer. Do NOT add a "hint" field — hints are added manually by the teacher, never auto-generated.`,
   group_sort:`Use "groupData" instead of "questions": {"groups": [{"name": "Category A", "items": ["item1", "item2"]}, {"name": "Category B", "items": ["item3", "item4"]}]}
 - Set questions to an empty array []. Group related items from the original exercise into meaningful categories.`,
   dictation: `"questions": [{"id": 1, "text": "She went to school yesterday.", "audio_url": "", "speed": "normal"}]
 - Each question has the correct text the student must type after listening. audio_url is optional (TTS is auto-generated if empty).`,
-  error_correction: `"questions": [{"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday.", "hints": "Check the verb tense."}]
-- Each question has an incorrect sentence, the correct version, and an optional hint.`,
+  error_correction: `"questions": [{"id": 1, "incorrect": "She go to school yesterday.", "correct": "She went to school yesterday."}]
+- Each question has an incorrect sentence and the correct version. Do NOT add a "hints" field — hints are added manually by the teacher, never auto-generated.`,
   rank_order: `"questions": [{"id": 1, "criterion": "Rank from smallest to largest", "items": ["ant", "cat", "elephant", "whale"]}]
 - Each question has a criterion describing the ranking rule and items in the CORRECT order. The app shuffles them for the student.`,
   text_sequencing: `"questions": [{"id": 1, "segments": ["First, preheat the oven.", "Then, mix the ingredients.", "Next, pour into the pan.", "Finally, bake for 30 minutes."], "level": "sentence"}]
@@ -737,10 +737,10 @@ Return ONLY valid JSON (no markdown, no explanation):
         : 'Set "pitfalls" to an empty array.'
 
       const EX_SHAPES: Record<string, string> = {
-        multiple_choice: `{"id":"e1","type":"multiple_choice","questions":[{"id":"q1","prompt":"…use ___ here","options":["a","b","c","d"],"correctIndex":0,"hint":"","explanation":"Why a is correct (1 sentence)."}]}`,
+        multiple_choice: `{"id":"e1","type":"multiple_choice","questions":[{"id":"q1","prompt":"…use ___ here","options":["a","b","c","d"],"correctIndex":0,"explanation":"Why a is correct (1 sentence)."}]}`,
         true_or_false: `{"id":"e1","type":"true_or_false","questions":[{"id":"q1","statement":"…","isTrue":true,"explanation":"…"}]}`,
-        type_answer: `{"id":"e1","type":"type_answer","questions":[{"id":"q1","prompt":"…","answer":"…","hint":""}]}`,
-        error_correction: `{"id":"e1","type":"error_correction","questions":[{"id":"q1","incorrect":"He go to school.","correct":"He goes to school.","hints":"Third-person -s"}]}`,
+        type_answer: `{"id":"e1","type":"type_answer","questions":[{"id":"q1","prompt":"…","answer":"…"}]}`,
+        error_correction: `{"id":"e1","type":"error_correction","questions":[{"id":"q1","incorrect":"He go to school.","correct":"He goes to school."}]}`,
       }
       const shapesList = types.map((t) => `- ${t}: ${EX_SHAPES[t]}`).join('\n')
 
@@ -892,9 +892,9 @@ Return ONLY valid JSON (no markdown, no explanation):
       const N = Math.max(3, Math.min(10, Number(count_per_type) || 5))
 
       const SHAPES: Record<string, string> = {
-        multiple_choice: `{"type":"multiple_choice","questions":[{"id":"u1","prompt":"…","options":["a","b","c","d"],"correctIndex":0,"hint":"","explanation":"Short reason."}]}`,
+        multiple_choice: `{"type":"multiple_choice","questions":[{"id":"u1","prompt":"…","options":["a","b","c","d"],"correctIndex":0,"explanation":"Short reason."}]}`,
         true_or_false: `{"type":"true_or_false","questions":[{"id":"u1","statement":"…","isTrue":true,"explanation":"Short reason."}]}`,
-        type_answer: `{"type":"type_answer","questions":[{"id":"u1","prompt":"…","answer":"…","hint":""}]}`,
+        type_answer: `{"type":"type_answer","questions":[{"id":"u1","prompt":"…","answer":"…"}]}`,
         group_sort: `{"type":"group_sort","groupData":{"groups":[{"name":"Category A","items":["…","…"]},{"name":"Category B","items":["…","…"]}]}}`,
         rank_order: `{"type":"rank_order","questions":[{"id":"u1","criterion":"…","items":["first","second","third","fourth"]}]}`,
         anagram: `{"type":"anagram","questions":[{"id":"u1","word":"…","clue":"…"}]}`,

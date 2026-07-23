@@ -283,7 +283,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
         <p className="text-lg text-ink-body font-medium leading-relaxed">
           {formatPrompt(current.prompt)}
         </p>
-        {current.hint && (
+        {current.hint && !isTestMode && (
           <p className="text-xs text-ink-muted mt-2 italic">
             Hint: {current.hint}
           </p>
