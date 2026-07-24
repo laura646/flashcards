@@ -539,8 +539,11 @@ export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
           {exercise.instructions || instructionLine}
         </p>
 
-        {/* Paragraph with inline gaps */}
-        <p style={{ fontSize: 15, lineHeight: 2.1, color: INK_BODY }}>
+        {/* Paragraph with inline gaps. `pre-wrap` honors the line breaks the
+            teacher typed (each sentence/conversation on its own line) while
+            still wrapping long lines. Without it the browser collapses every
+            newline into a single space and the whole thing runs together. */}
+        <p style={{ fontSize: 15, lineHeight: 2.1, color: INK_BODY, whiteSpace: 'pre-wrap' }}>
           {parts.map((part, i) =>
             part.type === 'text' ? (
               <span key={`t-${i}`}>{part.value}</span>

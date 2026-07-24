@@ -263,7 +263,7 @@ export default function GapFillEditor({ questions, onChange }: Props) {
             Write a paragraph above, then click words here to gap them.
           </div>
         ) : (
-          <div className="bg-surface border border-hairline rounded-xl px-3 py-3 leading-loose text-sm text-ink-body">
+          <div className="bg-surface border border-hairline rounded-xl px-3 py-3 leading-loose text-sm text-ink-body whitespace-pre-wrap">
             {tokens.map((tok, i) => {
               if (tok.type === 'space') return <span key={i}>{tok.value}</span>
               if (tok.type === 'gap') {
