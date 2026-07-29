@@ -182,7 +182,7 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
   const coverShown = coverParts.length > 0
   const totalPages = (coverShown ? 1 : 0) + students.length
   const footer = (pageNum: number) =>
-    `<div class="ft"><span>English with Laura · Confidential</span><span>Page ${pageNum} of ${totalPages}</span></div>`
+    `<div class="ft"><span></span><span>Page ${pageNum} of ${totalPages}</span></div>`
   const cover = coverShown
     ? `<section class="page">` +
       hdr('Group report', `${period}${esc(generatedOn)}`) +
