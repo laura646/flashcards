@@ -11,7 +11,10 @@
 
 import type { StudentReport } from '@/components/admin-v2/ReportsView'
 
-export type ExportSection = 'summary' | 'kpis' | 'cefr' | 'attendance' | 'exam_tests' | 'manual_tests' | 'writing' | 'notes'
+export type ExportSection =
+  | 'summary'
+  | 'kpi_words' | 'kpi_completion' | 'kpi_score' | 'kpi_streak' | 'kpi_rank'
+  | 'cefr' | 'attendance' | 'exam_tests' | 'manual_tests' | 'writing' | 'notes'
 
 export type GroupSection = 'summary' | 'progress' | 'overview' | 'shortlists'
 
@@ -61,13 +64,11 @@ export function buildReportCsv(students: StudentReport[], opts: ExportOptions): 
     cols.push({ header: 'Goal level', get: () => opts.goalLevel || '' })
     cols.push({ header: 'Course progress %', get: (r) => r.courseProgressPct ?? '' })
   }
-  if (has(opts.sections, 'kpis')) {
-    cols.push({ header: 'Words learned', get: (r) => r.wordsLearned })
-    cols.push({ header: 'Completion %', get: (r) => r.completionPct })
-    cols.push({ header: 'Avg score %', get: (r) => r.avgLatestPct ?? '' })
-    cols.push({ header: 'Streak', get: (r) => r.streak })
-    cols.push({ header: 'Group rank', get: (r) => (r.groupRank != null ? `${r.groupRank}/${r.groupSize}` : '') })
-  }
+  if (has(opts.sections, 'kpi_words')) cols.push({ header: 'Words learned', get: (r) => r.wordsLearned })
+  if (has(opts.sections, 'kpi_completion')) cols.push({ header: 'Completion %', get: (r) => r.completionPct })
+  if (has(opts.sections, 'kpi_score')) cols.push({ header: 'Avg score %', get: (r) => r.avgLatestPct ?? '' })
+  if (has(opts.sections, 'kpi_streak')) cols.push({ header: 'Streak', get: (r) => r.streak })
+  if (has(opts.sections, 'kpi_rank')) cols.push({ header: 'Group rank', get: (r) => (r.groupRank != null ? `${r.groupRank}/${r.groupSize}` : '') })
   if (has(opts.sections, 'attendance')) {
     cols.push({ header: 'Attendance %', get: (r) => attendanceCounts(r).pct ?? '' })
   }
@@ -201,16 +202,16 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
       if (has(opts.sections, 'summary') && r.aiSummary) {
         parts.push(`<div class="sec"><div class="h">Summary</div><p>${esc(r.aiSummary)}</p></div>`)
       }
-      if (has(opts.sections, 'kpis')) {
-        parts.push(
-          `<div class="sec"><div class="h">Key metrics</div><table class="kpi"><tr>` +
-            `<td><b>${r.wordsLearned}</b><span>Words learned</span></td>` +
-            `<td><b>${r.completionPct}%</b><span>Completion</span></td>` +
-            `<td><b>${r.avgLatestPct ?? '—'}${r.avgLatestPct != null ? '%' : ''}</b><span>Avg score</span></td>` +
-            `<td><b>${r.attendancePct != null ? r.attendancePct + '%' : '—'}</b><span>Attendance</span></td>` +
-            `<td><b>${r.groupRank != null ? '#' + r.groupRank : '—'}</b><span>Group rank</span></td>` +
-            `</tr></table></div>`
-        )
+      {
+        const kpiCells: string[] = []
+        if (has(opts.sections, 'kpi_words')) kpiCells.push(`<td><b>${r.wordsLearned}</b><span>Words learned</span></td>`)
+        if (has(opts.sections, 'kpi_completion')) kpiCells.push(`<td><b>${r.completionPct}%</b><span>Completion</span></td>`)
+        if (has(opts.sections, 'kpi_score')) kpiCells.push(`<td><b>${r.avgLatestPct ?? '—'}${r.avgLatestPct != null ? '%' : ''}</b><span>Avg score</span></td>`)
+        if (has(opts.sections, 'kpi_streak')) kpiCells.push(`<td><b>${r.streak}</b><span>Day streak</span></td>`)
+        if (has(opts.sections, 'kpi_rank')) kpiCells.push(`<td><b>${r.groupRank != null ? '#' + r.groupRank : '—'}</b><span>Group rank</span></td>`)
+        if (kpiCells.length > 0) {
+          parts.push(`<div class="sec"><div class="h">Key metrics</div><table class="kpi"><tr>${kpiCells.join('')}</tr></table></div>`)
+        }
       }
       if (has(opts.sections, 'cefr')) {
         parts.push(

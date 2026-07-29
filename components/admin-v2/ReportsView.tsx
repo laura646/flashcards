@@ -380,7 +380,11 @@ function WritingCard({ report }: { report: StudentReport }) {
 // Available to admins AND HR.
 const EXPORT_SECTIONS: { key: ExportSection; label: string }[] = [
   { key: 'summary', label: 'AI summary' },
-  { key: 'kpis', label: 'KPIs' },
+  { key: 'kpi_words', label: 'Words learned' },
+  { key: 'kpi_completion', label: 'Completion %' },
+  { key: 'kpi_score', label: 'Avg score %' },
+  { key: 'kpi_streak', label: 'Day streak' },
+  { key: 'kpi_rank', label: 'Group rank' },
   { key: 'cefr', label: 'CEFR / progress' },
   { key: 'attendance', label: 'Attendance' },
   { key: 'exam_tests', label: 'Exam-mode tests' },
