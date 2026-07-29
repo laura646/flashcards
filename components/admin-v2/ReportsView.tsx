@@ -35,7 +35,9 @@ export interface StudentReport {
   vocab: number[] // 5 counts: New, Learning, Familiar, Known, Mastered
   attendance: { lesson: string; status: 'present' | 'absent' | 'late' | 'excused' }[]
   tests: { title: string; type: string; score: number }[]
+  examTests: { title: string; date: string | null; score: number; total: number; pct: number | null }[]
   manualTests: { id: string; name: string; date: string | null; scorePct: number | null; source: string }[]
+  writingAssignments: { title: string; date: string | null; scorePct: number | null; band: string | null }[]
   notes: { tag: string; author: string; text: string }[]
   archived?: boolean
 }
@@ -257,13 +259,12 @@ function TestsCard({ report, onAdd, onDelete }: {
     setAdding(false)
   }, [report.email])
 
-  const pillCls = (n: number | null) => (n != null && n >= 80 ? 'bg-correct-bg text-correct-fg' : 'bg-sky-wash text-sky-text')
-  const empty = report.tests.length === 0 && report.manualTests.length === 0
+  const empty = report.examTests.length === 0 && report.manualTests.length === 0
 
   return (
     <div className="bg-white rounded-card border border-hairline p-5">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">Tests</p>
+        <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted">Test results</p>
         {onAdd && !adding && (
           <button onClick={() => setAdding(true)} className="text-[12px] text-sky-text border border-hairline rounded-tile px-2.5 py-1 hover:bg-surface">+ Add result</button>
         )}
@@ -272,26 +273,42 @@ function TestsCard({ report, onAdd, onDelete }: {
       {empty && !adding ? (
         <p className="text-[13px] text-ink-muted">No tests yet.</p>
       ) : (
-        <div className="space-y-1.5">
-          {report.tests.map((t) => (
-            <div key={`p-${t.title}`} className="flex items-center justify-between text-[13px]">
-              <span className="text-ink-body">{t.title}</span>
-              <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${t.score >= 80 ? 'bg-correct-bg text-correct-fg' : 'bg-sky-wash text-sky-text'}`}>{t.score}%</span>
+        <div className="space-y-3">
+          {report.examTests.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-eyebrow text-ink-muted">Exam-mode tests</p>
+              {report.examTests.map((t, i) => (
+                <div key={`e-${i}-${t.title}`} className="flex items-center justify-between text-[13px] gap-2">
+                  <span className="text-ink-body flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">{t.title}</span>
+                    {t.date && <span className="text-[11px] text-ink-muted shrink-0">{t.date}</span>}
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-ink-muted text-[12px]">{t.score}/{t.total}</span>
+                    <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${pillCls(t.pct)}`}>{t.pct != null ? `${t.pct}%` : '—'}</span>
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-          {report.manualTests.map((t) => (
-            <div key={`m-${t.id}`} className="flex items-center justify-between text-[13px] gap-2">
-              <span className="text-ink-body flex items-center gap-1.5 min-w-0">
-                <span className="truncate">{t.name}</span>
-                <span className="text-[10px] font-bold text-ink-muted bg-surface rounded px-1.5 py-0.5 shrink-0">{t.source}</span>
-                {t.date && <span className="text-[11px] text-ink-muted shrink-0">{t.date}</span>}
-              </span>
-              <span className="flex items-center gap-1.5 shrink-0">
-                <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${pillCls(t.scorePct)}`}>{t.scorePct != null ? `${t.scorePct}%` : '—'}</span>
-                {onDelete && <button onClick={() => onDelete(t.id, report.email)} className="text-ink-muted hover:text-incorrect-fg text-[12px]" aria-label="Delete test result">✕</button>}
-              </span>
+          )}
+          {report.manualTests.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-eyebrow text-ink-muted">Manual entries</p>
+              {report.manualTests.map((t) => (
+                <div key={`m-${t.id}`} className="flex items-center justify-between text-[13px] gap-2">
+                  <span className="text-ink-body flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">{t.name}</span>
+                    <span className="text-[10px] font-bold text-ink-muted bg-surface rounded px-1.5 py-0.5 shrink-0">{t.source}</span>
+                    {t.date && <span className="text-[11px] text-ink-muted shrink-0">{t.date}</span>}
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${pillCls(t.scorePct)}`}>{t.scorePct != null ? `${t.scorePct}%` : '—'}</span>
+                    {onDelete && <button onClick={() => onDelete(t.id, report.email)} className="text-ink-muted hover:text-incorrect-fg text-[12px]" aria-label="Delete test result">✕</button>}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -330,6 +347,34 @@ function TestsCard({ report, onAdd, onDelete }: {
   )
 }
 
+// Score-pill colour: green at 80%+, sky otherwise. Shared across cards.
+const pillCls = (n: number | null) => (n != null && n >= 80 ? 'bg-correct-bg text-correct-fg' : 'bg-sky-wash text-sky-text')
+
+// Written assignments card: itemized graded writing (percentage + CEFR band),
+// read-only. Graded from the Writing tab; ungraded pieces are not shown.
+function WritingCard({ report }: { report: StudentReport }) {
+  if (report.writingAssignments.length === 0) return null
+  return (
+    <div className="bg-white rounded-card border border-hairline p-5">
+      <p className="text-[11px] font-extrabold uppercase tracking-eyebrow text-ink-muted mb-3">Written assignments</p>
+      <div className="space-y-1.5">
+        {report.writingAssignments.map((w, i) => (
+          <div key={`w-${i}-${w.title}`} className="flex items-center justify-between text-[13px] gap-2">
+            <span className="text-ink-body flex items-center gap-1.5 min-w-0">
+              <span className="truncate">{w.title}</span>
+              {w.date && <span className="text-[11px] text-ink-muted shrink-0">{w.date}</span>}
+            </span>
+            <span className="flex items-center gap-1.5 shrink-0">
+              <span className={`font-bold px-2 py-0.5 rounded-full text-[11px] ${pillCls(w.scorePct)}`}>{w.scorePct != null ? `${w.scorePct}%` : '—'}</span>
+              {w.band && <span className="font-bold px-2 py-0.5 rounded-full text-[11px] bg-sky-wash text-sky-text">{w.band}</span>}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Export dialog — pick learners + sections + format, then download CSV (Excel)
 // or open a branded print window (PDF). Fully client-side from loaded data.
 // Available to admins AND HR.
@@ -338,7 +383,9 @@ const EXPORT_SECTIONS: { key: ExportSection; label: string }[] = [
   { key: 'kpis', label: 'KPIs' },
   { key: 'cefr', label: 'CEFR / progress' },
   { key: 'attendance', label: 'Attendance' },
-  { key: 'tests', label: 'Test results' },
+  { key: 'exam_tests', label: 'Exam-mode tests' },
+  { key: 'manual_tests', label: 'Manual test entries' },
+  { key: 'writing', label: 'Written assignments' },
   { key: 'notes', label: "Teacher's notes" },
 ]
 
@@ -858,6 +905,8 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
           </Card>
 
           <TestsCard report={s} onAdd={onAddTest} onDelete={onDeleteTest} />
+
+          <WritingCard report={s} />
 
           <Card title="Attendance">
             {s.attendance.length === 0 ? (

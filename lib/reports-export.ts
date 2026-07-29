@@ -11,7 +11,7 @@
 
 import type { StudentReport } from '@/components/admin-v2/ReportsView'
 
-export type ExportSection = 'summary' | 'kpis' | 'cefr' | 'attendance' | 'tests' | 'notes'
+export type ExportSection = 'summary' | 'kpis' | 'cefr' | 'attendance' | 'exam_tests' | 'manual_tests' | 'writing' | 'notes'
 
 export type GroupSection = 'summary' | 'progress' | 'overview' | 'shortlists'
 
@@ -71,8 +71,14 @@ export function buildReportCsv(students: StudentReport[], opts: ExportOptions): 
   if (has(opts.sections, 'attendance')) {
     cols.push({ header: 'Attendance %', get: (r) => attendanceCounts(r).pct ?? '' })
   }
-  if (has(opts.sections, 'tests')) {
-    cols.push({ header: 'Tests taken', get: (r) => r.tests.length + r.manualTests.length })
+  if (has(opts.sections, 'exam_tests')) {
+    cols.push({ header: 'Exam-mode tests', get: (r) => r.examTests.map((t) => `${t.title}: ${t.score}/${t.total}${t.pct != null ? ` (${t.pct}%)` : ''}`).join(' | ') })
+  }
+  if (has(opts.sections, 'manual_tests')) {
+    cols.push({ header: 'Manual test entries', get: (r) => r.manualTests.map((t) => `${t.name} (${t.source}): ${t.scorePct != null ? t.scorePct + '%' : '—'}`).join(' | ') })
+  }
+  if (has(opts.sections, 'writing')) {
+    cols.push({ header: 'Written assignments', get: (r) => r.writingAssignments.map((w) => `${w.title}: ${w.scorePct != null ? w.scorePct + '%' : '—'}${w.band ? ` · ${w.band}` : ''}`).join(' | ') })
   }
   if (has(opts.sections, 'summary')) {
     cols.push({ header: 'AI summary', get: (r) => r.aiSummary || '' })
@@ -216,12 +222,17 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
           `<div class="sec"><div class="h">Attendance</div><p>${att.pct != null ? att.pct + '%' : '—'} · ${att.present} present, ${att.late} late, ${att.absent} absent${att.excused ? `, ${att.excused} excused` : ''}</p></div>`
         )
       }
-      if (has(opts.sections, 'tests')) {
-        const tests = [
-          ...r.tests.map((t) => `${esc(t.title)}: ${t.score}%`),
-          ...r.manualTests.map((t) => `${esc(t.name)} (${esc(t.source)}): ${t.scorePct != null ? t.scorePct + '%' : '—'}`),
-        ]
-        parts.push(`<div class="sec"><div class="h">Tests</div>${tests.length ? `<ul>${tests.map((t) => `<li>${t}</li>`).join('')}</ul>` : '<p>No tests.</p>'}</div>`)
+      if (has(opts.sections, 'exam_tests')) {
+        const tests = r.examTests.map((t) => `${esc(t.title)}${t.date ? ` (${esc(t.date)})` : ''}: ${t.score}/${t.total}${t.pct != null ? ` · ${t.pct}%` : ''}`)
+        parts.push(`<div class="sec"><div class="h">Exam-mode tests</div>${tests.length ? `<ul>${tests.map((t) => `<li>${t}</li>`).join('')}</ul>` : '<p>No exam-mode tests.</p>'}</div>`)
+      }
+      if (has(opts.sections, 'manual_tests')) {
+        const tests = r.manualTests.map((t) => `${esc(t.name)} (${esc(t.source)})${t.date ? ` ${esc(t.date)}` : ''}: ${t.scorePct != null ? t.scorePct + '%' : '—'}`)
+        parts.push(`<div class="sec"><div class="h">Manual test entries</div>${tests.length ? `<ul>${tests.map((t) => `<li>${t}</li>`).join('')}</ul>` : '<p>No manual test entries.</p>'}</div>`)
+      }
+      if (has(opts.sections, 'writing')) {
+        const items = r.writingAssignments.map((w) => `${esc(w.title)}${w.date ? ` (${esc(w.date)})` : ''}: ${w.scorePct != null ? w.scorePct + '%' : '—'}${w.band ? ` · ${esc(w.band)}` : ''}`)
+        parts.push(`<div class="sec"><div class="h">Written assignments</div>${items.length ? `<ul>${items.map((t) => `<li>${t}</li>`).join('')}</ul>` : '<p>No graded writing.</p>'}</div>`)
       }
       if (has(opts.sections, 'notes')) {
         parts.push(

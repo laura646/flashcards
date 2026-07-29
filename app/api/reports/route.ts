@@ -445,26 +445,42 @@ export async function GET(req: NextRequest) {
       if (!aErr && aRows) assessments = aRows as typeof assessments
     }
 
-    // 13. Graded writing submissions → folded into accuracy by reports-compute.
+    // 13. Graded writing submissions → folded into accuracy by reports-compute
+    //     (writingGrades) AND surfaced itemized in the report (writingAssignments).
     //     Best-effort (table may be pre-migration); never 500 the report.
     let writingGrades: { student_email: string; score_pct: number }[] = []
+    let writingAssignments: { student_email: string; title: string; score_pct: number; cefr_band: string | null; graded_at: string | null }[] = []
     if (studentEmails.length > 0) {
       const { data: wRows, error: wErr } = await supabase
         .from('writing_feedback')
-        .select('student_email, block_id, score_pct, graded_at')
+        .select('student_email, block_id, score_pct, cefr_band, graded_at')
         .eq('course_id', courseId)
         .not('score_pct', 'is', null)
         .order('graded_at', { ascending: false })
       if (!wErr && wRows) {
+        // Resolve a human title for each writing block: the block's own title,
+        // else its lesson's title, else a generic label.
+        const blockTitle = new Map<string, string>()
+        for (const b of writingBlocks as { id: string; lesson_id: string; title: string | null }[]) {
+          const lessonTitle = (lessons || []).find((l) => l.id === b.lesson_id)?.title || null
+          blockTitle.set(b.id, b.title || lessonTitle || 'Writing task')
+        }
         // Keep only the latest grade per (student, writing block) — mirrors the
         // exercise "latest attempt per item" rule so a re-grade isn't double-counted.
         const seen = new Set<string>()
-        for (const w of wRows as { student_email: string; block_id: string | null; score_pct: number | null }[]) {
+        for (const w of wRows as { student_email: string; block_id: string | null; score_pct: number | null; cefr_band: string | null; graded_at: string | null }[]) {
           if (typeof w.score_pct !== 'number') continue
           const key = `${w.student_email}|${w.block_id ?? ''}`
           if (seen.has(key)) continue
           seen.add(key)
           writingGrades.push({ student_email: w.student_email, score_pct: w.score_pct })
+          writingAssignments.push({
+            student_email: w.student_email,
+            title: (w.block_id && blockTitle.get(w.block_id)) || 'Writing task',
+            score_pct: w.score_pct,
+            cefr_band: w.cefr_band ?? null,
+            graded_at: w.graded_at ?? null,
+          })
         }
       }
     }
@@ -490,6 +506,7 @@ export async function GET(req: NextRequest) {
       archivedEmails,
       assessments,
       writingGrades,
+      writingAssignments,
     })
   } catch (err) {
     console.error('Reports GET error:', err)

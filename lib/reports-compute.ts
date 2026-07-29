@@ -158,6 +158,9 @@ export interface ReportsData {
   // Graded writing submissions (score_pct 0-100) — folded into accuracy so a
   // teacher's writing grade "counts". Optional: older payloads omit it.
   writingGrades?: { student_email: string; score_pct: number }[]
+  // Itemized graded writing (one row per graded piece) for the Written
+  // Assignments report section. Optional: older payloads omit it.
+  writingAssignments?: { student_email: string; title: string; score_pct: number; cefr_band: string | null; graded_at: string | null }[]
 }
 
 // ─────────── StudentReport (ReportsView contract) ───────────
@@ -188,7 +191,12 @@ export interface StudentReport {
   vocab: number[] // 5 counts: New, Learning, Familiar, Known, Mastered
   attendance: { lesson: string; status: AttendanceStatus }[]
   tests: { title: string; type: string; score: number }[]
+  // Automated exam-mode tests (test_sessions) — the authoritative in-app test
+  // scores. Raw score/total + a derived percentage.
+  examTests: { title: string; date: string | null; score: number; total: number; pct: number | null }[]
   manualTests: { id: string; name: string; date: string | null; scorePct: number | null; source: string }[]
+  // Itemized graded writing: one row per graded piece (percentage + CEFR band).
+  writingAssignments: { title: string; date: string | null; scorePct: number | null; band: string | null }[]
   notes: { tag: string; author: string; text: string }[]
   archived?: boolean
 }
@@ -815,6 +823,32 @@ export function buildStudentReports(data: ReportsData, days: ReportsDays): Stude
               : null,
             scorePct: a.score != null && a.max_score ? Math.round((a.score / a.max_score) * 100) : null,
             source: a.source || 'Written',
+          })),
+        // Automated exam-mode tests: submitted test_sessions for this student,
+        // titled by their lesson, newest first.
+        examTests: (data.testSessions || [])
+          .filter((t) => t.user_email === student.email && t.submitted_at)
+          .sort((a, b) => (b.submitted_at || '').localeCompare(a.submitted_at || ''))
+          .map((t) => ({
+            title: (data.lessons || []).find((l) => l.id === t.lesson_id)?.title || 'Test',
+            date: t.submitted_at
+              ? new Date(t.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+              : null,
+            score: t.score ?? 0,
+            total: t.total ?? 0,
+            pct: t.total ? Math.round(((t.score ?? 0) / t.total) * 100) : null,
+          })),
+        // Itemized graded writing: one row per graded piece, newest first.
+        writingAssignments: (data.writingAssignments || [])
+          .filter((w) => w.student_email === student.email)
+          .sort((a, b) => (b.graded_at || '').localeCompare(a.graded_at || ''))
+          .map((w) => ({
+            title: w.title,
+            date: w.graded_at
+              ? new Date(w.graded_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+              : null,
+            scorePct: typeof w.score_pct === 'number' ? Math.round(w.score_pct) : null,
+            band: w.cefr_band ?? null,
           })),
         notes: studentNotes,
         aiSummary: null,
