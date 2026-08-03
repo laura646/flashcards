@@ -67,7 +67,7 @@ interface Props {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     questions: any
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -224,11 +224,19 @@ export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
   const handleCheck = () => {
     if (checked) return
     const correct = gaps.filter((g) => isCorrectGap(g)).length
+    const per = gaps.map((g) => isCorrectGap(g))
+    const studentAnswers = gaps.map((g) => {
+      if (mode === 'word_bank') {
+        const k = placedByGap[g.id]
+        return bankTiles.find((t) => t.key === k)?.word ?? '(no answer)'
+      }
+      return values[g.id] || '(no answer)'
+    })
     setScore(correct)
     setChecked(true)
     setOpenGap(null)
     setArmedTile(null)
-    onComplete(correct, total)
+    onComplete(correct, total, per, studentAnswers)
   }
 
   const handleReset = () => {

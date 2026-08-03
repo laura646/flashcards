@@ -16,7 +16,7 @@ export function ArticleView({
   testMode = false,
 }: {
   content: ArticleContent
-  onScore?: (score: number, total: number) => void
+  onScore?: (score: number, total: number, detail?: Record<string, { per: boolean[] | null; answers: unknown[] | null }>) => void
   // Exam mode: follow-ups run without feedback (see BlockExercisesRunner).
   testMode?: boolean
 }) {
@@ -61,7 +61,7 @@ export function ArticleView({
             <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
             <BlockExercisesRunner
               exercises={effective}
-              onScore={(s, t) => onScore?.(s, t)}
+              onScore={(s, t, d) => onScore?.(s, t, d)}
               testMode={testMode}
             />
           </div>

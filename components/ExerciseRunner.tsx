@@ -7,7 +7,7 @@ interface Props {
   exercise: Exercise
   // perQuestionResults is optional — used by the test-lock flow so the
   // "already submitted" review screen can render right/wrong per question.
-  onComplete: (score: number, total: number, perQuestionResults?: boolean[]) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -129,7 +129,13 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
   const handleSubmit = () => {
     setSubmitted(true)
     const perQuestionResults = exercise.questions.map((q, i) => isQuestionCorrect(q, answers[i]))
-    onComplete(computeScore(), exercise.questions.length, perQuestionResults)
+    const studentAnswers = exercise.questions.map((q, i) => {
+      const a = answers[i]
+      if (a === null) return '(no answer)'
+      if (Array.isArray(a)) return a.map((x) => q.options[x]).join(', ') || '(no answer)'
+      return q.options[a as number] ?? '(no answer)'
+    })
+    onComplete(computeScore(), exercise.questions.length, perQuestionResults, studentAnswers)
     setCurrentIndex(0)
   }
 

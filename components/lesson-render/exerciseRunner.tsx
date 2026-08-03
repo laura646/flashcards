@@ -48,7 +48,7 @@ export interface StandaloneRunnerExercise {
 
 export function renderStandaloneRunner(
   exercise: StandaloneRunnerExercise,
-  onComplete: (score: number, total: number, perQuestionResults?: boolean[]) => void,
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void,
   onBack: () => void
 ): React.ReactNode {
   const exType = exercise.exercise_type
@@ -107,25 +107,27 @@ export function BlockExercisesRunner({
   testMode = false,
 }: {
   exercises: Exercise[]
-  onScore: (score: number, total: number) => void
+  onScore: (score: number, total: number, detail?: Record<string, { per: boolean[] | null; answers: unknown[] | null }>) => void
   // Exam mode: forces test_type onto every attached exercise (batch answering,
   // no per-question feedback) and swaps a finished runner for a neutral
   // "Answered" tile — embedded runners stay mounted, so without the swap
   // their end-of-run summaries would reveal correct answers mid-test.
   testMode?: boolean
 }) {
-  const [scores, setScores] = useState<Record<string, { score: number; total: number }>>({})
+  const [scores, setScores] = useState<Record<string, { score: number; total: number; per?: boolean[] | null; answers?: unknown[] | null }>>({})
 
-  const reportScore = (exId: string, score: number, total: number) => {
+  const reportScore = (exId: string, score: number, total: number, per?: boolean[], answers?: unknown[]) => {
     setScores((prev) => {
-      const next = { ...prev, [exId]: { score, total } }
+      const next = { ...prev, [exId]: { score, total, per: per ?? null, answers: answers ?? null } }
       let s = 0
       let t = 0
-      for (const v of Object.values(next)) {
+      const detail: Record<string, { per: boolean[] | null; answers: unknown[] | null }> = {}
+      for (const [k, v] of Object.entries(next)) {
         s += v.score
         t += v.total
+        detail[k] = { per: v.per ?? null, answers: v.answers ?? null }
       }
-      onScore(s, t)
+      onScore(s, t, detail)
       return next
     })
   }
@@ -154,7 +156,7 @@ export function BlockExercisesRunner({
             <Suspense fallback={<ExerciseLoadingFallback />}>
               {renderStandaloneRunner(
                 testMode ? { ...ex, test_type: ex.test_type || 'test' } : ex,
-                (s, t) => reportScore(key, s, t),
+                (s, t, per, ans) => reportScore(key, s, t, per, ans),
                 () => { /* embedded — no back nav */ }
               )}
             </Suspense>

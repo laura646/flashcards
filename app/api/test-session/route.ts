@@ -107,6 +107,29 @@ export async function GET(req: NextRequest) {
     if (!(await canTakeOrView(email, role, lesson.course_id))) return err('Forbidden', 403)
 
     // ── teacher results table ──
+    if (req.nextUrl.searchParams.get('view') === 'teacher-review') {
+      if (role !== 'teacher' && role !== 'superadmin') return err('Forbidden', 403)
+      const studentEmail = req.nextUrl.searchParams.get('student_email') || ''
+      if (!studentEmail) return err('student_email required', 400)
+      const attempt = await loadSession(lessonId, studentEmail)
+      if (!attempt || !attempt.submitted_at) return err('No submitted attempt for this student', 404)
+      const exercises = await loadTestExercises(lessonId)
+      const blocks = await loadTestBlocks(lessonId)
+      const { data: ansRows } = await supabase
+        .from('test_session_answers')
+        .select('*')
+        .eq('session_id', attempt.id)
+      return NextResponse.json({
+        session: {
+          score: attempt.score, total: attempt.total,
+          started_at: attempt.started_at, submitted_at: attempt.submitted_at,
+          auto_submitted: !!attempt.auto_submitted,
+        },
+        exercises, blocks,
+        answers: ansRows || [],
+      })
+    }
+
     if (req.nextUrl.searchParams.get('view') === 'teacher') {
       if (role !== 'teacher' && role !== 'superadmin') return err('Forbidden', 403)
       // Roster: course_students has NO name column — names live on users
@@ -253,7 +276,7 @@ export async function POST(req: NextRequest) {
     item_type?: string
     score?: number
     total?: number
-    per_question_results?: boolean[]
+    per_question_results?: boolean[]; student_answers?: unknown
   }
   try {
     body = await req.json()
@@ -335,17 +358,31 @@ export async function POST(req: NextRequest) {
       const safeTotal = cap
       const safeScore = Math.max(0, Math.min(Math.round(score), cap))
 
-      const { error } = await supabase.from('test_session_answers').upsert(
-        {
+      // Student answer content (what they chose/typed) — capped so a
+      // hostile client can't stuff megabytes into the row.
+      let studentAnswers: unknown = null
+      if (body.student_answers != null) {
+        try {
+          const encoded = JSON.stringify(body.student_answers)
+          if (encoded.length <= 20000) studentAnswers = body.student_answers
+        } catch { studentAnswers = null }
+      }
+      const answerRow: Record<string, unknown> = {
           session_id: attempt.id,
           exercise_id,
           score: safeScore,
           total: safeTotal,
           per_question_results: Array.isArray(per_question_results) ? per_question_results : null,
+          student_answers: studentAnswers,
           updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'session_id,exercise_id' }
-      )
+      }
+      let { error } = await supabase.from('test_session_answers').upsert(answerRow, { onConflict: 'session_id,exercise_id' })
+      if (error && String(error.message || '').includes('student_answers')) {
+        // Live DB predates the student_answers column — degrade gracefully
+        // (scores still save) until the migration is run.
+        delete answerRow.student_answers
+        ;({ error } = await supabase.from('test_session_answers').upsert(answerRow, { onConflict: 'session_id,exercise_id' }))
+      }
       if (error) throw error
       return NextResponse.json({ ok: true, score: safeScore, total: safeTotal })
     }
