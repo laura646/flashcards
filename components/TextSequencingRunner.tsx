@@ -15,7 +15,7 @@ interface Props {
     questions: TextSequencingQuestion[]
     test_type?: string | null
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -121,7 +121,9 @@ export default function TextSequencingRunner({ exercise, onComplete, onBack }: P
     if (allDone) {
       const score = latestResults.filter((r) => r?.correct).length
       setFinished(true)
-      onComplete(score, exercise.questions.length)
+      onComplete(score, exercise.questions.length,
+        latestResults.map((r) => !!r?.correct),
+        latestResults.map((r) => (r ? r.order.join(' \u2192 ') : '(no answer)')))
       return
     }
 

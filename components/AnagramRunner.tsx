@@ -16,7 +16,7 @@ interface Props {
     questions: AnagramQuestion[]
     test_type?: string | null
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -251,7 +251,9 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
     if (allDone) {
       setFinished(true)
       const score = latestResults.filter(r => r === true).length
-      onComplete(score, exercise.questions.length)
+      onComplete(score, exercise.questions.length,
+        latestResults.map((r) => r === true),
+        exercise.questions.map((q: { word: string }, i: number) => (latestResults[i] ? q.word : '(not solved)')))
       return
     }
     let next = currentIndex + 1

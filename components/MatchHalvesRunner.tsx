@@ -16,7 +16,7 @@ interface Props {
     instructions: string
     questions: MatchPair[]
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -125,7 +125,12 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
       const placedTileId = placements[slot.id]
       return acc + (placedTileId === slot.id ? 1 : 0)
     }, 0)
-    onComplete(score, pairs.length)
+    onComplete(score, pairs.length,
+      shuffledRightSlots.map((slot) => placements[slot.id] === slot.id),
+      shuffledRightSlots.map((slot) => {
+        const tile = shuffledLeftTiles.find((t) => t.id === placements[slot.id])
+        return slot.text + ' \u2190 ' + (tile ? tile.text : '(no answer)')
+      }))
   }
 
   const allPlaced = Object.keys(placements).length === pairs.length

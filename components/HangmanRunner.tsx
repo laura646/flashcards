@@ -15,7 +15,7 @@ interface Props {
     questions: HangmanQuestion[]
     test_type?: string | null
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -181,7 +181,8 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
     } else {
       const finalResults = [...results, won]
       const score = finalResults.filter(Boolean).length
-      onComplete(score, totalWords)
+      onComplete(score, totalWords, finalResults,
+        exercise.questions.map((q: { word: string }, i: number) => (finalResults[i] ? q.word : '(not solved)')))
     }
   }
 

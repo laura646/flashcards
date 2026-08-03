@@ -15,7 +15,7 @@ interface Props {
     instructions: string
     questions: ClozeListeningQuestion[]
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -181,8 +181,17 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
           }
         })
       })
+      const per: boolean[] = []
+      const given: string[] = []
+      exercise.questions.forEach((q, i) => {
+        Object.keys(q.blanks).forEach((blankId) => {
+          const g = (answers[i][blankId] || '').trim()
+          given.push(g || '(no answer)')
+          per.push(g.toLowerCase() === q.blanks[blankId].trim().toLowerCase())
+        })
+      })
       setFinished(true)
-      onComplete(correctBlanks, totalBlanks)
+      onComplete(correctBlanks, totalBlanks, per, given)
     }
   }
 

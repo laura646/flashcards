@@ -16,7 +16,7 @@ interface Props {
     instructions: string
     questions: CompleteSentenceQuestion[]
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -148,8 +148,17 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
       setSelectedWord(null)
     } else {
       const { score, total } = computeScore()
+      const per: boolean[] = []
+      const given: string[] = []
+      exercise.questions.forEach((q, i) => {
+        Object.keys(q.blanks).forEach((blankId) => {
+          const g = placements[i]?.[blankId]
+          given.push(g || '(no answer)')
+          per.push((g || '').toLowerCase() === q.blanks[blankId].toLowerCase())
+        })
+      })
       setFinished(true)
-      onComplete(score, total)
+      onComplete(score, total, per, given)
     }
   }
 

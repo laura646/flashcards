@@ -17,7 +17,7 @@ interface Props {
     questions: OddOneOutQuestion[]
     test_type?: string | null
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -29,6 +29,7 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
   const [results, setResults] = useState<(boolean | null)[]>(
     new Array(exercise.questions.length).fill(null)
   )
+  const [picks, setPicks] = useState<(number | null)[]>(new Array(exercise.questions.length).fill(null))
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [finished, setFinished] = useState(false)
 
@@ -56,6 +57,9 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
     const newResults = [...results]
     newResults[currentIndex] = isCorrect
     setResults(newResults)
+    const newPicks = [...picks]
+    newPicks[currentIndex] = selectedIndex
+    setPicks(newPicks)
 
     // Exam mode: record and advance — no verdict until the test is submitted.
     if (isTestMode) {
@@ -63,7 +67,9 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
       const nextIdx = newResults.findIndex((r) => r === null)
       if (nextIdx === -1) {
         setFinished(true)
-        onComplete(newResults.filter((r) => r === true).length, exercise.questions.length)
+        onComplete(newResults.filter((r) => r === true).length, exercise.questions.length,
+          newResults.map((r) => r === true),
+          exercise.questions.map((q, i) => (newPicks[i] == null ? '(no answer)' : q.options[newPicks[i] as number] ?? '(no answer)')))
       } else {
         setCurrentIndex(nextIdx)
       }
@@ -88,7 +94,11 @@ export default function OddOneOutRunner({ exercise, onComplete, onBack }: Props)
         const finalResults = [...results]
         finalResults[currentIndex] = selectedIndex === current.correctIndex
         const finalScore = finalResults.filter(r => r === true).length
-        onComplete(finalScore, exercise.questions.length)
+        const finalPicks = [...picks]
+        finalPicks[currentIndex] = selectedIndex
+        onComplete(finalScore, exercise.questions.length,
+          finalResults.map((r) => r === true),
+          exercise.questions.map((q, i) => (finalPicks[i] == null ? '(no answer)' : q.options[finalPicks[i] as number] ?? '(no answer)')))
       }
     }
   }

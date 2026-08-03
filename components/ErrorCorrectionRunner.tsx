@@ -16,7 +16,7 @@ interface Props {
     questions: ErrorCorrectionQuestion[]
     test_type?: string | null
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -245,7 +245,9 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
         total += r.totalErrors
       }
       setFinished(true)
-      onComplete(score, total)
+      onComplete(score, total,
+        latestResults.map((r) => !!r && r.correctFixes === r.totalErrors),
+        latestResults.map((r) => (r ? r.words.map((w) => (w.correction ? w.correction : w.word)).join(' ') : '(no answer)')))
       return
     }
 

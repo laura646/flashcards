@@ -41,6 +41,13 @@ function correctAnswerOf(type: string, q: AnyQ): string {
   if (type === 'true_or_false') return q.isTrue ? 'True' : 'False'
   if (type === 'type_answer') return String(q.answer ?? '—')
   if (type === 'error_correction') return String(q.correct ?? '—')
+  if (type === 'hangman' || type === 'anagram' || type === 'unjumble') return String(q.word ?? '—')
+  if (type === 'dictation') return String(q.text ?? '—')
+  if (type === 'rank_order' || type === 'text_sequencing') {
+    const items = q.items || q.segments
+    return Array.isArray(items) ? items.join(' → ') : '—'
+  }
+  if (type === 'match_halves') return `${q.right ?? ''} ← ${q.left ?? ''}`
   if (Array.isArray(q.options)) {
     if (Array.isArray(q.correctIndexes)) return q.correctIndexes.map((i: number) => q.options[i]).join(', ')
     if (typeof q.correctIndex === 'number') return String(q.options[q.correctIndex] ?? '—')
@@ -49,7 +56,8 @@ function correctAnswerOf(type: string, q: AnyQ): string {
 }
 
 function promptOf(type: string, q: AnyQ, i: number): string {
-  return String(q.prompt || q.statement || q.incorrect || `Question ${i + 1}`)
+  if (type === 'match_halves') return `Pair ${i + 1}`
+  return String(q.prompt || q.statement || q.incorrect || q.criterion || q.clue || `Question ${i + 1}`)
 }
 
 function QuestionRow({ prompt, student, correct, ok }: { prompt: string; student: string | null; correct: string; ok: boolean | null }) {
@@ -76,13 +84,76 @@ function QuestionRow({ prompt, student, correct, ok }: { prompt: string; student
 }
 
 // One exercise (standalone or attached) → its question rows.
-function ExerciseSection({ title, type, questions, per, sa }: {
+function ExerciseSection({ title, type, questions, per, sa, groupData }: {
   title: string
   type: string
   questions: AnyQ[]
   per: boolean[] | null
   sa: unknown[] | null
+  groupData?: AnyQ
 }) {
+  // group_sort: rows are the items (in answer-key order, matching capture)
+  if (type === 'group_sort') {
+    const groups = (groupData?.groups || []) as AnyQ[]
+    const rows: { item: string; group: string }[] = []
+    groups.forEach((g) => (g.items || []).forEach((it: AnyQ) => rows.push({ item: String(it.text ?? it), group: String(g.name ?? '') })))
+    return (
+      <>
+        {rows.map((r, i) => (
+          <QuestionRow
+            key={i}
+            prompt={`${i + 1}. ${r.item}`}
+            student={sa ? String(sa[i] ?? '(no answer)').split(' → ').slice(1).join(' → ') || '(not placed)' : null}
+            correct={r.group}
+            ok={per ? per[i] ?? null : null}
+          />
+        ))}
+      </>
+    )
+  }
+  // blanks types: one row per blank across all questions (matches capture order)
+  if ((type === 'complete_sentence' || type === 'cloze_listening') && questions.length > 0) {
+    const rows: { label: string; correct: string }[] = []
+    questions.forEach((q, qi) => {
+      Object.keys(q.blanks || {}).forEach((bid) => rows.push({ label: `${qi + 1} · ${bid}`, correct: String(q.blanks[bid]) }))
+    })
+    return (
+      <>
+        {rows.map((r, i) => (
+          <QuestionRow
+            key={i}
+            prompt={r.label}
+            student={sa ? String(sa[i] ?? '(no answer)') : null}
+            correct={r.correct}
+            ok={per ? per[i] ?? null : null}
+          />
+        ))}
+      </>
+    )
+  }
+  // match_halves: captured strings are self-contained ("definition ← chosen
+  // half") in the student's shuffled order; look the correct half up by the
+  // definition so ✓/✗ and correction stay aligned.
+  if (type === 'match_halves' && sa) {
+    return (
+      <>
+        {sa.map((s, i) => {
+          const text = String(s ?? '')
+          const def = text.split(' ← ')[0]
+          const q = questions.find((x) => String(x.right) === def)
+          return (
+            <QuestionRow
+              key={i}
+              prompt={`Pair ${i + 1}`}
+              student={text}
+              correct={q ? `${q.right} ← ${q.left}` : '—'}
+              ok={per ? per[i] ?? null : null}
+            />
+          )
+        })}
+      </>
+    )
+  }
   // gap_fill stores ONE cfg question whose gaps are the marks
   if (type === 'gap_fill' && questions.length > 0 && Array.isArray(questions[0]?.gaps)) {
     const gaps = questions[0].gaps as AnyQ[]
@@ -198,9 +269,9 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
                     <span className="text-xs font-bold text-ink-muted shrink-0">{row ? `${row.score}/${row.total}` : 'not answered'}</span>
                   </div>
                   {row ? (
-                    <ExerciseSection title={ex.title} type={ex.exercise_type} questions={ex.questions || []} per={row.per_question_results} sa={sa} />
+                    <ExerciseSection title={ex.title} type={ex.exercise_type} questions={ex.questions || []} per={row.per_question_results} sa={sa} groupData={ex.groupData} />
                   ) : (
-                    <ExerciseSection title={ex.title} type={ex.exercise_type} questions={ex.questions || []} per={null} sa={(ex.questions || []).map(() => '(no answer)')} />
+                    <ExerciseSection title={ex.title} type={ex.exercise_type} questions={ex.questions || []} per={null} sa={(ex.questions || []).map(() => '(no answer)')} groupData={ex.groupData} />
                   )}
                 </div>
               )
@@ -234,6 +305,7 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
                           questions={ax.questions || []}
                           per={d?.per ?? null}
                           sa={Array.isArray(d?.answers) ? (d!.answers as unknown[]) : (row ? null : (ax.questions || []).map(() => '(no answer)'))}
+                          groupData={ax.groupData}
                         />
                       </div>
                     )

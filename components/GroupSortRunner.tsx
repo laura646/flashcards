@@ -35,7 +35,7 @@ interface Props {
     instructions: string
     groupData: GroupData
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -127,7 +127,10 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
   const handleCheck = () => {
     setSubmitted(true)
     const s = Object.entries(placements).filter(([item, group]) => answerKey[item] === group).length
-    onComplete(s, totalItems)
+    const itemsInOrder = Object.keys(answerKey)
+    onComplete(s, totalItems,
+      itemsInOrder.map((it) => placements[it] === answerKey[it]),
+      itemsInOrder.map((it) => it + ' \u2192 ' + (placements[it] || '(not placed)')))
   }
 
   const score = Object.entries(placements).filter(([item, group]) => answerKey[item] === group).length
