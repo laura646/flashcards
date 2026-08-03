@@ -303,7 +303,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     }
   }
 
-  const saveExercise = async (ex: TestSessionExercise, score: number, total: number, per?: boolean[]) => {
+  const saveExercise = async (ex: TestSessionExercise, score: number, total: number, per?: boolean[], studentAnswers?: unknown[]) => {
     // Optimistic local update so the list status flips instantly.
     setAnswers((prev) => ({
       ...prev,
@@ -320,6 +320,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
         body: JSON.stringify({
           action: 'save-exercise', lesson_id: lessonId, exercise_id: ex.id,
           score, total, per_question_results: per ?? null,
+          student_answers: studentAnswers ?? null,
         }),
       })
       if (res.status === 410) timeUp()
@@ -346,7 +347,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
   }
 
   // Blocks save continuously as each follow-up completes (aggregate score).
-  const saveBlock = async (b: TestSessionBlock, score: number, total: number) => {
+  const saveBlock = async (b: TestSessionBlock, score: number, total: number, detail?: Record<string, unknown>) => {
     setAnswers((prev) => ({
       ...prev,
       [b.id]: { exercise_id: b.id, score, total, per_question_results: null },
@@ -360,6 +361,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
         body: JSON.stringify({
           action: 'save-exercise', lesson_id: lessonId, exercise_id: b.id,
           item_type: 'block', score, total,
+          student_answers: detail ?? null,
         }),
       })
       if (res.status === 410) timeUp()
@@ -496,7 +498,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
             // without this ExerciseRunner falls back to practice mode with
             // instant per-question feedback — revealing answers mid-test.
             { ...activeEx, test_type: activeEx.test_type || lessonType },
-            (score, total, per) => saveExercise(activeEx, score, total, per),
+            (score, total, per, ans) => saveExercise(activeEx, score, total, per, ans),
             () => { setActiveEx(null); setView('list') }
           )}
         </Suspense>
@@ -509,7 +511,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const blockContent = activeBlock.content as any
     /* eslint-enable @typescript-eslint/no-explicit-any */
-    const onScore = (s: number, t: number) => saveBlock(activeBlock, s, t)
+    const onScore = (s: number, t: number, d?: Record<string, unknown>) => saveBlock(activeBlock, s, t, d)
     return (
       <div className="flex flex-col gap-4">
         {timerBar}

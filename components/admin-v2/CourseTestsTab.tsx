@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { isTestLessonType } from '@/lib/test-mode'
+import TestAnswersReview from '@/components/admin-v2/TestAnswersReview'
 
 // ═══════════════════════════════════════════════════════════════════
 // Course ▸ Tests tab — the dedicated test-results view (exam mode).
@@ -59,6 +60,7 @@ export default function CourseTestsTab({ lessons, canEdit }: { lessons: TestsTab
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmReset, setConfirmReset] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<ResultRow | null>(null)
   const [resetting, setResetting] = useState(false)
 
   const load = useCallback(async (lessonId: string) => {
@@ -201,6 +203,12 @@ export default function CourseTestsTab({ lessons, canEdit }: { lessons: TestsTab
                       </td>
                       {canEdit && (
                         <td className="py-2.5 text-right whitespace-nowrap">
+                          {(r.status === 'submitted' || r.status === 'auto_submitted') && (
+                            <button onClick={() => setReviewing(r)}
+                              className="text-[11px] font-bold text-brandblue hover:underline mr-3">
+                              👁 See answers
+                            </button>
+                          )}
                           {r.status !== 'not_started' && (
                             confirmReset === r.student_email ? (
                               <span className="inline-flex items-center gap-2">
@@ -229,6 +237,15 @@ export default function CourseTestsTab({ lessons, canEdit }: { lessons: TestsTab
           </div>
         )}
 
+        {reviewing && selectedId && (
+          <TestAnswersReview
+            lessonId={selectedId}
+            lessonTitle={testLessons.find((l) => l.id === selectedId)?.title || 'Test'}
+            studentEmail={reviewing.student_email}
+            studentName={reviewing.student_name}
+            onClose={() => setReviewing(null)}
+          />
+        )}
         <p className="text-[11px] text-ink-muted leading-relaxed mt-3">
           Scores also feed each student&apos;s accuracy and the course reports automatically.
           “Auto-submitted” = time ran out; answers saved before the deadline were scored.

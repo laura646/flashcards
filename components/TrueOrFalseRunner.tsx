@@ -16,7 +16,7 @@ interface Props {
     questions: TrueOrFalseQuestion[]
     test_type?: string | null
   }
-  onComplete: (score: number, total: number) => void
+  onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -47,7 +47,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
         const score = exercise.questions.reduce((acc, q, i) => {
           return acc + (answers[i] === q.isTrue ? 1 : 0)
         }, 0)
-        onComplete(score, exercise.questions.length)
+        onComplete(score, exercise.questions.length, exercise.questions.map((q, i) => answers[i] === q.isTrue), answers.map((a) => (a === null ? '(no answer)' : a ? 'True' : 'False')))
       }
     }, 1500)
     return () => clearTimeout(timer)
@@ -68,7 +68,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
         setFinished(true)
         const score = exercise.questions.reduce(
           (acc, q, i) => acc + (newAnswers[i] === q.isTrue ? 1 : 0), 0)
-        onComplete(score, exercise.questions.length)
+        onComplete(score, exercise.questions.length, exercise.questions.map((q, i) => answers[i] === q.isTrue), answers.map((a) => (a === null ? '(no answer)' : a ? 'True' : 'False')))
       }
       return
     }
