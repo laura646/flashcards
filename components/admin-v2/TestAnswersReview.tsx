@@ -67,7 +67,9 @@ function QuestionRow({ prompt, student, correct, ok }: { prompt: string; student
       <p className={`text-[13px] font-medium mb-1 ${wrong ? 'text-red-700' : 'text-ink-black'}`}>{prompt}</p>
       <div className="flex items-baseline gap-4 flex-wrap text-[13px]">
         {student === null ? (
-          <span className="text-ink-muted italic">Not recorded</span>
+          <span className="text-ink-muted italic">
+            {ok === true ? '✓ Correct — ' : ok === false ? '✗ Wrong — ' : ''}answer text not recorded
+          </span>
         ) : student === '(no answer)' ? (
           <span className="text-ink-muted italic">No answer</span>
         ) : (
