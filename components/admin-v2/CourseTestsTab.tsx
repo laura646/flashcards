@@ -21,6 +21,7 @@ export interface TestsTabLesson {
 }
 
 interface ResultRow {
+  adjustment?: { points: number; out_of: number; note: string } | null
   student_email: string
   student_name: string
   status: 'not_started' | 'in_progress' | 'submitted' | 'auto_submitted'
@@ -195,7 +196,17 @@ export default function CourseTestsTab({ lessons, canEdit }: { lessons: TestsTab
                         <p className="text-[11px] text-ink-muted">{r.student_email}</p>
                       </td>
                       <td className="py-2.5 pr-3 text-[13px] font-bold text-ink-body tabular-nums whitespace-nowrap">
-                        {r.score !== null && r.total !== null ? `${r.score}/${r.total} · ${pct}%` : '—'}
+                        {r.score !== null && r.total !== null ? (() => {
+                          const adj = r.adjustment
+                          const fs = adj ? r.score! + adj.points : r.score!
+                          const ft = adj ? r.total! + adj.out_of : r.total!
+                          const fp = ft > 0 ? Math.round((fs / ft) * 100) : pct
+                          return (
+                            <span title={adj ? `${r.score}/${r.total} + ${adj.points}/${adj.out_of}${adj.note ? ` — ${adj.note}` : ''}` : undefined}>
+                              {fs}/{ft} · {fp}%{adj ? ' *' : ''}
+                            </span>
+                          )
+                        })() : '—'}
                       </td>
                       <td className="py-2.5 pr-3 text-[12px] text-ink-muted tabular-nums whitespace-nowrap">{timeCell(r)}</td>
                       <td className="py-2.5 pr-3">
