@@ -73,10 +73,37 @@ export function buildReportCsv(students: StudentReport[], opts: ExportOptions): 
     cols.push({ header: 'Attendance %', get: (r) => attendanceCounts(r).pct ?? '' })
   }
   if (has(opts.sections, 'exam_tests')) {
-    cols.push({ header: 'Exam-mode tests', get: (r) => r.examTests.map((t) => `${t.title}: ${t.score}/${t.total}${t.pct != null ? ` (${t.pct}%)` : ''}`).join(' | ') })
+    // One column per test (union across learners, ordered by test date) so
+    // scores line up for spreadsheet sorting/averaging. Two columns each:
+    // raw marks and percent.
+    const testMeta = new Map<string, string>()
+    for (const r of students) for (const t of r.examTests) if (!testMeta.has(t.title)) testMeta.set(t.title, t.date || '')
+    const titles = Array.from(testMeta.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]))
+      .map(([title]) => title)
+    for (const title of titles) {
+      cols.push({
+        header: `${title} — score`,
+        get: (r) => { const t = r.examTests.find((x) => x.title === title); return t ? `${t.score}/${t.total}` : '' },
+      })
+      cols.push({
+        header: `${title} — %`,
+        get: (r) => { const t = r.examTests.find((x) => x.title === title); return t?.pct ?? '' },
+      })
+    }
   }
   if (has(opts.sections, 'manual_tests')) {
-    cols.push({ header: 'Manual test entries', get: (r) => r.manualTests.map((t) => `${t.name} (${t.source}): ${t.scorePct != null ? t.scorePct + '%' : '—'}`).join(' | ') })
+    const names = new Map<string, string>()
+    for (const r of students) for (const t of r.manualTests) if (!names.has(t.name)) names.set(t.name, t.date || '')
+    const ordered = Array.from(names.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]))
+      .map(([name]) => name)
+    for (const name of ordered) {
+      cols.push({
+        header: `${name} — %`,
+        get: (r) => { const t = r.manualTests.find((x) => x.name === name); return t?.scorePct ?? '' },
+      })
+    }
   }
   if (has(opts.sections, 'writing')) {
     cols.push({ header: 'Written assignments', get: (r) => r.writingAssignments.map((w) => `${w.title}: ${w.scorePct != null ? w.scorePct + '%' : '—'}${w.band ? ` · ${w.band}` : ''}`).join(' | ') })
