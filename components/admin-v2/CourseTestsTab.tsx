@@ -254,7 +254,12 @@ export default function CourseTestsTab({ lessons, canEdit }: { lessons: TestsTab
             lessonTitle={testLessons.find((l) => l.id === selectedId)?.title || 'Test'}
             studentEmail={reviewing.student_email}
             studentName={reviewing.student_name}
-            onClose={() => setReviewing(null)}
+            onClose={() => {
+              setReviewing(null)
+              // Score edits in the review change the stored totals — reload
+              // the table so the row matches what the teacher just did.
+              if (selectedId) load(selectedId)
+            }}
           />
         )}
         <p className="text-[11px] text-ink-muted leading-relaxed mt-3">
