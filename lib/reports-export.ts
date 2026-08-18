@@ -70,6 +70,11 @@ export function buildReportCsv(students: StudentReport[], opts: ExportOptions): 
   if (has(opts.sections, 'kpi_streak')) cols.push({ header: 'Streak', get: (r) => r.streak })
   if (has(opts.sections, 'kpi_rank')) cols.push({ header: 'Group rank', get: (r) => (r.groupRank != null ? `${r.groupRank}/${r.groupSize}` : '') })
   if (has(opts.sections, 'attendance')) {
+    cols.push({ header: 'Present', get: (r) => attendanceCounts(r).total > 0 ? attendanceCounts(r).present : '' })
+    cols.push({ header: 'Late', get: (r) => attendanceCounts(r).total > 0 ? attendanceCounts(r).late : '' })
+    cols.push({ header: 'Absent', get: (r) => attendanceCounts(r).total > 0 ? attendanceCounts(r).absent : '' })
+    cols.push({ header: 'Excused', get: (r) => attendanceCounts(r).total > 0 ? attendanceCounts(r).excused : '' })
+    cols.push({ header: 'Sessions marked', get: (r) => attendanceCounts(r).total || '' })
     cols.push({ header: 'Attendance %', get: (r) => attendanceCounts(r).pct ?? '' })
   }
   if (has(opts.sections, 'exam_tests')) {
