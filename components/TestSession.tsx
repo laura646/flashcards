@@ -179,6 +179,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
   const [toast, setToast] = useState<{ kind: '15' | '5'; msg: string } | null>(null)
   const [result, setResult] = useState<{
     score: number; total: number; auto: boolean; started_at?: string; submitted_at?: string
+    adjustment?: { points: number; out_of: number; note: string } | null
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -212,11 +213,13 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     score: number; total: number; auto_submitted: boolean
     started_at?: string; submitted_at?: string
     answers?: Record<string, TestExerciseResult>
+    adjustment?: { points: number; out_of: number; note: string } | null
   }) => {
     if (data.answers) setAnswers(data.answers)
     setResult({
       score: data.score, total: data.total, auto: data.auto_submitted,
       started_at: data.started_at, submitted_at: data.submitted_at,
+      adjustment: data.adjustment ?? null,
     })
     setView('results')
   }, [])
@@ -643,8 +646,22 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
         )}
         <div className="bg-sky rounded-card p-6 text-white text-center">
           <div className="text-3xl mb-1">{pct >= 80 ? '🌟' : pct >= 60 ? '👍' : '💪'}</div>
-          <div className="text-4xl font-extrabold tabular-nums">{result.score} / {result.total}</div>
-          <div className="text-sm font-bold opacity-95 mt-1">{pct}%</div>
+          <div className="text-4xl font-extrabold tabular-nums">
+            {result.adjustment
+              ? `${result.score + result.adjustment.points} / ${result.total + result.adjustment.out_of}`
+              : `${result.score} / ${result.total}`}
+          </div>
+          <div className="text-sm font-bold opacity-95 mt-1">
+            {result.adjustment && result.total + result.adjustment.out_of > 0
+              ? Math.round(((result.score + result.adjustment.points) / (result.total + result.adjustment.out_of)) * 100)
+              : pct}%
+          </div>
+          {result.adjustment && (
+            <div className="text-[11px] opacity-90 mt-1.5">
+              {result.score}/{result.total} + {result.adjustment.points}/{result.adjustment.out_of}
+              {result.adjustment.note ? ` · ${result.adjustment.note}` : ''}
+            </div>
+          )}
           {usedMs !== null && settings && (
             <div className="text-[11px] opacity-85 mt-2">
               {S.timeUsed} {fmtClock(Math.min(usedMs / 1000, settings.time_limit_minutes * 60))} / {fmtClock(settings.time_limit_minutes * 60)}

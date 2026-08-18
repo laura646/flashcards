@@ -124,6 +124,7 @@ export async function GET(req: NextRequest) {
           score: attempt.score, total: attempt.total,
           started_at: attempt.started_at, submitted_at: attempt.submitted_at,
           auto_submitted: !!attempt.auto_submitted,
+          adjustment: (attempt as { adjustment?: unknown }).adjustment ?? null,
         },
         exercises, blocks,
         answers: ansRows || [],
@@ -175,6 +176,7 @@ export async function GET(req: NextRequest) {
           status: !s ? 'not_started' : s.submitted_at ? (s.auto_submitted ? 'auto_submitted' : 'submitted') : 'in_progress',
           score: s?.score ?? null,
           total: s?.total ?? null,
+          adjustment: (s as { adjustment?: unknown } | undefined)?.adjustment ?? null,
           started_at: s?.started_at ?? null,
           submitted_at: s?.submitted_at ?? null,
           deadline: s?.deadline ?? null,
@@ -240,6 +242,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         status: 'submitted',
         settings,
+        adjustment: (attempt as { adjustment?: unknown }).adjustment ?? null,
         submitted_at: attempt.submitted_at,
         auto_submitted: attempt.auto_submitted,
         started_at: attempt.started_at,
@@ -323,6 +326,145 @@ export async function POST(req: NextRequest) {
     // ── save-exercise (continuous save; server enforces the deadline).
     // item_type 'block' saves a content block's follow-up aggregate; the
     // answers row is keyed by the block id in the same exercise_id column. ──
+    // ── teacher-remark: flip one question's mark on a submitted attempt.
+    // Mutates the canonical per-question data (student + teacher views update
+    // everywhere) and logs the change in teacher_overrides for audit/undo.
+    if (action === 'teacher-remark') {
+      const auth2 = await requireRole('teacher', 'superadmin')
+      const { student_email, item_id, attached_id, question_index, mark, add_to_key } = body as {
+        student_email?: string; item_id?: string; attached_id?: string | null
+        question_index?: number; mark?: boolean | null; add_to_key?: boolean
+      }
+      if (!student_email || !item_id || typeof question_index !== 'number') {
+        return err('student_email, item_id and question_index required', 400)
+      }
+      if (auth2.role === 'teacher') {
+        const ids = await getTeacherCourseIds(auth2.email, 'teacher')
+        const { data: lsn } = await supabase.from('lessons').select('course_id').eq('id', lesson_id).maybeSingle()
+        if (!lsn || !lsn.course_id || !ids.includes(lsn.course_id)) return err('Forbidden', 403)
+      }
+      const attempt = await loadSession(lesson_id, student_email)
+      if (!attempt || !attempt.submitted_at) return err('No submitted attempt', 404)
+      const { data: rowData, error: rowErr } = await supabase
+        .from('test_session_answers')
+        .select('*')
+        .eq('session_id', attempt.id)
+        .eq('exercise_id', item_id)
+        .maybeSingle()
+      if (rowErr && String(rowErr.message || '').includes('teacher_overrides')) {
+        return err('Score editing needs a database migration — ask your admin to run it.', 500)
+      }
+      if (!rowData) return err('Answer row not found', 404)
+      const row = rowData as {
+        per_question_results: boolean[] | null
+        student_answers: Record<string, { per?: boolean[] | null }> | unknown[] | null
+        teacher_overrides: Record<string, { from: boolean; to: boolean }> | null
+      }
+      const overrides = (row.teacher_overrides || {}) as Record<string, { from: boolean; to: boolean }>
+      const key = attached_id ? `${attached_id}:${question_index}` : String(question_index)
+      let per: boolean[] | null = null
+      let saveTarget: 'per' | 'detail' = 'per'
+      let detail: Record<string, { per?: boolean[] | null }> | null = null
+      if (attached_id) {
+        detail = (row.student_answers && typeof row.student_answers === 'object' && !Array.isArray(row.student_answers))
+          ? { ...(row.student_answers as Record<string, { per?: boolean[] | null }>) } : null
+        per = detail?.[attached_id]?.per ?? null
+        saveTarget = 'detail'
+      } else {
+        per = Array.isArray(row.per_question_results) ? [...row.per_question_results] : null
+      }
+      if (!per || question_index < 0 || question_index >= per.length) {
+        return err('This attempt has no per-question data for that item', 400)
+      }
+      if (mark === null) {
+        const o = overrides[key]
+        if (!o) return err('Nothing to undo', 400)
+        per[question_index] = o.from
+        delete overrides[key]
+      } else {
+        if (typeof mark !== 'boolean') return err('mark must be true, false or null', 400)
+        if (per[question_index] === mark) return err('Already marked that way', 400)
+        if (!overrides[key]) overrides[key] = { from: per[question_index], to: mark }
+        else overrides[key].to = mark
+        per[question_index] = mark
+      }
+      const patch: Record<string, unknown> = { teacher_overrides: overrides, updated_at: new Date().toISOString() }
+      if (saveTarget === 'per') patch.per_question_results = per
+      else if (detail && attached_id) {
+        detail[attached_id] = { ...(detail[attached_id] || {}), per }
+        patch.student_answers = detail
+      }
+      // Recompute this row's score from effective marks (all attached parts for blocks).
+      let rowScore = 0
+      if (saveTarget === 'per') rowScore = per.filter(Boolean).length
+      else if (detail) for (const v of Object.values(detail)) rowScore += (v?.per || []).filter(Boolean).length
+      patch.score = rowScore
+      const { error: upErr } = await supabase.from('test_session_answers').update(patch).eq('session_id', attempt.id).eq('exercise_id', item_id)
+      if (upErr) {
+        if (String(upErr.message || '').includes('teacher_overrides')) {
+          return err('Score editing needs a database migration — ask your admin to run it.', 500)
+        }
+        throw upErr
+      }
+      // Recompute the session total score from all rows.
+      const { data: allRows } = await supabase.from('test_session_answers').select('score').eq('session_id', attempt.id)
+      const newScore = ((allRows || []) as { score: number }[]).reduce((a, r) => a + (r.score || 0), 0)
+      await supabase.from('test_sessions').update({ score: newScore }).eq('id', attempt.id)
+      // Optional: extend the answer key (standalone typed exercises only).
+      if (add_to_key && !attached_id && mark === true) {
+        const { data: ex } = await supabase.from('lesson_exercises').select('exercise_type, questions').eq('id', item_id).maybeSingle()
+        const sa = Array.isArray(row.student_answers) ? (row.student_answers as unknown[]) : null
+        const given = sa ? String(sa[question_index] ?? '') : ''
+        if (ex && given && given !== '(no answer)') {
+          const qs = (ex.questions || []) as Record<string, unknown>[]
+          if (ex.exercise_type === 'type_answer' && qs[question_index]) {
+            const alts = Array.isArray(qs[question_index].alternatives) ? (qs[question_index].alternatives as string[]) : []
+            if (!alts.includes(given)) qs[question_index].alternatives = [...alts, given]
+            await supabase.from('lesson_exercises').update({ questions: qs }).eq('id', item_id)
+          } else if (ex.exercise_type === 'gap_fill' && qs[0] && Array.isArray((qs[0] as { gaps?: unknown[] }).gaps)) {
+            const gaps = (qs[0] as { gaps: { answers: string[] }[] }).gaps
+            const g = gaps[question_index]
+            if (g && Array.isArray(g.answers) && !g.answers.includes(given)) g.answers.push(given)
+            await supabase.from('lesson_exercises').update({ questions: qs }).eq('id', item_id)
+          }
+        }
+      }
+      return NextResponse.json({ ok: true, score: newScore })
+    }
+
+    // ── teacher-adjust: whole-test +/- points with a note (off-platform marks).
+    if (action === 'teacher-adjust') {
+      const auth2 = await requireRole('teacher', 'superadmin')
+      const { student_email, points, out_of, note } = body as {
+        student_email?: string; points?: number | null; out_of?: number | null; note?: string
+      }
+      if (!student_email) return err('student_email required', 400)
+      if (auth2.role === 'teacher') {
+        const ids = await getTeacherCourseIds(auth2.email, 'teacher')
+        const { data: lsn } = await supabase.from('lessons').select('course_id').eq('id', lesson_id).maybeSingle()
+        if (!lsn || !lsn.course_id || !ids.includes(lsn.course_id)) return err('Forbidden', 403)
+      }
+      const attempt = await loadSession(lesson_id, student_email)
+      if (!attempt || !attempt.submitted_at) return err('No submitted attempt', 404)
+      const adjustment = (points == null || points === 0)
+        ? null
+        : {
+            points: Math.round(points),
+            out_of: Math.max(Math.round(out_of ?? points), Math.round(points)),
+            note: String(note || '').slice(0, 200),
+            by: auth2.email,
+            at: new Date().toISOString(),
+          }
+      const { error: adjErr } = await supabase.from('test_sessions').update({ adjustment }).eq('id', attempt.id)
+      if (adjErr) {
+        if (String(adjErr.message || '').includes('adjustment')) {
+          return err('Score editing needs a database migration — ask your admin to run it.', 500)
+        }
+        throw adjErr
+      }
+      return NextResponse.json({ ok: true, adjustment })
+    }
+
     if (action === 'save-exercise') {
       const { exercise_id, score, total, per_question_results } = body
       const itemType = body.item_type === 'block' ? 'block' : 'exercise'

@@ -28,10 +28,13 @@ interface AnswerRow {
   total: number
   per_question_results: boolean[] | null
   student_answers?: unknown
+  teacher_overrides?: Record<string, { from: boolean; to: boolean }> | null
 }
 
+interface Adjustment { points: number; out_of: number; note: string; by?: string; at?: string }
+
 interface ReviewData {
-  session: { score: number | null; total: number | null; started_at: string | null; submitted_at: string | null; auto_submitted: boolean }
+  session: { score: number | null; total: number | null; started_at: string | null; submitted_at: string | null; auto_submitted: boolean; adjustment?: Adjustment | null }
   exercises: AnyQ[]
   blocks: AnyQ[]
   answers: AnswerRow[]
@@ -60,7 +63,12 @@ function promptOf(type: string, q: AnyQ, i: number): string {
   return String(q.prompt || q.statement || q.incorrect || q.criterion || q.clue || `Question ${i + 1}`)
 }
 
-function QuestionRow({ prompt, student, correct, ok }: { prompt: string; student: string | null; correct: string; ok: boolean | null }) {
+function QuestionRow({ prompt, student, correct, ok, overridden, canKey, onMark }: {
+  prompt: string; student: string | null; correct: string; ok: boolean | null
+  overridden?: boolean
+  canKey?: boolean
+  onMark?: (mark: boolean | null, addToKey?: boolean) => void
+}) {
   const wrong = ok === false
   return (
     <div className={`px-4 py-2.5 border-t border-hairline ${wrong ? 'bg-red-50/60' : ''}`}>
@@ -80,20 +88,46 @@ function QuestionRow({ prompt, student, correct, ok }: { prompt: string; student
         {(ok !== true) && (
           <span className="text-correct-fg">Correct: <b>{correct}</b></span>
         )}
+        {onMark && ok !== null && (
+          <span className="ml-auto inline-flex items-center gap-2 no-print">
+            {overridden ? (
+              <span className="text-[11px] font-bold bg-sky-wash text-sky-text px-2 py-0.5 rounded-full">
+                re-marked · <button onClick={() => onMark(null)} className="underline">undo</button>
+              </span>
+            ) : ok === false ? (
+              <>
+                <button onClick={() => onMark(true)} className="text-[11px] font-bold px-2 py-1 rounded-lg border border-correct-border text-correct-fg hover:bg-correct-bg transition-colors">Accept ✓</button>
+                {canKey && (
+                  <button onClick={() => onMark(true, true)} className="text-[11px] font-bold px-2 py-1 rounded-lg border border-correct-border text-correct-fg hover:bg-correct-bg transition-colors">Accept + add to key</button>
+                )}
+              </>
+            ) : (
+              <button onClick={() => onMark(false)} className="text-[11px] font-bold px-2 py-1 rounded-lg border border-hairline text-ink-muted hover:text-red-500 hover:border-red-200 transition-colors">✗ Mark wrong</button>
+            )}
+          </span>
+        )}
       </div>
     </div>
   )
 }
 
 // One exercise (standalone or attached) → its question rows.
-function ExerciseSection({ title, type, questions, per, sa, groupData }: {
+function ExerciseSection({ title, type, questions, per, sa, groupData, overrides, canKey, remark }: {
   title: string
   type: string
   questions: AnyQ[]
   per: boolean[] | null
   sa: unknown[] | null
   groupData?: AnyQ
+  overrides?: Record<string, { from: boolean; to: boolean }>
+  canKey?: boolean
+  remark?: (i: number, mark: boolean | null, addToKey?: boolean) => void
 }) {
+  const rowProps = (i: number) => ({
+    overridden: !!overrides?.[String(i)],
+    canKey,
+    onMark: remark ? (mark: boolean | null, addToKey?: boolean) => remark(i, mark, addToKey) : undefined,
+  })
   // group_sort: rows are the items (in answer-key order, matching capture)
   if (type === 'group_sort') {
     const groups = (groupData?.groups || []) as AnyQ[]
@@ -108,6 +142,7 @@ function ExerciseSection({ title, type, questions, per, sa, groupData }: {
             student={sa ? String(sa[i] ?? '(no answer)').split(' → ').slice(1).join(' → ') || '(not placed)' : null}
             correct={r.group}
             ok={per ? per[i] ?? null : null}
+            {...rowProps(i)}
           />
         ))}
       </>
@@ -128,6 +163,7 @@ function ExerciseSection({ title, type, questions, per, sa, groupData }: {
             student={sa ? String(sa[i] ?? '(no answer)') : null}
             correct={r.correct}
             ok={per ? per[i] ?? null : null}
+            {...rowProps(i)}
           />
         ))}
       </>
@@ -150,6 +186,7 @@ function ExerciseSection({ title, type, questions, per, sa, groupData }: {
               student={text}
               correct={q ? `${q.right} ← ${q.left}` : '—'}
               ok={per ? per[i] ?? null : null}
+              {...rowProps(i)}
             />
           )
         })}
@@ -168,6 +205,7 @@ function ExerciseSection({ title, type, questions, per, sa, groupData }: {
             student={sa ? String(sa[i] ?? '(no answer)') : null}
             correct={String(g.answers?.[0] ?? '—') + (g.answers && g.answers.length > 1 ? `  (also accepted: ${g.answers.slice(1, 3).join(', ')}${g.answers.length > 3 ? '…' : ''})` : '')}
             ok={per ? per[i] ?? null : null}
+            {...rowProps(i)}
           />
         ))}
       </>
@@ -182,6 +220,7 @@ function ExerciseSection({ title, type, questions, per, sa, groupData }: {
           student={sa ? String(sa[i] ?? '(no answer)') : null}
           correct={correctAnswerOf(type, q)}
           ok={per ? per[i] ?? null : null}
+          {...rowProps(i)}
         />
       ))}
     </>
@@ -192,19 +231,54 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
   const [data, setData] = useState<ReviewData | null>(null)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    let live = true
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/test-session?lesson_id=${encodeURIComponent(lessonId)}&view=teacher-review&student_email=${encodeURIComponent(studentEmail)}`)
-        const j = await res.json()
-        if (!live) return
-        if (!res.ok) setError(j.error || 'Could not load the attempt.')
-        else setData(j)
-      } catch { if (live) setError('Network error.') }
-    })()
-    return () => { live = false }
+  const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [adjPts, setAdjPts] = useState('')
+  const [adjOutOf, setAdjOutOf] = useState('')
+  const [adjNote, setAdjNote] = useState('')
+
+  const load = async () => {
+    try {
+      const res = await fetch(`/api/test-session?lesson_id=${encodeURIComponent(lessonId)}&view=teacher-review&student_email=${encodeURIComponent(studentEmail)}`)
+      const j = await res.json()
+      if (!res.ok) setError(j.error || 'Could not load the attempt.')
+      else { setError(''); setData(j) }
+    } catch { setError('Network error.') }
+  }
+  useEffect(() => { load() // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId, studentEmail])
+
+  const post = async (payload: Record<string, unknown>, okMsg: string) => {
+    if (busy) return
+    setBusy(true)
+    setNotice('')
+    try {
+      const res = await fetch('/api/test-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lesson_id: lessonId, student_email: studentEmail, ...payload }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) setNotice(j.error || 'Could not save the change.')
+      else { setNotice(okMsg); await load() }
+    } catch { setNotice('Network error — change not saved.') }
+    setBusy(false)
+  }
+
+  const remarkFor = (itemId: string, attachedId: string | null) =>
+    (i: number, mark: boolean | null, addToKey?: boolean) =>
+      post(
+        { action: 'teacher-remark', item_id: itemId, attached_id: attachedId, question_index: i, mark, add_to_key: !!addToKey },
+        mark === null ? 'Original mark restored.' : addToKey ? 'Re-marked — and the answer key now accepts this answer.' : 'Re-marked. The student sees the updated score too.',
+      )
+
+  const applyAdjustment = () => {
+    const pts = parseInt(adjPts, 10)
+    if (!pts) { setNotice('Enter a non-zero number of points.'); return }
+    const oo = parseInt(adjOutOf, 10)
+    post({ action: 'teacher-adjust', points: pts, out_of: Number.isFinite(oo) && oo > 0 ? oo : pts, note: adjNote }, 'Adjustment applied.')
+  }
+  const removeAdjustment = () => post({ action: 'teacher-adjust', points: null }, 'Adjustment removed.')
 
   const answersById = new Map<string, AnswerRow>()
   if (data) for (const a of data.answers) answersById.set(a.exercise_id, a)
@@ -235,15 +309,22 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
             <p className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">{lessonTitle}</p>
             <p className="text-lg font-bold text-ink-black mt-0.5">{studentName}</p>
             <p className="text-xs text-ink-muted mt-0.5">
-              {data?.session ? (
-                <>
-                  {data.session.score ?? '—'}/{data.session.total ?? '—'}
-                  {typeof data.session.score === 'number' && typeof data.session.total === 'number' && data.session.total > 0
-                    ? ` · ${Math.round((data.session.score / data.session.total) * 100)}%` : ''}
-                  {timeUsed ? ` · ${timeUsed}` : ''}
-                  {data.session.auto_submitted ? ' · auto-submitted' : ' · submitted'}
-                </>
-              ) : '…'}
+              {data?.session ? (() => {
+                const sc = data.session.score ?? 0
+                const tt = data.session.total ?? 0
+                const adj = data.session.adjustment
+                const fs = adj ? sc + adj.points : sc
+                const ft = adj ? tt + adj.out_of : tt
+                return (
+                  <>
+                    {adj ? `${sc}/${tt} + ${adj.points}${adj.note ? ` (${adj.note})` : ''} = ` : ''}
+                    <b>{fs}/{ft}</b>
+                    {ft > 0 ? ` · ${Math.round((fs / ft) * 100)}%` : ''}
+                    {timeUsed ? ` · ${timeUsed}` : ''}
+                    {data.session.auto_submitted ? ' · auto-submitted' : ' · submitted'}
+                  </>
+                )
+              })() : '…'}
             </p>
           </div>
           <div className="flex items-center gap-2 no-print">
@@ -253,6 +334,7 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
           </div>
         </div>
 
+        {notice && <p className="px-5 py-2 text-xs font-bold text-sky-text bg-sky-wash border-b border-hairline no-print">{notice}</p>}
         {error && <p className="px-5 py-6 text-sm text-red-600">{error}</p>}
         {!error && !data && (
           <div className="px-5 py-10 flex items-center justify-center gap-2 text-sm text-ink-muted"><Spinner size={18} /> Loading answers…</div>
@@ -271,7 +353,10 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
                     <span className="text-xs font-bold text-ink-muted shrink-0">{row ? `${row.score}/${row.total}` : 'not answered'}</span>
                   </div>
                   {row ? (
-                    <ExerciseSection title={ex.title} type={ex.exercise_type} questions={ex.questions || []} per={row.per_question_results} sa={sa} groupData={ex.groupData} />
+                    <ExerciseSection title={ex.title} type={ex.exercise_type} questions={ex.questions || []} per={row.per_question_results} sa={sa} groupData={ex.groupData}
+                      overrides={row.teacher_overrides || undefined}
+                      canKey={sa != null && (ex.exercise_type === 'type_answer' || ex.exercise_type === 'gap_fill')}
+                      remark={remarkFor(ex.id, null)} />
                   ) : (
                     <ExerciseSection title={ex.title} type={ex.exercise_type} questions={ex.questions || []} per={null} sa={(ex.questions || []).map(() => '(no answer)')} groupData={ex.groupData} />
                   )}
@@ -308,6 +393,12 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
                           per={d?.per ?? null}
                           sa={Array.isArray(d?.answers) ? (d!.answers as unknown[]) : (row ? null : (ax.questions || []).map(() => '(no answer)'))}
                           groupData={ax.groupData}
+                          overrides={row?.teacher_overrides
+                            ? Object.fromEntries(Object.entries(row.teacher_overrides)
+                                .filter(([k]) => k.startsWith(`${key}:`))
+                                .map(([k, v]) => [k.split(':')[1], v]))
+                            : undefined}
+                          remark={remarkFor(b.id, key)}
                         />
                       </div>
                     )
@@ -316,6 +407,27 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
               )
             })}
 
+            <div className="border border-hairline rounded-tile p-4 no-print">
+              <p className="text-[13px] font-bold text-ink-black mb-2">Score adjustment <span className="font-normal text-ink-muted">(for marks given outside the platform, e.g. writing)</span></p>
+              {data.session.adjustment ? (
+                <p className="text-[13px] text-ink-body">
+                  Applied: <b>+{data.session.adjustment.points}/{data.session.adjustment.out_of}</b>
+                  {data.session.adjustment.note ? ` — ${data.session.adjustment.note}` : ''}
+                  <button onClick={removeAdjustment} disabled={busy} className="ml-3 text-[11px] font-bold text-red-500 hover:underline disabled:opacity-50">remove</button>
+                </p>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input value={adjPts} onChange={(e) => setAdjPts(e.target.value)} type="number" placeholder="Points" aria-label="Points earned"
+                    className="w-24 px-2 py-1.5 text-sm border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky" />
+                  <span className="text-xs text-ink-muted">out of</span>
+                  <input value={adjOutOf} onChange={(e) => setAdjOutOf(e.target.value)} type="number" placeholder="same" aria-label="Out of"
+                    className="w-24 px-2 py-1.5 text-sm border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky" />
+                  <input value={adjNote} onChange={(e) => setAdjNote(e.target.value)} type="text" placeholder="Reason, e.g. Writing task — graded on paper" aria-label="Reason"
+                    className="flex-1 min-w-[200px] px-2 py-1.5 text-sm border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky" />
+                  <button onClick={applyAdjustment} disabled={busy} className="text-xs font-bold px-3 py-1.5 rounded-lg border border-sky-border text-brandblue hover:bg-sky-wash disabled:opacity-50 transition-colors">Apply</button>
+                </div>
+              )}
+            </div>
             <p className="text-[11px] text-ink-muted px-1 pt-1">
               Attempts taken before answer capture shipped show right/wrong and the correct answer; the student&apos;s own answer reads &quot;Not recorded&quot;.
             </p>
