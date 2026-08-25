@@ -276,7 +276,7 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
     const pts = parseInt(adjPts, 10)
     if (!pts) { setNotice('Enter a non-zero number of points.'); return }
     const oo = parseInt(adjOutOf, 10)
-    post({ action: 'teacher-adjust', points: pts, out_of: Number.isFinite(oo) && oo > 0 ? oo : pts, note: adjNote }, 'Adjustment applied.')
+    post({ action: 'teacher-adjust', points: pts, out_of: Number.isFinite(oo) && oo >= 0 ? oo : pts, note: adjNote }, 'Adjustment applied.')
   }
   const removeAdjustment = () => post({ action: 'teacher-adjust', points: null }, 'Adjustment removed.')
 
@@ -419,7 +419,7 @@ export default function TestAnswersReview({ lessonId, lessonTitle, studentEmail,
                 <div className="flex items-center gap-2 flex-wrap">
                   <input value={adjPts} onChange={(e) => setAdjPts(e.target.value)} type="number" placeholder="Points" aria-label="Points earned"
                     className="w-24 px-2 py-1.5 text-sm border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky" />
-                  <span className="text-xs text-ink-muted">out of</span>
+                  <span className="text-xs text-ink-muted" title="Enter 0 if these marks are already part of the test total (e.g. crediting a question that failed to record)">out of</span>
                   <input value={adjOutOf} onChange={(e) => setAdjOutOf(e.target.value)} type="number" placeholder="same" aria-label="Out of"
                     className="w-24 px-2 py-1.5 text-sm border-[1.5px] border-[#e3e5e9] rounded-tile focus:outline-none focus:border-sky" />
                   <input value={adjNote} onChange={(e) => setAdjNote(e.target.value)} type="text" placeholder="Reason, e.g. Writing task — graded on paper" aria-label="Reason"

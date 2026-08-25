@@ -450,7 +450,10 @@ export async function POST(req: NextRequest) {
         ? null
         : {
             points: Math.round(points),
-            out_of: Math.max(Math.round(out_of ?? points), Math.round(points)),
+            // out_of 0 = "these marks already exist in the test total" — used
+            // when crediting work the runner failed to record. Otherwise the
+            // adjustment adds to both score and total (e.g. off-platform writing).
+            out_of: Math.max(0, Math.round(out_of ?? points)),
             note: String(note || '').slice(0, 200),
             by: auth2.email,
             at: new Date().toISOString(),
