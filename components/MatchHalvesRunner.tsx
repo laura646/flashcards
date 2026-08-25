@@ -17,6 +17,7 @@ interface Props {
     questions: MatchPair[]
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -29,7 +30,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Props) {
+export default function MatchHalvesRunner({ exercise, onComplete, onProgress, onBack }: Props) {
   const pairs = exercise.questions
 
   // Shuffle the left-side tiles and the right-side definitions independently
@@ -73,13 +74,14 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
       setPlacements(prev => {
         const next = { ...prev }
         delete next[slotId]
+        reportProgress(next)
         return next
       })
       return
     }
     // If a tile is selected, place it in this slot
     if (selectedTile !== null) {
-      setPlacements(prev => ({ ...prev, [slotId]: selectedTile }))
+      setPlacements(prev => { const next = { ...prev, [slotId]: selectedTile }; reportProgress(next); return next })
       setSelectedTile(null)
     }
   }
@@ -101,6 +103,7 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
       // If this slot had a different tile, free it
       // (no swap — just replace)
       next[slotId] = dragTileId
+      reportProgress(next)
       return next
     })
     setDragTileId(null)
@@ -114,9 +117,23 @@ export default function MatchHalvesRunner({ exercise, onComplete, onBack }: Prop
       for (const [key, val] of Object.entries(next)) {
         if (val === dragTileId) delete next[Number(key)]
       }
+      reportProgress(next)
       return next
     })
     setDragTileId(null)
+  }
+
+  // Report each placement so a half-finished matching still scores.
+  const reportProgress = (place: Record<number, number>) => {
+    onProgress?.(
+      shuffledRightSlots.reduce((acc, slot) => acc + (place[slot.id] === slot.id ? 1 : 0), 0),
+      pairs.length,
+      shuffledRightSlots.map((slot) => place[slot.id] === slot.id),
+      shuffledRightSlots.map((slot) => {
+        const tile = shuffledLeftTiles.find((t) => t.id === place[slot.id])
+        return slot.text + ' \u2190 ' + (tile ? tile.text : '(no answer)')
+      }),
+    )
   }
 
   const handleSubmit = () => {

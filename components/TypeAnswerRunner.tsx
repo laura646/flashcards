@@ -21,6 +21,7 @@ interface Props {
     test_type?: string | null
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -29,7 +30,7 @@ type QuestionResult = {
   correct: boolean
 }
 
-export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props) {
+export default function TypeAnswerRunner({ exercise, onComplete, onProgress, onBack }: Props) {
   // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
   const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -80,6 +81,13 @@ export default function TypeAnswerRunner({ exercise, onComplete, onBack }: Props
     const newResults = [...results]
     newResults[currentIndex] = result
     setResults(newResults)
+    // Save after EVERY answer: an exercise abandoned half-way still counts.
+    onProgress?.(
+      newResults.filter((r) => r?.correct).length,
+      exercise.questions.length,
+      newResults.map((r) => !!r?.correct),
+      newResults.map((r) => r?.typed ?? '(no answer)'),
+    )
 
     // Exam mode: record the answer and move straight on — no verdict,
     // no correct answer, nothing to brute-force before the test is submitted.
