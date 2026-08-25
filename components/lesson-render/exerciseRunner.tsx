@@ -49,7 +49,12 @@ export interface StandaloneRunnerExercise {
 export function renderStandaloneRunner(
   exercise: StandaloneRunnerExercise,
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void,
-  onBack: () => void
+  onBack: () => void,
+  // Partial-progress channel: runners that support it report after EVERY
+  // answer so work is saved even if the exercise is never finished. Without
+  // it, an unfinished exercise scores zero and its answers are lost (the
+  // "my answers weren't counted" class of bug).
+  onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void,
 ): React.ReactNode {
   const exType = exercise.exercise_type
   const exProps = {
@@ -63,11 +68,11 @@ export function renderStandaloneRunner(
   }
 
   if (exType === 'true_or_false') {
-    return <TrueOrFalseRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
+    return <TrueOrFalseRunner exercise={exProps} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
   } else if (exType === 'hangman') {
     return <HangmanRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'type_answer') {
-    return <TypeAnswerRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
+    return <TypeAnswerRunner exercise={exProps} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
   } else if (exType === 'complete_sentence') {
     return <CompleteSentenceRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'group_sort') {
@@ -75,7 +80,7 @@ export function renderStandaloneRunner(
   } else if (exType === 'dictation') {
     return <DictationRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and type what you hear.' }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'error_correction') {
-    return <ErrorCorrectionRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find and correct the errors in each sentence.' }} onComplete={onComplete} onBack={onBack} />
+    return <ErrorCorrectionRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find and correct the errors in each sentence.' }} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
   } else if (exType === 'rank_order') {
     return <RankOrderRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Drag or use arrows to rank the items in the correct order.' }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'text_sequencing') {
@@ -85,14 +90,14 @@ export function renderStandaloneRunner(
   } else if (exType === 'cloze_listening') {
     return <ClozeListeningRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and fill in the missing words.' }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'match_halves') {
-    return <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={onComplete} onBack={onBack} />
+    return <MatchHalvesRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Match the halves by dragging tiles to the correct definitions.' }} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
   } else if (exType === 'odd_one_out') {
     return <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'gap_fill') {
-    return <GapFillRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Fill each gap, then check.' }} onComplete={onComplete} onBack={onBack} />
+    return <GapFillRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Fill each gap, then check.' }} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
   } else {
     // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
-    return <ExerciseRunner exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle, icon: exercise.icon, instructions: exercise.instructions, questions: exercise.questions, test_type: exercise.test_type }} onComplete={onComplete} onBack={onBack} />
+    return <ExerciseRunner exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle, icon: exercise.icon, instructions: exercise.instructions, questions: exercise.questions, test_type: exercise.test_type }} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
   }
 }
 
@@ -115,8 +120,13 @@ export function BlockExercisesRunner({
   testMode?: boolean
 }) {
   const [scores, setScores] = useState<Record<string, { score: number; total: number; per?: boolean[] | null; answers?: unknown[] | null }>>({})
+  // Finished ≠ has a score: partial progress also lands in `scores`, but only
+  // a completed exercise is swapped for the neutral "Answered" tile, so the
+  // student can keep working on a partially-answered one.
+  const [finished, setFinished] = useState<Record<string, boolean>>({})
 
-  const reportScore = (exId: string, score: number, total: number, per?: boolean[], answers?: unknown[]) => {
+  const reportScore = (exId: string, score: number, total: number, per?: boolean[], answers?: unknown[], isFinal = true) => {
+    if (isFinal) setFinished((prev) => ({ ...prev, [exId]: true }))
     setScores((prev) => {
       const next = { ...prev, [exId]: { score, total, per: per ?? null, answers: answers ?? null } }
       let s = 0
@@ -138,7 +148,7 @@ export function BlockExercisesRunner({
     <div className="space-y-4">
       {exercises.map((ex, i) => {
         const key = ex.id || String(i)
-        if (testMode && scores[key]) {
+        if (testMode && finished[key]) {
           return (
             <div key={key} className="bg-white border border-sky-border rounded-card p-4">
               <p className="text-[10px] font-bold text-brandblue uppercase tracking-wider mb-2">
@@ -156,8 +166,9 @@ export function BlockExercisesRunner({
             <Suspense fallback={<ExerciseLoadingFallback />}>
               {renderStandaloneRunner(
                 testMode ? { ...ex, test_type: ex.test_type || 'test' } : ex,
-                (s, t, per, ans) => reportScore(key, s, t, per, ans),
-                () => { /* embedded — no back nav */ }
+                (s, t, per, ans) => reportScore(key, s, t, per, ans, true),
+                () => { /* embedded — no back nav */ },
+                (s, t, per, ans) => reportScore(key, s, t, per, ans, false),
               )}
             </Suspense>
           </div>

@@ -16,7 +16,7 @@
 // (eyebrow, title, Check button) uses tokens; the precise inline-blank geometry
 // uses inline styles because it must match across <input>, <button> and <span>.
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 // ── Tokens (kept literal so the geometry is exact across element types) ──
 const SKY = '#00aff0'
@@ -68,6 +68,7 @@ interface Props {
     questions: any
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -146,7 +147,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
+export default function GapFillRunner({ exercise, onComplete, onProgress, onBack }: Props) {
   const cfg: GapFillCfg | undefined = Array.isArray(exercise.questions)
     ? exercise.questions[0]
     : undefined
@@ -220,6 +221,28 @@ export default function GapFillRunner({ exercise, onComplete, onBack }: Props) {
     const word = bankTiles.find((t) => t.key === tileKey)?.word ?? null
     return pickMatches(word, g.answers)
   }
+
+  // Typing is continuous, so report on a short debounce rather than per key.
+  useEffect(() => {
+    if (checked) return
+    const t = setTimeout(() => {
+      const per = gaps.map((g) => isCorrectGap(g))
+      onProgress?.(
+        per.filter(Boolean).length,
+        total,
+        per,
+        gaps.map((g) => {
+          if (mode === 'word_bank') {
+            const k = placedByGap[g.id]
+            return bankTiles.find((x) => x.key === k)?.word ?? '(no answer)'
+          }
+          return values[g.id] || '(no answer)'
+        }),
+      )
+    }, 700)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, placedByGap, checked])
 
   const handleCheck = () => {
     if (checked) return

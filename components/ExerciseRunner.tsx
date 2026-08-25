@@ -8,6 +8,7 @@ interface Props {
   // perQuestionResults is optional — used by the test-lock flow so the
   // "already submitted" review screen can render right/wrong per question.
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -35,7 +36,7 @@ const isQuestionCorrect = (q: ExerciseQuestion, ans: AnswerValue): boolean => {
   return typeof ans === 'number' && ans === q.correctIndex
 }
 
-export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) {
+export default function ExerciseRunner({ exercise, onComplete, onProgress, onBack }: Props) {
   // Test exercises (test_type set on the lesson_exercises row) keep the
   // original batch-then-review flow — no feedback during the run, only
   // the summary at the end. Practice exercises get instant per-question
@@ -79,6 +80,17 @@ export default function ExerciseRunner({ exercise, onComplete, onBack }: Props) 
     }
 
     setAnswers(newAnswers)
+    onProgress?.(
+      exercise.questions.reduce((acc, q, i) => acc + (isQuestionCorrect(q, newAnswers[i]) ? 1 : 0), 0),
+      exercise.questions.length,
+      exercise.questions.map((q, i) => isQuestionCorrect(q, newAnswers[i])),
+      exercise.questions.map((q, i) => {
+        const a = newAnswers[i]
+        if (a === null) return '(no answer)'
+        if (Array.isArray(a)) return a.map((x) => q.options[x]).join(', ') || '(no answer)'
+        return q.options[a as number] ?? '(no answer)'
+      }),
+    )
 
     // Practice mode + single-select: auto-reveal feedback on click. For
     // multi-select the student needs a "Check" button (see render below)

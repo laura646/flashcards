@@ -17,6 +17,7 @@ interface Props {
     test_type?: string | null
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
@@ -107,7 +108,7 @@ function findErrors(incorrect: string, correct: string): Map<number, string> {
   return errors
 }
 
-export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: Props) {
+export default function ErrorCorrectionRunner({ exercise, onComplete, onProgress, onBack }: Props) {
   // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
   const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -208,6 +209,12 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onBack }: 
     const newResults = [...results]
     newResults[currentIndex] = result
     setResults(newResults)
+    onProgress?.(
+      newResults.reduce((acc, r) => acc + (r ? r.correctFixes : 0), 0),
+      newResults.reduce((acc, r) => acc + (r ? r.totalErrors : 0), 0),
+      newResults.map((r) => !!r && r.correctFixes === r.totalErrors),
+      newResults.map((r) => (r ? r.words.map((w) => (w.correction ? w.correction : w.word)).join(' ') : '(no answer)')),
+    )
 
     // Exam mode: record and advance — the per-sentence corrections stay hidden.
     if (isTestMode) {

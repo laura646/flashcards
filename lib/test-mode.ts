@@ -96,6 +96,7 @@ export const TEST_STRINGS = {
     confirmComplete:
       'Վստա՞հ եք, որ ցանկանում եք հանձնել թեստը։ Հանձնելուց հետո պատասխանները փոխել այլևս հնարավոր չէ։',
     unansweredCount: (n: number) => `${n} վարժություն առանց պատասխանի`,
+    unfinishedCount: (n: number) => `${n} վարժություն սկսված է, բայց ավարտված չէ`,
     yesSubmit: 'Այո, հանձնել',
     backToTest: 'Վերադառնալ թեստին',
     autoSubmitted: 'Ժամանակը սպառվեց — թեստը հանձնվեց ավտոմատ կերպով։',
@@ -141,6 +142,7 @@ export const TEST_STRINGS = {
     confirmComplete:
       'Are you sure you want to submit? Once you submit, you cannot change your answers.',
     unansweredCount: (n: number) => `${n} unanswered exercise${n === 1 ? '' : 's'}`,
+    unfinishedCount: (n: number) => `${n} exercise${n === 1 ? '' : 's'} started but not finished`,
     yesSubmit: 'Yes, submit',
     backToTest: 'Back to the test',
     autoSubmitted: 'Time ran out — your test was submitted automatically.',

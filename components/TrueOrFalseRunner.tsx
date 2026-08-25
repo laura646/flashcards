@@ -17,10 +17,11 @@ interface Props {
     test_type?: string | null
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
-export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Props) {
+export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, onBack }: Props) {
   // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
   const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -59,6 +60,12 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
     const newAnswers = [...answers]
     newAnswers[currentIndex] = answer
     setAnswers(newAnswers)
+    onProgress?.(
+      exercise.questions.reduce((acc, q, i) => acc + (newAnswers[i] === q.isTrue ? 1 : 0), 0),
+      exercise.questions.length,
+      exercise.questions.map((q, i) => newAnswers[i] === q.isTrue),
+      newAnswers.map((a) => (a === null ? '(no answer)' : a ? 'True' : 'False')),
+    )
 
     // Exam mode: record and advance — no verdict until the test is submitted.
     if (isTestMode) {

@@ -176,6 +176,8 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
+  // Items the student actually FINISHED this session (vs merely started).
+  const [completedItems, setCompletedItems] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<{ kind: '15' | '5'; msg: string } | null>(null)
   const [result, setResult] = useState<{
     score: number; total: number; auto: boolean; started_at?: string; submitted_at?: string
@@ -306,16 +308,13 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     }
   }
 
-  const saveExercise = async (ex: TestSessionExercise, score: number, total: number, per?: boolean[], studentAnswers?: unknown[]) => {
-    // Optimistic local update so the list status flips instantly.
+  // Silent write used by BOTH paths. Partial progress lands here too, so an
+  // exercise the student never finishes still keeps whatever they answered.
+  const persistExercise = async (ex: TestSessionExercise, score: number, total: number, per?: boolean[], studentAnswers?: unknown[]) => {
     setAnswers((prev) => ({
       ...prev,
       [ex.id]: { exercise_id: ex.id, score, total, per_question_results: per ?? null },
     }))
-    setActiveEx(null)
-    setView('list')
-    setSavedFlash(true)
-    setTimeout(() => setSavedFlash(false), 1600)
     try {
       const res = await fetch('/api/test-session', {
         method: 'POST',
@@ -328,6 +327,17 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
       })
       if (res.status === 410) timeUp()
     } catch { /* keep optimistic state; finalize will use last server-accepted save */ }
+  }
+
+  // Finishing an exercise: same write, plus mark it complete and go back to
+  // the list. `completedItems` drives the unfinished-work warning on submit.
+  const saveExercise = async (ex: TestSessionExercise, score: number, total: number, per?: boolean[], studentAnswers?: unknown[]) => {
+    setCompletedItems((prev) => { const next = new Set(prev); next.add(ex.id); return next })
+    setActiveEx(null)
+    setView('list')
+    setSavedFlash(true)
+    setTimeout(() => setSavedFlash(false), 1600)
+    await persistExercise(ex, score, total, per, studentAnswers)
   }
 
   const submitNow = async () => {
@@ -376,6 +386,12 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     exercises.filter((e) => answers[e.id]).length +
     scorableBlocks.filter((b) => answers[b.id]).length
   const unanswered = totalItems - answeredCount
+  // Started but never finished — their answers ARE saved now, but the student
+  // may simply have forgotten to complete them, so name them before submitting.
+  const unfinished = [
+    ...exercises.filter((e) => answers[e.id] && !completedItems.has(e.id)).map((e) => e.title || 'Exercise'),
+    ...scorableBlocks.filter((b) => answers[b.id] && !completedItems.has(b.id)).map((b) => b.title || 'Section'),
+  ]
 
   // ─────────────────────────── RENDER ───────────────────────────
 
@@ -502,7 +518,8 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
             // instant per-question feedback — revealing answers mid-test.
             { ...activeEx, test_type: activeEx.test_type || lessonType },
             (score, total, per, ans) => saveExercise(activeEx, score, total, per, ans),
-            () => { setActiveEx(null); setView('list') }
+            () => { setActiveEx(null); setView('list') },
+            (score, total, per, ans) => { void persistExercise(activeEx, score, total, per, ans) },
           )}
         </Suspense>
       </div>
@@ -514,7 +531,13 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const blockContent = activeBlock.content as any
     /* eslint-enable @typescript-eslint/no-explicit-any */
-    const onScore = (s: number, t: number, d?: Record<string, unknown>) => saveBlock(activeBlock, s, t, d)
+    const onScore = (s: number, t: number, d?: Record<string, unknown>) => {
+      const attached = ((activeBlock.content as { exercises?: unknown[] } | null)?.exercises || []).length
+      if (d && attached > 0 && Object.keys(d).length >= attached) {
+        setCompletedItems((prev) => { const next = new Set(prev); next.add(activeBlock.id); return next })
+      }
+      saveBlock(activeBlock, s, t, d)
+    }
     return (
       <div className="flex flex-col gap-4">
         {timerBar}
@@ -604,11 +627,19 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
         {confirmOpen && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4" onClick={() => setConfirmOpen(false)}>
             <div className="bg-white rounded-2xl p-6 w-full max-w-md text-center" onClick={(e) => e.stopPropagation()}>
-              <div className="text-3xl mb-2">{unanswered > 0 ? '⚠️' : '🤔'}</div>
+              <div className="text-3xl mb-2">{unanswered > 0 || unfinished.length > 0 ? '⚠️' : '🤔'}</div>
               {unanswered > 0 && (
                 <span className="inline-block bg-[#fef3e2] border border-[#f5dcb5] text-[#b45309] text-[11px] font-bold rounded-full px-3 py-1 mb-3">
                   {S.unansweredCount(unanswered)}
                 </span>
+              )}
+              {unfinished.length > 0 && (
+                <div className="bg-[#fef3e2] border border-[#f5dcb5] rounded-xl px-3 py-2 mb-3 text-left">
+                  <p className="text-[11px] font-bold text-[#b45309] mb-1">{S.unfinishedCount(unfinished.length)}</p>
+                  <ul className="text-[11px] text-[#b45309] leading-snug list-disc pl-4">
+                    {unfinished.slice(0, 4).map((t) => <li key={t}>{t}</li>)}
+                  </ul>
+                </div>
               )}
               <p className="text-sm font-semibold text-ink-body leading-relaxed mb-5">
                 {unanswered > 0 ? S.confirmIncomplete : S.confirmComplete}
