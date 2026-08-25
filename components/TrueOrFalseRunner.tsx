@@ -68,7 +68,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onBack }: Prop
         setFinished(true)
         const score = exercise.questions.reduce(
           (acc, q, i) => acc + (newAnswers[i] === q.isTrue ? 1 : 0), 0)
-        onComplete(score, exercise.questions.length, exercise.questions.map((q, i) => answers[i] === q.isTrue), answers.map((a) => (a === null ? '(no answer)' : a ? 'True' : 'False')))
+        onComplete(score, exercise.questions.length, exercise.questions.map((q, i) => newAnswers[i] === q.isTrue), newAnswers.map((a) => (a === null ? '(no answer)' : a ? 'True' : 'False')))
       }
       return
     }
