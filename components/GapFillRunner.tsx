@@ -1,4 +1,5 @@
 'use client'
+import { normalizeAnswer } from '@/lib/answer-text'
 
 // ── Gap-fill runner (one umbrella exercise, three modes) ──
 //
@@ -95,7 +96,7 @@ function parseText(text: string): TextPart[] {
 }
 
 function norm(s: string): string {
-  return s.trim().toLowerCase()
+  return normalizeAnswer(s)
 }
 
 // Levenshtein distance (iterative, two-row). Used for open-mode typo tolerance.

@@ -1,4 +1,5 @@
 'use client'
+import { normalizeAnswer } from '@/lib/answer-text'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
@@ -174,8 +175,8 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
         Object.keys(q.blanks).forEach((blankId) => {
           totalBlanks++
           if (
-            (answers[i][blankId] || '').trim().toLowerCase() ===
-            q.blanks[blankId].trim().toLowerCase()
+            normalizeAnswer(answers[i][blankId] || '') ===
+            normalizeAnswer(q.blanks[blankId])
           ) {
             correctBlanks++
           }
@@ -187,7 +188,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
         Object.keys(q.blanks).forEach((blankId) => {
           const g = (answers[i][blankId] || '').trim()
           given.push(g || '(no answer)')
-          per.push(g.toLowerCase() === q.blanks[blankId].trim().toLowerCase())
+          per.push(g.toLowerCase() === normalizeAnswer(q.blanks[blankId]))
         })
       })
       setFinished(true)
@@ -207,8 +208,8 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
       Object.keys(q.blanks).forEach((blankId) => {
         totalBlanks++
         if (
-          (answers[i][blankId] || '').trim().toLowerCase() ===
-          q.blanks[blankId].trim().toLowerCase()
+          normalizeAnswer(answers[i][blankId] || '') ===
+          normalizeAnswer(q.blanks[blankId])
         ) {
           correctBlanks++
         }

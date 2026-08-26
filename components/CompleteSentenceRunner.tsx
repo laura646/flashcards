@@ -1,4 +1,5 @@
 'use client'
+import { normalizeAnswer } from '@/lib/answer-text'
 
 import { useState, useCallback } from 'react'
 
@@ -134,7 +135,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
     exercise.questions.forEach((q, i) => {
       Object.keys(q.blanks).forEach((blankId) => {
         total++
-        if (placements[i][blankId]?.toLowerCase() === q.blanks[blankId].toLowerCase()) {
+        if (normalizeAnswer(placements[i][blankId] || '') === normalizeAnswer(q.blanks[blankId])) {
           score++
         }
       })
@@ -154,7 +155,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
         Object.keys(q.blanks).forEach((blankId) => {
           const g = placements[i]?.[blankId]
           given.push(g || '(no answer)')
-          per.push((g || '').toLowerCase() === q.blanks[blankId].toLowerCase())
+          per.push(normalizeAnswer(g || '') === normalizeAnswer(q.blanks[blankId]))
         })
       })
       setFinished(true)
@@ -186,7 +187,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
         <div className="space-y-3">
           {exercise.questions.map((q, i) => {
             const allCorrect = Object.keys(q.blanks).every(
-              (blankId) => placements[i][blankId]?.toLowerCase() === q.blanks[blankId].toLowerCase()
+              (blankId) => normalizeAnswer(placements[i][blankId] || '') === normalizeAnswer(q.blanks[blankId])
             )
             const parts = parseText(q.text)
             return (
