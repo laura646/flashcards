@@ -1,4 +1,5 @@
 'use client'
+import { isChoiceCorrect } from '@/lib/answer-text'
 
 import { useState } from 'react'
 import { Exercise, ExerciseQuestion } from '@/data/exercises'
@@ -25,16 +26,8 @@ const isQuestionAnswered = (q: ExerciseQuestion, ans: AnswerValue): boolean => {
   return typeof ans === 'number'
 }
 
-const isQuestionCorrect = (q: ExerciseQuestion, ans: AnswerValue): boolean => {
-  if (ans === null) return false
-  if (isMultiSelect(q)) {
-    if (!Array.isArray(ans)) return false
-    const correct = new Set(q.correctIndices || [])
-    if (ans.length !== correct.size) return false
-    return ans.every((i) => correct.has(i))
-  }
-  return typeof ans === 'number' && ans === q.correctIndex
-}
+const isQuestionCorrect = (q: ExerciseQuestion, ans: AnswerValue): boolean =>
+  isChoiceCorrect(q, ans as number | number[] | null)
 
 export default function ExerciseRunner({ exercise, onComplete, onProgress, onBack }: Props) {
   // Test exercises (test_type set on the lesson_exercises row) keep the

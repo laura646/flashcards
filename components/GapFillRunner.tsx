@@ -1,5 +1,5 @@
 'use client'
-import { normalizeAnswer } from '@/lib/answer-text'
+import { normalizeAnswer, openMatches, pickMatches } from '@/lib/answer-text'
 
 // ── Gap-fill runner (one umbrella exercise, three modes) ──
 //
@@ -93,49 +93,6 @@ function parseText(text: string): TextPart[] {
     parts.push({ type: 'text', value: text.slice(lastIndex) })
   }
   return parts
-}
-
-function norm(s: string): string {
-  return normalizeAnswer(s)
-}
-
-// Levenshtein distance (iterative, two-row). Used for open-mode typo tolerance.
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0
-  if (a.length === 0) return b.length
-  if (b.length === 0) return a.length
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i)
-  let curr = new Array<number>(b.length + 1)
-  for (let i = 1; i <= a.length; i++) {
-    curr[0] = i
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost)
-    }
-    ;[prev, curr] = [curr, prev]
-  }
-  return prev[b.length]
-}
-
-// Forgiving open-mode match: case-insensitive + trimmed + (unless requireExact)
-// Levenshtein <= 1 against ANY accepted answer.
-function openMatches(value: string, answers: string[], requireExact: boolean): boolean {
-  const v = norm(value)
-  if (!v) return false
-  return answers.some((ans) => {
-    const a = norm(ans)
-    if (v === a) return true
-    if (requireExact) return false
-    return levenshtein(v, a) <= 1
-  })
-}
-
-// Exact-pick match (word_bank / dropdown): case-insensitive + trimmed equality
-// against ANY accepted answer.
-function pickMatches(value: string | null, answers: string[]): boolean {
-  if (value == null) return false
-  const v = norm(value)
-  return answers.some((ans) => norm(ans) === v)
 }
 
 // Deterministic-ish shuffle (Fisher-Yates with Math.random — render-time only).
