@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { normalizeAnswerLoose } from '@/lib/answer-text'
 
 interface TypeAnswerQuestion {
   id: number
@@ -65,7 +66,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onProgress, onB
   const handleSubmitAnswer = () => {
     if (feedback !== null || inputValue.trim() === '') return
 
-    const stripPunctuation = (s: string) => s.replace(/[.,!?;:'"()\-\u2014\u2013\u2026]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+    const stripPunctuation = (s: string) => normalizeAnswerLoose(s)
     const normalizedInput = stripPunctuation(inputValue)
     // Accept the primary answer OR any listed alternative (synonyms, variants).
     const acceptedAnswers = [current.answer, ...(current.alternatives || [])].filter(Boolean)

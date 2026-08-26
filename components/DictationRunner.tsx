@@ -1,4 +1,5 @@
 'use client'
+import { normalizeAnswerLoose } from '@/lib/answer-text'
 
 import { useState, useEffect, useRef } from 'react'
 
@@ -58,7 +59,7 @@ function isExactMatch(typed: string, expected: string): boolean {
   // Mirrors TypeAnswerRunner's stripPunctuation so the two graded
   // text-input types judge answers the same way.
   const normalize = (s: string) =>
-    s.replace(/[.,!?;:'"()\-—–…]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+    normalizeAnswerLoose(s)
   return normalize(typed) === normalize(expected)
 }
 
