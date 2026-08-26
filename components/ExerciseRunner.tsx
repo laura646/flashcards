@@ -10,6 +10,7 @@ interface Props {
   // "already submitted" review screen can render right/wrong per question.
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  initialAnswers?: unknown[] | null
   onBack: () => void
 }
 
@@ -29,16 +30,27 @@ const isQuestionAnswered = (q: ExerciseQuestion, ans: AnswerValue): boolean => {
 const isQuestionCorrect = (q: ExerciseQuestion, ans: AnswerValue): boolean =>
   isChoiceCorrect(q, ans as number | number[] | null)
 
-export default function ExerciseRunner({ exercise, onComplete, onProgress, onBack }: Props) {
+export default function ExerciseRunner({ exercise, onComplete, onProgress, initialAnswers, onBack }: Props) {
   // Test exercises (test_type set on the lesson_exercises row) keep the
   // original batch-then-review flow — no feedback during the run, only
   // the summary at the end. Practice exercises get instant per-question
   // feedback, which is the new default.
   const isTestMode = !!exercise.test_type
 
-  const [answers, setAnswers] = useState<AnswerValue[]>(
-    new Array(exercise.questions.length).fill(null)
-  )
+  const [answers, setAnswers] = useState<AnswerValue[]>(() => {
+    // Rehydrate selections from a previous save (stored as option TEXT).
+    const seeded: AnswerValue[] = exercise.questions.map((q, i) => {
+      const v = initialAnswers?.[i]
+      if (typeof v !== 'string' || !v || v === '(no answer)') return null
+      if (isMultiSelect(q)) {
+        const idxs = v.split(', ').map((t) => q.options.indexOf(t)).filter((x) => x >= 0)
+        return idxs.length > 0 ? idxs : null
+      }
+      const idx = q.options.indexOf(v)
+      return idx >= 0 ? idx : null
+    })
+    return seeded.some((x) => x !== null) ? seeded : new Array(exercise.questions.length).fill(null)
+  })
   const [currentIndex, setCurrentIndex] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [checked, setChecked] = useState<Set<number>>(new Set())

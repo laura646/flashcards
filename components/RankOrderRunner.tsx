@@ -317,7 +317,7 @@ export default function RankOrderRunner({ exercise, onComplete, onBack }: Props)
           onClick={handleCheck}
           className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
-          Check order
+          {isTestMode ? 'Submit' : 'Check order'}
         </button>
       ) : feedback === 'wrong' ? (
         <button

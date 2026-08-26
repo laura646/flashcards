@@ -55,6 +55,9 @@ export function renderStandaloneRunner(
   // it, an unfinished exercise scores zero and its answers are lost (the
   // "my answers weren't counted" class of bug).
   onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void,
+  // Previously saved answers for THIS exercise — runners that support it
+  // rehydrate so a student can change one answer instead of retyping all.
+  initialAnswers?: unknown[] | null,
 ): React.ReactNode {
   const exType = exercise.exercise_type
   const exProps = {
@@ -68,11 +71,11 @@ export function renderStandaloneRunner(
   }
 
   if (exType === 'true_or_false') {
-    return <TrueOrFalseRunner exercise={exProps} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
+    return <TrueOrFalseRunner exercise={exProps} onComplete={onComplete} onProgress={onProgress} initialAnswers={initialAnswers} onBack={onBack} />
   } else if (exType === 'hangman') {
     return <HangmanRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'type_answer') {
-    return <TypeAnswerRunner exercise={exProps} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
+    return <TypeAnswerRunner exercise={exProps} onComplete={onComplete} onProgress={onProgress} initialAnswers={initialAnswers} onBack={onBack} />
   } else if (exType === 'complete_sentence') {
     return <CompleteSentenceRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'group_sort') {
@@ -94,10 +97,10 @@ export function renderStandaloneRunner(
   } else if (exType === 'odd_one_out') {
     return <OddOneOutRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Find the word or phrase that doesn\'t belong.' }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'gap_fill') {
-    return <GapFillRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Fill each gap, then check.' }} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
+    return <GapFillRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Fill each gap, then check.' }} onComplete={onComplete} onProgress={onProgress} initialAnswers={initialAnswers} onBack={onBack} />
   } else {
     // Default: classic ExerciseRunner for multiple_choice, fill_blank, etc.
-    return <ExerciseRunner exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle, icon: exercise.icon, instructions: exercise.instructions, questions: exercise.questions, test_type: exercise.test_type }} onComplete={onComplete} onProgress={onProgress} onBack={onBack} />
+    return <ExerciseRunner exercise={{ id: 0, title: exercise.title, subtitle: exercise.subtitle, icon: exercise.icon, instructions: exercise.instructions, questions: exercise.questions, test_type: exercise.test_type }} onComplete={onComplete} onProgress={onProgress} initialAnswers={initialAnswers} onBack={onBack} />
   }
 }
 
@@ -108,10 +111,12 @@ export function renderStandaloneRunner(
 // onBack is a no-op (embedded, no nav).
 export function BlockExercisesRunner({
   exercises,
+  initialDetail,
   onScore,
   testMode = false,
 }: {
   exercises: Exercise[]
+  initialDetail?: Record<string, { per?: boolean[] | null; answers?: unknown[] | null }> | null
   onScore: (score: number, total: number, detail?: Record<string, { per: boolean[] | null; answers: unknown[] | null }>) => void
   // Exam mode: forces test_type onto every attached exercise (batch answering,
   // no per-question feedback) and swaps a finished runner for a neutral
@@ -169,6 +174,7 @@ export function BlockExercisesRunner({
                 (s, t, per, ans) => reportScore(key, s, t, per, ans, true),
                 () => { /* embedded — no back nav */ },
                 (s, t, per, ans) => reportScore(key, s, t, per, ans, false),
+                (initialDetail && initialDetail[key] && Array.isArray(initialDetail[key].answers)) ? (initialDetail[key].answers as unknown[]) : null,
               )}
             </Suspense>
           </div>
