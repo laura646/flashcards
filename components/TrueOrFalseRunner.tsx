@@ -230,13 +230,15 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, in
       </div>
 
       {/* True / False buttons */}
-      <div className="flex gap-3">
+      <div key={currentIndex} className="flex gap-3">
         {/* True button */}
         <button
-          onClick={() => handleAnswer(true)}
+          onClick={(e) => { e.currentTarget.blur(); handleAnswer(true) }}
           disabled={feedback !== null}
           className={`flex-1 flex flex-col items-center justify-center gap-1 py-5 rounded-card text-lg font-bold transition-all duration-300 border-2 ${
-            feedback !== null && answers[currentIndex] === true
+            isTestMode && answers[currentIndex] === true
+              ? 'border-sky bg-sky-wash text-sky-text cursor-pointer'
+              : feedback !== null && answers[currentIndex] === true
               ? feedback === 'correct'
                 ? 'border-green-400 bg-green-100 text-green-700 animate-pulse'
                 : 'border-red-400 bg-red-100 text-red-600 animate-pulse'
@@ -251,10 +253,12 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, in
 
         {/* False button */}
         <button
-          onClick={() => handleAnswer(false)}
+          onClick={(e) => { e.currentTarget.blur(); handleAnswer(false) }}
           disabled={feedback !== null}
           className={`flex-1 flex flex-col items-center justify-center gap-1 py-5 rounded-card text-lg font-bold transition-all duration-300 border-2 ${
-            feedback !== null && answers[currentIndex] === false
+            isTestMode && answers[currentIndex] === false
+              ? 'border-sky bg-sky-wash text-sky-text cursor-pointer'
+              : feedback !== null && answers[currentIndex] === false
               ? feedback === 'correct'
                 ? 'border-green-400 bg-green-100 text-green-700 animate-pulse'
                 : 'border-red-400 bg-red-100 text-red-600 animate-pulse'
