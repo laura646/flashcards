@@ -351,7 +351,7 @@ export default function TypeAnswerRunner({ exercise, onComplete, onProgress, onB
           disabled={inputValue.trim() === ''}
           className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Check answer
+          {isTestMode ? 'Submit' : 'Check answer'}
         </button>
       ) : feedback === 'wrong' ? (
         <button
@@ -370,6 +370,8 @@ export default function TypeAnswerRunner({ exercise, onComplete, onProgress, onB
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'
+                : isTestMode
+                ? (results[i] !== null ? 'bg-[#00aff0]' : 'bg-[#cddcf0]')
                 : results[i]?.correct
                 ? 'bg-green-400'
                 : results[i] !== null

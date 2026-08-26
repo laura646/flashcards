@@ -67,6 +67,7 @@ interface Props {
     instructions: string
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     questions: any
+    test_type?: string | null
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
@@ -106,6 +107,9 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export default function GapFillRunner({ exercise, onComplete, onProgress, onBack }: Props) {
+  // Exam mode: never reveal correctness before the whole test is submitted.
+  const isTestMode = !!exercise.test_type
+  // Results (green/red gaps + score) are for practice only.
   const cfg: GapFillCfg | undefined = Array.isArray(exercise.questions)
     ? exercise.questions[0]
     : undefined
@@ -118,6 +122,7 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
   // placed tile word (or undefined when empty).
   const [values, setValues] = useState<Record<string, string>>({})
   const [checked, setChecked] = useState(false)
+  const reveal = checked && !isTestMode
   const [score, setScore] = useState(0)
 
   // word_bank: which tile is currently "armed" for tap-to-place (touch flow).
@@ -276,8 +281,8 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
       // Unknown placeholder — render literally so the teacher notices.
       return <span key={`u-${idx}`} style={{ color: INK_MUTED }}>{`{{${gapId}}}`}</span>
     }
-    const correct = checked && isCorrectGap(g)
-    const wrong = checked && !correct
+    const correct = reveal && isCorrectGap(g)
+    const wrong = reveal && !correct
 
     const stateStyle: React.CSSProperties = checked
       ? correct
@@ -306,8 +311,8 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
               ...stateStyle,
               width: 96,
               outline: 'none',
-              color: checked ? stateStyle.color : INK_BODY,
-              background: checked ? stateStyle.background : '#fff',
+              color: reveal ? stateStyle.color : INK_BODY,
+              background: reveal ? stateStyle.background : '#fff',
             }}
           />
           {answerHint}
@@ -321,8 +326,8 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
       const isOpen = openGap === g.id && !checked
       // Underlined trigger — reads like a fill-in blank with a chevron cue, not a
       // boxed control. Colour the underline + text; open/checked states tint it.
-      const lineColor = checked ? (correct ? CORRECT_FG : WRONG_FG) : isOpen ? SKY : '#9fd5f4'
-      const textColor = checked ? (correct ? CORRECT_FG : WRONG_FG) : picked ? INK_BODY : INK_MUTED
+      const lineColor = reveal ? (correct ? CORRECT_FG : WRONG_FG) : isOpen ? SKY : '#9fd5f4'
+      const textColor = reveal ? (correct ? CORRECT_FG : WRONG_FG) : picked ? INK_BODY : INK_MUTED
       return (
         <span key={`g-${idx}`} style={{ position: 'relative', display: 'inline-block', whiteSpace: 'nowrap' }}>
           <button
@@ -342,7 +347,7 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
               border: 'none',
               borderBottom: `2px solid ${lineColor}`,
               borderRadius: '5px 5px 0 0',
-              background: checked ? (correct ? CORRECT_BG : WRONG_BG) : isOpen ? SKY_WASH : 'transparent',
+              background: reveal ? (correct ? CORRECT_BG : WRONG_BG) : isOpen ? SKY_WASH : 'transparent',
               color: textColor,
               fontFamily: 'inherit',
               fontSize: 15,
@@ -596,7 +601,7 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
 
         {/* Check button + score */}
         <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 14 }}>
-          {!checked ? (
+          {!checked || isTestMode ? (
             <button
               type="button"
               onClick={handleCheck}
@@ -612,7 +617,7 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
                 fontFamily: 'inherit',
               }}
             >
-              Check
+              {isTestMode ? 'Submit' : 'Check'}
             </button>
           ) : (
             <button
@@ -634,7 +639,7 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
             </button>
           )}
 
-          {checked && (
+          {reveal && (
             <span style={{ fontSize: 15, fontWeight: 700, color: perfect ? CORRECT_FG : INK_BODY }}>
               {score} / {total}
               {perfect && <span style={{ marginLeft: 8, color: CORRECT_FG }}>perfect!</span>}

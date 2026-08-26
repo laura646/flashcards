@@ -384,6 +384,8 @@ export default function HangmanRunner({ exercise, onComplete, onBack }: Props) {
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'
+                : isTestMode
+                ? (i < results.length ? 'bg-[#00aff0]' : 'bg-[#cddcf0]')
                 : i < results.length
                 ? results[i]
                   ? 'bg-green-400'

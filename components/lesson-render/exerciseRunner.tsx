@@ -76,7 +76,7 @@ export function renderStandaloneRunner(
   } else if (exType === 'complete_sentence') {
     return <CompleteSentenceRunner exercise={exProps} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'group_sort') {
-    return <GroupSortRunner exercise={{ title: exProps.title, instructions: exProps.instructions, groupData: exercise.groupData || exercise.questions }} onComplete={onComplete} onBack={onBack} />
+    return <GroupSortRunner exercise={{ title: exProps.title, instructions: exProps.instructions, groupData: exercise.groupData || exercise.questions, test_type: exProps.test_type }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'dictation') {
     return <DictationRunner exercise={{ ...exProps, instructions: exProps.instructions || 'Listen and type what you hear.' }} onComplete={onComplete} onBack={onBack} />
   } else if (exType === 'error_correction') {

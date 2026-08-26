@@ -637,6 +637,8 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onProgress
               className={`w-2.5 h-2.5 rounded-full transition-all ${
                 i === currentIndex
                   ? 'bg-sky scale-125'
+                  : isTestMode
+                  ? (r !== null ? 'bg-[#00aff0]' : 'bg-[#cddcf0]')
                   : perfect
                   ? 'bg-green-400'
                   : r !== null

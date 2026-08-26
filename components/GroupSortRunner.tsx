@@ -34,6 +34,7 @@ interface Props {
     title: string
     instructions: string
     groupData: GroupData
+    test_type?: string | null
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
@@ -52,6 +53,8 @@ const normalizeGroup = (g: RawGroup): NormGroup => ({
 // ------- Component -------
 
 export default function GroupSortRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: never reveal correctness before the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   // Normalize once per groupData change (handles both legacy string items and new object items)
   const groups = useMemo<NormGroup[]>(
     () => (exercise.groupData?.groups || []).map(normalizeGroup),
@@ -166,6 +169,14 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
   // ------- Summary view -------
 
   if (submitted) {
+    if (isTestMode) {
+      // Exam mode: acknowledge only — the reveal comes after the whole test.
+      return (
+        <div className="bg-white border border-sky-border rounded-card p-6 text-center">
+          <p className="text-sm font-bold text-correct-fg">✓ Answered</p>
+        </div>
+      )
+    }
     return (
       <div className="flex flex-col gap-4">
         <div className="text-center py-6">
@@ -352,7 +363,7 @@ export default function GroupSortRunner({ exercise, onComplete, onBack }: Props)
         disabled={!allPlaced}
         className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Check answers
+        {isTestMode ? 'Submit' : 'Check answers'}
       </button>
     </div>
   )

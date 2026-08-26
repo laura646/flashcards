@@ -15,6 +15,7 @@ interface Props {
     title: string
     instructions: string
     questions: ClozeListeningQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
@@ -41,6 +42,8 @@ function parseText(text: string): TextPart[] {
 }
 
 export default function ClozeListeningRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: never reveal correctness before the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [mode, setMode] = useState<'listen_first' | 'read_listen'>('read_listen')
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>[]>(
@@ -64,6 +67,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
   const current = exercise.questions[currentIndex]
   const currentAnswers = answers[currentIndex]
   const isSubmitted = submitted[currentIndex]
+  const revealHere = isSubmitted && !isTestMode
   const blankIds = Object.keys(current.blanks)
   const allFilled = blankIds.every((id) => (currentAnswers[id] || '').trim() !== '')
 
@@ -293,6 +297,7 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
     if (!isSubmitted) return 'neutral'
     const placed = (currentAnswers[blankId] || '').trim()
     if (!placed) return 'neutral'
+    if (isTestMode) return 'neutral'
     return placed.toLowerCase() === current.blanks[blankId].toLowerCase() ? 'correct' : 'wrong'
   }
 
@@ -469,6 +474,8 @@ export default function ClozeListeningRunner({ exercise, onComplete, onBack }: P
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'
+                : isTestMode
+                ? (submitted[i] ? 'bg-[#00aff0]' : 'bg-[#cddcf0]')
                 : submitted[i]
                 ? Object.keys(exercise.questions[i].blanks).every(
                     (bid) =>

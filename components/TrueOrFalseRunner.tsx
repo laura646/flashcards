@@ -271,6 +271,8 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, on
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'
+                : isTestMode
+                ? (answers[i] !== null ? 'bg-[#00aff0]' : 'bg-[#cddcf0]')
                 : answers[i] !== null
                 ? answers[i] === exercise.questions[i].isTrue
                   ? 'bg-green-400'
