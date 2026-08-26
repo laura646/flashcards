@@ -23,6 +23,7 @@ interface Props {
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  initialAnswers?: unknown[] | null
   onBack: () => void
 }
 
@@ -31,14 +32,31 @@ type QuestionResult = {
   correct: boolean
 }
 
-export default function TypeAnswerRunner({ exercise, onComplete, onProgress, onBack }: Props) {
+export default function TypeAnswerRunner({ exercise, onComplete, onProgress, initialAnswers, onBack }: Props) {
   // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
   const isTestMode = !!exercise.test_type
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [inputValue, setInputValue] = useState('')
-  const [results, setResults] = useState<(QuestionResult | null)[]>(
-    new Array(exercise.questions.length).fill(null)
-  )
+  const [currentIndex, setCurrentIndex] = useState(() => { const i = seededResults.findIndex((r) => r === null); return hasSeed && i >= 0 ? i : 0 })
+  const [inputValue, setInputValue] = useState(() => seededResults[0] && !hasSeed ? '' : '')
+  // When jumping between questions, prefill with what was answered before.
+  useEffect(() => {
+    setInputValue(results[currentIndex]?.typed ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex])
+  // Rehydrate typed answers from a previous save (graded with the same rule
+  // as submission) so reopening lets the student edit, not retype.
+  const gradeTyped = (qIndex: number, typed: string): QuestionResult => {
+    const q = exercise.questions[qIndex]
+    const accepted = [q.answer, ...(q.alternatives || [])].filter(Boolean).map(String)
+    const strip = (x: string) => normalizeAnswerLoose(x)
+    return { typed, correct: accepted.some((a) => strip(a) === strip(typed)) }
+  }
+  const seededResults = exercise.questions.map((_, i) => {
+    const v = initialAnswers?.[i]
+    if (typeof v !== 'string' || !v || v === '(no answer)') return null
+    return gradeTyped(i, v)
+  })
+  const hasSeed = seededResults.some((r) => r !== null)
+  const [results, setResults] = useState<(QuestionResult | null)[]>(hasSeed ? seededResults : new Array(exercise.questions.length).fill(null))
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [finished, setFinished] = useState(false)
 
@@ -367,6 +385,8 @@ export default function TypeAnswerRunner({ exercise, onComplete, onProgress, onB
         {exercise.questions.map((_, i) => (
           <div
             key={i}
+            onClick={() => { if (isTestMode) setCurrentIndex(i) }}
+            style={isTestMode ? { cursor: 'pointer' } : undefined}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'

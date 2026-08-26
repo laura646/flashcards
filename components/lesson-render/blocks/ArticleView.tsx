@@ -13,10 +13,12 @@ import type { ArticleContent } from '../types'
 export function ArticleView({
   content,
   onScore,
+  initialDetail,
   testMode = false,
 }: {
   content: ArticleContent
   onScore?: (score: number, total: number, detail?: Record<string, { per: boolean[] | null; answers: unknown[] | null }>) => void
+  initialDetail?: Record<string, { per?: boolean[] | null; answers?: unknown[] | null }> | null
   // Exam mode: follow-ups run without feedback (see BlockExercisesRunner).
   testMode?: boolean
 }) {
@@ -60,6 +62,7 @@ export function ArticleView({
           <div>
             <h2 className="text-sm font-bold text-brandblue mb-3">Comprehension exercises</h2>
             <BlockExercisesRunner
+              initialDetail={initialDetail}
               exercises={effective}
               onScore={(s, t, d) => onScore?.(s, t, d)}
               testMode={testMode}

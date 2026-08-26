@@ -613,7 +613,7 @@ export default function ErrorCorrectionRunner({ exercise, onComplete, onProgress
           disabled={!allHighlightedHaveCorrections()}
           className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Check my corrections
+          {isTestMode ? 'Submit' : 'Check my corrections'}
         </button>
       )}
 

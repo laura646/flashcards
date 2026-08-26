@@ -39,6 +39,9 @@ export interface TestExerciseResult {
   score: number
   total: number
   per_question_results: boolean[] | null
+  // What the student actually chose/typed — used to rehydrate a reopened
+  // exercise so answers can be EDITED rather than retyped.
+  student_answers?: unknown
 }
 
 export type TestSessionState =

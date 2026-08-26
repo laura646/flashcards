@@ -74,9 +74,11 @@ async function loadSession(lessonId: string, email: string): Promise<TestSession
   return (data as TestSessionRow) || null
 }
 
-function answersPayload(map: Map<string, { exercise_id: string; score: number; total: number; per_question_results: boolean[] | null }>) {
-  const out: Record<string, { exercise_id: string; score: number; total: number; per_question_results: boolean[] | null }> = {}
-  map.forEach((v, k) => { out[k] = { exercise_id: v.exercise_id, score: v.score, total: v.total, per_question_results: v.per_question_results } })
+function answersPayload(map: Map<string, { exercise_id: string; score: number; total: number; per_question_results: boolean[] | null; student_answers?: unknown }>) {
+  const out: Record<string, { exercise_id: string; score: number; total: number; per_question_results: boolean[] | null; student_answers?: unknown }> = {}
+  // student_answers rides along so a reload (or reopening an exercise)
+  // restores what the student typed instead of presenting a blank form.
+  map.forEach((v, k) => { out[k] = { exercise_id: v.exercise_id, score: v.score, total: v.total, per_question_results: v.per_question_results, student_answers: v.student_answers ?? null } })
   return out
 }
 

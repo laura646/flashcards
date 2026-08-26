@@ -313,7 +313,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
   const persistExercise = async (ex: TestSessionExercise, score: number, total: number, per?: boolean[], studentAnswers?: unknown[]) => {
     setAnswers((prev) => ({
       ...prev,
-      [ex.id]: { exercise_id: ex.id, score, total, per_question_results: per ?? null },
+      [ex.id]: { exercise_id: ex.id, score, total, per_question_results: per ?? null, student_answers: studentAnswers ?? prev[ex.id]?.student_answers ?? null },
     }))
     try {
       const res = await fetch('/api/test-session', {
@@ -363,7 +363,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
   const saveBlock = async (b: TestSessionBlock, score: number, total: number, detail?: Record<string, unknown>) => {
     setAnswers((prev) => ({
       ...prev,
-      [b.id]: { exercise_id: b.id, score, total, per_question_results: null },
+      [b.id]: { exercise_id: b.id, score, total, per_question_results: null, student_answers: detail ?? prev[b.id]?.student_answers ?? null },
     }))
     setSavedFlash(true)
     setTimeout(() => setSavedFlash(false), 1600)
@@ -520,6 +520,7 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
             (score, total, per, ans) => saveExercise(activeEx, score, total, per, ans),
             () => { setActiveEx(null); setView('list') },
             (score, total, per, ans) => { void persistExercise(activeEx, score, total, per, ans) },
+            Array.isArray(answers[activeEx.id]?.student_answers) ? (answers[activeEx.id]!.student_answers as unknown[]) : null,
           )}
         </Suspense>
       </div>
@@ -531,6 +532,10 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const blockContent = activeBlock.content as any
     /* eslint-enable @typescript-eslint/no-explicit-any */
+    const sd = answers[activeBlock.id]?.student_answers
+    const savedDetail = (sd && typeof sd === 'object' && !Array.isArray(sd))
+      ? (sd as Record<string, { per?: boolean[] | null; answers?: unknown[] | null }>)
+      : null
     const onScore = (s: number, t: number, d?: Record<string, unknown>) => {
       const attached = ((activeBlock.content as { exercises?: unknown[] } | null)?.exercises || []).length
       if (d && attached > 0 && Object.keys(d).length >= attached) {
@@ -550,9 +555,9 @@ export default function TestSession({ lessonId, lessonTitle, lessonType, exercis
             {BLOCK_ICONS[activeBlock.block_type] || '📦'} {activeBlock.title || ''}
           </h2>
         </div>
-        {activeBlock.block_type === 'audio' && <AudioView content={blockContent} onScore={onScore} testMode />}
-        {activeBlock.block_type === 'video' && <VideoView content={blockContent} onScore={onScore} testMode />}
-        {activeBlock.block_type === 'article' && <ArticleView content={blockContent} onScore={onScore} testMode />}
+        {activeBlock.block_type === 'audio' && <AudioView content={blockContent} onScore={onScore} testMode initialDetail={savedDetail} />}
+        {activeBlock.block_type === 'video' && <VideoView content={blockContent} onScore={onScore} testMode initialDetail={savedDetail} />}
+        {activeBlock.block_type === 'article' && <ArticleView content={blockContent} onScore={onScore} testMode initialDetail={savedDetail} />}
       </div>
     )
   }

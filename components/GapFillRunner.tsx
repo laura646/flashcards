@@ -71,6 +71,7 @@ interface Props {
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  initialAnswers?: unknown[] | null
   onBack: () => void
 }
 
@@ -106,7 +107,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-export default function GapFillRunner({ exercise, onComplete, onProgress, onBack }: Props) {
+export default function GapFillRunner({ exercise, onComplete, onProgress, initialAnswers, onBack }: Props) {
   // Exam mode: never reveal correctness before the whole test is submitted.
   const isTestMode = !!exercise.test_type
   // Results (green/red gaps + score) are for practice only.
@@ -120,7 +121,16 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
 
   // Per-gap student input. open/dropdown: gap.id -> string. word_bank: gap.id ->
   // placed tile word (or undefined when empty).
-  const [values, setValues] = useState<Record<string, string>>({})
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    // Rehydrate typed/dropdown gaps from a previous save (word-bank tiles
+    // rehydrate below once the bank is built).
+    const out: Record<string, string> = {}
+    gaps.forEach((g, i) => {
+      const v = initialAnswers?.[i]
+      if (typeof v === 'string' && v && v !== '(no answer)') out[g.id] = v
+    })
+    return out
+  })
   const [checked, setChecked] = useState(false)
   const reveal = checked && !isTestMode
   const [score, setScore] = useState(0)
@@ -165,7 +175,21 @@ export default function GapFillRunner({ exercise, onComplete, onProgress, onBack
   }, [mode])
 
   // word_bank: which bank-tile key is placed in which gap.
-  const [placedByGap, setPlacedByGap] = useState<Record<string, string>>({}) // gapId -> tileKey
+  const [placedByGap, setPlacedByGap] = useState<Record<string, string>>(() => {
+    // Rehydrate word-bank placements from a previous save: match each saved
+    // word to an unused tile so the student can re-arrange, not restart.
+    const out: Record<string, string> = {}
+    if (mode === 'word_bank') {
+      const used = new Set<string>()
+      gaps.forEach((g, i) => {
+        const v = initialAnswers?.[i]
+        if (typeof v !== 'string' || !v || v === '(no answer)') return
+        const tile = bankTiles.find((t) => t.word === v && !used.has(t.key))
+        if (tile) { out[g.id] = tile.key; used.add(tile.key) }
+      })
+    }
+    return out
+  }) // gapId -> tileKey
   const placedKeys = useMemo(() => new Set(Object.values(placedByGap)), [placedByGap])
 
   const parts = useMemo(() => parseText(cfg?.text || ''), [cfg?.text])

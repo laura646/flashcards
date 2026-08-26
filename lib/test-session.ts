@@ -40,6 +40,7 @@ export interface SessionAnswerRow {
   score: number
   total: number
   per_question_results: boolean[] | null
+  student_answers?: unknown
 }
 
 type LessonExerciseRow = ExerciseMarkRow & { id: string; published?: boolean | null }
@@ -109,7 +110,7 @@ export function blockAuthoritativeTotal(block: TestBlockRow): number {
 export async function loadAnswers(sessionId: string): Promise<Map<string, SessionAnswerRow>> {
   const { data } = await supabase
     .from('test_session_answers')
-    .select('session_id, exercise_id, score, total, per_question_results')
+    .select('session_id, exercise_id, score, total, per_question_results, student_answers')
     .eq('session_id', sessionId)
   const map = new Map<string, SessionAnswerRow>()
   ;((data || []) as SessionAnswerRow[]).forEach((a) => map.set(a.exercise_id, a))

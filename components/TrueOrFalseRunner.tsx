@@ -18,16 +18,21 @@ interface Props {
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onProgress?: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
+  initialAnswers?: unknown[] | null
   onBack: () => void
 }
 
-export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, onBack }: Props) {
+export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, initialAnswers, onBack }: Props) {
   // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
   const isTestMode = !!exercise.test_type
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [answers, setAnswers] = useState<(boolean | null)[]>(
-    new Array(exercise.questions.length).fill(null)
-  )
+  const [currentIndex, setCurrentIndex] = useState(() => { const i = (hasSeed ? seeded : []).findIndex((v) => v === null); return i >= 0 ? i : 0 })
+  // Rehydrate from a previous save so answers can be EDITED, not retyped.
+  const seeded = exercise.questions.map((_, i) => {
+    const v = initialAnswers?.[i]
+    return v === 'True' ? true : v === 'False' ? false : null
+  })
+  const hasSeed = seeded.some((v) => v !== null)
+  const [answers, setAnswers] = useState<(boolean | null)[]>(hasSeed ? seeded : new Array(exercise.questions.length).fill(null))
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [finished, setFinished] = useState(false)
 
@@ -268,6 +273,8 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, on
         {exercise.questions.map((_, i) => (
           <div
             key={i}
+            onClick={() => { if (isTestMode) setCurrentIndex(i) }}
+            style={isTestMode ? { cursor: 'pointer' } : undefined}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'
