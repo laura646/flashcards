@@ -16,12 +16,15 @@ interface Props {
     title: string
     instructions: string
     questions: CompleteSentenceQuestion[]
+    test_type?: string | null
   }
   onComplete: (score: number, total: number, perQuestionResults?: boolean[], studentAnswers?: unknown[]) => void
   onBack: () => void
 }
 
 export default function CompleteSentenceRunner({ exercise, onComplete, onBack }: Props) {
+  // Exam mode: never reveal correctness before the whole test is submitted.
+  const isTestMode = !!exercise.test_type
   const [currentIndex, setCurrentIndex] = useState(0)
   // For each question, track which word is placed in which blank
   const [placements, setPlacements] = useState<Record<string, string>[]>(
@@ -241,7 +244,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
 
   // Check correctness for submitted view
   const getBlankStatus = (blankId: string) => {
-    if (!isSubmitted) return 'neutral'
+    if (!isSubmitted || isTestMode) return 'neutral'
     const placed = currentPlacements[blankId]
     if (!placed) return 'neutral'
     return placed.toLowerCase() === current.blanks[blankId].toLowerCase() ? 'correct' : 'wrong'
@@ -314,7 +317,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
                 }`}
               >
                 {placed || '___'}
-                {isSubmitted && status === 'wrong' && (
+                {isSubmitted && !isTestMode && status === 'wrong' && (
                   <span className="ml-1 text-xs text-green-600">→ {current.blanks[blankId]}</span>
                 )}
               </span>
@@ -361,7 +364,7 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
           disabled={!allBlanksFilled}
           className="w-full bg-sky hover:brightness-95 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Check answer
+          {isTestMode ? 'Submit' : 'Check answer'}
         </button>
       ) : (
         <button
@@ -380,6 +383,8 @@ export default function CompleteSentenceRunner({ exercise, onComplete, onBack }:
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'
+                : isTestMode
+                ? (submitted[i] ? 'bg-[#00aff0]' : 'bg-[#cddcf0]')
                 : submitted[i]
                 ? Object.keys(exercise.questions[i].blanks).every(
                     (blankId) =>

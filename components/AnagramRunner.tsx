@@ -470,6 +470,8 @@ export default function AnagramRunner({ exercise, onComplete, onBack }: Props) {
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               i === currentIndex
                 ? 'bg-sky scale-125'
+                : isTestMode
+                ? (results[i] !== null ? 'bg-[#00aff0]' : 'bg-[#cddcf0]')
                 : results[i] === true
                 ? 'bg-green-400'
                 : results[i] === false
