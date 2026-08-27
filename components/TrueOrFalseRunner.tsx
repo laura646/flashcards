@@ -25,7 +25,6 @@ interface Props {
 export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, initialAnswers, onBack }: Props) {
   // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
   const isTestMode = !!exercise.test_type
-  const [currentIndex, setCurrentIndex] = useState(() => { const i = (hasSeed ? seeded : []).findIndex((v) => v === null); return i >= 0 ? i : 0 })
   // Rehydrate from a previous save so answers can be EDITED, not retyped.
   const seeded = exercise.questions.map((_, i) => {
     const v = initialAnswers?.[i]
@@ -33,6 +32,7 @@ export default function TrueOrFalseRunner({ exercise, onComplete, onProgress, in
   })
   const hasSeed = seeded.some((v) => v !== null)
   const [answers, setAnswers] = useState<(boolean | null)[]>(hasSeed ? seeded : new Array(exercise.questions.length).fill(null))
+  const [currentIndex, setCurrentIndex] = useState(() => { const i = (hasSeed ? seeded : []).findIndex((v) => v === null); return i >= 0 ? i : 0 })
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [finished, setFinished] = useState(false)
 
