@@ -32,18 +32,18 @@ type QuestionResult = {
   correct: boolean
 }
 
+function currentIndexInit(seeded: (QuestionResult | null)[], hasSeed: boolean): number {
+  if (!hasSeed) return 0
+  const i = seeded.findIndex((r) => r === null)
+  return i >= 0 ? i : 0
+}
+
 export default function TypeAnswerRunner({ exercise, onComplete, onProgress, initialAnswers, onBack }: Props) {
   // Exam mode: suppress ALL correctness feedback until the whole test is submitted.
   const isTestMode = !!exercise.test_type
-  const [currentIndex, setCurrentIndex] = useState(() => { const i = seededResults.findIndex((r) => r === null); return hasSeed && i >= 0 ? i : 0 })
-  const [inputValue, setInputValue] = useState(() => seededResults[0] && !hasSeed ? '' : '')
-  // When jumping between questions, prefill with what was answered before.
-  useEffect(() => {
-    setInputValue(results[currentIndex]?.typed ?? '')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex])
   // Rehydrate typed answers from a previous save (graded with the same rule
   // as submission) so reopening lets the student edit, not retype.
+  // NOTE: this block must precede every useState that reads it.
   const gradeTyped = (qIndex: number, typed: string): QuestionResult => {
     const q = exercise.questions[qIndex]
     const accepted = [q.answer, ...(q.alternatives || [])].filter(Boolean).map(String)
@@ -57,8 +57,15 @@ export default function TypeAnswerRunner({ exercise, onComplete, onProgress, ini
   })
   const hasSeed = seededResults.some((r) => r !== null)
   const [results, setResults] = useState<(QuestionResult | null)[]>(hasSeed ? seededResults : new Array(exercise.questions.length).fill(null))
+  const [currentIndex, setCurrentIndex] = useState(() => { const i = seededResults.findIndex((r) => r === null); return hasSeed && i >= 0 ? i : 0 })
+  const [inputValue, setInputValue] = useState(() => (hasSeed ? seededResults[currentIndexInit(seededResults, hasSeed)]?.typed ?? '' : ''))
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null)
   const [finished, setFinished] = useState(false)
+  // When jumping between questions, prefill with what was answered before.
+  useEffect(() => {
+    setInputValue(results[currentIndex]?.typed ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex])
 
   const inputRef = useRef<HTMLInputElement>(null)
   const autoAdvanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
