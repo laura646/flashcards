@@ -11,6 +11,7 @@
 // vocabulary mastery (Leitner ramp), attendance, tests, teacher notes.
 
 import { useState, useEffect } from 'react'
+import { sanitizeRichText } from '@/lib/html'
 import { Pill, EmptyState, Button, Spinner } from '@/components/student-ui'
 import { buildReportCsv, downloadCsv, buildReportHtml, openPrintWindow, type ExportSection, type GroupSection } from '@/lib/reports-export'
 import type { CourseRollup } from '@/lib/reports-compute'
@@ -400,7 +401,7 @@ const GROUP_SECTIONS: { key: GroupSection; label: string }[] = [
   { key: 'overview', label: 'AI overview' },
 ]
 
-function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProgress, overview, periodLabel, onClose }: {
+function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProgress, overview, periodLabel, coverageHtml, onClose }: {
   students: StudentReport[]
   courseName: string
   currentLevel: string | null
@@ -409,6 +410,7 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProg
   overview: CourseOverviewData | null
   periodLabel: string
   onClose: () => void
+  coverageHtml?: string | null
 }) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(students.map((s) => s.email)))
   const [sections, setSections] = useState<Set<ExportSection>>(() => new Set(EXPORT_SECTIONS.map((s) => s.key)))
@@ -441,7 +443,7 @@ function ExportDialog({ students, courseName, currentLevel, goalLevel, groupProg
   const run = () => {
     const chosen = students.filter((s) => picked.has(s.email))
     if (chosen.length === 0) return
-    const opts = { courseName, currentLevel, goalLevel, sections, groupSections, overview, groupProgressPct: groupProgress, periodLabel }
+    const opts = { courseName, currentLevel, goalLevel, sections, groupSections, overview, groupProgressPct: groupProgress, periodLabel, coverageHtml: coverageHtml ? sanitizeRichText(coverageHtml) : null }
     if (fmt === 'excel') {
       const safe = (courseName || 'report').replace(/[^a-z0-9.\-]+/gi, '_')
       downloadCsv(`${safe}.csv`, buildReportCsv(chosen, opts))
@@ -700,7 +702,7 @@ function GroupLevelStrip({ current, goal, progress, onSet, onSetLevels }: { curr
   )
 }
 
-export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, cohort, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest, courseGroupProgress, onSetGroupProgress, periodLabel }: {
+export function ReportsView({ courseName, students, onRegenerate, onGenerate, generatingEmail, courseOverview, onGenerateOverview, generatingOverview, cohort, courseCurrentLevel, courseGoalLevel, onSetProgress, onSetLevels, onAddTest, onDeleteTest, courseGroupProgress, onSetGroupProgress, periodLabel, coverageHtml }: {
   courseName: string
   students: StudentReport[]
   onRegenerate?: (email: string) => void
@@ -719,6 +721,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
   courseGroupProgress?: number | null
   onSetGroupProgress?: (pct: number) => Promise<void> | void
   periodLabel?: string
+  coverageHtml?: string | null
 }) {
   const [sel, setSel] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -742,6 +745,7 @@ export function ReportsView({ courseName, students, onRegenerate, onGenerate, ge
 
         {exporting && (
           <ExportDialog
+          coverageHtml={coverageHtml}
             students={students}
             courseName={courseName}
             currentLevel={courseCurrentLevel ?? null}

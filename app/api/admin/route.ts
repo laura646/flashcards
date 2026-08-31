@@ -616,6 +616,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
+    // ── Course coverage document (rich text, teacher-written, feeds reports).
+    // Sanitized on the client before save AND at every render; the server
+    // additionally caps size. (isomorphic-dompurify cannot load in this
+    // serverless module — see lib/html.ts header.)
+    if (action === 'update-coverage') {
+      const { course_id, html } = body
+      if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })
+      const courseIds = await getTeacherCourseIds(email, role as 'teacher')
+      if (!courseIds.includes(course_id)) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
+      const clean = typeof html === 'string' ? html.slice(0, 60000) : ''
+      const { error } = await supabase
+        .from('courses')
+        .update({ coverage_html: clean, coverage_updated_at: new Date().toISOString(), coverage_updated_by: email })
+        .eq('id', course_id)
+      if (error) {
+        if (String(error.message || '').includes('coverage')) {
+          return NextResponse.json({ error: 'Course coverage needs a database migration — ask your admin to run it.' }, { status: 500 })
+        }
+        throw error
+      }
+      return NextResponse.json({ ok: true })
+    }
+
     if (action === 'update-course') {
       const { course_id, name, description, level, course_type, course_category, telegram_chat_id, invite_code } = body
       if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 })

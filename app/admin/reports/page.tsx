@@ -352,6 +352,7 @@ export default function ReportsBetaPage() {
       ) : (
         <ReportsView
           courseName={courseName}
+          coverageHtml={data?.course && (data.course as { coverage_html?: string | null }).coverage_html || null}
           students={students}
           onGenerate={session?.user?.role === 'hr' ? undefined : handleGenerate}
           onRegenerate={session?.user?.role === 'hr' ? undefined : handleGenerate}

@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
     // 1. Course row
     const { data: course, error: courseErr } = await supabase
       .from('courses')
-      .select('id, name, description')
+      .select('id, name, description, coverage_html')
       .eq('id', courseId)
       .single()
     if (courseErr) throw courseErr
