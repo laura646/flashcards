@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────────
 
 import { useMemo, useState } from 'react'
+import CourseCoverageCard from '@/components/admin-v2/CourseCoverageCard'
 import { Pill, EmptyState, Skeleton, Button, InlineError, TextField, SegmentedControl } from '@/components/student-ui'
 import { PageHeader } from '@/components/student-ui/PageHeader'
 import { COMMON_ISSUES_BY_LEVEL } from '@/lib/common-issues'
@@ -35,6 +36,9 @@ const CEFR_LEVELS = ['A1.1', 'A1.2', 'A2.1', 'A2.2', 'B1.1', 'B1.2', 'B2.1', 'B2
 const WEEKDAY_TOKENS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export interface CourseDetailData {
+  coverage_html?: string | null
+  coverage_updated_at?: string | null
+  coverage_updated_by?: string | null
   id: string
   name: string
   description: string | null
@@ -181,6 +185,7 @@ interface CourseDetailViewProps {
   onDeleteLesson?: (lessonId: string) => Promise<void> | void
   onSetLessonStatus?: (lessonId: string, status: 'draft' | 'published') => Promise<void> | void
   onBulkLessons?: (op: 'publish' | 'unpublish' | 'delete', lessonIds: string[]) => Promise<void> | void
+  onSaveCoverage?: (html: string) => Promise<{ ok: boolean; error?: string }>
   // Course-info save (update-schedule)
   onSaveCourseInfo: (form: CourseInfoForm) => Promise<{ ok: boolean; error?: string }>
   // Invite-code change is a separate concern (kept via update-course).
@@ -260,6 +265,7 @@ export function CourseDetailView({
   onDeleteLesson,
   onSetLessonStatus,
   onBulkLessons,
+  onSaveCoverage,
   onSaveCourseInfo,
   onSaveInviteCode,
   onSendTelegramTest,
@@ -776,8 +782,17 @@ export function CourseDetailView({
             )}
           </div>
 
-          {/* ─── RIGHT RAIL: Course info + Attendance (does not scroll) ─── */}
+          {/* ─── RIGHT RAIL: Coverage + Course info + Attendance ─── */}
           <div className="order-1 md:order-2 space-y-4">
+            {onSaveCoverage && (
+              <CourseCoverageCard
+                html={course?.coverage_html ?? null}
+                updatedAt={course?.coverage_updated_at}
+                updatedBy={course?.coverage_updated_by}
+                canEdit={canEdit}
+                onSave={onSaveCoverage}
+              />
+            )}
             {/* Course info card */}
             <div className="bg-white rounded-card border border-hairline p-[18px]">
               <div className="flex items-center justify-between mb-3">

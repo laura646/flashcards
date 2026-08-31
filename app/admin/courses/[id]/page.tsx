@@ -415,6 +415,18 @@ export default function CourseDetailBetaPage() {
             if (res.ok) await load()
           } catch { /* swallow — list stays as-is */ }
         }}
+        onSaveCoverage={async (html) => {
+          try {
+            const res = await fetch('/api/admin', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'update-coverage', course_id: id, html }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && data.ok) { await load(); return { ok: true } }
+            return { ok: false, error: data.error || 'Could not save.' }
+          } catch { return { ok: false, error: 'Network error.' } }
+        }}
         onBulkLessons={async (op, lessonIds) => {
           try {
             const res = await fetch('/api/lessons', {

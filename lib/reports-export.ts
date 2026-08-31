@@ -25,6 +25,9 @@ export interface ExportOptions {
   sections: Set<ExportSection>
   groupSections?: Set<GroupSection>
   overview?: { summary: string; needs: string; ready: string } | null
+  // Teacher-written rich-text 'what the course covered' (already sanitized).
+  // Rendered on the cover page, after the course overview, before learners.
+  coverageHtml?: string | null
   groupProgressPct?: number | null
   periodLabel?: string
 }
@@ -197,6 +200,9 @@ export function buildReportHtml(students: StudentReport[], opts: ExportOptions, 
         (ov.ready ? `<p style="margin-top:6px;"><b>Ready to level up.</b> ${esc(ov.ready)}</p>` : '') +
         `</div>`
     )
+  }
+  if (opts.coverageHtml && opts.coverageHtml.trim()) {
+    coverParts.push(`<div class="sec"><div class="h">Course coverage</div><div>${opts.coverageHtml}</div></div>`)
   }
   if (gs.has('shortlists')) {
     coverParts.push(
