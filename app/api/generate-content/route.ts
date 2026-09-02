@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit } from '@/lib/rate-limit'
-import { SONNET_MODEL, HAIKU_MODEL } from '@/lib/ai-models'
+import { SONNET_MODEL, HAIKU_MODEL, createWithFallback } from '@/lib/ai-models'
 import { levelInstruction } from '@/lib/level-mapping'
 import { hasAccessToCourse } from '@/lib/roles'
 import { safeFetch } from '@/lib/ssrf'
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
       }
       const levelLine = levelInstruction(level)
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{
@@ -304,7 +304,7 @@ ${summary}`
                 '\n\nAnalyze the uploaded image(s) and generate exercises based on the content you see.',
             },
           ]
-          const bulkMessage = await client.messages.create({
+          const bulkMessage = await createWithFallback<Anthropic.Message>(client.messages, {
             model: HAIKU_MODEL,
             max_tokens: 8192,
             messages: [{ role: 'user', content: bulkContent }],
@@ -418,7 +418,7 @@ Return ONLY valid JSON, no markdown, no explanation.`
         })
       }
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: contentParts }]
@@ -460,7 +460,7 @@ Return ONLY valid JSON, no markdown, no explanation.`
         return NextResponse.json({ error: 'Exercise has no content to convert. Add questions first, then change the type.' }, { status: 400 })
       }
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{
@@ -675,7 +675,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       }
       contentParts.push({ type: 'text', text: prompt })
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: SONNET_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: contentParts }],
@@ -779,7 +779,7 @@ Return ONLY valid JSON (no markdown, no explanation):
   }
 }`
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: SONNET_MODEL,
         max_tokens: 8192, // 2 types x 10 questions + Long explanations exceeds 4096
         messages: [{ role: 'user', content: prompt }],
@@ -926,7 +926,7 @@ ${article_text}
 Return ONLY valid JSON (no markdown, no explanation):
 {"exercises": [...]}`
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
@@ -1088,7 +1088,7 @@ ${spec.shape}`
       }
       contentParts.push({ type: 'text', text: prompt })
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 4096,
         messages: [{ role: 'user', content: contentParts }],
@@ -1150,7 +1150,7 @@ ${spec.shape}`
       // Optional type-picker steer (validates + clamps + builds the preamble).
       const { steer: typeSteer } = buildTypeSteer(exercise_types, count_per_type)
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 8192,
         messages: [{ role: 'user', content: levelLine + typeSteer + EXERCISE_GEN_PROMPT + text }]
@@ -1205,7 +1205,7 @@ ${spec.shape}`
         return NextResponse.json({ error: 'Failed to fetch the Google Doc. Make sure it is publicly shared.' }, { status: 400 })
       }
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 8192,
         messages: [{ role: 'user', content: levelLine + EXERCISE_GEN_PROMPT + docText }]
@@ -1300,7 +1300,7 @@ ${spec.shape}`
         messageContent.push({ type: 'text', text: levelLine + typeSteer + EXERCISE_GEN_PROMPT + docText })
       }
 
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 8192,
         messages: [{ role: 'user', content: messageContent }]
@@ -1358,7 +1358,7 @@ ${spec.shape}`
       }
 
       // Send to Claude to generate all four: title, flashcards, summary, and mistakes
-      const message = await client.messages.create({
+      const message = await createWithFallback<Anthropic.Message>(client.messages, {
         model: HAIKU_MODEL,
         max_tokens: 8192,
         messages: [{
