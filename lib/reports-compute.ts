@@ -91,6 +91,7 @@ export interface ReportsAttendanceRow {
 export interface ReportsLessonFlashcard {
   lesson_id: string
   word: string
+  set_name?: string | null
 }
 
 export interface ReportsVocabSrsRow {
@@ -354,22 +355,41 @@ function computeItemCompletion(
   const hiddenFlashcardLessons = new Set(
     data.lessons.filter((l) => l.flashcards_published === false).map((l) => l.id)
   )
-  const flashcardLessonIds = new Set(
-    (data.lessonFlashcards || []).map((f) => f.lesson_id).filter((lid) => !hiddenFlashcardLessons.has(lid))
-  )
+  // Each named vocabulary set counts as ONE item ("<lesson,set>" pair). A
+  // legacy "<lessonId>:<mode>" progress row was a whole-lesson run and
+  // credits every set of that lesson; per-set rows credit only their set.
+  const setsByLesson = new Map<string, Set<string>>()
+  for (const f of data.lessonFlashcards || []) {
+    if (hiddenFlashcardLessons.has(f.lesson_id)) continue
+    const setKey = ((f.set_name || '').trim()) || 'Lesson vocabulary'
+    if (!setsByLesson.has(f.lesson_id)) setsByLesson.set(f.lesson_id, new Set())
+    setsByLesson.get(f.lesson_id)!.add(setKey)
+  }
+  let assignedSets = 0
+  setsByLesson.forEach((sets) => { assignedSets += sets.size })
   const doneBlockIds = new Set<string>()
-  const doneFlashcardLessons = new Set<string>()
+  const doneSetPairs = new Set<string>()
   for (const p of data.progress) {
     if (p.user_email !== email) continue
     if ((p.activity_type === 'block' || p.activity_type === 'writing') && completableBlockIds.has(p.activity_id)) {
       doneBlockIds.add(p.activity_id)
     } else if (p.activity_type === 'flashcard') {
       const lid = p.activity_id.split(':')[0]
-      if (flashcardLessonIds.has(lid)) doneFlashcardLessons.add(lid)
+      const sets = setsByLesson.get(lid)
+      if (!sets) continue
+      const setPart = p.activity_id.slice(lid.length + 1)
+      const m = setPart.match(/^set:(.+):(flip|self-assess|quiz)$/)
+      if (m) {
+        let setKey = m[1]
+        try { setKey = decodeURIComponent(m[1]) } catch { /* keep raw */ }
+        if (sets.has(setKey)) doneSetPairs.add(`${lid}\u0000${setKey}`)
+      } else {
+        sets.forEach((k) => doneSetPairs.add(`${lid}\u0000${k}`))
+      }
     }
   }
-  const assigned = data.exercises.length + completableBlockIds.size + flashcardLessonIds.size
-  const completed = attemptedExerciseIds.size + doneBlockIds.size + doneFlashcardLessons.size
+  const assigned = data.exercises.length + completableBlockIds.size + assignedSets
+  const completed = attemptedExerciseIds.size + doneBlockIds.size + doneSetPairs.size
   return { assigned, completed, completionPct: assigned > 0 ? Math.round((completed / assigned) * 100) : 0 }
 }
 

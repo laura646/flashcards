@@ -383,13 +383,13 @@ export async function GET(req: NextRequest) {
     // 9. Lesson flashcards (the vocab words assigned per lesson) — used to
     //    map a student's SRS words back to the lessons they came from for
     //    the per-lesson vocabulary breakdown.
-    let lessonFlashcards: { lesson_id: string; word: string }[] = []
+    let lessonFlashcards: { lesson_id: string; word: string; set_name?: string | null }[] = []
     if (lessonIds.length > 0) {
       const { data: fcRows } = await supabase
         .from('lesson_flashcards')
-        .select('lesson_id, word')
+        .select('lesson_id, word, set_name')
         .in('lesson_id', lessonIds)
-      lessonFlashcards = (fcRows || []) as { lesson_id: string; word: string }[]
+      lessonFlashcards = (fcRows || []) as { lesson_id: string; word: string; set_name?: string | null }[]
     }
 
     // 10. Full SRS state per student (mastery stage + reps) for the
