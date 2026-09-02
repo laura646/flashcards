@@ -696,7 +696,7 @@ export async function POST(req: NextRequest) {
     // Save flashcards
     await supabase.from('lesson_flashcards').delete().eq('lesson_id', lessonId)
     if (flashcards && flashcards.length > 0) {
-      const fcRows = flashcards.map((fc: { word: string; phonetic: string; meaning: string; example: string; notes: string; image_url?: string }, i: number) => ({
+      const fcRows = flashcards.map((fc: { word: string; phonetic: string; meaning: string; example: string; notes: string; image_url?: string; set_name?: string | null }, i: number) => ({
         lesson_id: lessonId,
         word: fc.word,
         phonetic: fc.phonetic,
@@ -704,9 +704,16 @@ export async function POST(req: NextRequest) {
         example: fc.example,
         notes: fc.notes,
         image_url: fc.image_url || null,
+        set_name: (fc.set_name || '').trim() || null,
         order_index: fc.hasOwnProperty('globalOrder') ? (fc as unknown as { globalOrder: number }).globalOrder * 1000 + i : i,
       }))
-      const { error: fcError } = await supabase.from('lesson_flashcards').insert(fcRows)
+      let { error: fcError } = await supabase.from('lesson_flashcards').insert(fcRows)
+      // Fail-soft while the set_name migration hasn't run: never lose the
+      // teacher's cards over a missing column — retry without it and log.
+      if (fcError && String(fcError.message || '').includes('set_name')) {
+        console.error('lessons: set_name column missing (migration pending) - saving flashcards without sets')
+        ;({ error: fcError } = await supabase.from('lesson_flashcards').insert(fcRows.map((r: typeof fcRows[number]) => { const { set_name: _s, ...rest } = r; return rest })))
+      }
       if (fcError) throw fcError
     }
 

@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
       // Get flashcards scoped to enrolled/accessible courses only
       let flashcardQuery = supabase
         .from('lesson_flashcards')
-        .select('word, phonetic, meaning, example, image_url, lessons!inner(status, course_id)')
+        .select('word, phonetic, meaning, example, image_url, set_name, lessons!inner(status, course_id)')
         .eq('lessons.status', 'published')
         .in('lessons.course_id', enrolledCourseIds)
 
@@ -333,10 +333,10 @@ export async function POST(req: NextRequest) {
       })
 
       // Build new words to insert
-      const newWords: { user_email: string; word: string; source_word: string; meaning: string; phonetic: string; example: string; image_url: string | null; box_level: number; next_review_at: string }[] = []
+      const newWords: { user_email: string; word: string; source_word: string; meaning: string; phonetic: string; example: string; image_url: string | null; source_set: string | null; box_level: number; next_review_at: string }[] = []
 
       // From flashcards
-      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null }) => {
+      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null; set_name?: string | null }) => {
         if (!existingWords.has(fc.word.toLowerCase())) {
           existingWords.add(fc.word.toLowerCase())
           newWords.push({
@@ -347,6 +347,7 @@ export async function POST(req: NextRequest) {
             phonetic: fc.phonetic || '',
             example: fc.example || '',
             image_url: fc.image_url || null,
+            source_set: (fc.set_name || '').trim() || 'Lesson vocabulary',
             box_level: 1,
             next_review_at: new Date().toISOString(),
           })
@@ -360,7 +361,7 @@ export async function POST(req: NextRequest) {
         const key = s.word.toLowerCase()
         if (!existingWords.has(key)) {
           existingWords.add(key)
-          const match = fcByWord.get(key)
+          const match = fcByWord.get(key) as { meaning?: string; phonetic?: string; example?: string; image_url?: string | null; set_name?: string | null } | undefined
           newWords.push({
             user_email: email,
             word: s.word,
@@ -369,6 +370,7 @@ export async function POST(req: NextRequest) {
             phonetic: match?.phonetic || '',
             example: match?.example || '',
             image_url: match?.image_url || null,
+            source_set: match ? ((match.set_name || '').trim() || 'Lesson vocabulary') : null,
             box_level: 1,
             next_review_at: new Date().toISOString(),
           })
@@ -376,7 +378,11 @@ export async function POST(req: NextRequest) {
       })
 
       if (newWords.length > 0) {
-        const { error } = await supabase.from('vocab_srs').insert(newWords)
+        let { error } = await supabase.from('vocab_srs').insert(newWords)
+        // Fail-soft while the source_set migration hasn't run.
+        if (error && String(error.message || '').includes('source_set')) {
+          ;({ error } = await supabase.from('vocab_srs').insert(newWords.map((r) => { const { source_set: _s, ...rest } = r; return rest })))
+        }
         // 23505 = unique_violation: a concurrent sync from the same user
         // already inserted these words. Harmless — the dedup pass below
         // handles any duplicates. Don't 500 the whole sync over a race.

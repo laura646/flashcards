@@ -55,6 +55,8 @@ export interface Lesson {
 export interface Flashcard {
   id?: string
   lesson_id?: string
+  // Named vocabulary set this card belongs to; null/'' = "Lesson vocabulary".
+  set_name?: string | null
   word: string
   phonetic: string
   meaning: string
