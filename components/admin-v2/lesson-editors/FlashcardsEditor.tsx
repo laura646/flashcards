@@ -1,22 +1,22 @@
 'use client'
 
-// 10B redesign — FLASHCARDS editor (Phase 2, "new beside old").
+// 10B redesign — FLASHCARDS editor, now with NAMED VOCABULARY SETS (Sep 2026).
 //
-// Presentational only: receives the current cards + an onChange that swaps the
-// whole array, and an onPickImage bridge to the parent's ImagePickerModal. No
-// own state, no data fetching. The live editor app/admin/lessons/page.tsx is
-// left 100% untouched.
+// A lesson's vocabulary is no longer one flat list: cards are grouped into
+// named sets ("Travel and Tourism", "Phrasal verbs", …) via the set_name
+// column on lesson_flashcards. Cards with no set_name form the default
+// "Lesson vocabulary" set (also what every pre-existing lesson shows).
 //
-// Ported faithfully from the legacy renderFlashcardsEditor
-// (app/admin/lessons/page.tsx 2430-2577):
-//   - count line "N flashcard(s)" + "+ Add Manually"
-//   - per-card fields Word / Phonetic (2-col), Meaning, Example, Notes
-//   - image: preview + remove, OR Upload (base64 -> /api/upload) + Find image
-// AI generation panel (legacy 2453-2476) is DEFERRED — omitted here.
+// Still presentational only: receives the current cards + an onChange that
+// swaps the whole array, and an onPickImage bridge to the parent's
+// ImagePickerModal. Set structure is DERIVED from the cards themselves
+// (set_name + order of first appearance) — no separate set state to persist.
 
 import { useState } from 'react'
 import { Button, Card } from '@/components/student-ui'
 import type { Flashcard } from '@/lib/lesson-editor/types'
+
+export const DEFAULT_SET_NAME = 'Lesson vocabulary'
 
 // Reads a File and resolves its base64 payload (data-URL prefix stripped).
 // Copied verbatim from legacy fileToBase64 (page.tsx 469-480).
@@ -33,9 +33,6 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
-// Shared field styling — matches the 10B TextField input (index.tsx 117-132)
-// but applied to bare <input>s so we can render a compact uppercase eyebrow
-// label inline without TextField's focused-color state machinery.
 const fieldInputClass =
   'w-full text-[15px] font-medium text-ink-body bg-white rounded-tile px-3.5 py-3 placeholder:text-[#b6bac2] focus:outline-none transition-colors border-[1.5px] border-[#e3e5e9] focus:border-sky'
 const fieldLabelClass =
@@ -47,38 +44,91 @@ interface Props {
   onPickImage: (word: string, apply: (url: string) => void) => void
 }
 
-export default function FlashcardsEditor({ cards, onChange, onPickImage }: Props) {
-  // Surfaces upload failures inline per-card (legacy used a global toast,
-  // which this presentational component does not own).
-  const [uploadError, setUploadError] = useState<string | null>(null)
+// Renumber order_index to array position — the array IS the canonical order.
+function renumber(cards: Flashcard[]): Flashcard[] {
+  return cards.map((fc, i) => ({ ...fc, order_index: i }))
+}
 
-  // updateFlashcard (legacy 2433-2437): swap one field on one card.
+export default function FlashcardsEditor({ cards, onChange, onPickImage }: Props) {
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  // Collapsed sets (by set key). Purely visual, not persisted.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  // ── Derive the sets: unique names in order of first appearance. ──
+  // Key '' = the default set (set_name null/empty), shown as DEFAULT_SET_NAME.
+  const setKeys: string[] = []
+  cards.forEach((fc) => {
+    const key = (fc.set_name || '').trim()
+    if (!setKeys.includes(key)) setKeys.push(key)
+  })
+  if (setKeys.length === 0) setKeys.push('')
+  const displayName = (key: string) => key || DEFAULT_SET_NAME
+
   function updateFlashcard(fcIndex: number, field: keyof Flashcard, value: string) {
     const updated = [...cards]
     updated[fcIndex] = { ...updated[fcIndex], [field]: value }
     onChange(updated)
   }
 
-  // removeFlashcard (legacy 2439-2442): filter + renumber order_index to the
-  // new array index.
   function removeFlashcard(fcIndex: number) {
-    const updated = cards
-      .filter((_, i) => i !== fcIndex)
-      .map((fc, i) => ({ ...fc, order_index: i }))
-    onChange(updated)
+    onChange(renumber(cards.filter((_, i) => i !== fcIndex)))
   }
 
-  // addBlankFlashcard (legacy 2444-2449): append a blank card whose
-  // order_index is the pre-append length.
-  function addBlankFlashcard() {
-    onChange([
+  // Append a blank card at the END of the given set's cards (so it renders
+  // inside that section), not at the end of the whole array.
+  function addBlankCard(setKey: string) {
+    const blank: Flashcard = {
+      word: '', phonetic: '', meaning: '', example: '', notes: '', image_url: '',
+      order_index: 0, set_name: setKey || null,
+    }
+    let insertAt = cards.length
+    for (let i = cards.length - 1; i >= 0; i--) {
+      if ((cards[i].set_name || '').trim() === setKey) { insertAt = i + 1; break }
+    }
+    const updated = [...cards]
+    updated.splice(insertAt, 0, blank)
+    onChange(renumber(updated))
+  }
+
+  // A new set exists as soon as it has a card — create it with one blank card.
+  function addSet() {
+    let n = setKeys.filter((k) => k).length + 1
+    let name = `New set ${n}`
+    while (setKeys.includes(name)) { n += 1; name = `New set ${n}` }
+    onChange(renumber([
       ...cards,
-      { word: '', phonetic: '', meaning: '', example: '', notes: '', image_url: '', order_index: cards.length },
-    ])
+      { word: '', phonetic: '', meaning: '', example: '', notes: '', image_url: '', order_index: 0, set_name: name },
+    ]))
   }
 
-  // Upload handler (legacy 2535-2555): base64 -> POST /api/upload -> set
-  // image_url; reset the input value so the same file can be re-picked.
+  function renameSet(oldKey: string, newName: string) {
+    const name = newName.trim()
+    onChange(cards.map((fc) =>
+      (fc.set_name || '').trim() === oldKey
+        ? { ...fc, set_name: name && name !== DEFAULT_SET_NAME ? name : null }
+        : fc
+    ))
+  }
+
+  function removeSet(setKey: string) {
+    const count = cards.filter((fc) => (fc.set_name || '').trim() === setKey).length
+    if (!window.confirm(`Delete the set “${displayName(setKey)}” and its ${count} word${count === 1 ? '' : 's'}?`)) return
+    onChange(renumber(cards.filter((fc) => (fc.set_name || '').trim() !== setKey)))
+  }
+
+  function moveCardToSet(fcIndex: number, setKey: string) {
+    updateFlashcard(fcIndex, 'set_name', setKey)
+  }
+
+  function toggleCollapsed(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   async function handleUpload(fcIndex: number, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -104,13 +154,13 @@ export default function FlashcardsEditor({ cards, onChange, onPickImage }: Props
 
   return (
     <div className="font-rubik space-y-4">
-      {/* Count line + Add Manually (legacy 2479-2482) */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-bold text-ink-muted">
           {cards.length} flashcard{cards.length !== 1 ? 's' : ''}
+          {setKeys.length > 1 ? ` in ${setKeys.length} sets` : ''}
         </p>
-        <Button variant="textLink" size="sm" onClick={addBlankFlashcard}>
-          + Add Manually
+        <Button variant="textLink" size="sm" onClick={addSet}>
+          + New vocabulary set
         </Button>
       </div>
 
@@ -118,122 +168,185 @@ export default function FlashcardsEditor({ cards, onChange, onPickImage }: Props
         <p className="text-xs font-medium text-incorrect-fg">{uploadError}</p>
       )}
 
-      {/* Cards (legacy 2484-2574) */}
-      {cards.map((fc, fcIdx) => (
-        <Card key={fcIdx} padding="md">
-          {/* Header: #N + Remove (legacy 2486-2491) */}
-          <div className="flex items-start justify-between mb-3">
-            <span className="text-xs font-extrabold text-sky-text">#{fcIdx + 1}</span>
-            <button
-              onClick={() => removeFlashcard(fcIdx)}
-              className="text-xs font-bold text-ink-muted hover:text-incorrect-fg transition-colors"
-            >
-              {'✕'} Remove
-            </button>
-          </div>
-
-          {/* Word + Phonetic, 2-col (legacy 2492-2503) */}
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <label className="block">
-              <span className={fieldLabelClass}>Word</span>
+      {setKeys.map((setKey) => {
+        const isCollapsed = collapsed.has(setKey)
+        const setCards = cards
+          .map((fc, i) => ({ fc, i }))
+          .filter(({ fc }) => (fc.set_name || '').trim() === setKey)
+        return (
+          <div key={setKey} className="rounded-card border-[1.5px] border-hairline overflow-hidden">
+            {/* ── Set header: collapse | editable name | count | delete ── */}
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-sky-wash/60">
+              <button
+                onClick={() => toggleCollapsed(setKey)}
+                className="text-xs font-bold text-ink-muted w-5"
+                title={isCollapsed ? 'Expand' : 'Collapse'}
+                aria-label={isCollapsed ? 'Expand set' : 'Collapse set'}
+              >
+                {isCollapsed ? '▸' : '▾'}
+              </button>
+              <span className="text-sm">🃏</span>
               <input
                 type="text"
-                value={fc.word}
-                onChange={(e) => updateFlashcard(fcIdx, 'word', e.target.value)}
-                className={fieldInputClass}
+                defaultValue={displayName(setKey)}
+                key={`name-${setKey}`}
+                onBlur={(e) => { if (e.target.value.trim() !== displayName(setKey)) renameSet(setKey, e.target.value) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                className="flex-1 min-w-0 text-sm font-bold text-ink-black bg-transparent focus:outline-none focus:bg-white rounded px-1.5 py-0.5 border border-transparent focus:border-sky"
+                title="Set name — students see this"
               />
-            </label>
-            <label className="block">
-              <span className={fieldLabelClass}>Phonetic</span>
-              <input
-                type="text"
-                value={fc.phonetic}
-                onChange={(e) => updateFlashcard(fcIdx, 'phonetic', e.target.value)}
-                className={fieldInputClass}
-              />
-            </label>
-          </div>
-
-          {/* Meaning (legacy 2504-2508) */}
-          <label className="block mb-3">
-            <span className={fieldLabelClass}>Meaning</span>
-            <input
-              type="text"
-              value={fc.meaning}
-              onChange={(e) => updateFlashcard(fcIdx, 'meaning', e.target.value)}
-              className={fieldInputClass}
-            />
-          </label>
-
-          {/* Example (legacy 2509-2513) */}
-          <label className="block mb-3">
-            <span className={fieldLabelClass}>Example</span>
-            <input
-              type="text"
-              value={fc.example}
-              onChange={(e) => updateFlashcard(fcIdx, 'example', e.target.value)}
-              className={fieldInputClass}
-            />
-          </label>
-
-          {/* Notes (legacy 2514-2519) */}
-          <label className="block mb-3">
-            <span className={fieldLabelClass}>Notes</span>
-            <input
-              type="text"
-              value={fc.notes}
-              onChange={(e) => updateFlashcard(fcIdx, 'notes', e.target.value)}
-              placeholder="Optional notes…"
-              className={fieldInputClass}
-            />
-          </label>
-
-          {/* Image: preview + remove, OR Upload + Find image (legacy 2520-2572) */}
-          <div>
-            <span className={fieldLabelClass}>Image (optional)</span>
-            {fc.image_url ? (
-              <div className="flex items-center gap-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={fc.image_url}
-                  alt=""
-                  className="max-h-20 max-w-[120px] object-contain rounded-tile border border-hairline"
-                />
+              <span className="text-[11px] font-bold text-ink-muted whitespace-nowrap">
+                {setCards.length} word{setCards.length !== 1 ? 's' : ''}
+              </span>
+              <button
+                onClick={() => addBlankCard(setKey)}
+                className="text-[11px] font-bold text-sky-text hover:underline whitespace-nowrap"
+              >
+                + Add word
+              </button>
+              {setKeys.length > 1 && (
                 <button
-                  onClick={() => updateFlashcard(fcIdx, 'image_url', '')}
-                  className="text-xs font-bold text-ink-muted hover:text-incorrect-fg transition-colors"
+                  onClick={() => removeSet(setKey)}
+                  className="text-[11px] font-bold text-ink-muted hover:text-incorrect-fg"
+                  title="Delete this set and its words"
                 >
-                  {'✕'} Remove
+                  🗑
                 </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {/* Upload (legacy 2533-2556) */}
-                <label className="inline-flex items-center gap-2 px-3.5 py-3 border-[1.5px] border-dashed border-sky-border rounded-tile cursor-pointer hover:border-sky transition-colors">
-                  <span className="text-xs font-bold text-ink-muted">📷 Upload</span>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    className="hidden"
-                    onChange={(e) => handleUpload(fcIdx, e)}
-                  />
-                </label>
-                {/* Find image — only when the word is set (legacy 2557-2569) */}
-                {fc.word && (
-                  <button
-                    onClick={() =>
-                      onPickImage(fc.word, (url) => updateFlashcard(fcIdx, 'image_url', url))
-                    }
-                    className="inline-flex items-center px-3.5 py-3 border-[1.5px] border-dashed border-sky-border rounded-tile text-xs font-bold text-ink-muted hover:border-sky hover:text-sky transition-colors"
-                  >
-                    🔍 Find image
-                  </button>
+              )}
+            </div>
+
+            {/* ── Cards ── */}
+            {!isCollapsed && (
+              <div className="p-3 space-y-3">
+                {setCards.length === 0 && (
+                  <p className="text-xs text-ink-muted italic">No words yet — “+ Add word”.</p>
                 )}
+                {setCards.map(({ fc, i: fcIdx }, posInSet) => (
+                  <Card key={fcIdx} padding="md">
+                    <div className="flex items-start justify-between mb-3 gap-2">
+                      <span className="text-xs font-extrabold text-sky-text">#{posInSet + 1}</span>
+                      <div className="flex items-center gap-3">
+                        {setKeys.length > 1 && (
+                          <select
+                            value={setKey}
+                            onChange={(e) => moveCardToSet(fcIdx, e.target.value)}
+                            className="text-[11px] font-bold text-ink-muted bg-transparent border border-hairline rounded px-1 py-0.5"
+                            title="Move to another set"
+                          >
+                            {setKeys.map((k) => (
+                              <option key={k} value={k}>{displayName(k)}</option>
+                            ))}
+                          </select>
+                        )}
+                        <button
+                          onClick={() => removeFlashcard(fcIdx)}
+                          className="text-xs font-bold text-ink-muted hover:text-incorrect-fg transition-colors"
+                        >
+                          {'✕'} Remove
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <label className="block">
+                        <span className={fieldLabelClass}>Word</span>
+                        <input
+                          type="text"
+                          value={fc.word}
+                          onChange={(e) => updateFlashcard(fcIdx, 'word', e.target.value)}
+                          className={fieldInputClass}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className={fieldLabelClass}>Phonetic</span>
+                        <input
+                          type="text"
+                          value={fc.phonetic}
+                          onChange={(e) => updateFlashcard(fcIdx, 'phonetic', e.target.value)}
+                          className={fieldInputClass}
+                        />
+                      </label>
+                    </div>
+
+                    <label className="block mb-3">
+                      <span className={fieldLabelClass}>Meaning</span>
+                      <input
+                        type="text"
+                        value={fc.meaning}
+                        onChange={(e) => updateFlashcard(fcIdx, 'meaning', e.target.value)}
+                        className={fieldInputClass}
+                      />
+                    </label>
+
+                    <label className="block mb-3">
+                      <span className={fieldLabelClass}>Example</span>
+                      <input
+                        type="text"
+                        value={fc.example}
+                        onChange={(e) => updateFlashcard(fcIdx, 'example', e.target.value)}
+                        className={fieldInputClass}
+                      />
+                    </label>
+
+                    <label className="block mb-3">
+                      <span className={fieldLabelClass}>Notes</span>
+                      <input
+                        type="text"
+                        value={fc.notes}
+                        onChange={(e) => updateFlashcard(fcIdx, 'notes', e.target.value)}
+                        placeholder="Optional notes…"
+                        className={fieldInputClass}
+                      />
+                    </label>
+
+                    <div>
+                      <span className={fieldLabelClass}>Image (optional)</span>
+                      {fc.image_url ? (
+                        <div className="flex items-center gap-3">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={fc.image_url}
+                            alt=""
+                            className="max-h-20 max-w-[120px] object-contain rounded-tile border border-hairline"
+                          />
+                          <button
+                            onClick={() => updateFlashcard(fcIdx, 'image_url', '')}
+                            className="text-xs font-bold text-ink-muted hover:text-incorrect-fg transition-colors"
+                          >
+                            {'✕'} Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          <label className="inline-flex items-center gap-2 px-3.5 py-3 border-[1.5px] border-dashed border-sky-border rounded-tile cursor-pointer hover:border-sky transition-colors">
+                            <span className="text-xs font-bold text-ink-muted">📷 Upload</span>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png"
+                              className="hidden"
+                              onChange={(e) => handleUpload(fcIdx, e)}
+                            />
+                          </label>
+                          {fc.word && (
+                            <button
+                              onClick={() =>
+                                onPickImage(fc.word, (url) => updateFlashcard(fcIdx, 'image_url', url))
+                              }
+                              className="inline-flex items-center px-3.5 py-3 border-[1.5px] border-dashed border-sky-border rounded-tile text-xs font-bold text-ink-muted hover:border-sky hover:text-sky transition-colors"
+                            >
+                              🔍 Find image
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
               </div>
             )}
           </div>
-        </Card>
-      ))}
+        )
+      })}
     </div>
   )
 }

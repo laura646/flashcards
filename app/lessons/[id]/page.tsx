@@ -32,6 +32,7 @@ const IeltsReadingBlockView = lazy(() => import('@/components/ielts/IeltsReading
 
 interface Flashcard {
   id: string
+  set_name?: string | null
   word: string
   phonetic: string
   meaning: string
@@ -774,6 +775,8 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>('overview')
   const [flashcardMode, setFlashcardMode] = useState<FlashcardMode>('flip')
+  // Named vocabulary sets: which set the player is scoped to ('ALL' = every card).
+  const [activeVocabSet, setActiveVocabSet] = useState<string>('ALL')
   const [selectedExercise, setSelectedExercise] = useState<LessonExercise | null>(null)
 
   // Test-lock state: only relevant when selectedExercise.test_type is set.
@@ -961,7 +964,12 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     score?: number
     total: number
     knewCount?: number
+    coveredAll?: boolean
   }) => {
+    // A run over a single named set is real practice but not the whole
+    // lesson's vocabulary — only a full run marks the block studied
+    // (completion feeds the items-based lesson %; a subset must not).
+    if (results.coveredAll === false) return
     setFlashcardsCompleted(true)
     try {
       await fetch('/api/progress', {
@@ -1390,7 +1398,19 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   // ══════════════════════════════════════
 
   if (view === 'flashcards') {
-    const flashcardsForMode = flashcards.map((f, i) => ({
+    // Named vocabulary sets, in order of first appearance. Cards without a
+    // set_name form the default "Lesson vocabulary" set.
+    const setNames: string[] = []
+    flashcards.forEach((f) => {
+      const name = (f.set_name || '').trim() || 'Lesson vocabulary'
+      if (!setNames.includes(name)) setNames.push(name)
+    })
+    const hasSets = setNames.length > 1
+    const scoped = hasSets && activeVocabSet !== 'ALL'
+      ? flashcards.filter((f) => (((f.set_name || '').trim()) || 'Lesson vocabulary') === activeVocabSet)
+      : flashcards
+    const coveredAll = !hasSets || activeVocabSet === 'ALL'
+    const flashcardsForMode = scoped.map((f, i) => ({
       id: i + 1,
       word: f.word,
       phonetic: f.phonetic,
@@ -1415,9 +1435,40 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             <p className="text-xs text-ink-muted">{lesson.title}</p>
           </div>
           <span className="text-[11px] font-bold text-ink-body bg-sky-wash px-3 py-1 rounded-full">
-            {flashcards.length} words
+            {scoped.length} words
           </span>
         </div>
+
+        {hasSets && (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            <button
+              onClick={() => setActiveVocabSet('ALL')}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border-[1.5px] transition-colors ${
+                activeVocabSet === 'ALL'
+                  ? 'bg-brandblue text-white border-brandblue'
+                  : 'bg-white text-ink-body border-sky-border hover:border-sky'
+              }`}
+            >
+              Practice all · {flashcards.length}
+            </button>
+            {setNames.map((name) => {
+              const count = flashcards.filter((f) => (((f.set_name || '').trim()) || 'Lesson vocabulary') === name).length
+              return (
+                <button
+                  key={name}
+                  onClick={() => setActiveVocabSet(name)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-[1.5px] transition-colors ${
+                    activeVocabSet === name
+                      ? 'bg-brandblue text-white border-brandblue'
+                      : 'bg-white text-ink-body border-sky-border hover:border-sky'
+                  }`}
+                >
+                  {name} · {count}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         <div className="flex gap-1 mb-6 bg-sky-wash p-1 rounded-full">
           {modeButtons.map(({ key, label, description }) => (
@@ -1439,25 +1490,28 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         <Suspense fallback={<ExerciseLoadingFallback />}>
           {flashcardMode === 'flip' && (
             <FlipMode
+              key={activeVocabSet}
               cards={flashcardsForMode}
-              onComplete={(total) => handleFlashcardComplete({ mode: 'flip', total })}
+              onComplete={(total) => handleFlashcardComplete({ mode: 'flip', total, coveredAll })}
             />
           )}
           {flashcardMode === 'self-assess' && (
             <SelfAssessMode
+              key={activeVocabSet}
               cards={flashcardsForMode}
               userEmail={studentEmail}
               onComplete={(knewCount, total) =>
-                handleFlashcardComplete({ mode: 'self-assess', knewCount, total })
+                handleFlashcardComplete({ mode: 'self-assess', knewCount, total, coveredAll })
               }
             />
           )}
           {flashcardMode === 'quiz' && (
             <QuizMode
+              key={activeVocabSet}
               cards={flashcardsForMode}
               userEmail={studentEmail}
               onComplete={(score, total) =>
-                handleFlashcardComplete({ mode: 'quiz', score, total })
+                handleFlashcardComplete({ mode: 'quiz', score, total, coveredAll })
               }
             />
           )}

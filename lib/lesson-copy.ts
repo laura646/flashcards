@@ -74,9 +74,13 @@ export async function deepCopyLesson(
       example: fc.example,
       notes: fc.notes,
       image_url: fc.image_url ?? null,
+      set_name: fc.set_name ?? null,
       order_index: fc.order_index,
     }))
-    const { error } = await supabase.from('lesson_flashcards').insert(rows)
+    let { error } = await supabase.from('lesson_flashcards').insert(rows)
+    if (error && String(error.message || '').includes('set_name')) {
+      ;({ error } = await supabase.from('lesson_flashcards').insert(rows.map((r) => { const { set_name: _s, ...rest } = r; return rest })))
+    }
     if (error) throw error
   }
 

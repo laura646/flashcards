@@ -10,6 +10,7 @@ import EditWordModal, { type EditWordData } from '@/components/EditWordModal'
 
 interface VocabWord {
   id: string
+  set_name?: string | null
   word: string
   phonetic: string
   meaning: string
@@ -56,6 +57,7 @@ export default function VocabularyPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [stageFilter, setStageFilter] = useState<number | null>(null)
+  const [setFilter, setSetFilter] = useState<string>('')
   const [trainerStage, setTrainerStage] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const savedScrollRef = useRef(0)
@@ -257,9 +259,23 @@ export default function VocabularyPage() {
       )
     : words
   // Tapping a progress bucket narrows the list to that mastery stage.
-  const filtered = stageFilter
+  const stageFiltered = stageFilter
     ? searched.filter((w) => getStage(w.word) === stageFilter)
     : searched
+  // Named-set filter. Words without a set count as "Lesson vocabulary"; the
+  // dropdown only appears once at least two distinct set names exist.
+  const anyNamed = words.some((w) => (w.set_name || '').trim())
+  const setNames: string[] = []
+  if (anyNamed) {
+    words.forEach((w) => {
+      const name = (w.set_name || '').trim() || 'Lesson vocabulary'
+      if (!setNames.includes(name)) setNames.push(name)
+    })
+    setNames.sort((a, b) => a.localeCompare(b))
+  }
+  const filtered = setFilter
+    ? stageFiltered.filter((w) => ((w.set_name || '').trim() || 'Lesson vocabulary') === setFilter)
+    : stageFiltered
 
   const sortedAll = [...filtered].sort((a, b) => a.word.localeCompare(b.word))
 
@@ -429,6 +445,19 @@ export default function VocabularyPage() {
                 {v === 'all' ? 'All words' : 'By lesson'}
               </button>
             ))}
+            {setNames.length > 1 && (
+              <select
+                value={setFilter}
+                onChange={(e) => setSetFilter(e.target.value)}
+                className="text-xs font-bold text-ink-body bg-white border border-sky-border rounded-full px-3 py-1.5"
+                title="Filter by vocabulary set"
+              >
+                <option value="">All sets</option>
+                {setNames.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            )}
             {searchQuery && (
               <span className="ml-auto text-xs text-ink-muted self-center">
                 {filtered.length} result{filtered.length !== 1 ? 's' : ''}
@@ -455,6 +484,11 @@ export default function VocabularyPage() {
                             <AudioButton text={word.word} />
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
+                            {(word.set_name || '').trim() && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-wash text-sky-text max-w-[120px] truncate" title={(word.set_name || '').trim()}>
+                                {(word.set_name || '').trim()}
+                              </span>
+                            )}
                             {word.phonetic && (
                               <span className="text-xs text-ink-muted">{word.phonetic}</span>
                             )}
