@@ -330,8 +330,8 @@ export function LessonEditorView({
   const [vocabLoading, setVocabLoading] = useState(false)
   const vocabResolverRef = useRef<((words: string[]) => void) | null>(null)
 
-  const hasFlashcards = contentItems.some((i) => i.type === 'flashcards')
-  const canAddFlashcards = lessonType === 'lesson' && !hasFlashcards
+  // Sets are separate units now — a lesson may hold several flashcards items.
+  const canAddFlashcards = lessonType === 'lesson'
 
   const handlePickImage = (word: string, apply: (url: string) => void) => {
     setImagePickerState({ word, apply })

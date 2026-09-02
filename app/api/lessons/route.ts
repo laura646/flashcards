@@ -189,7 +189,7 @@ export async function GET(req: NextRequest) {
     }
 
     const [flashcardCountsRes, exerciseCountsRes, blockCountsRes, exerciseIdsRes, folderLinksRes] = await Promise.all([
-      supabase.from('lesson_flashcards').select('lesson_id').in('lesson_id', lessonIds),
+      supabase.from('lesson_flashcards').select('lesson_id, set_name').in('lesson_id', lessonIds),
       supabase.from('lesson_exercises').select('lesson_id, is_mandatory').in('lesson_id', lessonIds),
       supabase.from('lesson_blocks').select('id, lesson_id, block_type, published').in('lesson_id', lessonIds),
       // Pre-fetch exercise IDs for progress query (students only, but cheap to run always)
@@ -205,8 +205,13 @@ export async function GET(req: NextRequest) {
     const bonusExerciseCounts: Record<string, number> = {}
     const blockCounts: Record<string, Record<string, number>> = {}
 
-    ;(flashcardCountsRes.data || []).forEach((f: { lesson_id: string }) => {
+    // Distinct named sets per lesson — each set is its own completable unit.
+    const flashcardSetsByLesson: Record<string, string[]> = {}
+    ;(flashcardCountsRes.data || []).forEach((f: { lesson_id: string; set_name?: string | null }) => {
       flashcardCounts[f.lesson_id] = (flashcardCounts[f.lesson_id] || 0) + 1
+      const setKey = ((f.set_name || '').trim()) || 'Lesson vocabulary'
+      if (!flashcardSetsByLesson[f.lesson_id]) flashcardSetsByLesson[f.lesson_id] = []
+      if (!flashcardSetsByLesson[f.lesson_id].includes(setKey)) flashcardSetsByLesson[f.lesson_id].push(setKey)
     })
     ;(exerciseCountsRes.data || []).forEach((e: { lesson_id: string; is_mandatory?: boolean }) => {
       exerciseCounts[e.lesson_id] = (exerciseCounts[e.lesson_id] || 0) + 1
@@ -245,6 +250,7 @@ export async function GET(req: NextRequest) {
     let bonusCompletedCounts: Record<string, number> = {}
     let blocksCompletedCounts: Record<string, number> = {}
     let flashcardCompleted: Record<string, boolean> = {}
+    const flashcardSetsDone: Record<string, Set<string>> = {}
     let pointsPerLesson: Record<string, number> = {}
     let totalPoints = 0
     // Item denominators (student home) use only content the student can SEE:
@@ -296,11 +302,19 @@ export async function GET(req: NextRequest) {
 
       const allExerciseIds = (exerciseIdsRes.data || []).map((e: { id: string }) => e.id)
       const allBlockIds = Object.values(completableBlockIdsByLesson).flat()
-      // Flashcard completions are written as "<lessonId>:<mode>" — enumerate
-      // the three modes per lesson so the .in() filter matches them exactly.
+      // Flashcard completions: legacy "<lessonId>:<mode>" (whole-lesson runs,
+      // still written by single-set lessons) plus per-set
+      // "<lessonId>:set:<encoded name>:<mode>" — enumerate both so the .in()
+      // filter matches exactly.
+      const FC_MODES = ['flip', 'self-assess', 'quiz']
       const flashcardIds = lessonIds
         .filter((lid: string) => (flashcardCounts[lid] || 0) > 0)
-        .flatMap((lid: string) => [`${lid}:flip`, `${lid}:self-assess`, `${lid}:quiz`])
+        .flatMap((lid: string) => [
+          ...FC_MODES.map((m) => `${lid}:${m}`),
+          ...(flashcardSetsByLesson[lid] || []).flatMap((setKey) =>
+            FC_MODES.map((m) => `${lid}:set:${encodeURIComponent(setKey)}:${m}`)
+          ),
+        ])
       const allActivityIds = [...allExerciseIds, ...allBlockIds, ...flashcardIds]
 
       if (allActivityIds.length > 0) {
@@ -345,14 +359,27 @@ export async function GET(req: NextRequest) {
             .map((p: { activity_id: string }) => p.activity_id)
         )
 
-        // Flashcards done per lesson — matched by the "<lessonId>:<mode>" id,
-        // so ONLY that lesson's set is credited (previously any flashcard
-        // activity anywhere marked every lesson's flashcards as studied).
+        // Flashcards done per lesson and per SET. A legacy "<lessonId>:<mode>"
+        // row was a whole-lesson run and credits every set; a per-set row
+        // credits only its set. flashcardCompleted = every set done.
         ;(progressRes.data || [])
           .filter((p: { activity_type: string }) => p.activity_type === 'flashcard')
           .forEach((p: { activity_id: string }) => {
             const lid = p.activity_id.split(':')[0]
-            if ((flashcardCounts[lid] || 0) > 0) flashcardCompleted[lid] = true
+            if ((flashcardCounts[lid] || 0) === 0) return
+            if (!flashcardSetsDone[lid]) flashcardSetsDone[lid] = new Set()
+            const setPart = p.activity_id.slice(lid.length + 1)
+            const m = setPart.match(/^set:(.+):(flip|self-assess|quiz)$/)
+            if (m) {
+              let setKey = m[1]
+              try { setKey = decodeURIComponent(m[1]) } catch { /* keep raw */ }
+              flashcardSetsDone[lid].add(setKey)
+            } else {
+              // legacy whole-lesson run — credits every set
+              ;(flashcardSetsByLesson[lid] || []).forEach((k) => flashcardSetsDone[lid].add(k))
+            }
+            const all = (flashcardSetsByLesson[lid] || [])
+            if (all.length > 0 && all.every((k) => flashcardSetsDone[lid].has(k))) flashcardCompleted[lid] = true
           })
 
         // Count completed exercises per lesson + aggregate points
@@ -395,11 +422,11 @@ export async function GET(req: NextRequest) {
       item_count:
         (role === 'student' ? visibleExerciseCounts[lesson.id] || 0 : exerciseCounts[lesson.id] || 0) +
         (completableBlockIdsByLesson[lesson.id]?.length || 0) +
-        ((flashcardCounts[lesson.id] || 0) > 0 && lesson.flashcards_published !== false ? 1 : 0),
+        (lesson.flashcards_published !== false ? (flashcardSetsByLesson[lesson.id] || []).length : 0),
       items_completed:
         (visibleExerciseCompletedCounts[lesson.id] || 0) +
         (blocksCompletedCounts[lesson.id] || 0) +
-        (flashcardCompleted[lesson.id] && lesson.flashcards_published !== false ? 1 : 0),
+        (lesson.flashcards_published !== false ? (flashcardSetsDone[lesson.id]?.size || 0) : 0),
     }))
 
     return NextResponse.json({ lessons: lessonsWithCounts, total_points: totalPoints })

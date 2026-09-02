@@ -289,7 +289,8 @@ export function getBlockSummary(item: ContentItem): string {
   switch (item.type) {
     case 'flashcards': {
       const fc = item.data as Flashcard[]
-      return `${fc.length} flashcard${fc.length !== 1 ? 's' : ''}`
+      const setName = ((fc[0]?.set_name || '').trim()) || 'Lesson vocabulary'
+      return `${setName} — ${fc.length} flashcard${fc.length !== 1 ? 's' : ''}`
     }
     case 'exercise': {
       const ex = item.data as Exercise

@@ -775,8 +775,11 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>('overview')
   const [flashcardMode, setFlashcardMode] = useState<FlashcardMode>('flip')
-  // Named vocabulary sets: which set the player is scoped to ('ALL' = every card).
-  const [activeVocabSet, setActiveVocabSet] = useState<string>('ALL')
+  // Named vocabulary sets are separate lesson units: activeVocabSet is the
+  // set the player currently shows; completedVocabSets tracks per-set runs
+  // (activity_id "<lessonId>:set:<encoded name>:<mode>").
+  const [activeVocabSet, setActiveVocabSet] = useState<string>('Lesson vocabulary')
+  const [completedVocabSets, setCompletedVocabSets] = useState<Set<string>>(new Set())
   const [selectedExercise, setSelectedExercise] = useState<LessonExercise | null>(null)
 
   // Test-lock state: only relevant when selectedExercise.test_type is set.
@@ -896,8 +899,20 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
           if (p.activity_type === 'block' && blockIds.has(p.activity_id)) {
             completedBl.add(p.activity_id)
           }
-          if (p.activity_type === 'flashcard' && (p.activity_id === `${id}:flip` || p.activity_id === `${id}:self-assess` || p.activity_id === `${id}:quiz`)) {
-            setFlashcardsCompleted(true)
+          if (p.activity_type === 'flashcard') {
+            // Legacy format "<lessonId>:<mode>" = a run over the whole
+            // lesson's vocabulary → credits every set. Per-set format is
+            // "<lessonId>:set:<encoded set name>:<mode>".
+            if (p.activity_id === `${id}:flip` || p.activity_id === `${id}:self-assess` || p.activity_id === `${id}:quiz`) {
+              setFlashcardsCompleted(true)
+            } else if (p.activity_id.startsWith(`${id}:set:`)) {
+              const m = p.activity_id.slice(`${id}:set:`.length).match(/^(.+):(flip|self-assess|quiz)$/)
+              if (m) {
+                let setName = m[1]
+                try { setName = decodeURIComponent(m[1]) } catch { /* keep raw */ }
+                setCompletedVocabSets((prev) => new Set(prev).add(setName))
+              }
+            }
           }
           // Writing submissions also count as block completion
           if (p.activity_type === 'writing' && blockIds.has(p.activity_id)) {
@@ -964,13 +979,19 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     score?: number
     total: number
     knewCount?: number
-    coveredAll?: boolean
+    setName?: string
+    multiSet?: boolean
   }) => {
-    // A run over a single named set is real practice but not the whole
-    // lesson's vocabulary — only a full run marks the block studied
-    // (completion feeds the items-based lesson %; a subset must not).
-    if (results.coveredAll === false) return
-    setFlashcardsCompleted(true)
+    // Each vocabulary set is its own completable unit. Single-set lessons
+    // keep the legacy "<lessonId>:<mode>" id so historic progress and the
+    // server-side counters stay consistent; multi-set lessons write
+    // "<lessonId>:set:<encoded name>:<mode>" so each set completes alone.
+    const setName = results.setName || 'Lesson vocabulary'
+    setCompletedVocabSets((prev) => new Set(prev).add(setName))
+    if (!results.multiSet) setFlashcardsCompleted(true)
+    const activityId = results.multiSet
+      ? `${id}:set:${encodeURIComponent(setName)}:${results.mode}`
+      : `${id}:${results.mode}`
     try {
       await fetch('/api/progress', {
         method: 'POST',
@@ -978,7 +999,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         body: JSON.stringify({
           user_email: studentEmail,
           activity_type: 'flashcard',
-          activity_id: `${id}:${results.mode}`,
+          activity_id: activityId,
           score: results.score ?? results.knewCount ?? null,
           total: results.total,
         }),
@@ -1398,18 +1419,18 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   // ══════════════════════════════════════
 
   if (view === 'flashcards') {
-    // Named vocabulary sets, in order of first appearance. Cards without a
-    // set_name form the default "Lesson vocabulary" set.
+    // Each named set is its own unit; this view shows ONE set (the tile the
+    // student tapped). Single-set lessons look exactly like the old page.
     const setNames: string[] = []
     flashcards.forEach((f) => {
       const name = (f.set_name || '').trim() || 'Lesson vocabulary'
       if (!setNames.includes(name)) setNames.push(name)
     })
     const hasSets = setNames.length > 1
-    const scoped = hasSets && activeVocabSet !== 'ALL'
+    const scoped = hasSets
       ? flashcards.filter((f) => (((f.set_name || '').trim()) || 'Lesson vocabulary') === activeVocabSet)
       : flashcards
-    const coveredAll = !hasSets || activeVocabSet === 'ALL'
+    const viewTitle = hasSets ? activeVocabSet : 'New Words'
     const flashcardsForMode = scoped.map((f, i) => ({
       id: i + 1,
       word: f.word,
@@ -1431,44 +1452,13 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
         <div className="flex items-center justify-between mb-6">
           <div>
             <BackToLesson />
-            <h1 className="text-xl font-extrabold text-brandblue">New Words</h1>
+            <h1 className="text-xl font-extrabold text-brandblue">{viewTitle}</h1>
             <p className="text-xs text-ink-muted">{lesson.title}</p>
           </div>
           <span className="text-[11px] font-bold text-ink-body bg-sky-wash px-3 py-1 rounded-full">
             {scoped.length} words
           </span>
         </div>
-
-        {hasSets && (
-          <div className="flex gap-2 mb-4 flex-wrap">
-            <button
-              onClick={() => setActiveVocabSet('ALL')}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold border-[1.5px] transition-colors ${
-                activeVocabSet === 'ALL'
-                  ? 'bg-brandblue text-white border-brandblue'
-                  : 'bg-white text-ink-body border-sky-border hover:border-sky'
-              }`}
-            >
-              Practice all · {flashcards.length}
-            </button>
-            {setNames.map((name) => {
-              const count = flashcards.filter((f) => (((f.set_name || '').trim()) || 'Lesson vocabulary') === name).length
-              return (
-                <button
-                  key={name}
-                  onClick={() => setActiveVocabSet(name)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold border-[1.5px] transition-colors ${
-                    activeVocabSet === name
-                      ? 'bg-brandblue text-white border-brandblue'
-                      : 'bg-white text-ink-body border-sky-border hover:border-sky'
-                  }`}
-                >
-                  {name} · {count}
-                </button>
-              )
-            })}
-          </div>
-        )}
 
         <div className="flex gap-1 mb-6 bg-sky-wash p-1 rounded-full">
           {modeButtons.map(({ key, label, description }) => (
@@ -1492,7 +1482,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
             <FlipMode
               key={activeVocabSet}
               cards={flashcardsForMode}
-              onComplete={(total) => handleFlashcardComplete({ mode: 'flip', total, coveredAll })}
+              onComplete={(total) => handleFlashcardComplete({ mode: 'flip', total, setName: activeVocabSet, multiSet: hasSets })}
             />
           )}
           {flashcardMode === 'self-assess' && (
@@ -1501,7 +1491,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               cards={flashcardsForMode}
               userEmail={studentEmail}
               onComplete={(knewCount, total) =>
-                handleFlashcardComplete({ mode: 'self-assess', knewCount, total, coveredAll })
+                handleFlashcardComplete({ mode: 'self-assess', knewCount, total, setName: activeVocabSet, multiSet: hasSets })
               }
             />
           )}
@@ -1511,7 +1501,7 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
               cards={flashcardsForMode}
               userEmail={studentEmail}
               onComplete={(score, total) =>
-                handleFlashcardComplete({ mode: 'quiz', score, total, coveredAll })
+                handleFlashcardComplete({ mode: 'quiz', score, total, setName: activeVocabSet, multiSet: hasSets })
               }
             />
           )}
@@ -1914,18 +1904,31 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
     completed: boolean
   }[] = []
 
-  // Vocabulary card — use first flashcard's order_index / 1000 for global position
+  // Vocabulary cards — ONE TILE PER NAMED SET (each set is its own unit).
+  // A single-set lesson shows the classic "New Words" tile. A legacy
+  // whole-lesson practice run (flashcardsCompleted) credits every set.
   const isTest = lessonType !== 'lesson'
   if (flashcards.length > 0 && !isTest) {
-    const globalOrder = Math.floor((flashcards[0].order_index ?? 0) / 1000)
-    contentItems.push({
-      key: 'vocab',
-      icon: flashcardsCompleted ? '✅' : '🃏',
-      label: 'New Words',
-      subtitle: flashcardsCompleted ? 'Studied — tap to review' : `${flashcards.length} words to learn`,
-      onClick: () => setView('flashcards'),
-      orderIndex: globalOrder,
-      completed: flashcardsCompleted,
+    const vocabSetOrder: string[] = []
+    const vocabSetCards = new Map<string, typeof flashcards>()
+    flashcards.forEach((f) => {
+      const name = (f.set_name || '').trim() || 'Lesson vocabulary'
+      if (!vocabSetCards.has(name)) { vocabSetCards.set(name, []); vocabSetOrder.push(name) }
+      vocabSetCards.get(name)!.push(f)
+    })
+    const singleSet = vocabSetOrder.length === 1
+    vocabSetOrder.forEach((name) => {
+      const setCards = vocabSetCards.get(name)!
+      const done = flashcardsCompleted || (!singleSet && completedVocabSets.has(name))
+      contentItems.push({
+        key: `vocab:${name}`,
+        icon: done ? '✅' : '🃏',
+        label: singleSet && name === 'Lesson vocabulary' ? 'New Words' : name,
+        subtitle: done ? 'Studied — tap to review' : `${setCards.length} words to learn`,
+        onClick: () => { setActiveVocabSet(name); setView('flashcards') },
+        orderIndex: Math.floor((setCards[0].order_index ?? 0) / 1000),
+        completed: done,
+      })
     })
   }
 

@@ -200,10 +200,22 @@ export function useLessonEditor() {
         example: fc.example,
         notes: fc.notes || '',
         image_url: fc.image_url || '',
+        set_name: fc.set_name ?? null,
         order_index: fc.order_index,
       }))
       if (flashcards.length > 0) {
-        items.push({ type: 'flashcards', data: flashcards, collapsed: true, order_index: orderIdx++ })
+        // One content item PER named vocabulary set (order of first
+        // appearance); cards without a set_name form the default set.
+        const setOrder: string[] = []
+        const bySet = new Map<string, Flashcard[]>()
+        flashcards.forEach((fc) => {
+          const key = (fc.set_name || '').trim()
+          if (!bySet.has(key)) { bySet.set(key, []); setOrder.push(key) }
+          bySet.get(key)!.push(fc)
+        })
+        setOrder.forEach((key) => {
+          items.push({ type: 'flashcards', data: bySet.get(key)!, collapsed: true, order_index: orderIdx++ })
+        })
       }
 
       // Load exercises as individual content items
@@ -365,16 +377,29 @@ export function useLessonEditor() {
     else setPublishing(true)
 
     try {
-      // Extract flashcards, exercises, and blocks from content items
-      let flashcardItems: Flashcard[] = []
-      let flashcardsGlobalOrder = 0
+      // Extract flashcards, exercises, and blocks from content items.
+      // Several flashcards items may exist (one per vocabulary set) — each
+      // card carries its item's position as globalOrder so sets keep their
+      // place, and set_name so the grouping survives the round-trip.
+      const flashcardPayload: { word: string; phonetic: string; meaning: string; example: string; notes: string; image_url: string | null; set_name: string | null; globalOrder: number }[] = []
       const exerciseItems: { title: string; subtitle: string; icon: string; instructions: string; exercise_type: string; questions: unknown; groupData?: unknown; order_index: number; points_per_answer?: number; completion_bonus?: number; is_mandatory?: boolean; skills?: string[] | null; cefr_level?: string | null; test_type?: string | null; published: boolean }[] = []
       const blockItems: { block_type: string; title: string; content: unknown; order_index: number; published: boolean }[] = []
 
       contentItems.forEach((item, idx) => {
         if (item.type === 'flashcards') {
-          flashcardItems = item.data as Flashcard[]
-          flashcardsGlobalOrder = idx
+          const setCards = item.data as Flashcard[]
+          setCards.forEach((fc) => {
+            flashcardPayload.push({
+              word: fc.word,
+              phonetic: fc.phonetic,
+              meaning: fc.meaning,
+              example: fc.example,
+              notes: fc.notes,
+              image_url: fc.image_url || null,
+              set_name: (fc.set_name || '').trim() || null,
+              globalOrder: idx,
+            })
+          })
         } else if (item.type === 'exercise') {
           const ex = item.data as Exercise
           exerciseItems.push({
@@ -424,15 +449,7 @@ export function useLessonEditor() {
           time_limit_minutes: testTimeLimit,
           test_reveal_answers: testRevealAnswers,
           test_rules_lang: testRulesLang,
-          flashcards: flashcardItems.map((fc, i) => ({
-            word: fc.word,
-            phonetic: fc.phonetic,
-            meaning: fc.meaning,
-            example: fc.example,
-            notes: fc.notes,
-            image_url: fc.image_url || null,
-            globalOrder: flashcardsGlobalOrder,
-          })),
+          flashcards: flashcardPayload,
           exercises: exerciseItems,
           blocks: blockItems,
           flashcards_published: flashcardsPublished,
@@ -495,18 +512,27 @@ export function useLessonEditor() {
   // keep functional setContentItems where the new index is derived from the
   // array, and read currentLessonStatus from state for the publish default.
 
-  // (legacy addContentItem flashcards branch 1302-1312) — append a single
-  // flashcards item; refuse if one already exists.
+  // Append a NEW vocabulary set as its own flashcards item. A lesson may hold
+  // several ("Environment", "Education", …); the first one added keeps the
+  // default name (null set_name → "Lesson vocabulary"), later ones get a
+  // unique placeholder the teacher renames in the editor.
   const addFlashcardsItem = useCallback(() => {
     setError(null)
     setContentItems((prev) => {
-      if (prev.find((i) => i.type === 'flashcards')) {
-        setError('Vocabulary block already exists in this lesson')
-        return prev
+      const existingSets = prev.filter((i) => i.type === 'flashcards')
+      let setName: string | null = null
+      if (existingSets.length > 0) {
+        const used = new Set(existingSets.map((i) => (((i.data as Flashcard[])[0]?.set_name || '').trim())))
+        let n = existingSets.length
+        do { n += 1; setName = `New set ${n}` } while (used.has(setName))
       }
+      const seed: Flashcard[] = [{
+        word: '', phonetic: '', meaning: '', example: '', notes: '', image_url: '',
+        order_index: 0, set_name: setName,
+      }]
       return [
         ...prev,
-        { type: 'flashcards', data: [] as Flashcard[], collapsed: false, order_index: prev.length },
+        { type: 'flashcards', data: seed, collapsed: false, order_index: prev.length },
       ]
     })
   }, [])
@@ -620,7 +646,8 @@ export function useLessonEditor() {
       const idx = prev.findIndex((i) => i.type === 'flashcards')
       if (idx >= 0) {
         const existing = prev[idx].data as Flashcard[]
-        const appended = cards.map((c, i) => ({ ...c, order_index: existing.length + i }))
+        const setName = existing[0]?.set_name ?? null
+        const appended = cards.map((c, i) => ({ ...c, set_name: setName, order_index: existing.length + i }))
         const next = [...prev]
         next[idx] = { ...next[idx], data: [...existing, ...appended] }
         return next
