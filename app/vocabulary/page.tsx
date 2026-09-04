@@ -73,9 +73,9 @@ function WordRow({ word, stage, onEdit }: { word: VocabWord; stage: number; onEd
           onClick={onEdit}
           title="Edit this word (only you see your changes)"
           aria-label="Edit word"
-          className="text-sm text-ink-muted hover:text-sky transition-colors shrink-0 px-1"
+          className="text-sm shrink-0 px-1 hover:opacity-70 transition-opacity"
         >
-          ✎
+          ✏️
         </button>
       </div>
       <p className="text-xs text-ink-muted mt-1.5 leading-relaxed">{word.meaning}</p>

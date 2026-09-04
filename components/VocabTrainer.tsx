@@ -506,7 +506,7 @@ export default function VocabTrainer({ onBack, initialAction = null, initialStag
           ]).map(({ value, label }) => (
             <button key={value} onClick={() => setSetupFilter(value)}
               className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
-                setupFilter === value ? 'bg-sky border-sky text-white' : 'bg-white border-sky-border text-ink-body hover:border-sky'
+                setupFilter === value ? 'bg-[#cddcf0] border-[#aac4e4] text-[#2b5480]' : 'bg-white border-sky-border text-ink-body hover:border-sky'
               }`}>
               {label}
             </button>
@@ -523,7 +523,7 @@ export default function VocabTrainer({ onBack, initialAction = null, initialStag
           ]).map(({ value, label }) => (
             <button key={value} onClick={() => setSetupMode(value)}
               className={`py-2.5 rounded-xl text-sm font-bold transition-colors border-2 ${
-                setupMode === value ? 'bg-sky border-sky text-white' : 'bg-white border-sky-border text-ink-body hover:border-sky'
+                setupMode === value ? 'bg-[#cddcf0] border-[#aac4e4] text-[#2b5480]' : 'bg-white border-sky-border text-ink-body hover:border-sky'
               }`}>
               {label}
             </button>
