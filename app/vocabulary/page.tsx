@@ -39,6 +39,50 @@ const STAGE_PILLS = ['', 'bg-leitner-new text-ink-black', 'bg-leitner-learning t
 // Bar fills for the progress buckets (same ramp, solid fill).
 const BAR_COLORS = ['', 'bg-leitner-new', 'bg-leitner-learning', 'bg-leitner-familiar', 'bg-leitner-known', 'bg-leitner-mastered']
 
+// ── Word row (approved mobile redesign, 3 Sep 2026) ──
+// The old single-line layout crammed word + 2 audio buttons + phonetic +
+// pills + Edit into one row: on phones the word wrapped one word per line
+// and the phonetic overlapped the buttons. Now three stacked lines:
+//   1. the word/collocation (full width) + set/stage pills top-right
+//   2. audio buttons + phonetic + icon-only edit at the right edge
+//   3. the meaning
+function WordRow({ word, stage, onEdit }: { word: VocabWord; stage: number; onEdit: () => void }) {
+  const setName = (word.set_name || '').trim()
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-[15px] font-bold text-ink-body leading-snug min-w-0">{word.word}</h4>
+        <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+          {setName && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-wash text-sky-text max-w-[110px] truncate" title={setName}>
+              {setName}
+            </span>
+          )}
+          {stage > 0 && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STAGE_PILLS[stage]}`}>
+              {STAGE_LABELS[stage]}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-1.5">
+        <AudioButton text={word.word} />
+        {word.phonetic && <span className="text-xs text-ink-muted min-w-0">{word.phonetic}</span>}
+        <span className="flex-1" />
+        <button
+          onClick={onEdit}
+          title="Edit this word (only you see your changes)"
+          aria-label="Edit word"
+          className="text-sm text-ink-muted hover:text-sky transition-colors shrink-0 px-1"
+        >
+          ✎
+        </button>
+      </div>
+      <p className="text-xs text-ink-muted mt-1.5 leading-relaxed">{word.meaning}</p>
+    </div>
+  )
+}
+
 export default function VocabularyPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -474,39 +518,9 @@ export default function VocabularyPage() {
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-sky-border shadow-sm overflow-hidden divide-y divide-hairline">
-                  {sortedAll.map((word) => {
-                    const stage = getStage(word.word)
-                    return (
-                      <div key={word.id} className="px-4 py-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <h4 className="text-sm font-bold text-ink-body">{word.word}</h4>
-                            <AudioButton text={word.word} />
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {(word.set_name || '').trim() && (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-wash text-sky-text max-w-[120px] truncate" title={(word.set_name || '').trim()}>
-                                {(word.set_name || '').trim()}
-                              </span>
-                            )}
-                            {word.phonetic && (
-                              <span className="text-xs text-ink-muted">{word.phonetic}</span>
-                            )}
-                            {stage > 0 && (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STAGE_PILLS[stage]}`}>
-                                {STAGE_LABELS[stage]}
-                              </span>
-                            )}
-                            <button onClick={() => openEdit(word)} title="Edit this word (only you see your changes)"
-                              className="text-xs font-bold text-ink-muted hover:text-sky transition-colors whitespace-nowrap">
-                              ✎ Edit
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-xs text-ink-muted mt-0.5">{word.meaning}</p>
-                      </div>
-                    )
-                  })}
+                  {sortedAll.map((word) => (
+                    <WordRow key={word.id} word={word} stage={getStage(word.word)} onEdit={() => openEdit(word)} />
+                  ))}
                 </div>
               )}
             </>
@@ -526,34 +540,9 @@ export default function VocabularyPage() {
                       {lessonTitle}
                     </h3>
                     <div className="bg-white rounded-2xl border border-sky-border shadow-sm overflow-hidden divide-y divide-hairline">
-                      {lessonWords.map((word) => {
-                        const stage = getStage(word.word)
-                        return (
-                          <div key={word.id} className="px-4 py-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <h4 className="text-sm font-bold text-ink-body">{word.word}</h4>
-                                <AudioButton text={word.word} />
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {word.phonetic && (
-                                  <span className="text-xs text-ink-muted">{word.phonetic}</span>
-                                )}
-                                {stage > 0 && (
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STAGE_PILLS[stage]}`}>
-                                    {STAGE_LABELS[stage]}
-                                  </span>
-                                )}
-                                <button onClick={() => openEdit(word)} title="Edit this word (only you see your changes)"
-                                  className="text-xs font-bold text-ink-muted hover:text-sky transition-colors whitespace-nowrap">
-                                  ✎ Edit
-                                </button>
-                              </div>
-                            </div>
-                            <p className="text-xs text-ink-muted mt-0.5">{word.meaning}</p>
-                          </div>
-                        )
-                      })}
+                      {lessonWords.map((word) => (
+                        <WordRow key={word.id} word={word} stage={getStage(word.word)} onEdit={() => openEdit(word)} />
+                      ))}
                     </div>
                   </div>
                 ))
