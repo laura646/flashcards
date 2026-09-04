@@ -256,6 +256,7 @@ export async function POST(req: NextRequest) {
 
       // Scope to courses the user is actually enrolled in / has access to
       let enrolledCourseIds: string[] = []
+      const archivedCourseIds = new Set<string>()
       if (role === 'superadmin') {
         const { data: allCourses } = await supabase.from('courses').select('id')
         enrolledCourseIds = (allCourses || []).map((c: { id: string }) => c.id)
@@ -268,10 +269,16 @@ export async function POST(req: NextRequest) {
       } else {
         const { data: enrolled } = await supabase
           .from('course_students')
-          .select('course_id')
+          .select('course_id, archived_at')
           .eq('student_email', email)
           .is('removed_at', null)
+        // Archived enrollment = vocabulary FROZEN (Laura's rule, 3 Sep 2026):
+        // the course's words the student already has stay valid (the cleanup
+        // pass below must not sweep them), but no NEW words are added from it.
         enrolledCourseIds = (enrolled || []).map((c: { course_id: string }) => c.course_id)
+        ;(enrolled || []).forEach((c: { course_id: string; archived_at?: string | null }) => {
+          if (c.archived_at) archivedCourseIds.add(c.course_id)
+        })
       }
 
       if (enrolledCourseIds.length === 0) {
@@ -336,7 +343,9 @@ export async function POST(req: NextRequest) {
       const newWords: { user_email: string; word: string; source_word: string; meaning: string; phonetic: string; example: string; image_url: string | null; source_set: string | null; box_level: number; next_review_at: string }[] = []
 
       // From flashcards
-      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null; set_name?: string | null }) => {
+      ;(flashcards || []).forEach((fc: { word: string; phonetic: string; meaning: string; example: string; image_url?: string | null; set_name?: string | null; lessons?: { course_id?: string } | { course_id?: string }[] }) => {
+        const lessonRel = Array.isArray(fc.lessons) ? fc.lessons[0] : fc.lessons
+        if (lessonRel?.course_id && archivedCourseIds.has(lessonRel.course_id)) return // frozen
         if (!existingWords.has(fc.word.toLowerCase())) {
           existingWords.add(fc.word.toLowerCase())
           newWords.push({
@@ -398,15 +407,18 @@ export async function POST(req: NextRequest) {
       // Fetch all vocab_srs rows for this user
       const { data: allSrsWords } = await supabase
         .from('vocab_srs')
-        .select('id, word, repetitions, box_level')
+        .select('id, word, repetitions, box_level, translation')
         .eq('user_email', email)
 
       const idsToDelete: string[] = []
 
       // Pass 1: remove never-reviewed words from courses the student isn't enrolled in.
-      // repetitions === 0 means no SRS progress — safe to delete.
-      ;(allSrsWords || []).forEach((w: { id: string; word: string; repetitions: number; box_level: number }) => {
-        if (w.repetitions === 0 && !validWordKeys.has(w.word.toLowerCase())) {
+      // repetitions === 0 means no SRS progress — safe to delete. Self-added
+      // words (AI add-word stamps `translation`; course sync never does) are
+      // the student's own and are never swept, practiced or not.
+      ;(allSrsWords || []).forEach((w: { id: string; word: string; repetitions: number; box_level: number; translation?: string | null }) => {
+        const selfAdded = w.translation != null && String(w.translation).trim() !== ''
+        if (w.repetitions === 0 && !selfAdded && !validWordKeys.has(w.word.toLowerCase())) {
           idsToDelete.push(w.id)
         }
       })
